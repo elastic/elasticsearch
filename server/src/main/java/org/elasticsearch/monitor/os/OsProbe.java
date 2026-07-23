@@ -372,9 +372,9 @@ public class OsProbe {
              * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
              * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
              * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
-             * version 2 hierarchy. For cgroups version 1
+             * version 2 hierarchy. The cgroup-path field is a path and may contain additional colons.
              */
-            final String[] fields = line.split(":");
+            final String[] fields = line.split(":", 3);
             assert fields.length == 3;
             final String[] controllers = fields[1].split(",");
             for (final String controller : controllers) {
@@ -400,10 +400,10 @@ public class OsProbe {
      * The lines from {@code /proc/self/cgroup}. This file represents the control groups to which the Elasticsearch process belongs. Each
      * line in this file represents a control group hierarchy of the form
      * <p>
-     * {@code \d+:([^:,]+(?:,[^:,]+)?):(/.*)}
+     * {@code (\d+):((?:[^:,]+(?:,[^:,]+)*)?):(/.*)}
      * <p>
      * with the first field representing the hierarchy ID, the second field representing a comma-separated list of the subsystems bound to
-     * the hierarchy, and the last field representing the control group.
+     * the hierarchy, and the last field representing the control group. The control group is a path and may contain additional colons.
      *
      * @return the lines from {@code /proc/self/cgroup}
      * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}

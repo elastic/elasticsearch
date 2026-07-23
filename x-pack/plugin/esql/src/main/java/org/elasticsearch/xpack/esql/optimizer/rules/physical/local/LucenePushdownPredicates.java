@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -73,6 +75,15 @@ public interface LucenePushdownPredicates {
     boolean isIndexed(FieldAttribute attr);
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
+    /**
+     * Whether every field with this name supports the given block-loader configuration. This is the same hook
+     * that gates block-loader fusion ({@link MappedFieldType#supportsBlockLoaderConfig}); {@code field_extract}
+     * query pushdown reuses it so the flattened field type itself rejects pushdown for mapped sub-fields (keys
+     * declared under {@code properties}). Both pushdown paths therefore agree on which keys are pushable, keeping
+     * the function's result consistent with the per-row evaluator regardless of plan shape.
+     */
+    boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
@@ -166,6 +177,18 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                // No mapping access during can_match: be conservative and never report a loader config as
+                // supported, so field_extract query pushdown never fires without SearchStats to confirm the
+                // key is an unmapped keyed sub-field.
+                return false;
+            }
+
+            @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
@@ -208,6 +231,15 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                return stats.supportsLoaderConfig(new FieldAttribute.FieldName(field.name()), config, preference);
             }
 
             @Override

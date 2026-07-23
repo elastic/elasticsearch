@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no IN (FROM filtered_emps)
+| KEEP emp_no

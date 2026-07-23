@@ -7,6 +7,7 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,6 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -134,16 +136,19 @@ public class EvictionPolicyTests extends ESTestCase {
             }
 
             @Override
-            public boolean canEvict(CacheRegion<TimestampKey> region, CacheRegion<TimestampKey> incoming) {
-                boolean regionIsRecent = isRecent(region.key());
-                if (regionIsRecent && recentCount.get() > recentQuota) {
-                    return true;
-                }
-                if (regionIsRecent == false && oldCount.get() > oldQuota) {
-                    return true;
-                }
-                // No tier is over quota — relax: evict within same tier as incoming
-                return regionIsRecent == isRecent(incoming.key());
+            public Predicate<CacheRegion<TimestampKey>> createPredicate(CacheRegion<TimestampKey> incoming) {
+                final boolean incomingIsRecent = isRecent(incoming.key());
+                return region -> {
+                    boolean regionIsRecent = isRecent(region.key());
+                    if (regionIsRecent && recentCount.get() > recentQuota) {
+                        return true;
+                    }
+                    if (regionIsRecent == false && oldCount.get() > oldQuota) {
+                        return true;
+                    }
+                    // No tier is over quota — relax: evict within same tier as incoming
+                    return regionIsRecent == incomingIsRecent;
+                };
             }
 
             @Override
@@ -235,6 +240,108 @@ public class EvictionPolicyTests extends ESTestCase {
             // Old data is never touched — it stays at its quota.
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo((long) oldQuota));
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(recentShard)), equalTo((long) recentQuota));
+        }
+    }
+
+    /**
+     * Tests an eviction policy that makes decisions purely from the region's representative timestamp.
+     */
+    public void testTimestampBasedEvictionPolicy() throws IOException {
+        final long numRegions = randomIntBetween(4, 50);
+        final long regionSizeInBytes = size(100);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions * 100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final long now = randomLongBetween(TimeUnit.DAYS.toMillis(365), TimeUnit.DAYS.toMillis(365 * 50));
+        final long oldTimestamp = now - TimeUnit.DAYS.toMillis(10);
+        final long olderThanCachedTimestamp = now - TimeUnit.DAYS.toMillis(20);
+
+        final ShardId oldShard = new ShardId("old", randomUUID(), 0);
+        final ShardId newShard = new ShardId("new", randomUUID(), 0);
+        final ShardId olderShard = new ShardId("older", randomUUID(), 0);
+
+        // "newer wins": evict the existing region only if it is not newer than the incoming data.
+        final var policy = new EvictionPolicy<TestKey>() {
+            @Override
+            public Predicate<CacheRegion<TestKey>> createPredicate(CacheRegion<TestKey> incoming) {
+                if (incoming.timestampMillis() == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+                    fail("incoming region must have a known timestamp in this test case");
+                }
+                final long incomingTimestamp = incoming.timestampMillis();
+                return region -> region.timestampMillis() <= incomingTimestamp;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestKey> region) {}
+        };
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP,
+                policy
+            )
+        ) {
+            assertEquals(numRegions, cacheService.freeRegionCount());
+
+            // Fill the cache with oldTimestamp.
+            for (int i = 0; i < numRegions; i++) {
+                cacheService.get(new TestKey(oldShard, "old-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, oldTimestamp);
+            }
+            assertThat("cache should be full after inserting numRegions old-timestamp regions", cacheService.freeRegionCount(), equalTo(0));
+            assertThat(
+                "all old-timestamp regions should be cached after filling the cache",
+                cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)),
+                equalTo(numRegions)
+            );
+
+            // Newer data evicts the older stamped regions (oldTimestamp <= now).
+            for (int i = 0; i < numRegions; i++) {
+                cacheService.get(new TestKey(newShard, "new-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, now);
+            }
+            assertThat(
+                "old-timestamp regions should have been evicted by newer incoming data",
+                cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)),
+                equalTo(0L)
+            );
+            assertThat(
+                "all newer regions should be cached after evicting the older ones",
+                cacheService.countCachedRegions(key -> key.shardId().equals(newShard)),
+                equalTo(numRegions)
+            );
+
+            // Data older than what is cached cannot evict the newer regions: every region refuses eviction, so allocation fails and
+            // the older data is never cached.
+            for (int i = 0; i < numRegions; i++) {
+                final var olderKey = new TestKey(olderShard, "oldest-" + i);
+                expectThrows(
+                    AlreadyClosedException.class,
+                    () -> cacheService.get(olderKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, olderThanCachedTimestamp)
+                );
+            }
+            assertThat(
+                "older-than-cached data must not be cached because it cannot evict the newer regions",
+                cacheService.countCachedRegions(key -> key.shardId().equals(olderShard)),
+                equalTo(0L)
+            );
+            assertThat(
+                "newer regions must remain cached; older incoming data cannot evict them",
+                cacheService.countCachedRegions(key -> key.shardId().equals(newShard)),
+                equalTo(numRegions)
+            );
         }
     }
 }

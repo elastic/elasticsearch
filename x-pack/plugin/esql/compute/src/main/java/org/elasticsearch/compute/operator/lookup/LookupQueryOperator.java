@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 /**
  * Intermediate operator that processes match field pages from ExchangeSourceOperator
@@ -56,6 +57,7 @@ public final class LookupQueryOperator implements Operator {
     private final Warnings warnings;
     private final int maxPageSize;
     private final boolean emptyResult;
+    private final LongSupplier directoryBytesRead;
 
     private Page currentInputPage;
     private int queryPosition = -1;
@@ -67,6 +69,7 @@ public final class LookupQueryOperator implements Operator {
     private int pagesEmitted = 0;
     private long rowsReceived = 0;
     private long rowsEmitted = 0;
+    private long totalBytesRead = 0L;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
@@ -79,7 +82,8 @@ public final class LookupQueryOperator implements Operator {
         int shardId,
         SearchExecutionContext searchExecutionContext,
         Warnings warnings,
-        boolean emptyResult
+        boolean emptyResult,
+        LongSupplier directoryBytesRead
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
@@ -89,6 +93,7 @@ public final class LookupQueryOperator implements Operator {
         this.shardContext.incRef();
         this.searchExecutionContext = searchExecutionContext;
         this.emptyResult = emptyResult;
+        this.directoryBytesRead = directoryBytesRead;
         try {
             if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
                 // This optimization is currently disabled for ParallelCompositeReader
@@ -120,63 +125,68 @@ public final class LookupQueryOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        // If we have a pending output page, return it first
-        if (outputPage != null) {
-            Page result = outputPage;
-            outputPage = null;
-            return result;
-        }
-
-        if (currentInputPage == null) {
-            return null;
-        }
-
-        int positionCount = queryList.getPositionCount(currentInputPage);
-
-        // Check if we've finished processing all queries for this input page
-        if (queryPosition >= positionCount - 1) {
-            // Finished processing this input page - release it
-            currentInputPage.releaseBlocks();
-            currentInputPage = null;
-            queryPosition = -1; // Reset for next page
-            return null;
-        }
-
-        // Process next batch of queries
-        int estimatedSize = Math.min(maxPageSize, positionCount - queryPosition - 1);
-        IntVector.Builder positionsBuilder = null;
-        IntVector.Builder docsBuilder = null;
-        IntVector.Builder segmentsBuilder = null;
+        long bytesBefore = directoryBytesRead.getAsLong();
         try {
-            positionsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            if (indexReader.leaves().size() > 1) {
-                segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            // If we have a pending output page, return it first
+            if (outputPage != null) {
+                Page result = outputPage;
+                outputPage = null;
+                return result;
             }
 
-            // Read matches for current position
-            BulkKeywordLookup bulk = queryList.getBulkKeywordLookup();
-            int totalMatches = switch (bulk) {
-                case null -> getMatches(docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
-                default -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
-            };
-
-            if (totalMatches > 0) {
-                return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
-            } else {
-                // No matches - check if we've finished processing all queries for this input page
-                if (queryPosition >= positionCount - 1) {
-                    // Finished processing this input page with no matches - release it
-                    currentInputPage.releaseBlocks();
-                    currentInputPage = null;
-                    queryPosition = -1;
-                }
+            if (currentInputPage == null) {
                 return null;
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+
+            int positionCount = queryList.getPositionCount(currentInputPage);
+
+            // Check if we've finished processing all queries for this input page
+            if (queryPosition >= positionCount - 1) {
+                // Finished processing this input page - release it
+                currentInputPage.releaseBlocks();
+                currentInputPage = null;
+                queryPosition = -1; // Reset for next page
+                return null;
+            }
+
+            // Process next batch of queries
+            int estimatedSize = Math.min(maxPageSize, positionCount - queryPosition - 1);
+            IntVector.Builder positionsBuilder = null;
+            IntVector.Builder docsBuilder = null;
+            IntVector.Builder segmentsBuilder = null;
+            try {
+                positionsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+                docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+                if (indexReader.leaves().size() > 1) {
+                    segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+                }
+
+                // Read matches for current position
+                BulkKeywordLookup bulk = queryList.getBulkKeywordLookup();
+                int totalMatches = switch (bulk) {
+                    case null -> getMatches(docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+                    default -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+                };
+
+                if (totalMatches > 0) {
+                    return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+                } else {
+                    // No matches - check if we've finished processing all queries for this input page
+                    if (queryPosition >= positionCount - 1) {
+                        // Finished processing this input page with no matches - release it
+                        currentInputPage.releaseBlocks();
+                        currentInputPage = null;
+                        queryPosition = -1;
+                    }
+                    return null;
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
+            }
         } finally {
-            Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
+            totalBytesRead += Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
         }
     }
 
@@ -383,7 +393,7 @@ public final class LookupQueryOperator implements Operator {
 
     @Override
     public Status status() {
-        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, totalBytesRead);
     }
 
     public static class Status implements Operator.Status {
@@ -394,17 +404,20 @@ public final class LookupQueryOperator implements Operator {
         );
 
         private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+        private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
 
         private final int pagesReceived;
         private final int pagesEmitted;
         private final long rowsReceived;
         private final long rowsEmitted;
+        private final long bytesRead;
 
-        Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) {
+        Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted, long bytesRead) {
             this.pagesReceived = pagesReceived;
             this.pagesEmitted = pagesEmitted;
             this.rowsReceived = rowsReceived;
             this.rowsEmitted = rowsEmitted;
+            this.bytesRead = bytesRead;
         }
 
         Status(StreamInput in) throws IOException {
@@ -412,6 +425,7 @@ public final class LookupQueryOperator implements Operator {
             pagesEmitted = in.readVInt();
             rowsReceived = in.readVLong();
             rowsEmitted = in.readVLong();
+            bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -420,6 +434,9 @@ public final class LookupQueryOperator implements Operator {
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsReceived);
             out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Override
@@ -444,12 +461,18 @@ public final class LookupQueryOperator implements Operator {
         }
 
         @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("pages_received", pagesReceived);
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("bytes_read", bytesRead);
             return builder.endObject();
         }
 
@@ -461,12 +484,13 @@ public final class LookupQueryOperator implements Operator {
             return pagesReceived == status.pagesReceived
                 && pagesEmitted == status.pagesEmitted
                 && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted;
+                && rowsEmitted == status.rowsEmitted
+                && bytesRead == status.bytesRead;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, bytesRead);
         }
 
         @Override
@@ -480,6 +504,8 @@ public final class LookupQueryOperator implements Operator {
                 + rowsReceived
                 + ", rowsEmitted="
                 + rowsEmitted
+                + ", bytesRead="
+                + bytesRead
                 + "]";
         }
 

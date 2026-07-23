@@ -17,6 +17,7 @@ import org.elasticsearch.license.LicensedFeature;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -52,6 +53,18 @@ public final class MachineLearningField {
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * When set, overrides automatic ML node platform detection for built-in model variant selection
+     * (e.g. ELSER, E5). The configured list of architectures is used in place of querying ML node
+     * OS info. When empty (default), architectures are auto-detected from running ML nodes.
+     * Example values: {@code ["linux-x86_64"]}, {@code ["linux-aarch64"]}.
+     */
+    public static final Setting<List<String>> MODEL_PLATFORM_ARCHITECTURES = Setting.stringListSetting(
+        "xpack.ml.model_platform_architectures",
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

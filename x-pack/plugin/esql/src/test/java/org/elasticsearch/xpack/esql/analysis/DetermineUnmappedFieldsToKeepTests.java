@@ -79,8 +79,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    @Ignore("Documents intended behaviour: KEEP of only mapped fields should keep no unmapped source field. "
-        + "Currently the pattern falls back to includes=[*], so unmapped fields still pass the filter.")
+    @Ignore(
+        "Documents intended behaviour: KEEP of only mapped fields should keep no unmapped source field. "
+            + "Currently the pattern falls back to includes=[*], so unmapped fields still pass the filter."
+    )
     public void testKeepExactName() {
         // KEEP of a mapped field ("salary") keeps no unmapped source field.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP salary")));
@@ -88,8 +90,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    @Ignore("Documents intended behaviour: a mapped exact name in KEEP (\"salary\") should still constrain the includes. "
-        + "Currently it is dropped, leaving includes=[first_name*], so \"first_name_suffix\" passes the filter.")
+    @Ignore(
+        "Documents intended behaviour: a mapped exact name in KEEP (\"salary\") should still constrain the includes. "
+            + "Currently it is dropped, leaving includes=[first_name*], so \"first_name_suffix\" passes the filter."
+    )
     public void testKeepMultiplePatterns() {
         // Includes combine with AND semantics: no field can match both "first_name*" and "salary".
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary")));
@@ -126,9 +130,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testDropThenRename() {
-        UnmappedFieldsPattern pattern = patternOf(
-            test().statement(setUnmappedLoadAll("FROM test | DROP salary | RENAME last_name AS x"))
-        );
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP salary | RENAME last_name AS x")));
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("x", "salary"));
     }
@@ -153,15 +155,19 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         test().statementError(setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
-    @Ignore("Documents intended behaviour: explicitly DROPping the synthetic _unmapped_fields column should be rejected. "
-        + "Currently the DROP succeeds silently.")
+    @Ignore(
+        "Documents intended behaviour: explicitly DROPping the synthetic _unmapped_fields column should be rejected. "
+            + "Currently the DROP succeeds silently."
+    )
     public void testDropUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly DROPping it by name must be rejected.
         test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
-    @Ignore("Documents intended behaviour: explicitly RENAMEing the synthetic _unmapped_fields column should be rejected. "
-        + "Currently the RENAME succeeds silently.")
+    @Ignore(
+        "Documents intended behaviour: explicitly RENAMEing the synthetic _unmapped_fields column should be rejected. "
+            + "Currently the RENAME succeeds silently."
+    )
     public void testRenameUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly RENAMEing it must be rejected.
         test().statementError(setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"), containsString("_unmapped_fields"));

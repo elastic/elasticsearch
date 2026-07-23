@@ -405,6 +405,7 @@ public abstract class Rounding implements Writeable {
          * @return the original {@link Rounding} that created this instance.
          */
         Rounding getUnprepared();
+
     }
 
     /**
@@ -615,6 +616,7 @@ public abstract class Rounding implements Writeable {
             public Rounding getUnprepared() {
                 return new ToUpperRounding(delegate.getUnprepared());
             }
+
         }
 
         private final Rounding next;
@@ -723,6 +725,7 @@ public abstract class Rounding implements Writeable {
         public long[] fixedRoundingPoints() {
             return null;
         }
+
     }
 
     static class TimeUnitRounding extends Rounding {
@@ -1737,8 +1740,15 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long[] fixedRoundingPoints() {
-            // TODO we can likely translate here
-            return null;
+            long[] pts = delegatePrepared.fixedRoundingPoints();
+            if (pts == null) {
+                return null;
+            }
+            long[] shifted = new long[pts.length];
+            for (int i = 0; i < pts.length; i++) {
+                shifted[i] = pts[i] + offset;
+            }
+            return shifted;
         }
 
         @Override
@@ -1746,6 +1756,7 @@ public abstract class Rounding implements Writeable {
             Rounding unprepared = delegatePrepared.getUnprepared();
             return new OffsetRounding(unprepared, offset);
         }
+
     }
 
     public static Rounding read(StreamInput in) throws IOException {

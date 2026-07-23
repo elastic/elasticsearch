@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -81,7 +82,11 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    CLIENT_SECRET_FIELD
+                )
             )
         );
     }
@@ -98,7 +103,12 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("only [%s] can be updated for this secret, received: %s", CLIENT_SECRET_FIELD, expectedDisallowed)
+                Strings.format(
+                    "[%s] only the field [%s] can be updated for this secret, received: %s",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    CLIENT_SECRET_FIELD,
+                    expectedDisallowed
+                )
             )
         );
     }
@@ -126,7 +136,11 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    CLIENT_SECRET_FIELD
+                )
             )
         );
     }

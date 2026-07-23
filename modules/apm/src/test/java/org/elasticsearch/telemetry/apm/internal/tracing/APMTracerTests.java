@@ -17,11 +17,16 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +51,10 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -182,6 +189,39 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.stopTrace(TRACEABLE1);
         apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
 
+        assertThat(apmTracer.getSpans(), anEmptyMap());
+    }
+
+    /**
+     * Check that {@link APMTracer#setStatusToError} sets the OTel span's status to {@link StatusCode#ERROR},
+     * verifying the direct integration with the underlying OpenTelemetry span.
+     */
+    public void test_setStatusToError_setsSpanStatusToError() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+
+        String description = "500 INTERNAL_SERVER_ERROR";
+        apmTracer.setStatusToError(TRACEABLE1, description);
+
+        Mockito.verify(span).setStatus(StatusCode.ERROR, description);
+    }
+
+    /**
+     * Check that {@link APMTracer#setStatusToError} is a no-op when the traceable has no active span,
+     * i.e. it was never started or has already been stopped.
+     */
+    public void test_setStatusToError_noopWhenSpanNotFound() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        // TRACEABLE1 was never started — span map is empty
+        assertThat(apmTracer.getSpans(), anEmptyMap());
+        apmTracer.setStatusToError(TRACEABLE1, "should be ignored");
+        // no exception thrown and spans map remains empty
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
 
@@ -337,6 +377,40 @@ public class APMTracerTests extends ESTestCase {
         Span span = Span.fromContext(spanContext);
         assertThat(span.getSpanContext().getTraceId(), is(traceId));
         assertThat(span.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
+    public void testTracingResumesAfterDisableAndReEnable() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .setSampler(Sampler.alwaysOn())
+            .build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, () -> sdk, false, 0, false);
+        tracer.setNodeName("test-node");
+        tracer.setClusterName("test-cluster");
+        tracer.start();
+
+        startAndStopSpan(tracer, settings, TRACEABLE1, "resume-test-1");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        tracer.setEnabled(false);
+        exporter.reset();
+        startAndStopSpan(tracer, settings, TRACEABLE2, "resume-test-2");
+        assertThat(exporter.getFinishedSpanItems(), empty());
+
+        tracer.setEnabled(true);
+        startAndStopSpan(tracer, settings, TRACEABLE3, "resume-test-3");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        sdk.close();
+    }
+
+    private static void startAndStopSpan(APMTracer tracer, Settings settings, Traceable traceable, String spanName) {
+        tracer.startTrace(new ThreadContext(settings), traceable, spanName, null);
+        tracer.stopTrace(traceable);
     }
 
     private APMTracer buildTracer(Settings settings) {
@@ -507,6 +581,18 @@ public class APMTracerTests extends ESTestCase {
         Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getName()));
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
+    }
+
+    public void test_setAttributes_callsSetAllAttributes() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Attributes attributes = Attributes.of(AttributeKey.stringKey("http.method"), "GET", AttributeKey.longKey("http.status_code"), 200L);
+        tracer.setAttributes(TRACEABLE1, attributes);
+
+        Mockito.verify(recordedSpan).setAllAttributes(attributes);
     }
 
     static class SpyAPMTracer extends APMTracer {

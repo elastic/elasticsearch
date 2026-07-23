@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
@@ -155,7 +156,7 @@ public class SourceExtractorsTests extends ESTestCase {
     public void testMaterializeEmptyCount() {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));
-            Block[] result = registry.materialize(new long[0], 0, List.of("col"), blockFactory);
+            Block[] result = registry.materialize(new long[0], 0, List.of("col"), null, blockFactory);
             try {
                 assertEquals(1, result.length);
                 assertEquals(0, result[0].getPositionCount());
@@ -170,7 +171,7 @@ public class SourceExtractorsTests extends ESTestCase {
             int id = registry.register(new IntListExtractor(new int[] { 10, 20, 30, 40 }));
             // Request positions 3, 0, 2 — out of order and disjoint.
             long[] refs = new long[] { SourceExtractors.encode(id, 3), SourceExtractors.encode(id, 0), SourceExtractors.encode(id, 2) };
-            Block[] result = registry.materialize(refs, refs.length, List.of("col"), blockFactory);
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), null, blockFactory);
             try {
                 assertEquals(1, result.length);
                 IntBlock block = (IntBlock) result[0];
@@ -197,7 +198,7 @@ public class SourceExtractorsTests extends ESTestCase {
                 SourceExtractors.encode(idA, 0),
                 SourceExtractors.encode(idC, 3),
                 SourceExtractors.encode(idB, 0) };
-            Block[] result = registry.materialize(refs, refs.length, List.of("col"), blockFactory);
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), null, blockFactory);
             try {
                 IntBlock block = (IntBlock) result[0];
                 assertEquals(6, block.getPositionCount());
@@ -221,10 +222,11 @@ public class SourceExtractorsTests extends ESTestCase {
         AtomicInteger maxColumnsPerCall = new AtomicInteger();
         IntListExtractor a = new IntListExtractor(new int[] { 1, 2, 3, 4, 5 }) {
             @Override
-            public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory factory) throws IOException {
+            public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+                throws IOException {
                 calls.incrementAndGet();
                 maxColumnsPerCall.accumulateAndGet(columnNames.length, Math::max);
-                return super.extract(columnNames, localPositions, factory);
+                return super.extract(columnNames, targetTypes, localPositions, factory);
             }
         };
         try (SourceExtractors registry = new SourceExtractors()) {
@@ -235,7 +237,7 @@ public class SourceExtractorsTests extends ESTestCase {
                 SourceExtractors.encode(id, 2),
                 SourceExtractors.encode(id, 1),
                 SourceExtractors.encode(id, 3) };
-            Block[] result = registry.materialize(refs, refs.length, List.of("col"), blockFactory);
+            Block[] result = registry.materialize(refs, refs.length, List.of("col"), null, blockFactory);
             try {
                 IntBlock block = (IntBlock) result[0];
                 assertEquals(5, block.getPositionCount());
@@ -261,16 +263,17 @@ public class SourceExtractorsTests extends ESTestCase {
         AtomicInteger maxColsA = new AtomicInteger();
         TwoColumnExtractor a = new TwoColumnExtractor(new int[] { 1, 2, 3 }, new long[] { 10L, 20L, 30L }) {
             @Override
-            public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory factory) throws IOException {
+            public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+                throws IOException {
                 callsA.incrementAndGet();
                 maxColsA.accumulateAndGet(columnNames.length, Math::max);
-                return super.extract(columnNames, localPositions, factory);
+                return super.extract(columnNames, targetTypes, localPositions, factory);
             }
         };
         try (SourceExtractors registry = new SourceExtractors()) {
             int id = registry.register(a);
             long[] refs = new long[] { SourceExtractors.encode(id, 0), SourceExtractors.encode(id, 2), SourceExtractors.encode(id, 1) };
-            Block[] result = registry.materialize(refs, refs.length, List.of("ints", "longs"), blockFactory);
+            Block[] result = registry.materialize(refs, refs.length, List.of("ints", "longs"), null, blockFactory);
             try {
                 IntBlock ints = (IntBlock) result[0];
                 LongBlock longs = (LongBlock) result[1];
@@ -294,7 +297,7 @@ public class SourceExtractorsTests extends ESTestCase {
             int idA = registry.register(new TwoColumnExtractor(new int[] { 1, 2 }, new long[] { 10L, 20L }));
             int idB = registry.register(new TwoColumnExtractor(new int[] { 3, 4 }, new long[] { 30L, 40L }));
             long[] refs = new long[] { SourceExtractors.encode(idA, 0), SourceExtractors.encode(idB, 1), SourceExtractors.encode(idA, 1) };
-            Block[] result = registry.materialize(refs, refs.length, List.of("ints", "longs"), blockFactory);
+            Block[] result = registry.materialize(refs, refs.length, List.of("ints", "longs"), null, blockFactory);
             try {
                 IntBlock ints = (IntBlock) result[0];
                 LongBlock longs = (LongBlock) result[1];
@@ -316,7 +319,7 @@ public class SourceExtractorsTests extends ESTestCase {
         try (SourceExtractors registry = new SourceExtractors()) {
             registry.register(new IntListExtractor(new int[] { 1, 2 }));
             long[] refs = new long[] { SourceExtractors.encode(7, 0) };
-            expectThrows(IllegalArgumentException.class, () -> registry.materialize(refs, refs.length, List.of("col"), blockFactory));
+            expectThrows(IllegalArgumentException.class, () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory));
         }
     }
 
@@ -325,7 +328,7 @@ public class SourceExtractorsTests extends ESTestCase {
         registry.register(new IntListExtractor(new int[] { 1 }));
         registry.close();
         long[] refs = new long[] { SourceExtractors.encode(0, 0) };
-        expectThrows(IllegalStateException.class, () -> registry.materialize(refs, refs.length, List.of("col"), blockFactory));
+        expectThrows(IllegalStateException.class, () -> registry.materialize(refs, refs.length, List.of("col"), null, blockFactory));
     }
 
     public void testRegisterIdSpaceExhaustion() {
@@ -364,7 +367,8 @@ public class SourceExtractorsTests extends ESTestCase {
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory blockFactory) throws IOException {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory)
+            throws IOException {
             Block[] result = new Block[columnNames.length];
             boolean built = false;
             try {
@@ -422,7 +426,8 @@ public class SourceExtractorsTests extends ESTestCase {
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory blockFactory) throws IOException {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory)
+            throws IOException {
             Block[] result = new Block[columnNames.length];
             boolean built = false;
             try {

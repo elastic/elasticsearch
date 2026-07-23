@@ -34,9 +34,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     private RepositoriesService repositoriesService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initRepositoriesHealthTracker() throws Exception {
         repositoriesService = mock(RepositoriesService.class);
 
         repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService);

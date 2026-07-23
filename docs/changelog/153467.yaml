@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153467
+summary: Upgrade httpcore5 to 5.4.3 to fix header DoS CVEs
+type: upgrade

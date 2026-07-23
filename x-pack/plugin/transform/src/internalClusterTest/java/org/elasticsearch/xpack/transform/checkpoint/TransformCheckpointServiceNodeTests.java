@@ -12,13 +12,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.AfterClass;
@@ -43,7 +45,9 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
@@ -76,7 +80,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             ActionListener<Response> listener
         ) {
             if (request instanceof GetCheckpointAction.Request) {
-                final GetCheckpointAction.Response getCheckpointResponse = new GetCheckpointAction.Response(checkpoints);
+                final GetCheckpointAction.Response getCheckpointResponse = new GetCheckpointAction.Response(checkpoints, null);
                 listener.onResponse((Response) getCheckpointResponse);
                 return;
             }
@@ -94,10 +98,11 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         if (mockClientForCheckpointing == null) {
             mockClientForCheckpointing = new MockClientForCheckpointing(threadPool);
         }
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         transformsConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             client(),
             xContentRegistry(),
             new TransformParsingContext(false)
@@ -105,12 +110,14 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
+        TransformCloudCredentialManager cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            mockAuditor
+            mockAuditor,
+            new CrossProjectModeDecider(Settings.EMPTY),
+            cloudCredentialManager
         );
     }
 

@@ -1,0 +1,14 @@
+area: TSDB
+highlight:
+  body: |-
+    ES95 is now the default doc values codec for new time series indices. On host
+    metrics data it reduces total doc values storage by about 30% versus ES819,
+    driven by `@timestamp` (up to 90% smaller) and floating-point gauges and counters
+    via adaptive floating-point encoding, at no indexing or query cost. Existing
+    indices keep their codec; opt out with `index.time_series.es95_codec.enabled: false`.
+  notable: true
+  title: ES95 is the default TSDB doc values codec
+issues: []
+pr: 152861
+summary: Make ES95 the default TSDB doc values codec
+type: feature

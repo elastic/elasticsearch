@@ -30,7 +30,6 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
     }
 
     static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
@@ -40,7 +39,6 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
     }
 
     static String setUnmappedNullify(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         return "SET unmapped_fields=\"nullify\"; " + query;
     }
 

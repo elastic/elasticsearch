@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -156,6 +157,48 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Regression test for the {@code date_nanos} variant of the "Output has changed" failure surfaced by the PromQL
+     * generative tests (e.g. {@code PROMQL index=datenanos-k8s step=1h ...(avg_over_time(...[1h]))}); see
+     * <a href="https://github.com/elastic/elasticsearch/issues/146923">#146923</a>.
+     * <p>
+     * The built-in {@code step} column is a {@code TStep} time bucket over {@code @timestamp}, so on a
+     * {@code date_nanos} {@code @timestamp} index the bucket is naturally {@code date_nanos}. The {@code step} column,
+     * however, is always declared as {@code datetime} (epoch-millis). When the produced type does not match the
+     * declared type, {@link #planPromql(String)} (which runs the {@code LogicalPlanOptimizer} and hence its
+     * post-optimization output verifier) throws a {@code datetime -> date_nanos} {@code VerificationException}. The
+     * {@code step} column must be exposed as {@code datetime} regardless of the index timestamp resolution.
+     */
+    public void testDateNanosIndexStepColumnIsDatetime() {
+        var plan = planPromql("PROMQL index=datenanos-k8s step=1h avg=(avg_over_time(network.eth0.tx{cluster!=\"qa\"}[1h]))");
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /** The same query over a plain {@code date} {@code @timestamp} index keeps the {@code step} column as {@code datetime}. */
+    public void testDatetimeIndexStepColumnIsDatetime() {
+        var plan = planPromql("PROMQL index=k8s step=1h avg=(avg_over_time(network.eth0.tx{cluster!=\"qa\"}[1h]))");
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /**
+     * Same guarantee as {@link #testDateNanosIndexStepColumnIsDatetime()} but through the top-level {@code or} (union)
+     * path, whose {@code step} column is built separately from the single-branch path. This path is not reachable by
+     * the generative tests (which never emit {@code or}), so it is covered explicitly here.
+     */
+    public void testDateNanosIndexUnionStepColumnIsDatetime() {
+        var plan = planPromql(
+            "PROMQL index=datenanos-k8s step=1h "
+                + "u=(max by (cluster) (network.total_bytes_in{cluster=\"prod\"}) or max by (cluster) (network.total_bytes_in))"
+        );
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
     }
 
     public void testImplicitRangeSelectorUsesStepWindow() {
@@ -316,5 +359,49 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
         assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
         assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
+    }
+
+    public void testOffsetShiftsTimestampForward() {
+        Instant start = Instant.parse("2024-05-10T00:20:00.000Z");
+        Instant end = Instant.parse("2024-05-10T00:25:00.000Z");
+        Duration window = Duration.ofMinutes(5);
+        Duration offset = Duration.ofMinutes(5);
+        var plan = planPromql(
+            "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m] offset 5m))"
+        );
+        // `offset 5m` evaluates a sample at real time `s` as if it occurred at `s + 5m`: a materialized @timestamp + 5m.
+        assertThat(findTimestampShiftDuration(plan), equalTo(offset));
+        // The source window extends further back by the offset: start - window - offset.
+        long lowerBoundMs = start.toEpochMilli() - window.toMillis() - offset.toMillis();
+        assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    public void testNegativeOffsetShiftsTimestampBackward() {
+        Instant start = Instant.parse("2024-05-10T00:20:00.000Z");
+        Instant end = Instant.parse("2024-05-10T00:25:00.000Z");
+        Duration window = Duration.ofMinutes(5);
+        Duration signedOffset = Duration.ofMinutes(-5);
+        var plan = planPromql(
+            "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m] offset -5m))"
+        );
+        // `offset -5m` (look ahead) shifts @timestamp by a negative duration.
+        assertThat(findTimestampShiftDuration(plan), equalTo(signedOffset));
+        // start - (window + (-5m)) = start - 0 = start
+        long lowerBoundMs = start.toEpochMilli() - window.toMillis() - signedOffset.toMillis();
+        assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    /** Finds the duration of the materialized {@code @timestamp + offset} shift produced for an offset selector. */
+    private Duration findTimestampShiftDuration(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan plan) {
+        return plan.collect(Eval.class)
+            .stream()
+            .flatMap(e -> e.fields().stream())
+            .map(Alias::child)
+            .filter(Add.class::isInstance)
+            .map(Add.class::cast)
+            .filter(add -> add.left() instanceof FieldAttribute fa && fa.name().equals("@timestamp"))
+            .map(add -> (Duration) ((Literal) add.right()).value())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no materialized @timestamp offset shift found in plan:\n" + plan));
     }
 }

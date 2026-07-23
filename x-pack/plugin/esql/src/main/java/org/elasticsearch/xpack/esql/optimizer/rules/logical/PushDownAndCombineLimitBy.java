@@ -60,6 +60,9 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                     return unary.replaceChild(limitBy.replaceChild(unary.child()));
                 }
             } else if (unary instanceof MvExpand) {
+                if (groupingAttrsDefinedByChild(limitBy, unary)) {
+                    return limitBy;
+                }
                 return duplicateLimitByAsFirstGrandchild(limitBy);
             } else if (unary instanceof Enrich enrich) {
                 if (groupingAttrsDefinedByChild(limitBy, enrich)) {

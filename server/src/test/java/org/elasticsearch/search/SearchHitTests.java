@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
@@ -339,6 +340,22 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertFalse(searchHit.hasSource());
             searchHit.sourceRef(new BytesArray("{}"));
             assertTrue(searchHit.hasSource());
+        } finally {
+            searchHit.decRef();
+        }
+    }
+
+    public void testRawSourceLength() throws Exception {
+        SearchHit searchHit = new SearchHit(0, "id");
+        try {
+            assertThat(searchHit.rawSourceLength(), equalTo(0));
+            BytesReference compressed = CompressorFactory.COMPRESSOR.compress(new BytesArray("{\"a\":1}"));
+            searchHit.sourceRef(compressed);
+            int compressedLength = compressed.length();
+            assertThat(searchHit.rawSourceLength(), equalTo(compressedLength));
+            BytesReference decompressed = searchHit.getSourceRef();
+            assertThat(searchHit.rawSourceLength(), equalTo(decompressed.length()));
+            assertThat(decompressed.length(), not(equalTo(compressedLength)));
         } finally {
             searchHit.decRef();
         }

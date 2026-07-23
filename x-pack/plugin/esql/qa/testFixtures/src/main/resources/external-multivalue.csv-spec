@@ -12,11 +12,17 @@
 // EsqlSpecTestCase (single-node / mixed-cluster / multi-cluster / multi-node, no AbstractExternalSource
 // resolver) is gated OUT by a fileName-based assumeFalseLogging — the local CSV reader on these clusters
 // would default to multi_value_syntax: none and misalign columns on the bracket-MV employees.csv.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
+// format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset on every storage backend and run the
+// FROM query verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture).
+// employees / books collide with their ES|QL index twins, so the datasets are named employees_ds / books_ds.
 
 mvExpandFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | MV_EXPAND job_positions
 | KEEP emp_no, first_name, job_positions
 | SORT emp_no, job_positions
@@ -32,9 +38,10 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 ;
 
 mvCountFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10001
 | EVAL cnt = MV_COUNT(job_positions)
 | KEEP emp_no, job_positions, cnt
@@ -45,9 +52,10 @@ emp_no:integer | job_positions:keyword | cnt:integer
 ;
 
 mvConcatFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10001
 | EVAL joined = MV_CONCAT(job_positions, ", ")
 | KEEP emp_no, joined
@@ -58,9 +66,10 @@ emp_no:integer | joined:keyword
 ;
 
 mvDedupeFromSplit2
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10004
 | EVAL deduped = MV_SORT(MV_DEDUPE(salary_change))
 | KEEP emp_no, deduped, first_name
@@ -71,9 +80,10 @@ emp_no:integer | deduped:double          | first_name:keyword
 ;
 
 filterFirstRowAllColumns
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no < 10003
 | SORT emp_no
 ;
@@ -83,9 +93,10 @@ birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword 
 ;
 
 mvDedupeFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10002
 | EVAL deduped = MV_DEDUPE(job_positions)
 | KEEP emp_no, deduped
@@ -96,9 +107,10 @@ emp_no:integer | deduped:keyword
 ;
 
 mvMinFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10004
 | EVAL mn = MV_MIN(job_positions)
 | KEEP emp_no, mn
@@ -109,9 +121,10 @@ emp_no:integer | mn:keyword
 ;
 
 mvMaxFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10004
 | EVAL mx = MV_MAX(job_positions)
 | KEEP emp_no, mx
@@ -122,9 +135,10 @@ emp_no:integer | mx:keyword
 ;
 
 mvAppendFromScalars
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
 
-EXTERNAL "{{employees}}"
+FROM employees_ds
 | WHERE emp_no == 10001
 | KEEP emp_no, job_positions
 ;
@@ -143,12 +157,13 @@ emp_no:integer | job_positions:keyword
 
 # requires further guards, TODO
 completion-Ignore
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update
+dataset: books_ds: "{{books}}"
 
-EXTERNAL "{{books}}"
+FROM books_ds
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | LIMIT 2
 | COMPLETION title WITH { "inference_id" : "test_completion" }
@@ -161,11 +176,12 @@ War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
 
 externalRerankBooks
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: rerank
 required_capability: datasource_file_readers_no_text_type
+dataset: books_ds: "{{books}}"
 
-EXTERNAL "{{books}}"
+FROM books_ds
 | WHERE book_no IN ("5327", "9032", "4536", "2776")
 | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
@@ -181,11 +197,12 @@ book_no:keyword | title:keyword                                         | author
 ;
 
 topSnippetsFunction
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: top_snippets_function
 required_capability: datasource_file_readers_no_text_type
+dataset: books_ds: "{{books}}"
 
-EXTERNAL "{{books}}"
+FROM books_ds
 | EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
 | KEEP book_no, title, description, snippets
 | WHERE book_no::INTEGER == 9607
@@ -196,12 +213,13 @@ book_no:keyword|title:keyword                        |description:keyword       
 ;
 
 scoreFunction
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: top_snippets_function
 required_capability: score_function
 required_capability: datasource_file_readers_no_text_type
+dataset: books_ds: "{{books}}"
 
-EXTERNAL "{{books}}"
+FROM books_ds
 | EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))
 | KEEP book_no, title, description, score
 | WHERE book_no::INTEGER == 9607

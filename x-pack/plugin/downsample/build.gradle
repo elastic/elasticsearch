@@ -4,7 +4,7 @@ esplugin {
   name = 'x-pack-downsample'
   description = 'Elasticsearch Expanded Pack Plugin - Downsample'
   classname ='org.elasticsearch.xpack.downsample.Downsample'
-  extendedPlugins = ['x-pack-aggregate-metric']
+  extendedPlugins = ['x-pack-aggregate-metric', 'data-streams']
 }
 
 base {
@@ -13,6 +13,7 @@ base {
 
 dependencies {
   compileOnly project(xpackModule('core'))
+  compileOnly project(':modules:data-streams')
   testImplementation project(':modules:data-streams')
   testImplementation project(xpackModule('ilm'))
   compileOnly project(xpackModule('analytics'))

@@ -93,7 +93,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
                         if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-                            var withoutFields = timeSeriesMetadataAttribute.withoutFields();
+                            var withoutFields = timeSeriesMetadataAttribute.excludedFields();
                             var sourceField = new TimeSeriesMetadataAttribute(
                                 dimensionField.source(),
                                 null,

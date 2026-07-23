@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -33,7 +31,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
-    private static final String S3_PATH = "s3://bucket/data.parquet";
+    private static final String DATASET_NAME = "ext_ds";
+    private static final String S3_RESOURCE = "s3://bucket/data.parquet";
 
     public void testPrunesEvalConstantGrouping() {
         var plan = plan("""
@@ -120,7 +119,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     public void testPrunesDerivedExternalGroupings() {
         var plan = externalPlan("""
-            EXTERNAL "s3://bucket/data.parquet"
+            FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3
             | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3
             """);
@@ -143,7 +142,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     public void testPrunesRecursiveDerivedExternalGrouping() {
         var plan = externalPlan("""
-            EXTERNAL "s3://bucket/data.parquet"
+            FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ip_m1 - 1
             | STATS c = COUNT(*) BY ClientIP, ip_m2
             """);
@@ -166,7 +165,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     public void testPartialDerivedExternalPruningKeepsNeededPreAggregateEval() {
         var plan = externalPlan("""
-            EXTERNAL "s3://bucket/data.parquet"
+            FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, other_m1 = OtherIP - 1
             | STATS c = COUNT(*) BY ClientIP, ip_m1, other_m1
             """);
@@ -184,6 +183,37 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         var preAggregateEval = as(aggregate.child(), Eval.class);
         assertThat(Expressions.names(preAggregateEval.fields()), contains("other_m1"));
         as(preAggregateEval.child(), ExternalRelation.class);
+    }
+
+    /**
+     * An external grouping column is renamed, a value is derived from the renamed column, then both the
+     * renamed column and the derived value are used as STATS BY keys. The derived key is functionally dependent on the
+     * renamed column, so it is pruned and rebuilt above the aggregate. The rebuilt expression must reference the column
+     * as the aggregate re-exposes it (i.e. the rename alias {@code cip}), not the pre-aggregate external id which the
+     * aggregate no longer surfaces. Otherwise the rebuilt Eval dangles and the plan fails the post-optimization
+     * consistency check. The same query over a native index is unaffected because the rule only prunes external
+     * groupings (see {@link #testDoesNotPruneDerivedOrdinaryIndexGrouping}).
+     */
+    public void testPrunesRenamedDerivedExternalGrouping() {
+        var plan = externalPlan("""
+            FROM ext_ds
+            | RENAME ClientIP AS cip
+            | EVAL c = cip - 1
+            | STATS count = COUNT(*) BY cip, c
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("count", "cip", "c"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("c"));
+        // the rebuilt grouping must read the aggregate's renamed output, not the pre-aggregate external attribute
+        assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("cip"));
+
+        var aggregate = rewrittenAggregate(eval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip"));
+        as(aggregate.child(), ExternalRelation.class);
     }
 
     public void testDoesNotPruneInlineStatsGroupings() {
@@ -228,7 +258,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     public void testDoesNotPruneIndependentExternalExpression() {
         var plan = externalPlan("""
-            EXTERNAL "s3://bucket/data.parquet"
+            FROM ext_ds
             | EVAL other_m1 = OtherIP - 1
             | STATS c = COUNT(*) BY ClientIP, other_m1
             """);
@@ -239,7 +269,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     public void testDoesNotPruneNonWhitelistedExternalExpression() {
         var plan = externalPlan("""
-            EXTERNAL "s3://bucket/data.parquet"
+            FROM ext_ds
             | EVAL ip_mul = ClientIP * 2
             | STATS c = COUNT(*) BY ClientIP, ip_mul
             """);
@@ -249,13 +279,12 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     }
 
     private LogicalPlan externalPlan(String query) {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         List<Attribute> schema = List.of(
             referenceAttribute("ClientIP", INTEGER),
             referenceAttribute("OtherIP", INTEGER),
             referenceAttribute("URL", KEYWORD)
         );
-        return optimize(analyzer().externalSourceResolution(S3_PATH, schema, FileList.UNRESOLVED).query(query));
+        return datasetPlan(query, DATASET_NAME, S3_RESOURCE, schema);
     }
 
     private static Project rewrittenProject(LogicalPlan plan) {

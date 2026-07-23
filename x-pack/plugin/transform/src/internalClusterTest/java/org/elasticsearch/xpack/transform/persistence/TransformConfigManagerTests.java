@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -19,12 +20,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -37,6 +40,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointTests;
@@ -59,6 +63,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -84,6 +91,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         transformConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             client(),
             xContentRegistry(),
             new TransformParsingContext(false)
@@ -753,6 +761,69 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
             is(true)
         );
+    }
+
+    /**
+     * Regression test for two bugs in {@code forEachTransformCloudCredential}:
+     * <ol>
+     *   <li>Sorting on {@code _id} triggers a fielddata exception on the internal index
+     *       ({@code indices.id_field_data.enabled} is false by default) — fixed by sorting on the
+     *       mapped {@code token_id} keyword field instead.</li>
+     *   <li>The {@code transform_id} term filter was silently matching nothing because the field was
+     *       not mapped ({@code dynamic: false}) — fixed by adding the field to the index mappings.</li>
+     * </ol>
+     * The test stores credentials for two different transforms, lists each, and asserts that only the
+     * correct credentials are returned for each transform with no cross-contamination.
+     */
+    public void testPutAndListCloudCredentialsByTransformId() throws InterruptedException {
+        String transformA = "transform_cred_list_a";
+        String transformB = "transform_cred_list_b";
+
+        // Store 3 credentials for transformA and 1 for transformB
+        PersistedCloudCredential credA1 = new PersistedCloudCredential("token-a1", new SecureString("secret-a1".toCharArray()));
+        PersistedCloudCredential credA2 = new PersistedCloudCredential("token-a2", new SecureString("secret-a2".toCharArray()));
+        PersistedCloudCredential credA3 = new PersistedCloudCredential("token-a3", new SecureString("secret-a3".toCharArray()));
+        PersistedCloudCredential credB1 = new PersistedCloudCredential("token-b1", new SecureString("secret-b1".toCharArray()));
+
+        assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformA, credA1, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformA, credA2, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformA, credA3, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformB, credB1, listener), true, null, null);
+
+        credA1.close();
+        credA2.close();
+        credA3.close();
+        credB1.close();
+
+        // List transformA credentials: must complete without fielddata error and return exactly 3 token IDs
+        List<String> foundA = new ArrayList<>();
+        CountDownLatch latchA = new CountDownLatch(1);
+        AtomicReference<Exception> errorA = new AtomicReference<>();
+        transformConfigManager.forEachTransformCloudCredential(transformA, c -> {
+            foundA.add(c.id());
+            c.close();
+        }, ActionListener.wrap(ignored -> latchA.countDown(), e -> {
+            errorA.set(e);
+            latchA.countDown();
+        }));
+        assertTrue("timed out listing credentials for transformA", latchA.await(20, TimeUnit.SECONDS));
+        assertNull("expected no error listing credentials for transformA but got: " + errorA.get(), errorA.get());
+        assertEquals(Set.of("token-a1", "token-a2", "token-a3"), new HashSet<>(foundA));
+
+        // List transformB credentials: must return only B's credential, not bleed over from A
+        List<String> foundB = new ArrayList<>();
+        CountDownLatch latchB = new CountDownLatch(1);
+        AtomicReference<Exception> errorB = new AtomicReference<>();
+        transformConfigManager.forEachTransformCloudCredential(transformB, c -> {
+            foundB.add(c.id());
+            c.close();
+        }, ActionListener.wrap(ignored -> latchB.countDown(), e -> {
+            errorB.set(e);
+            latchB.countDown();
+        }));
+        assertTrue("timed out listing credentials for transformB", latchB.await(20, TimeUnit.SECONDS));
+        assertNull("expected no error listing credentials for transformB but got: " + errorB.get(), errorB.get());
+        assertEquals(List.of("token-b1"), foundB);
     }
 
     private static ClusterState createClusterStateWithTransformIndex(String... indexes) throws IOException {

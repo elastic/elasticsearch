@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -30,10 +31,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -48,8 +49,14 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.TransformNode;
+import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -160,7 +167,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
@@ -175,7 +184,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
 
         assertCheckpointAction(request, response -> {
@@ -196,7 +207,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
@@ -215,12 +228,31 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
 
         TestTransportGetCheckpointAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver, client);
+            super(
+                transportService,
+                new ActionFilters(emptySet()),
+                indicesService,
+                clusterService,
+                indexNameExpressionResolver,
+                client,
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    DefaultProjectResolver.INSTANCE,
+                    mock(TransformCloudCredentialManager.class)
+                ),
+                DefaultProjectResolver.INSTANCE
+            );
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
+            resolveIndicesAndGetCheckpoint(task, request, clusterStateWithIndex, listener);
         }
     }
 
@@ -242,8 +274,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                 for (int j = 0; j < numberOfShards; ++j) {
                     IndexShard mockIndexShard = mock(IndexShard.class);
                     when(mockIndexService.getShard(j)).thenReturn(mockIndexShard);
-                    SeqNoStats seqNoStats = new SeqNoStats(42 + i + j, 42 + i + j, 42 + i + j);
-                    when(mockIndexShard.seqNoStats()).thenReturn(seqNoStats);
+                    when(mockIndexShard.getLastKnownGlobalCheckpoint()).thenReturn(42L + i + j);
                 }
 
                 when(mockIndicesService.indexServiceSafe(indexMeta.getIndex())).thenReturn(mockIndexService);

@@ -1,10 +1,17 @@
 // Shared tests for standalone external files (Parquet, CSV, etc.)
 // Uses {{employees_no_mv}} template that gets replaced with the actual path based on storage backend and format
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
+// format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset on every storage backend and run the
+// FROM query verbatim; the generic EsqlSpecTestCase families that share this file via the testFixtures
+// classpath have no fixture to back the dataset and skip it. employees_no_mv has no index equivalent (bare
+// name kept); web_logs collides with the ES|QL web_logs index twin, so that dataset is named web_logs_ds.
 
 readAllEmployees
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | SORT emp_no
 | LIMIT 5;
@@ -18,9 +25,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 ;
 
 filterByPreEpochBirthDate
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | WHERE birth_date == TO_DATETIME("1953-09-02T00:00:00.000Z")
 | SORT emp_no
@@ -31,9 +39,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 ;
 
 selectSpecificColumns
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
 | LIMIT 5;
@@ -47,9 +56,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 ;
 
 filterByEmployeeNumber
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | KEEP emp_no, first_name, last_name;
 
@@ -58,9 +68,10 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 filterBySalaryRange
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE salary > 60000 AND salary < 70000
 | KEEP emp_no, first_name, salary
 | SORT emp_no
@@ -75,9 +86,10 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 filterByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE gender == "F"
 | KEEP emp_no, first_name, last_name, gender
 | SORT emp_no
@@ -90,9 +102,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 ;
 
 filterByEmploymentStatus
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE still_hired == false
 | KEEP emp_no, first_name, last_name, still_hired
 | SORT emp_no
@@ -105,9 +118,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
 ;
 
 aggregateCount
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS count = COUNT(*);
 
 count:long
@@ -115,22 +129,25 @@ count:long
 ;
 
 aggregateByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 aggregateAverageSalary
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS avg_salary = AVG(salary);
 
 avg_salary:double
@@ -138,8 +155,9 @@ avg_salary:double
 ;
 
 aggregateSalaryStats
-required_capability: external_command
-EXTERNAL "{{employees_no_mv}}"
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
 
 min_salary:integer | max_salary:integer | avg_salary:double
@@ -147,22 +165,25 @@ min_salary:integer | max_salary:integer | avg_salary:double
 ;
 
 aggregateSalaryByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
 | SORT gender;
 
 avg_salary:double    | count:long | gender:keyword
+48760.5              | 10         |
 50490.78787878788    | 33         | "F"
 46860.59649122807    | 57         | "M"
-48760.5              | 10         | null
 ;
 
 filterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -177,9 +198,10 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 evalComputedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | EVAL annual_bonus = salary * 0.1
 | KEEP emp_no, first_name, salary, annual_bonus
 | SORT emp_no
@@ -192,9 +214,10 @@ emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
 ;
 
 complexQuery
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE still_hired == true AND salary > 55000
 | EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
 | STATS count = COUNT(*), avg_salary = AVG(salary) BY salary_category
@@ -209,9 +232,10 @@ count:long | avg_salary:double | salary_category:keyword
 // Sub-field columns (languages.long, height.float, height.scaled_float, height.half_float)
 
 selectAdditionalColumns
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
 | SORT emp_no
 | LIMIT 5;
@@ -225,9 +249,10 @@ emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:l
 ;
 
 selectHeightVariants
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
 | KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded
 | SORT emp_no
@@ -246,9 +271,10 @@ emp_no:integer | height:double | height_float_rounded:double | height.scaled_flo
 // across all distribution modes via ExternalDistributedSpecIT
 
 topNSortBySalaryDesc
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
 | LIMIT 3;
@@ -260,9 +286,10 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 topNFilteredSortBySalary
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE gender == "F"
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -277,9 +304,10 @@ emp_no:integer | first_name:keyword | salary:integer
 // DROP and RENAME commands with EXTERNAL
 
 dropColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | DROP birth_date, gender, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
 | SORT emp_no
 | LIMIT 3;
@@ -291,9 +319,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 ;
 
 renameColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | RENAME emp_no AS employee_id, first_name AS given_name
 | KEEP employee_id, given_name, last_name, salary
 | SORT employee_id
@@ -305,12 +334,34 @@ employee_id:integer | given_name:keyword | last_name:keyword | salary:integer
 10003          | "Parto"            | "Bamford"         | 61805
 ;
 
+// Renaming an external column, deriving a value from it, then grouping by both used to fail optimization with a 500
+// (PruneRedundantAggregateGroupings rebuilt the pruned derived grouping referencing the pre-rename column).
+// Runs against both EXTERNAL and FROM <dataset> (same read path) via the dataset directive.
+renameDerivedGroupingPrune
+required_capability: fix_prune_renamed_derived_external_grouping
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE emp_no <= 10005
+| RENAME languages AS lang
+| EVAL lang_plus = lang + 1
+| STATS count = COUNT(*) BY lang, lang_plus
+| SORT lang;
+
+count:long | lang:integer | lang_plus:integer
+1          | 1            | 2
+1          | 2            | 3
+1          | 4            | 5
+2          | 5            | 6
+;
+
 // Additional STATS aggregate: SUM
 
 aggregateSumSalary
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS total_salary = SUM(salary);
 
 total_salary:long
@@ -318,9 +369,10 @@ total_salary:long
 ;
 
 dissectFullName
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | DISSECT last_name "%{last}"
 | KEEP emp_no, first_name, last, salary
 | SORT emp_no
@@ -333,9 +385,10 @@ emp_no:integer | first_name:keyword | last:keyword | salary:integer
 ;
 
 grokFullName
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | GROK first_name "%{WORD:first}"
 | KEEP emp_no, first, last_name, salary
 | SORT emp_no
@@ -348,10 +401,11 @@ emp_no:integer | first:keyword | last_name:keyword | salary:integer
 ;
 
 sampleWithStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: sample_v3
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | SAMPLE 0.5
 | STATS count = COUNT()
 ;
@@ -361,10 +415,11 @@ count:long
 ;
 
 forkTwoBranches
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: fork_v9
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | FORK ( WHERE emp_no == 10001 )
        ( WHERE emp_no == 10002 )
 | KEEP emp_no, first_name, _fork
@@ -377,10 +432,11 @@ emp_no:integer | first_name:keyword | _fork:keyword
 ;
 
 inlineStatsMaxSalary
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: inline_stats
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, salary
 | INLINE STATS max_salary = MAX(salary)
 | WHERE salary == max_salary
@@ -392,11 +448,12 @@ emp_no:integer | salary:integer | max_salary:integer
 ;
 
 uriPartsFromEval
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_ip_support
 required_capability: uri_parts_command
+dataset: web_logs_ds: "{{web_logs}}"
 
-EXTERNAL "{{web_logs}}"
+FROM web_logs_ds
 | WHERE domain == "www.elastic.co"
 | URI_PARTS parts = uri
 | KEEP parts.scheme, parts.domain, parts.path
@@ -409,11 +466,12 @@ https                | www.elastic.co             | /guide/en/elasticsearch/refe
 ;
 
 registeredDomainFromEval
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_ip_support
 required_capability: registered_domain_command
+dataset: web_logs_ds: "{{web_logs}}"
 
-EXTERNAL "{{web_logs}}"
+FROM web_logs_ds
 | WHERE timestamp == "2024-01-10T10:00:00.000Z"
 | REGISTERED_DOMAIN rd = domain
 | KEEP rd.domain, rd.registered_domain, rd.top_level_domain, rd.subdomain
@@ -425,10 +483,11 @@ www.elastic.co       | elastic.co                   | co                        
 
 # lifted from change_point suite
 statsAfterChangePoint
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: change_point
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, salary
 | EVAL salary=CASE(emp_no==10042, 1000000, salary)
 | CHANGE_POINT salary ON emp_no
@@ -444,10 +503,11 @@ COUNT():long | type:keyword
 // Conversion functions: to_long, to_double, to_string
 
 convertToLong
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: casting_operator
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | EVAL emp_long = emp_no::long
 | KEEP emp_no, emp_long
@@ -458,10 +518,11 @@ emp_no:integer | emp_long:long
 ;
 
 convertToDouble
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: casting_operator
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | EVAL salary_dbl = salary::double
 | KEEP emp_no, salary, salary_dbl
@@ -472,10 +533,11 @@ emp_no:integer | salary:integer | salary_dbl:double
 ;
 
 convertToString
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: casting_operator
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | EVAL emp_str = emp_no::keyword
 | KEEP emp_no, emp_str
@@ -488,9 +550,10 @@ emp_no:integer | emp_str:keyword
 // Grouping: BUCKET
 
 bucketByHireDate
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hd = MV_SORT(VALUES(hire_date)) BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT hd
@@ -508,10 +571,11 @@ hd:date                                 | b:date
 // Grouping: CATEGORIZE
 
 categorizeByFullName
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: categorize_v6
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS count = COUNT() BY category = CATEGORIZE(concat(first_name, " ", last_name))
 | SORT count DESC, category
 | LIMIT 5
@@ -528,10 +592,11 @@ count:long | category:keyword
 
 // Multivalue functions: MvCount, MvConcat, MvDedupe, MvMin, MvMax, MvSum, MvAppend
 mvSumFromMvAppend
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: fn_mv_append
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | EVAL pair = MV_APPEND(emp_no, languages)
 | EVAL s = MV_SUM(pair)
@@ -543,10 +608,11 @@ emp_no:integer | languages:integer | s:integer
 ;
 
 trangeOnHireDate
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: fn_trange
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | RENAME hire_date AS @timestamp
 | WHERE TRANGE("1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z")
 | KEEP emp_no, `@timestamp`
@@ -563,10 +629,11 @@ emp_no:integer | @timestamp:date
 ;
 
 tbucketByHireDate
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: tbucket
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | RENAME hire_date AS @timestamp
 | STATS min = MIN(`@timestamp`), max = MAX(`@timestamp`) BY bucket = TBUCKET(1 year)
 | SORT min
@@ -582,10 +649,11 @@ min:datetime | max:datetime | bucket:datetime
 ;
 
 lookupJoin
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: join_lookup_v12
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
 | WHERE emp_no >= 10091 AND emp_no < 10094
@@ -600,11 +668,12 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 lookupJoinWithExpression
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | WHERE emp_no == 10001
 | LOOKUP JOIN languages_lookup ON languages >= language_code
 | KEEP emp_no, languages, language_code, language_name
@@ -617,11 +686,12 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 ;
 
 lookupJoinAfterStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | STATS c = COUNT() BY languages, emp_no
 | WHERE emp_no == 10001
 | LOOKUP JOIN languages_lookup ON languages >= language_code
@@ -641,10 +711,11 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 // multi_value_syntax key (which non-CSV readers reject via ConfigKeyValidator).
 
 enrich
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: enrich_load
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | SORT emp_no
 | LIMIT 1
 | EVAL x = TO_STRING(languages)
@@ -657,10 +728,11 @@ emp_no:integer | language_name:keyword
 ;
 
 decayFunction
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: decay_function
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | EVAL d = DECAY(emp_no, 0, 100, {"type": "linear"})
 | KEEP emp_no, d
 | SORT emp_no
@@ -675,9 +747,10 @@ emp_no:integer |d:double
 // topSnippetsFunction + scoreFunction — see relocation note near externalRerankBooks above
 
 operatorLikeRLike
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name
 | WHERE first_name LIKE "Hi*"
 | WHERE first_name RLIKE "Hi.*"
@@ -698,9 +771,10 @@ emp_no:integer |first_name:keyword
 // the case-insensitive bit is honored end-to-end. Pushdown implementations that ignore
 // caseInsensitive() will return zero rows and fail this test.
 operatorLikeCaseInsensitiveAfterToUpper
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv
 | KEEP emp_no, first_name
 | WHERE TO_UPPER(first_name) LIKE "GEOR*"
 | SORT emp_no
@@ -722,7 +796,8 @@ fileMetadataProjectAllColumns
 required_capability: external_source_file_metadata_columns
 
 // Verify _file.size is non-null and positive (proves injection works)
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | STATS min_size = MIN(`_file.size`)
 | WHERE min_size > 0
 | STATS count = COUNT(*);
@@ -735,7 +810,8 @@ fileMetadataProjectSizeIsConsistent
 required_capability: external_source_file_metadata_columns
 
 // Single file: min and max size should be equal (every row from same file)
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | STATS min_size = MIN(`_file.size`), max_size = MAX(`_file.size`)
 | WHERE min_size == max_size
 | STATS count = COUNT(*);
@@ -748,7 +824,8 @@ fileMetadataProjectModifiedIsConsistent
 required_capability: external_source_file_metadata_columns
 
 // Single file: all rows should have the same modification timestamp
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | STATS distinct_modified = COUNT_DISTINCT(`_file.modified`);
 
 distinct_modified:long
@@ -759,7 +836,8 @@ fileMetadataProjectDistinctFileCount
 required_capability: external_source_file_metadata_columns
 
 // Single file: exactly one distinct file name, path, and directory
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.name, _file.path, _file.directory
 | STATS names = COUNT_DISTINCT(`_file.name`), paths = COUNT_DISTINCT(`_file.path`), dirs = COUNT_DISTINCT(`_file.directory`);
 
 names:long | paths:long | dirs:long
@@ -770,8 +848,9 @@ names:long | paths:long | dirs:long
 
 fileMetadataFilterSizeGt
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | WHERE `_file.size` > 0
 | STATS count = COUNT(*);
 
@@ -781,8 +860,9 @@ count:long
 
 fileMetadataFilterSizeGte
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | WHERE `_file.size` >= 1
 | STATS count = COUNT(*);
 
@@ -794,7 +874,8 @@ fileMetadataFilterSizeExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // Filter that excludes the file: no file is larger than 100 GB
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | WHERE `_file.size` > 107374182400
 | STATS count = COUNT(*);
 
@@ -804,8 +885,9 @@ count:long
 
 fileMetadataFilterModifiedGt
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` > "2000-01-01T00:00:00.000Z"
 | STATS count = COUNT(*);
 
@@ -815,8 +897,9 @@ count:long
 
 fileMetadataFilterModifiedLt
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` < "2099-01-01T00:00:00.000Z"
 | STATS count = COUNT(*);
 
@@ -826,8 +909,9 @@ count:long
 
 fileMetadataFilterModifiedRange
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` > "2000-01-01T00:00:00.000Z" AND `_file.modified` < "2099-01-01T00:00:00.000Z"
 | STATS count = COUNT(*);
 
@@ -839,7 +923,8 @@ fileMetadataFilterModifiedExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // Filter that excludes: no file was modified before year 2000
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` < "2000-01-01T00:00:00.000Z"
 | STATS count = COUNT(*);
 
@@ -849,8 +934,9 @@ count:long
 
 fileMetadataFilterPathLike
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.path
 | WHERE `_file.path` LIKE "*employees*"
 | STATS count = COUNT(*);
 
@@ -860,8 +946,9 @@ count:long
 
 fileMetadataFilterNameLike
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-EXTERNAL "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.name
 | WHERE `_file.name` LIKE "*employees*"
 | STATS count = COUNT(*);
 
@@ -873,7 +960,8 @@ fileMetadataFilterNameExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // Filter that excludes: no file is named "nonexistent"
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.name
 | WHERE `_file.name` LIKE "*nonexistent*"
 | STATS count = COUNT(*);
 
@@ -891,7 +979,8 @@ fileMetadataFilterModifiedInExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // IN list does not contain the file's mtime — excludes everything.
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` IN ("2000-01-01T00:00:00.000Z", "1999-12-31T00:00:00.000Z")
 | STATS count = COUNT(*);
 
@@ -903,7 +992,8 @@ fileMetadataFilterSizeInExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // File is non-empty, so an IN list containing only 0 excludes everything.
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | WHERE `_file.size` IN (0)
 | STATS count = COUNT(*);
 
@@ -915,7 +1005,8 @@ fileMetadataFilterNameInExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // IN against _file.name with values that do not match the file's name — excludes everything.
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.name
 | WHERE `_file.name` IN ("does-not-exist-1.parquet", "does-not-exist-2.parquet")
 | STATS count = COUNT(*);
 
@@ -927,7 +1018,8 @@ fileMetadataFilterPathInExcludesAll
 required_capability: external_source_file_metadata_columns
 
 // IN against _file.path with values that do not match the file's path — excludes everything.
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.path
 | WHERE `_file.path` IN ("/does/not/exist", "/also/missing")
 | STATS count = COUNT(*);
 
@@ -941,7 +1033,8 @@ required_capability: external_source_file_metadata_columns
 // Positive IN case: the file's mtime is in (0 .. now), so combining a recent-time IN list with
 // a `_file.modified > epoch` gate matches every row (validates the IN evaluator runs without error
 // and that the disjunction short-circuits correctly on the constant block).
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.modified
 | WHERE `_file.modified` > "1970-01-01T00:00:00.000Z" OR `_file.modified` IN ("2000-01-01T00:00:00.000Z")
 | STATS count = COUNT(*);
 
@@ -955,7 +1048,8 @@ fileMetadataWithDataFilter
 required_capability: external_source_file_metadata_columns
 
 // Mix file metadata with data columns — verify both are usable together
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.size
 | WHERE `_file.size` > 0 AND salary > 60000
 | STATS count = COUNT(*)
 | WHERE count > 0
@@ -969,7 +1063,8 @@ fileMetadataGroupByFileWithStats
 required_capability: external_source_file_metadata_columns
 
 // Group by file name — single file, all 100 rows in one group
-EXTERNAL "{{employees_no_mv}}"
+dataset: employees_no_mv: "{{employees_no_mv}}"
+FROM employees_no_mv METADATA _file.name
 | STATS count = COUNT(*), min_salary = MIN(salary), max_salary = MAX(salary) BY `_file.name`
 | STATS groups = COUNT(*), total = SUM(count);
 
@@ -984,11 +1079,12 @@ groups:long | total:long
 
 fileMetadataWildcardKeepExcludesVirtualColumns
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
-// `KEEP *` should expand to data columns only — referencing _file.size after must fail to
-// resolve, but here we demonstrate the negative path indirectly: a successful query that
-// drops _file.* through the wildcard still has 100 rows and the data columns are present.
-EXTERNAL "{{employees_no_mv}}"
+// `KEEP *` does not expand the _file.* metadata columns brought into scope via METADATA — metadata
+// columns must be named explicitly — so the wildcard returns data columns only. Demonstrated
+// indirectly: the query still returns 100 rows with the data columns present.
+FROM employees_no_mv METADATA _file.size
 | KEEP *
 | WHERE salary > 0
 | STATS count = COUNT(*);
@@ -999,11 +1095,12 @@ count:long
 
 fileMetadataKeepExplicitPatternMatches
 required_capability: external_source_file_metadata_columns
+dataset: employees_no_mv: "{{employees_no_mv}}"
 
 // `KEEP _file*` is an explicit name pattern; ExternalMetadataAttribute is non-synthetic so the
-// pattern resolver matches every _file.* virtual column. Following the KEEP, only those columns
-// are in scope, so a STATS over them succeeds.
-EXTERNAL "{{employees_no_mv}}"
+// pattern resolver matches every _file.* metadata column requested via METADATA. Following the KEEP,
+// only those columns are in scope, so a STATS over them succeeds.
+FROM employees_no_mv METADATA _file.path
 | KEEP _file*
 | STATS distinct_paths = COUNT_DISTINCT(`_file.path`);
 
@@ -1011,3 +1108,73 @@ distinct_paths:long
 1
 ;
 
+
+// ---- runtime match over an external source ----
+// External columns are not Lucene-mapped, so match runs at runtime.
+// Authored as FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
+
+matchOnExternalKeyword
+required_capability: external_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(first_name, "Bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalKeywordAsText
+required_capability: external_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// Casting an external keyword column to text makes match analyze it (case-insensitive).
+FROM employees_no_mv
+| EVAL name = to_text(first_name)
+| WHERE match(name, "bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalInteger
+required_capability: external_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(salary, 57305)
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+matchOnExternalIntegerWithStringQuery
+required_capability: external_command
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE match(salary, "57305")
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;

@@ -1006,7 +1006,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     }
 
     @Override
-    public CentroidData readCentroidData(FieldInfo fieldInfo) {
+    public CentroidData readCentroidData(String fieldName) {
         // The ES940 writer does not consume CentroidData during merge, so reading it is not implemented.
         return null;
     }

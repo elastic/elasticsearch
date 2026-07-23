@@ -149,6 +149,11 @@
                   "index": false,
                   "ignore_above": 32765
                 },
+                "params": {
+                  "type": "flattened",
+                  "preserve_leaf_arrays": "exact",
+                  "ignore_above": 32765
+                },
                 "result_count": {
                   "type": "long",
                   "index": false

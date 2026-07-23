@@ -37,15 +37,18 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
     private static final int BATCH_SIZE = 10000;
 
     private final OriginSettingClient client;
-    private final String index;
+    private final String[] indices;
     private volatile long count;
     private volatile long totalHits;
     private volatile String scrollId;
     private volatile boolean isScrollInitialised;
 
-    protected BatchedDocumentsIterator(OriginSettingClient client, String index) {
+    protected BatchedDocumentsIterator(OriginSettingClient client, String... indices) {
         this.client = Objects.requireNonNull(client);
-        this.index = Objects.requireNonNull(index);
+        this.indices = Objects.requireNonNull(indices);
+        if (indices.length == 0) {
+            throw new IllegalArgumentException("indices must not be empty");
+        }
         this.totalHits = 0;
         this.count = 0;
         this.isScrollInitialised = false;
@@ -95,11 +98,11 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
     }
 
     private SearchResponse initScroll() {
-        LOGGER.trace("ES API CALL: search index {}", index);
+        LOGGER.trace("ES API CALL: search indices {}", String.join(",", indices));
 
         isScrollInitialised = true;
 
-        SearchRequest searchRequest = new SearchRequest(index);
+        SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(

@@ -16,7 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleAiStudioRateLimitServiceSettings {
+        GoogleAiStudioServiceSettings {
 
     public static final String NAME = "google_ai_studio_completion_service_settings";
 

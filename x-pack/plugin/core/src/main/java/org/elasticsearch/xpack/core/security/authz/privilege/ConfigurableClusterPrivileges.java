@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -415,6 +416,8 @@ public final class ConfigurableClusterPrivileges {
      * Configurable cluster privileges for ES|QL datasource operations under {@code global.data_source} in role definitions.
      */
     public static class DatasourcePrivileges implements ConfigurableClusterPrivilege {
+
+        public static final TransportVersion ESQL_DATASOURCE_PRIVILEGE = TransportVersion.fromName("esql_datasource_privilege");
 
         public static final String WRITEABLE_NAME = "datasource-privileges";
 

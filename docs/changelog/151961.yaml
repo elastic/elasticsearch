@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150224
+pr: 151961
+summary: SPARKLINE fixes
+type: bug

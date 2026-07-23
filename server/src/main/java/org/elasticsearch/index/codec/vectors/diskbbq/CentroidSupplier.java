@@ -10,35 +10,47 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * An interface for that supply centroids.
+ * An interface for accessing centroids
  */
 public interface CentroidSupplier {
 
+    /**
+     * Number of centroids
+     */
     int size();
 
+    /**
+     * Gets a specific centroid by ordinal
+     */
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    default KMeansResult<float[]> secondLevelClusters() throws IOException {
-        return null;
-    }
+    /**
+     * Any indexing information that may be available
+     */
+    CentroidIndex centroidIndex();
 
+    /**
+     * Slices information
+     */
     default CentroidSlices slices() throws IOException {
         return null;
     }
 
+    /**
+     * Accesses the centroids as a {@link KMeansFloatVectorValues}
+     */
     KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {
-        return fromArray(new float[0][dims], KMeansResult.emptyFloat(), dims);
+        return fromArray(new float[0][dims], CentroidIndex.NO_INDEX, dims);
     }
 
-    static CentroidSupplier fromArray(float[][] centroids, KMeansResult<float[]> secondLevelClusters, int dims) {
+    static CentroidSupplier fromArray(float[][] centroids, CentroidIndex centroidIndex, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -51,8 +63,8 @@ public interface CentroidSupplier {
             }
 
             @Override
-            public KMeansResult<float[]> secondLevelClusters() {
-                return secondLevelClusters;
+            public CentroidIndex centroidIndex() {
+                return centroidIndex;
             }
 
             @Override

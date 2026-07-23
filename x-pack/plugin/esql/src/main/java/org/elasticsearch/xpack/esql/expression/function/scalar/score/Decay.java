@@ -132,6 +132,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        briefSummary = "Calculates a relevance score that decays with distance from a target origin.",
         description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value "
             + "from a target origin, using configurable decay functions.",
         detailedDescription = """
@@ -161,11 +162,13 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Param(
             name = ORIGIN,
             type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Central point from which the distances are calculated."
         ) Expression origin,
         @Param(
             name = SCALE,
             type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
         @MapParam(

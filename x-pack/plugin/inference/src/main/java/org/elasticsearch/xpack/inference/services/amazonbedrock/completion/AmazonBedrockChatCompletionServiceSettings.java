@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
@@ -17,8 +21,12 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
+/**
+ * Represents the settings for an Amazon Bedrock chat completion service. Extends {@link AmazonBedrockChatCompletionServiceSettings}, which
+ * carries the model ID, region, provider, and rate limit settings shared across all Bedrock tasks. Chat completion adds no settings of its
+ * own.
+ */
 public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockServiceSettings {
     public static final String NAME = "amazon_bedrock_chat_completion_service_settings";
 
@@ -26,18 +34,68 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
         Map<String, Object> serviceSettings,
         ConfigurationParseContext context
     ) {
-        var validationException = new ValidationException();
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return AmazonBedrockServiceSettings.fromMap(serviceSettings, context, parser);
+    }
 
-        var commonSettings = AmazonBedrockServiceSettings.fromMap(serviceSettings, validationException, context);
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new AmazonBedrockChatCompletionServiceSettings(
-            commonSettings.region(),
-            commonSettings.model(),
-            commonSettings.provider(),
-            commonSettings.rateLimitSettings()
+    /**
+     * Creates an {@link ObjectParser} for the Amazon Bedrock chat completion service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
         );
+        AmazonBedrockServiceSettings.declareCommonFields(parser);
+        return parser;
+    }
+
+    /**
+     * Builds a {@link AmazonBedrockChatCompletionServiceSettings} from the common Bedrock fields, enforcing that the required fields are
+     * present.
+     */
+    public static class Builder extends AmazonBedrockServiceSettings.Builder<AmazonBedrockChatCompletionServiceSettings> {
+
+        @Override
+        protected AmazonBedrockChatCompletionServiceSettings build(
+            String region,
+            String model,
+            AmazonBedrockProvider provider,
+            RateLimitSettings rateLimitSettings,
+            ConfigurationParseContext context
+        ) {
+            return new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request.
+     */
+    private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            AmazonBedrockServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        public AmazonBedrockChatCompletionServiceSettings mergeInto(AmazonBedrockChatCompletionServiceSettings existing) {
+            return new AmazonBedrockChatCompletionServiceSettings(
+                existing.region(),
+                existing.modelId(),
+                existing.provider(),
+                mergedRateLimitSettings(existing)
+            );
+        }
     }
 
     public AmazonBedrockChatCompletionServiceSettings(
@@ -73,32 +131,11 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AmazonBedrockChatCompletionServiceSettings that = (AmazonBedrockChatCompletionServiceSettings) o;
-
-        return Objects.equals(region, that.region)
-            && Objects.equals(provider, that.provider)
-            && Objects.equals(model, that.model)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(region, model, provider, rateLimitSettings);
-    }
-
-    @Override
     public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return new AmazonBedrockChatCompletionServiceSettings(
-            updatedCommonSettings.region(),
-            updatedCommonSettings.model(),
-            updatedCommonSettings.provider(),
-            updatedCommonSettings.rateLimitSettings()
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Amazon Bedrock chat completion service settings update", e);
+        }
     }
 }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143226
+pr: 153090
+summary: Unmatched DROP wildcard no-op if unmapped
+type: feature

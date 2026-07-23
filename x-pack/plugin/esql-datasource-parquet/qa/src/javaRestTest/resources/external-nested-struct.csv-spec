@@ -10,11 +10,18 @@
 //   - LIST<STRUCT> (arrays of structs)
 //   - MAP types
 //   - CSV / NDJSON dotted-name pruning (NDJSON already flattens but does not prune)
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
+// (Java reader) registers the dataset on every storage backend and runs the FROM query verbatim;
+// ParquetRsFormatSpecIT skips these tests. The fixture template has no index twin, so the dataset keeps the
+// bare name nested_events.
 
 nestedKeepSingleSubfield
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 10;
@@ -29,9 +36,11 @@ id:integer | event.action:keyword
 ;
 
 nestedKeepTwoSubfieldsSameParent
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action, event.outcome
 | SORT id
 | LIMIT 10;
@@ -46,9 +55,11 @@ id:integer | event.action:keyword | event.outcome:keyword
 ;
 
 nestedKeepMixedTopLevelAndNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 3;
@@ -60,9 +71,11 @@ id:integer | event.action:keyword
 ;
 
 nestedStatsByNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS c = COUNT(*) BY event.action
 | SORT event.action;
 
@@ -74,9 +87,11 @@ c:long | event.action:keyword
 ;
 
 nestedNullPropagation
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | WHERE event.action IS NULL
 | SORT id;
@@ -91,9 +106,11 @@ id:integer | event.action:keyword
 // stripes whose statistics rule out the value (see ParquetPushedExpressions /
 // OrcPushedExpressions). FilterExec re-applies the conjunct to catch any leakage.
 nestedWhereEquals
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login"
 | KEEP id, event.action
 | SORT id;
@@ -106,9 +123,11 @@ id:integer | event.action:keyword
 // IS NULL pushdown on a nested leaf. The reader stats expose the per-leaf null count, so
 // a fully-non-null row group / stripe can be pruned; rows that survive are re-checked.
 nestedWhereIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.outcome IS NULL
 | KEEP id, event.outcome
 | SORT id;
@@ -123,9 +142,11 @@ id:integer | event.outcome:keyword
 // grouping by event.action is evaluated post-read. Exercises both the nested-stats
 // publication path (T2 / T3) and grouping over a nested key.
 nestedStatsMinMax
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS min_id = MIN(id), max_id = MAX(id) BY event.action
 | SORT event.action;
 
@@ -141,13 +162,106 @@ min_id:integer | max_id:integer | event.action:keyword
 // alongside top-level pushdown, and verifies that nested columns referenced only by the
 // projection still appear (no over-pruning when a sibling leaf is filtered).
 nestedFilterAndProjectMixed
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login" AND id > 2
 | KEEP id, event.outcome
 | SORT id;
 
 id:integer | event.outcome:keyword
 4          | null
+;
+
+// ===== LIST-under-STRUCT (elastic/esql-planning#1055) =====
+// event.tags is a struct<list<keyword>> leaf: a LIST reached through the `event` STRUCT. These
+// leaves used to bind to no column descriptor and read as all-null (silent data loss). The tests
+// below assert the multivalues now round-trip. event.tags ground truth (from nested_events.csv):
+//   1 -> [auth, success]   2 -> [success]   3 -> [auth, failure]   4 -> null   5 -> [read]   6 -> null
+
+// COUNT of the struct-nested list leaf counts every multivalue element (2+1+2+1 = 6), not 0 as
+// before the fix. This is the headline regression guard: the column used to read as all-null.
+listUnderStructCount
+required_capability: external_command
+required_capability: external_source_list_under_struct
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
+| STATS n = COUNT(event.tags);
+
+n:long
+6
+;
+
+// Multivalue round-trip. MV_SORT makes the per-row element order deterministic for the assertion.
+listUnderStructValues
+required_capability: external_command
+required_capability: external_source_list_under_struct
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
+| EVAL tags = MV_SORT(event.tags)
+| KEEP id, tags
+| SORT id;
+
+id:integer | tags:keyword
+1          | [auth, success]
+2          | success
+3          | [auth, failure]
+4          | null
+5          | read
+6          | null
+;
+
+// Per-row multivalue cardinality: exercises the repetition-level decode of the nested list.
+listUnderStructMvCount
+required_capability: external_command
+required_capability: external_source_list_under_struct
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
+| EVAL c = MV_COUNT(event.tags)
+| KEEP id, c
+| SORT id;
+
+id:integer | c:integer
+1          | 2
+2          | 1
+3          | 2
+4          | null
+5          | 1
+6          | null
+;
+
+// Genuinely absent lists must read as null (not spuriously present), and non-empty ones must not
+// be dropped — the null vs present decision is driven by the leaf's full definition level.
+listUnderStructIsNull
+required_capability: external_command
+required_capability: external_source_list_under_struct
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
+| WHERE event.tags IS NULL
+| KEEP id
+| SORT id;
+
+id:integer
+4
+6
+;
+
+// MIN/MAX over the multivalue leaf span every element (auth..success). Parquet leaf stats carry
+// the same element-wise extremes, so this stays pushable even though COUNT above must read.
+listUnderStructMinMax
+required_capability: external_command
+required_capability: external_source_list_under_struct
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
+| STATS lo = MIN(event.tags), hi = MAX(event.tags);
+
+lo:keyword | hi:keyword
+auth       | success
 ;

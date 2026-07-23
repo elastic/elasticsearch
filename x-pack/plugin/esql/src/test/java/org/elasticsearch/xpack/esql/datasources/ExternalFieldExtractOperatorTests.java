@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(/* rowPositionChannel = */ 1,
                 /* passThroughChannels = */ List.of(0, 2),
                 /* deferredColumnNames = */ List.of("col"),
+                /* deferredColumnTypes = */ List.of(DataType.INTEGER),
                 registry,
                 blockFactory
             );
@@ -105,7 +107,14 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
 
             Page empty = newPage(new long[0], new long[0], new int[0]);
 
-            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(1, List.of(0, 2), List.of("col"), registry, blockFactory);
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
             op.addInput(empty);
             op.finish();
             Page output = op.getOutput();
@@ -128,24 +137,41 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         try {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry)
             );
-            expectThrows(IllegalArgumentException.class, () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null)
+            );
         } finally {
             registry.close();
         }
     }
 
     public void testFactoryRejectsNullRegistryLookup() {
-        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), ctx -> null);
+        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
+            0,
+            List.of(),
+            List.of(),
+            List.of(),
+            ctx -> null
+        );
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
         expectThrows(IllegalStateException.class, () -> factory.get(driverContext));
@@ -156,7 +182,14 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             registry.register(new IntListExtractor(new int[] { 1 }));
             Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(0, 0) }, new int[] { 9 });
 
-            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(1, List.of(0, 2), List.of("col"), registry, blockFactory);
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
             op.addInput(page);
             // Don't drain; close must release the pending page so we don't leak blocks.
             op.close();
@@ -186,7 +219,8 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory factory) throws IOException {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+            throws IOException {
             Block[] result = new Block[columnNames.length];
             boolean built = false;
             try {

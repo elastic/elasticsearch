@@ -8,16 +8,19 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,9 +61,11 @@ import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNe
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleTransitionTests extends ESTestCase {
 
@@ -315,6 +320,102 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         assertProjectOnErrorStep(project, index, currentStep, newProject, now, """
             {"type":"illegal_argument_exception","reason":"non elasticsearch-exception\"""");
+    }
+
+    public void testMoveIndexToErrorStepWithGiganticError() throws IOException {
+        String indexName = "my_index";
+        Step.StepKey currentStep = new Step.StepKey("current_phase", "current_action", "current_step");
+        Step.StepKey nextStepKey = new Step.StepKey("next_phase", "next_action", "next_step");
+        long now = randomNonNegativeLong();
+        ElasticsearchException cause = new ResourceNotFoundException(
+            "this is an error with a long list of suppressed errors "
+                + randomAlphaOfLengthBetween(1, IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH * 2),
+            new IllegalArgumentException(
+                "other cause " + randomAlphaOfLengthBetween(1, IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH * 2),
+                new ElasticsearchException(
+                    "this message will be truncated " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
+                )
+            )
+        );
+        cause.addMetadata(
+            "es.mykey",
+            "long metadata " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
+        );
+        // We add 10 suppressed exceptions, and only 3 will remain in the step_info
+        for (int i = 0; i < 10; i++) {
+            cause.addSuppressed(
+                new ElasticsearchException(
+                    "this is a long suppressed error #"
+                        + i
+                        + " "
+                        + randomAlphaOfLengthBetween(1, IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH * 2)
+                )
+            );
+        }
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
+        ProjectMetadata project = buildProject(indexName, Settings.builder(), lifecycleState.build(), List.of());
+        Index index = project.index(indexName).getIndex();
+
+        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToErrorStep(
+            index,
+            project,
+            cause,
+            () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
+        );
+        assertNotSame(project, newProject);
+        IndexMetadata newIndexMetadata = newProject.getIndexSafe(index);
+        assertNotSame(project.index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newProject.index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = project.index(index).getLifecycleExecutionState();
+        assertNotSame(oldLifecycleState, newLifecycleState);
+        assertEquals(currentStep.phase(), newLifecycleState.phase());
+        assertEquals(currentStep.action(), newLifecycleState.action());
+        assertEquals(ErrorStep.NAME, newLifecycleState.step());
+        assertEquals(currentStep.name(), newLifecycleState.failedStep());
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+
+        // We want to validate that the step info is valid JSON, so we check to make sure that it
+        // has been truncated at least (it always should be based on the test exception above),
+        // and that it can be parsed into an object.
+        String errorStepInfo = newLifecycleState.stepInfo();
+        logger.info("--> step_info: {}", errorStepInfo);
+
+        // We should always have at least one thing truncated
+        assertThat(errorStepInfo, containsString("chars truncated"));
+        Map<String, Object> error = XContentHelper.convertToMap(JsonXContent.jsonXContent, errorStepInfo, randomBoolean());
+
+        // Validate that we've limited the number of suppresed exceptions to 3 maximum
+        Object suppressed = error.get("suppressed");
+        assertNotNull(suppressed);
+        assertThat(suppressed, instanceOf(List.class));
+        if (suppressed instanceof List<?> suppressedList) {
+            assertThat(suppressedList.size(), equalTo(IndexLifecycleTransition.MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS));
+        }
+
+        // We iterate through causes, so the root cause should be truncated as well
+        Object reason = ObjectPath.eval("caused_by.reason", error.get("caused_by"));
+        if (reason instanceof String r) {
+            assertThat(r, containsString("this message will be truncated"));
+            assertThat(r, containsString("... (~31 chars truncated)"));
+        } else {
+            fail("expected reason to be a string but it was not");
+        }
+        Object meta = error.get("mykey");
+        if (meta instanceof String m) {
+            assertThat(m, startsWith("long metadata "));
+            assertThat(m, containsString("... (~14 chars truncated"));
+        } else {
+            fail("expected metadata to be a string but it was not");
+        }
+        // Validate that the type passthrough works
+        assertThat(error.get("type"), equalTo("resource_not_found_exception"));
     }
 
     public void testAddStepInfoToProject() throws IOException {
@@ -1192,7 +1293,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));
         assertFalse(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.exists(indexSettings));
         assertFalse(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.exists(indexSettings));
-        assertFalse(LifecycleSettings.LIFECYCLE_SKIP_SETTING.exists(indexSettings));
+        assertFalse(IndexMetadata.LIFECYCLE_SKIP_SETTING.exists(indexSettings));
     }
 
     public static void assertProjectOnNextStep(

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,8 +50,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -203,8 +206,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                         if (tsAgg.hasFilter() == false) {
                             throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
                         }
-                    } else if (tsAgg.hasFilter()) {
-                        throw new IllegalStateException("unexpected inline filter in time-series aggregation");
                     }
                     if (tsAgg.requiredTimeSeriesSource()) {
                         requiredTimeSeriesSource.set(Boolean.TRUE);
@@ -262,8 +263,20 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 }
             }
         };
-        // extract time-bucket from nested expressions like evals
-        aggregate.child().forEachExpressionUp(NamedExpression.class, extractTimeBucket);
+        // extract time-bucket from nested expressions like evals, but only for expressions
+        // actually referenced as grouping keys - avoids false positives when an EVAL defines
+        // a date_trunc(@timestamp) that is later overridden by a non-grouping STATS aggregate
+        Set<NameId> groupingIds = new HashSet<>();
+        for (Expression g : aggregate.groupings()) {
+            if (g instanceof NamedExpression ne) {
+                groupingIds.add(ne.id());
+            }
+        }
+        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
+            if (groupingIds.contains(e.id())) {
+                extractTimeBucket.accept(e);
+            }
+        });
         // extract time-bucket directly from groupings
         aggregate.groupings()
             .stream()

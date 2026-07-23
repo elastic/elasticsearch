@@ -1,0 +1,13 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[FROMPARTIAL($$partial$$s{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],STDDEV(salary{r}#1,true[BOOLEAN],PT0S[TIME_DURATION])) AS s#2],SINGLE,[$$s$partial{r}#3],null]
+  \_MergeExec[[$$partial$$s{r$}#0]]
+    |_AggregateExec[[],[TOPARTIAL(STDDEV(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],STDDEV(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$s#0],FINAL,[$$partial$$s$partial{r}#5],null]
+    | \_ExchangeExec[[$$partial$$s$partial{r}#5],true]
+    |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[TOPARTIAL(STDDEV(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],STDDEV(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$s#0]]
+\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#6, salary{r}#4, dept{r}#7]<>]]
+    \_AggregateExec[[],[TOPARTIAL(STDDEV(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],STDDEV(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$s#0],FINAL,[$$partial$$s$partial{r}#9],null]
+      \_ExchangeExec[[$$partial$$s$partial{r}#9],true]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[TOPARTIAL(STDDEV(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],STDDEV(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$s#0]]
+\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#10, salary{r}#8, dept{r}#11]<>]]

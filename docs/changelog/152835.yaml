@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152835
+summary: Fix Zstd DStream `VarHandle` offset on JDK 21
+type: bug

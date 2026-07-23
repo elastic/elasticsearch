@@ -139,12 +139,3 @@ tasks.named('javaRestTest') {
     showStandardStreams = false
   }
 }
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
-  }
-}

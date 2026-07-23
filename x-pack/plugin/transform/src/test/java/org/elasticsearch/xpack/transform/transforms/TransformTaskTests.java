@@ -37,7 +37,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -214,12 +213,14 @@ public class TransformTaskTests extends ESTestCase {
 
     private TransformServices transformServices(Clock clock, TransformAuditor auditor, ThreadPool threadPool) {
         var transformsConfigManager = new InMemoryTransformConfigManager();
+        var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            auditor
+            auditor,
+            mock(CrossProjectModeDecider.class),
+            cloudCredentialManager
         );
         return new TransformServices(
             transformsConfigManager,

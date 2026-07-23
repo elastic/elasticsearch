@@ -51,10 +51,6 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         );
     }
 
-    public GoogleVertexAiRerankModel(GoogleVertexAiRerankModel model, GoogleVertexAiRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-    }
-
     // Should be used directly only for testing
     GoogleVertexAiRerankModel(
         String inferenceEntityId,

@@ -25,10 +25,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -40,9 +46,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -55,6 +61,14 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         List<List<Object>> build(RandomIndexWriter iw) throws IOException;
 
         void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
+
+        /**
+         * Index settings the mapper service is created with; HIGH-cardinality keyword setups use a strict-columnar mode so the field gets
+         * binary doc values by default instead of relying on the removed {@code doc_values.cardinality} mapping option.
+         */
+        default Settings indexSettings() {
+            return Settings.EMPTY;
+        }
     }
 
     @ParametersFactory(argumentFormatting = "%s")
@@ -67,7 +81,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     for (DocValuesMode docValuesMode : new DocValuesMode[] { DocValuesMode.DEFAULT, DocValuesMode.DOC_VALUES_ONLY }) {
                         params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
                     }
-                    if (fieldType.equals("keyword") && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                    if (fieldType.equals("keyword")) {
                         params.add(
                             new Object[] {
                                 new StandardSetup(
@@ -92,34 +106,57 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testQuery() throws IOException {
-        MapperService mapper = createMapperService(mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
-                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
-                );
-                runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                withBoundQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH), query -> {
+                    runCase(fieldValues, ctx.searcher().count(query));
+                    setup.assertRewrite(ctx.searcher(), query);
+                });
             }
         }
     }
 
     public void testEmpty() throws IOException {
-        MapperService mapper = createMapperService(mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
+                withBoundQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
+                    query -> runCase(List.of(), ctx.searcher().count(query))
                 );
-                runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    @FunctionalInterface
+    interface IOConsumer<T> {
+        void accept(T t) throws IOException;
+    }
+
+    /**
+     * Build a {@link SingleValueMatchQuery} bound, via a private one-off {@link QueryWarnings}
+     * bridge, to a fresh {@link Warnings}, run {@code action} with it while the binding is active,
+     * then close the binding. Mirrors how {@link org.elasticsearch.compute.operator.lookup.QueryList}
+     * binds a non-shared query to its bridge, but scopes the binding to the action's lifetime.
+     */
+    private void withBoundQuery(IndexFieldData<?> fieldData, IOConsumer<SingleValueMatchQuery> action) throws IOException {
+        QueryWarnings bridge = QueryWarnings.EMIT;
+        SingleValueMatchQuery query = new SingleValueMatchQuery(
+            fieldData,
+            bridge,
+            new TestWarningsSource("test"),
+            "single-value function encountered multi-value"
+        );
+        try (
+            Releasable ignored = bridge.bind(
+                Map.of(query, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")))
+            )
+        ) {
+            action.accept(query);
         }
     }
 
@@ -151,15 +188,19 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         @Override
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
             return switch (docValuesMode) {
-                case DOC_VALUES_ONLY_HIGH_CARDINALITY -> builder.startObject("foo")
-                    .field("type", fieldType)
-                    .startObject("doc_values")
-                    .field("cardinality", "high")
-                    .endObject()
-                    .endObject();
+                // binary doc values are used for high cardinality fields in strictly columnar index modes
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY -> builder.startObject("foo").field("type", fieldType).endObject();
                 case DOC_VALUES_ONLY -> builder.startObject("foo").field("type", fieldType).field("doc_values", true).endObject();
                 case DEFAULT -> builder.startObject("foo").field("type", fieldType).endObject();
             };
+        }
+
+        @Override
+        public Settings indexSettings() {
+            // The HIGH-cardinality keyword setup relies on a strict-columnar index mode to default the field to binary doc values.
+            return docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY
+                ? Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
+                : Settings.EMPTY;
         }
 
         @Override
@@ -175,7 +216,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            if (empty == false && multivaluedField == false) {
+            // The columnar high-cardinality binary reader does not expose value mode / sparsity (its .counts field counts slots including
+            // nulls and empty arrays, so the skipper can't prove every doc has exactly one value), so the query never rewrites away.
+            if (docValuesMode != DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY && empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -254,7 +297,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
+        // High-cardinality keyword fields in strict-columnar mode write the ArrayOrderInlineNull format ([len+1][val] slots in document
+        // order), which is what the SortingArrayOrderBinaryDocValues reader selected for this field expects.
+        var mvField = new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull("foo");
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

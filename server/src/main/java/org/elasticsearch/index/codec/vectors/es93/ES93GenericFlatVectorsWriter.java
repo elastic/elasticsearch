@@ -18,7 +18,6 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
@@ -70,16 +69,9 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        rawVectorWriter.mergeOneField(fieldInfo, mergeState);
+    public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        rawVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
         writeMeta(fieldInfo.number);
-    }
-
-    @Override
-    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        var supplier = rawVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState);
-        writeMeta(fieldInfo.number);
-        return supplier;
     }
 
     @Override

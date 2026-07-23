@@ -110,6 +110,11 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     }
 
     @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }

@@ -38,8 +38,9 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings.GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     GoogleVertexAiEmbeddingsServiceSettings> {
@@ -182,10 +183,18 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         );
     }
 
-    public void testFromMap_MissingLocation_Failure() {
-        assertValidationFailure(
+    public void testFromMap_MissingLocation_ResolvesToGlobalEndpoint() {
+        var serviceSettings = GoogleVertexAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(null, TEST_PROJECT_ID, TEST_MODEL_ID, true, null, null, null, null, null),
-            "[service_settings] does not contain the required setting [location]"
+            ConfigurationParseContext.PERSISTENT
+        );
+        assertThat(serviceSettings.location(), is(nullValue()));
+    }
+
+    public void testFromMap_EmptyLocation_Failure() {
+        assertValidationFailure(
+            buildServiceSettingsMap("", TEST_PROJECT_ID, TEST_MODEL_ID, true, null, null, null, null, null),
+            "[service_settings] Invalid value empty string. [location] must be a non-empty string"
         );
     }
 
@@ -524,7 +533,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(8)) {
-            case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLength(10));
+            case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLengthOrNull(10));
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
             case 3 -> dimensionsSetByUser = dimensionsSetByUser == false;
@@ -634,7 +643,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     private static GoogleVertexAiEmbeddingsServiceSettings createRandom() {
         return new GoogleVertexAiEmbeddingsServiceSettings(
-            randomAlphaOfLength(10),
+            randomAlphaOfLengthOrNull(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean(),

@@ -44,6 +44,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -656,7 +657,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Response getPrivilegesResponse = client().performRequest(getPrivilegesRequest);
         assertOK(getPrivilegesResponse);
 
-        assertThat(responseAsMap(getPrivilegesResponse), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+        final Map<String, Object> actualPrivileges = responseAsMap(getPrivilegesResponse);
+        final Map<String, Object> expectedPrivileges = XContentHelper.convertToMap(JsonXContent.jsonXContent, """
             {
               "cluster": [
                 "all"
@@ -671,6 +673,30 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "all"
                   ],
                   "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".cases*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "query": [
+                    "{\\"term\\":{\\"owner\\":\\"cases\\"}}",
+                    "{\\"term\\":{\\"owner\\":\\"observability\\"}}",
+                    "{\\"term\\":{\\"owner\\":\\"securitySolution\\"}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".alert-actions*",
+                    ".rule-events*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [
@@ -687,7 +713,27 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "run_as": [
                 "*"
               ]
-            }""", false)));
+            }""", false);
+
+        // GetUserPrivilegesResponse assembles per-provider "indices" entries - and each entry's
+        // "query" list, when multiple grants merge into one entry - from Sets internally, so
+        // neither the outer list nor the inner query lists have a guaranteed order. Normalize both
+        // sides to a canonical order rather than asserting on either.
+        normalizeIndicesPrivilegesForComparison(actualPrivileges);
+        normalizeIndicesPrivilegesForComparison(expectedPrivileges);
+        assertThat(actualPrivileges, equalTo(expectedPrivileges));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void normalizeIndicesPrivilegesForComparison(Map<String, Object> privilegesResponse) {
+        final List<Map<String, Object>> indices = (List<Map<String, Object>>) privilegesResponse.get("indices");
+        for (Map<String, Object> index : indices) {
+            final List<String> query = (List<String>) index.get("query");
+            if (query != null) {
+                query.sort(null);
+            }
+        }
+        indices.sort(Comparator.comparing(index -> String.valueOf(index.get("names"))));
     }
 
     public void testGetPrivilegesForApiKeyThrows400IfItHasAssignedPrivileges() throws IOException {

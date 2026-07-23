@@ -107,8 +107,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     private static LogicalPlan maybePushDownLimitToFork(Limit limit, Fork fork, LogicalOptimizerContext ctx) {
-        // TODO: there's no reason why UnionAll should not benefit from this optimization
-        if (fork instanceof UnionAll) {
+        // Allow limit pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
+        // Subquery-shape UnionAll branches return false from shouldPushDownPipelineBreakerIntoForkBranch
+        // so the loop below is a no-op for them anyway, but skip explicitly for clarity.
+        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 

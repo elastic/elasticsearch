@@ -11,6 +11,8 @@ package org.elasticsearch.eirf;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -360,7 +362,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
             builder.endDocument();
 
             try (EirfBatch batch = builder.build()) {
-                EirfSchema schema = batch.schema();
+                SourceSchema schema = batch.schema();
                 EirfRowReader row = batch.getRowReader(0);
                 EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
                 try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
@@ -406,7 +408,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
         BytesReference source = new BytesArray("""
             {"items": [1, "two", true], "meta": {}, "trailing": 9}""");
         try (EirfBatch batch = EirfEncoder.encode(List.of(source), XContentType.JSON)) {
-            EirfSchema schema = batch.schema();
+            SourceSchema schema = batch.schema();
             EirfRowReader row = batch.getRowReader(0);
             EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
             try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {
@@ -447,7 +449,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
                 0,
                 0,
                 'x',
-                EirfType.INT,
+                SourceValueType.INT,
                 42,
                 0,
                 0,
@@ -458,7 +460,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
                 0,
                 0,
                 's',
-                EirfType.STRING,
+                SourceValueType.STRING,
                 2,
                 0,
                 0,
@@ -470,7 +472,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
             builder.endDocument();
 
             try (EirfBatch batch = builder.build()) {
-                EirfSchema schema = batch.schema();
+                SourceSchema schema = batch.schema();
                 EirfRowReader row = batch.getRowReader(0);
                 EirfRowXContentParser.SchemaNode tree = EirfRowXContentParser.buildSchemaTree(schema);
                 try (EirfRowXContentParser parser = new EirfRowXContentParser(tree, row)) {

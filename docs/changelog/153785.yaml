@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 153785
+summary: "[ESQLDS] Separate the external dataset-aggregate cache so warm dataset COUNT stops decaying under per-file eviction"
+type: bug

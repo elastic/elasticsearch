@@ -32,6 +32,8 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,9 +52,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
     private ClusterName clusterName;
     private ClusterState clusterState;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() throws Exception {
         var projectId = randomProjectIdOrDefault();
         action = new RestCatComponentTemplateAction(TestProjectResolvers.singleProject(projectId));
         clusterName = new ClusterName("cluster-1");
@@ -71,9 +72,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         when(clusterState.metadata()).thenReturn(metadata);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void clearActionState() throws Exception {
         clusterName = null;
         clusterState = null;
     }

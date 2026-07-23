@@ -115,12 +115,12 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            TestEncryptionServicePlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
-            SpatialPlugin.class,
-            TestEncryptionServicePlugin.class
+            SpatialPlugin.class
         );
     }
 

@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -117,11 +118,12 @@ public final class TypeResolutions {
                 && t != EXPONENTIAL_HISTOGRAM
                 && t != HISTOGRAM
                 && t != TDIGEST
-                && t != DATE_RANGE,
+                && t != DATE_RANGE
+                && t != FLATTENED,
             operationName,
             paramOrd,
             "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest, histogram, "
-                + "exponential_histogram, or date_range"
+                + "exponential_histogram, date_range, or flattened"
         );
     }
 

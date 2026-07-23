@@ -304,6 +304,41 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verify(credentialManager).wrapClient(rawClient, credential);
     }
 
+    public void testWrapWithPersistedIfPresentReturnsRawClientWhenPersistedIsNull() {
+        var rawClient = mock(Client.class);
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            new CloudCredentialManager.Noop(),
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        assertThat(manager.wrapWithPersistedIfPresent(rawClient, null), sameInstance(rawClient));
+    }
+
+    public void testWrapWithPersistedIfPresentDelegatesToCredentialManagerWhenPersistedPresent() {
+        var rawClient = mock(Client.class);
+        var wrappedClient = mock(Client.class);
+        var persisted = new PersistedCloudCredential("id", new SecureString("key".toCharArray()));
+        var credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.wrapClient(rawClient, persisted)).thenReturn(wrappedClient);
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            credentialManager,
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        var actual = manager.wrapWithPersistedIfPresent(rawClient, persisted);
+
+        assertThat(actual, sameInstance(wrappedClient));
+        verify(credentialManager).wrapClient(rawClient, persisted);
+    }
+
     public void testCurrentCallerCredentialPrefersSecondaryAuth() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
@@ -366,12 +401,8 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var auditor = mock(TransformAuditor.class);
         var threadPool = mock(ThreadPool.class);
         var credentialManager = mock(CloudCredentialManager.class);
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        // caller has a UIAM credential
+        // caller has a UIAM credential, supplied explicitly (as the coordinating node would)
         var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
 
         // grant returns a fresh persisted credential with a known id
         var newPersisted = new PersistedCloudCredential("new-id", new SecureString("new-key".toCharArray()));
@@ -391,7 +422,11 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         var capturedTokenId = new AtomicReference<String>();
         var future = ActionTestUtils.<String>assertNoFailureListener(capturedTokenId::set);
-        manager.mintAndPersist(TRANSFORM_ID, future);
+        // mintAndPersist only borrows callerCredential; the caller (this test, standing in for the
+        // coordinating-node doExecute that would have extracted it) is responsible for closing it.
+        try (callerCredential) {
+            manager.mintAndPersist(TRANSFORM_ID, callerCredential, future);
+        }
 
         verify(auditor).info(eq(TRANSFORM_ID), eq(expectedAuditMessage));
         assertThat(capturedTokenId.get(), equalTo("new-id"));
@@ -405,11 +440,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var auditor = mock(TransformAuditor.class);
         var threadPool = mock(ThreadPool.class);
         var credentialManager = mock(CloudCredentialManager.class);
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
         var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
 
         // grant succeeds and returns a freshly-minted credential
         var mintedCredential = new PersistedCloudCredential("minted-id", new SecureString("minted-key".toCharArray()));
@@ -437,7 +468,11 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
 
         var capturedFailure = new AtomicReference<Exception>();
-        manager.mintAndPersist(TRANSFORM_ID, ActionTestUtils.assertNoSuccessListener(capturedFailure::set));
+        // mintAndPersist only borrows callerCredential; the caller (this test, standing in for the
+        // coordinating-node doExecute that would have extracted it) is responsible for closing it.
+        try (callerCredential) {
+            manager.mintAndPersist(TRANSFORM_ID, callerCredential, ActionTestUtils.assertNoSuccessListener(capturedFailure::set));
+        }
 
         // the persist failure must propagate to the caller
         assertThat(capturedFailure.get(), sameInstance(persistFailure));

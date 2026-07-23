@@ -69,6 +69,15 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * {@link #postIndexResolution(LogicalPlan)}. Production code calls the two phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
+     * <p>
+     * TODO: this skips {@code ResolveTable} between the two phases, so {@link #postIndexResolution}
+     * sees {@link UnresolvedRelation}s rather than {@code EsRelation}s. This causes
+     * {@link #mergeUnresolvedRelationEntries} in {@link #compactNestedViewUnionAlls} to perform
+     * cross-level UR merging that never happens in the production pipeline (where all URs are
+     * already resolved by the time {@link #postIndexResolution} runs). Tests using this method
+     * therefore diverge slightly from production; fix in a follow-up by having test helpers
+     * replicate the full pipeline (view resolution → {@link #preIndexResolution} → ResolveTable →
+     * {@link #postIndexResolution}) instead of using this shortcut.
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
@@ -272,10 +281,17 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        // Always attempt to merge bare UnresolvedRelation siblings — the strip step earlier in this
-        // rule may have just exposed entries that were previously hidden inside a ViewUnionAll
-        // wrapping shadows + strict; without an unconditional merge here those exposed siblings
-        // would stay as separate branches even when their patterns are mergeable.
+        // Merge bare UnresolvedRelation siblings that ended up at the same level after
+        // flattening. ViewResolver.buildPlanFromBranches only merges URs within a single
+        // nesting level; after nested ViewUnionAlls are hoisted into this flat map, URs from
+        // different levels may become adjacent and mergeable.
+        //
+        // No alias resolver is available here, so alias-vs-backing-index overlap is not
+        // detected. This is safe in the production pipeline: by the time postIndexResolution
+        // runs, ResolveTable has already converted every UnresolvedRelation to an EsRelation,
+        // making the merge loop a no-op. The gap only exists in the apply() test convenience
+        // (which runs both phases without ResolveTable in between), and only for the
+        // multi-level nesting variant of the alias scenario — not a production concern.
         mergeUnresolvedRelationEntries(flat);
 
         if (flat.size() > Fork.MAX_BRANCHES) {
@@ -303,9 +319,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merges bare {@link UnresolvedRelation} entries in the map into a single entry where possible.
-     * {@link UnresolvedRelation}s that share individual index names with the merged result are kept
-     * as separate entries to prevent IndexResolution from deduplicating them and losing data.
+     * Merges bare {@link UnresolvedRelation} entries in the map into a single entry where possible,
+     * using string-equality and wildcard overlap as guards. Called after nested {@link ViewUnionAll}s
+     * are flattened so that URs lifted from inner levels can be merged with sibling URs at the outer
+     * level. Alias-vs-backing-index overlap is not checked here (no alias resolver is available at
+     * this call site); see the comment at the call site for why that is safe in production.
      */
     private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat) {
         List<String> urKeys = new ArrayList<>();
@@ -391,14 +409,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merge the unresolved relation unless the index patterns contain matching index names.
-     * Alias resolution is intentionally skipped here. This overload is only called from
-     * {@link #mergeUnresolvedRelationEntries}, which itself is called exclusively from
-     * {@link #compactNestedViewUnionAlls} inside {@link #postIndexResolution}. By the time
-     * {@code postIndexResolution} runs, {@code ResolveTable} has already converted every
-     * {@link UnresolvedRelation} to an {@code EsRelation}, so {@code mergeUnresolvedRelationEntries}
-     * finds no {@link UnresolvedRelation} entries in the map and returns immediately — alias
-     * checking is therefore moot.
+     * Merge the unresolved relation unless the index patterns overlap by string equality or wildcard.
+     * Alias resolution is not performed; this overload is used by {@link #mergeUnresolvedRelationEntries}
+     * after nested {@link ViewUnionAll} flattening, where no alias resolver is available. In the
+     * production pipeline this is always a no-op because {@code ResolveTable} has already converted
+     * every {@link UnresolvedRelation} to an {@code EsRelation} before {@link #postIndexResolution} runs.
      */
     static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         return mergeIfPossible(main, other, null);

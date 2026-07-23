@@ -276,12 +276,12 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
         // watermarks) within a single decision.
-        final boolean enabled = this.enabled;
+        final boolean deciderEnabled = this.enabled;
         final boolean canRemainEnabled = this.canRemainEnabled;
         final CacheAccountingMode accountingMode = this.accountingMode;
         final RatioValue highWatermark = this.highWatermark;
 
-        if (enabled == false) {
+        if (deciderEnabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
 
@@ -310,10 +310,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         if (currentCommitmentBytes > thresholdBytes) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
-                    "node [%s] cache commitment [%d] bytes exceeds the high watermark [%d] bytes (accounting mode [%s])",
+                    "node [%s] cache commitment [%d] bytes exceeds the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
                     node.nodeId(),
                     currentCommitmentBytes,
                     thresholdBytes,
+                    highWatermark.getAsPercent(),
                     accountingMode
                 );
                 if (logger.isDebugEnabled()) {
@@ -328,10 +329,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.YES,
             NAME,
-            "node [%s] cache commitment [%d] bytes is below the high watermark [%d] bytes (accounting mode [%s])",
+            "node [%s] cache commitment [%d] bytes is below the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
             node.nodeId(),
             currentCommitmentBytes,
             thresholdBytes,
+            highWatermark.getAsPercent(),
             accountingMode
         );
     }

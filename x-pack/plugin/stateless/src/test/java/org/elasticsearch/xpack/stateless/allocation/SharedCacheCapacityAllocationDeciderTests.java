@@ -450,7 +450,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                     + overWatermarkCommitmentBytes
                     + "] bytes exceeds the high watermark ["
                     + highWatermarkBytes
-                    + "]"
+                    + "] bytes (["
+                    + HIGH_WATERMARK_PERCENT
+                    + ".00%]"
             )
         );
     }
@@ -488,7 +490,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                     + belowHighWatermarkCommitmentBytes
                     + "] bytes is below the high watermark ["
                     + highWatermarkBytes
-                    + "]"
+                    + "] bytes (["
+                    + HIGH_WATERMARK_PERCENT
+                    + ".00%]"
             )
         );
     }
@@ -535,7 +539,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                     + lowBoostedCommitmentBytes
                     + "] bytes is below the high watermark ["
                     + highWatermarkBytes
-                    + "]"
+                    + "] bytes (["
+                    + HIGH_WATERMARK_PERCENT
+                    + ".00%]"
             )
         );
 
@@ -563,7 +569,9 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                     + totalCommitmentBytes
                     + "] bytes exceeds the high watermark ["
                     + highWatermarkBytes
-                    + "]"
+                    + "] bytes (["
+                    + HIGH_WATERMARK_PERCENT
+                    + ".00%]"
             )
         );
     }

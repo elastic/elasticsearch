@@ -3382,8 +3382,8 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testNestedInSubqueries() {
         assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
-        // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
+        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name.
+        // max_sal is a STATS-computed output column, not an index field — it should not appear in field_caps.
         assertFieldNames(
             """
                 FROM employees
@@ -3393,20 +3393,25 @@ public class FieldNameUtilsTests extends ESTestCase {
                     | KEEP emp_no
                   )
                 | KEEP emp_no, first_name""",
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "salary",
-                "salary.*",
-                "languages",
-                "languages.*",
-                "max_sal",
-                "max_sal.*"
-            )
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*")
         );
+    }
+
+    public void testSubqueryRenameDoesNotRemoveOuterQueryRef() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Regression: the subquery renames 'salary' to 'first_name'. With a shared referencesBuilder the
+        // alias-removal step would also strip 'first_name' from the outer query's field set, causing
+        // "Unknown column [first_name]" during analysis. The fix uses a separate referencesBuilder for the
+        // subquery traversal so the outer query's 'first_name' reference (from SORT) is preserved.
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no NOT IN (
+                FROM employees
+                | RENAME salary AS first_name
+                | KEEP emp_no
+              )
+            | SORT first_name
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
     }
 
     public void testNotInSubquery() {
@@ -3463,6 +3468,17 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, first_name
             | LIMIT 5
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "hire_date", "hire_date.*"));
+    }
+
+    public void testInSubqueryInsideForkBranch() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Regression: AbstractSubqueryJoin inside a FORK branch sets breakEarly, causing the Fork handler to
+        // misinterpret it as a nested FORK and fire a spurious assertion.
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no IN (FROM employees | WHERE salary > 74000 | KEEP emp_no) | KEEP emp_no, salary)
+                   (WHERE emp_no IN (FROM employees | WHERE salary < 30000 | KEEP emp_no) | KEEP emp_no, salary)
+            | KEEP emp_no, salary""", Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
     }
 
     public void testForkBeforeInSubquery() {

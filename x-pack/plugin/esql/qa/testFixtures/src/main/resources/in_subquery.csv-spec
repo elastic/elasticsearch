@@ -3258,3 +3258,18 @@ from employees
 
 language_code:integer | first_name:keyword | language_name:keyword
 ;
+
+inSubqueryWithRenameNoKeepMainQueryKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_fix
+
+FROM employees
+| WHERE emp_no NOT IN ( FROM employees
+                        | RENAME salary AS first_name
+                        | KEEP emp_no)
+| KEEP first_name
+;
+
+first_name:keyword
+;

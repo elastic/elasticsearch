@@ -168,11 +168,18 @@ public class FieldNameUtils {
 
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
                     LogicalPlan lastFork = lastSeenFork.get();
-                    if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
+                    if (lastFork != null
+                        && lastFork != fork
+                        && fork instanceof UnionAll == false
+                        && lastFork instanceof UnionAll == false) {
                         // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
                         // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
                         // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
                         // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
+                        //
+                        // Note: lastFork == fork is excluded here because an AbstractSubqueryJoin handler inside a fork branch saves
+                        // and restores lastSeenFork (to preserve context across the subquery traversal), which transiently sets it
+                        // back to the current fork — that is not a nested-fork signal.
                         assert isNestedFork == false : "Nested FORKs are not yet supported";
                     }
 
@@ -241,12 +248,17 @@ public class FieldNameUtils {
             } else if (p instanceof AbstractSubqueryJoin sj) {
                 // Collect the join-key references now, before descending into either child.
                 joinRefs.addAll(sj.references());
-                // The subquery (right side) is an independent query: its traversal must neither inherit the main pipeline's traversal
-                // state nor corrupt it. Save every piece of mutable context that is scoped to the main query, reset it so the subquery
-                // starts clean, traverse the subquery, then restore so the main pipeline side (left) sees the correct pre-join context.
-                // referencesBuilder, joinRefs, wildcardJoinIndices, and projectAll intentionally accumulate across the boundary — the
-                // subquery's field references, lookup indices, and projectAll flag must be included in the field-caps request alongside
-                // the main query's.
+                // The subquery (right side) is an independent query: its traversal must neither inherit the main
+                // pipeline's traversal state nor corrupt it. Save every piece of mutable context, reset for a clean
+                // subquery traversal, then restore so the main pipeline side (left) sees the correct pre-join context.
+                //
+                // referencesBuilder is NOT shared across the boundary. Instead, the subquery traversal gets its own
+                // fresh builder so that alias-removal logic inside the subquery (e.g. "rename event_duration AS
+                // @timestamp") cannot strip references that the outer query collected (e.g. @timestamp from
+                // CHANGE_POINT). After traversal the subquery's collected fields are merged into the main builder.
+                //
+                // joinRefs, wildcardJoinIndices, and projectAll still intentionally accumulate across the boundary.
+                AttributeSet savedRefs = referencesBuilder.get().build();
                 AttributeSet savedKeepRefs = keepRefs.build();
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
                 AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
@@ -254,6 +266,7 @@ public class FieldNameUtils {
                 LogicalPlan savedLastSeenFork = lastSeenFork.get();
                 boolean savedReduceColumnsAfterFork = reduceColumnsAfterFork.get();
 
+                referencesBuilder.set(AttributeSet.builder());
                 keepRefs.clear();
                 currentBranchKeepRefs.set(AttributeSet.builder());
                 dropWildcardRefs.clear();
@@ -263,8 +276,11 @@ public class FieldNameUtils {
 
                 sj.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
 
-                // Restore state so the main pipeline (left side) sees the correct pre-join context
-                // when the outer traversal descends into it.
+                // Merge the subquery's collected references into the main-query builder, then restore all state.
+                AttributeSet subqueryRefs = referencesBuilder.get().build();
+                referencesBuilder.set(AttributeSet.builder());
+                referencesBuilder.get().addAll(savedRefs);
+                referencesBuilder.get().addAll(subqueryRefs);
                 keepRefs.clear();
                 keepRefs.addAll(savedKeepRefs);
                 currentBranchKeepRefs.set(AttributeSet.builder());
@@ -274,6 +290,14 @@ public class FieldNameUtils {
                 canRemoveAliases.set(savedCanRemoveAliases);
                 lastSeenFork.set(savedLastSeenFork);
                 reduceColumnsAfterFork.set(savedReduceColumnsAfterFork);
+
+                // Explicitly traverse the left child (main pipeline source) with the restored main-query context,
+                // then break early so the outer forEachDownMayReturnEarly does not also auto-descend into children.
+                // Without breakEarly the outer traversal would visit sj.right() a second time with the main query's
+                // state, which previously caused double-traversal corruption.
+                sj.left().forEachDownMayReturnEarly(forEachDownProcessor.get());
+                breakEarly.set(true);
+                return;
             } else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {

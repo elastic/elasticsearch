@@ -159,6 +159,16 @@ public final class RemoteFetchService {
         return retainedSearchContexts.register(sessionId, searchContexts);
     }
 
+    /**
+     * Acquires a lease on already-retained contexts, keeping them alive independently of the registration.
+     * <p>
+     * The initial compute holds such a lease while its drivers run so that a cancellation-time registration close
+     * cannot release the search contexts out from under them.
+     */
+    RetainedSearchContextsRegistry.Handle acquireRetainedContexts(String sessionId) {
+        return retainedSearchContexts.acquire(sessionId);
+    }
+
     void releaseAsync(DiscoveryNode targetNode, String retainedSessionId, ActionListener<Void> listener) {
         transportService.sendRequest(
             targetNode,

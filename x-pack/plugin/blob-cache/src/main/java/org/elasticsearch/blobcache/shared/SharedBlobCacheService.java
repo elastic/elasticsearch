@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Array;
@@ -494,6 +495,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             "shared_blob_cache_evictions",
             SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
             threadPool.generic()
+        );
+        logger.info(
+            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}], eviction policy=[{}]",
+            ByteSizeValue.ofBytes(cacheSize),
+            ByteSizeValue.ofBytes(regionSize),
+            numRegions,
+            evictionPolicy.getClass().getSimpleName()
         );
     }
 
@@ -1707,29 +1715,37 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         /**
          * Bulk variant of {@link #withMemorySegmentSlice}. Resolves {@code count} byte ranges to
-         * memory segments, holding ref-counts on all distinct regions to prevent eviction,
-         * then invokes the action. Each individual range must fit within a single region.
+         * raw native addresses, writes them into {@code addrsOut[0..count)}, holds ref-counts on all
+         * distinct regions for the duration of {@code action} to prevent eviction,
+         * then invokes {@code action}. Returns {@code false} without invoking the action if
+         * any range is unavailable or not mmap-ed. Each individual range must fit within a
+         * single region.
          */
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-            throws IOException {
-            return withMemorySegmentSlices(offsets, length, count, action, SharedBytes.MADV_NORMAL);
-        }
-
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        public boolean withMemorySegmentSlices(
+        public boolean withSliceAddresses(
             long[] offsets,
             int length,
             int count,
-            CheckedConsumer<MemorySegment[], IOException> action,
+            MemorySegment addrsOut,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
+            return withSliceAddresses(offsets, length, count, addrsOut, action, SharedBytes.MADV_NORMAL);
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public boolean withSliceAddresses(
+            long[] offsets,
+            int length,
+            int count,
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action,
             int advice
         ) throws IOException {
-            if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+            if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
                 return false;
             }
             final CacheFileRegion<KeyType>[] held = new CacheFileRegion[count];
             int heldCount = 0;
-            final MemorySegment[] results = new MemorySegment[count];
             try {
                 for (int i = 0; i < count; i++) {
                     final long offset = offsets[i];
@@ -1763,17 +1779,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         ioRef.madvise(advice);
                     }
 
-                    results[i] = ioRef.memorySegmentSlice(getRegionRelativePosition(offset), length);
-                    if (results[i] == null) {
+                    // Write the raw address directly into the caller's output buffer.
+                    // addressAt() returns -1L when not mmap-ed, which means unavailable.
+                    long addr = ioRef.addressAt(getRegionRelativePosition(offset));
+                    if (addr == -1L) {
                         return false;
                     }
+                    addressesScratch.setAtIndex(ValueLayout.JAVA_LONG, i, addr);
                 }
                 for (int i = 0; i < heldCount; i++) {
                     if (held[i].isEvicted()) {
                         return false;
                     }
                 }
-                action.accept(results);
+                action.accept(addressesScratch);
                 return true;
             } finally {
                 for (int i = 0; i < heldCount; i++) {

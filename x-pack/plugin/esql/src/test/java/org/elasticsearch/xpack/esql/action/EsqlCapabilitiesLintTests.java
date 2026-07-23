@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -24,10 +25,16 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
  * Validates the consistency of {@code required_capability:} directives in csv-spec files
  * against the capabilities declared in {@link EsqlCapabilities}.
  *
- * <p>This lint runs unconditionally (snapshot and release builds, no cluster required) and
- * reports all violations at once — unlike the per-test assertion in
+ * <p>This lint runs on snapshot builds only (no cluster required) and reports all violations
+ * at once — unlike the per-test assertion in
  * {@link org.elasticsearch.xpack.esql.CsvTestUtils#checkTestCapabilities}, which only fires
  * on snapshot builds and only as each test case executes inside {@code CsvIT}.</p>
+ *
+ * <p>Snapshot-only functions (e.g. {@code TSTEP}) are not registered on release builds, so
+ * their per-function sub-capabilities ({@code fn_tstep_*}) are absent from the capability
+ * set even with {@code all=true}.  Running only on snapshot builds avoids false positives
+ * while still catching typos and missing declarations during development, matching the
+ * behaviour of {@code CsvTestUtils#checkTestCapabilities}.</p>
  *
  * <p>Motivation: capability gaps (e.g. a csv-spec test referencing a misspelled or removed
  * capability, or using a capability that was never declared) cause {@code CsvIT} tests to be
@@ -49,6 +56,11 @@ public class EsqlCapabilitiesLintTests extends ESTestCase {
      * removed (a removed capability trivially satisfies the "missing" condition).</p>
      */
     public void testAllReferencedCapabilitiesAreDeclared() throws Exception {
+        assumeTrue(
+            "Capability name lint skipped on release builds: per-function caps for snapshot-only"
+                + " functions are absent when those functions are not registered",
+            Build.current().isSnapshot()
+        );
         Set<String> allKnownCaps = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true).capabilities();
 
         List<URL> urls = EsqlTestUtils.classpathResources("/*.csv-spec");

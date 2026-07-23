@@ -639,6 +639,56 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     /**
+     * When a role has both a broad privilege (whose automaton is a superset of a narrower one) and a
+     * narrow privilege granted on overlapping resources, {@code getApplicationResources} and
+     * {@code getApplicationPrivileges} must surface the full set of accessible resources/tokens.
+     * <p>
+     * {@code ApplicationPermission.getResourcePatterns(privilege)} uses {@code matchesPrivilege} semantics:
+     * it returns resources from any stored entry whose action automaton is a superset of the queried
+     * privilege's automaton. So if "all" (*) is on space:X and "read" is on space:Y, then
+     * {@code getResourcePatterns(read)} returns {@code {X, Y}} — X is included because the "all" grant
+     * covers "read" on space:X. This is the correct behaviour: a user with "all" on space:X genuinely has
+     * read-level access there, and a DLS query templated on {@code _user.application_privileges} should
+     * match a document tagged {@code space:X|read_action}.
+     */
+    public void testApplicationPrivilegesWithOverlappingBroadAndNarrowGrants() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        // "all" covers every action (wildcard automaton), granted on space:hr only.
+        final ApplicationPrivilege all = defineApplicationPrivilege(privs, "myapp", "all", "*");
+        // "read" is a narrower privilege (actions are a subset of "all"), granted on space:engineering only.
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "myapp", "read", "data:read/*");
+
+        final Role role = Role.builder(RESTRICTED_INDICES, "overlap-test")
+            .addApplicationPrivilege(all, Collections.singleton("space:hr"))
+            .addApplicationPrivilege(read, Collections.singleton("space:engineering"))
+            .build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        // Resources: both spaces are accessible (space:hr via "all", space:engineering via "read").
+        assertThat(
+            authzInfo.getApplicationResources(),
+            equalTo(Map.of("myapp", List.of("space:engineering", "space:hr")))
+        );
+
+        // Privilege tokens: "data:read/*" (read's action) appears for BOTH spaces because "all" on space:hr
+        // subsumes "read", so space:hr is included in getResourcePatterns(read) via matchesPrivilege.
+        // "*" (all's action) appears for space:hr directly. This correctly reflects what the user can do.
+        assertThat(
+            authzInfo.getApplicationPrivileges(),
+            equalTo(
+                Map.of(
+                    "myapp",
+                    List.of(
+                        "space:engineering|data:read/*",
+                        "space:hr|*",
+                        "space:hr|data:read/*"
+                    )
+                )
+            )
+        );
+    }
+
+    /**
      * A role that grants no application privileges exposes empty (short-circuited) maps, so existing DLS
      * roles pay nothing for the new fields.
      */

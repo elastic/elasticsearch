@@ -116,36 +116,89 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
     }
 
     /**
-     * When a DLS query is templated over the user's application privileges, the request-cache key must
-     * incorporate those privileges — otherwise two users who share the same role/template but hold
-     * different application privileges (e.g. different Kibana spaces) could read each other's cached
-     * results. Verifies that identical privileges yield an identical cache key while differing privileges
-     * yield a different one.
+     * When a DLS query is templated over the user's application resources ({@code _user.application_resources}),
+     * the request-cache key must incorporate those resources — otherwise two users with different Kibana spaces
+     * could receive each other's cached results. Verifies same resources → same key, different resources → different key.
      */
-    public void testCacheKeyIncorporatesTemplatedApplicationPrivileges() throws IOException {
-        final BytesReference marketing = buildCacheKey("space:marketing|saved_object:dashboard/get");
-        final BytesReference marketingAgain = buildCacheKey("space:marketing|saved_object:dashboard/get");
-        final BytesReference finance = buildCacheKey("space:finance|saved_object:dashboard/get");
+    public void testCacheKeyIncorporatesTemplatedApplicationResources() throws IOException {
+        final BytesReference marketing = buildCacheKeyForResources("space:marketing");
+        final BytesReference marketingAgain = buildCacheKeyForResources("space:marketing");
+        final BytesReference finance = buildCacheKeyForResources("space:finance");
 
         assertThat(marketing, equalTo(marketingAgain));
         assertThat(marketing, not(equalTo(finance)));
     }
 
     /**
-     * Builds the DLS/FLS request-cache key for an index whose DLS query is templated over the user's
-     * resource-scoped application privileges (the shape the Agent Builder ai-index DLS role uses), with the
-     * given {@code applicationPrivileges} tokens exposed on the thread-context authorization info (as the
-     * RBAC engine would at runtime). Returns the written key bytes.
+     * When a DLS query is templated over the user's resource-scoped application privileges
+     * ({@code _user.application_privileges}), the request-cache key must incorporate those privileges —
+     * otherwise two users with the same role template but different space/action grants could read each
+     * other's cached results. Verifies same privileges → same key, different privileges → different key.
      */
-    private BytesReference buildCacheKey(String... applicationPrivileges) throws IOException {
-        // A fresh DocumentPermissions per call: it memoizes its evaluated queries, so a shared instance would
-        // render only once and mask the per-user difference we are asserting.
+    public void testCacheKeyIncorporatesTemplatedApplicationPrivileges() throws IOException {
+        final BytesReference marketing = buildCacheKeyForPrivileges("space:marketing|saved_object:dashboard/get");
+        final BytesReference marketingAgain = buildCacheKeyForPrivileges("space:marketing|saved_object:dashboard/get");
+        final BytesReference finance = buildCacheKeyForPrivileges("space:finance|saved_object:dashboard/get");
+
+        assertThat(marketing, equalTo(marketingAgain));
+        assertThat(marketing, not(equalTo(finance)));
+    }
+
+    /**
+     * When both {@code _user.application_resources} and {@code _user.application_privileges} appear in the
+     * DLS query template, the cache key must reflect both — a change in either alone must produce a distinct key.
+     */
+    public void testCacheKeyIncorporatesBothApplicationResourcesAndPrivileges() throws IOException {
+        final Map<String, List<String>> resourcesA = Map.of("myapp", List.of("space:marketing"));
+        final Map<String, List<String>> resourcesB = Map.of("myapp", List.of("space:finance"));
+        final Map<String, List<String>> privilegesA = Map.of("myapp", List.of("space:marketing|data:read/*"));
+        final Map<String, List<String>> privilegesB = Map.of("myapp", List.of("space:finance|data:read/*"));
+
+        final BytesReference aaKey = buildCacheKeyForBoth(resourcesA, privilegesA);
+        final BytesReference aaKeyAgain = buildCacheKeyForBoth(resourcesA, privilegesA);
+        final BytesReference abKey = buildCacheKeyForBoth(resourcesA, privilegesB);
+        final BytesReference baKey = buildCacheKeyForBoth(resourcesB, privilegesA);
+        final BytesReference bbKey = buildCacheKeyForBoth(resourcesB, privilegesB);
+
+        assertThat(aaKey, equalTo(aaKeyAgain));
+        assertThat(aaKey, not(equalTo(abKey)));  // same resources, different privileges → different key
+        assertThat(aaKey, not(equalTo(baKey)));  // different resources, same privileges → different key
+        assertThat(aaKey, not(equalTo(bbKey)));
+    }
+
+    private BytesReference buildCacheKeyForResources(String... resources) throws IOException {
+        final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"template":{"source":"{\\"terms\\":{\\"space_resources\\":{{#toJson}}_user.application_resources{{/toJson}}}}"}}""")));
+        final Map<String, List<String>> appResources = Map.of("myapp", List.of(resources));
+        return buildCacheKeyWithInfo(templatedDls, new StubAuthorizationInfo(appResources, Map.of()));
+    }
+
+    private BytesReference buildCacheKeyForPrivileges(String... privileges) throws IOException {
         final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
             {"template":{"source":"{\\"terms\\":{\\"space_perms\\":{{#toJson}}_user.application_privileges{{/toJson}}}}"}}""")));
+        final Map<String, List<String>> appPrivileges = Map.of("myapp", List.of(privileges));
+        return buildCacheKeyWithInfo(templatedDls, new StubAuthorizationInfo(Map.of(), appPrivileges));
+    }
+
+    private BytesReference buildCacheKeyForBoth(
+        Map<String, List<String>> applicationResources,
+        Map<String, List<String>> applicationPrivileges
+    ) throws IOException {
+        final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"template":{"source":"{\\"bool\\":{\\"must\\":[{\\"terms\\":{\\"space_resources\\":{{#toJson}}_user.application_resources{{/toJson}}}},\
+{\\"terms\\":{\\"space_perms\\":{{#toJson}}_user.application_privileges{{/toJson}}}}]}}"}}""")));
+        return buildCacheKeyWithInfo(templatedDls, new StubAuthorizationInfo(applicationResources, applicationPrivileges));
+    }
+
+    /**
+     * Builds the DLS/FLS request-cache key for an index with the given DLS query and authorization info.
+     * Uses a fresh {@link DocumentPermissions} per call because it memoizes its evaluated queries — a
+     * shared instance would render only once and mask per-user differences.
+     */
+    private BytesReference buildCacheKeyWithInfo(DocumentPermissions templatedDls, StubAuthorizationInfo authInfo) throws IOException {
         final ThreadContext localThreadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, localThreadContext);
-        // The DLS template render reads the authenticated user (e.g. for _user.username); a templated query
-        // needs one present in the context.
+        // The DLS template render reads the authenticated user (e.g. for _user.username).
         final Authentication authentication = AuthenticationTestHelper.builder().user(new User("test-user")).build(false);
         authentication.writeToContext(localThreadContext);
         // A real mustache-backed ScriptService so the template actually renders (the base test class mocks it,
@@ -170,11 +223,7 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
                 Map.of(templatedIndexName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, templatedDls))
             )
         );
-        // The resolved authorization info the render sites read from the thread context.
-        AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.set(
-            localThreadContext,
-            new StubAuthorizationInfo(Map.of("kibana-.kibana", List.of(applicationPrivileges)))
-        );
+        AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.set(localThreadContext, authInfo);
 
         final ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.shardId()).thenReturn(new ShardId(templatedIndexName, randomAlphaOfLength(10), randomIntBetween(0, 3)));
@@ -185,13 +234,22 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
     }
 
     /**
-     * Minimal {@link AuthorizationInfo} that only carries application privileges, so the differentiator can
-     * read them from the thread context exactly as it reads the RBAC engine's info at runtime.
+     * Minimal {@link AuthorizationInfo} that carries application resources and privileges so the
+     * differentiator can read them from the thread context exactly as it reads the RBAC engine's info
+     * at runtime.
      */
-    private record StubAuthorizationInfo(Map<String, List<String>> applicationPrivileges) implements AuthorizationInfo {
+    private record StubAuthorizationInfo(
+        Map<String, List<String>> applicationResources,
+        Map<String, List<String>> applicationPrivileges
+    ) implements AuthorizationInfo {
         @Override
         public Map<String, Object> asMap() {
             return Map.of();
+        }
+
+        @Override
+        public Map<String, List<String>> getApplicationResources() {
+            return applicationResources;
         }
 
         @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -19,14 +18,13 @@ import org.elasticsearch.index.mapper.BlockLoader;
 public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuilder, Releasable, Block.Builder {
 
     private final long[] values;
-    private final BlockFactory blockFactory;
+    private final PerFieldBlockLoaderFactory blockFactory;
 
     private int count;
 
-    public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonLongBuilder(int expectedCount, PerFieldBlockLoaderFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new long[expectedCount];
+        this.values = blockFactory.getLongs(expectedCount);
     }
 
     @Override
@@ -68,7 +66,9 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
         if (values.length != count) {
             throw new IllegalStateException("expected [" + values.length + "] values but got [" + count + "]");
         }
-        return blockFactory.newLongArrayVector(values, count).asBlock();
+        final var block = blockFactory.factory.newLongArrayVector(values, count).asBlock();
+        block.attachReleasable(() -> blockFactory.returnLongs(values));
+        return block;
     }
 
     @Override
@@ -86,7 +86,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+
     }
 
     static long valuesSize(int count) {

@@ -160,32 +160,31 @@ class ValuesFromSingleReader extends ValuesReader {
 
         List<ColumnAtATimeWork> columnAtATimeReaders = new ArrayList<>(operator.fields.length);
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(operator.fields.length);
-        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory())) {
-            for (int f = 0; f < operator.fields.length; f++) {
-                ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
-                BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
-                if (columnAtATime != null) {
-                    columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, field.converter, f));
-                } else {
-                    rowStrideReaders.add(
-                        new RowStrideReaderWork(
-                            field.rowStride(ctx),
-                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count() - offset),
-                            field.loader,
-                            field.converter,
-                            f
-                        )
-                    );
-                    storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
-                }
+        for (int f = 0; f < operator.fields.length; f++) {
+            ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
+            BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
+            if (columnAtATime != null) {
+                columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, field.converter, f));
+            } else {
+                rowStrideReaders.add(
+                    new RowStrideReaderWork(
+                        field.rowStride(ctx),
+                        (Block.Builder) field.loader.builder(field.blockFactory, docs.count() - offset),
+                        field.loader,
+                        field.converter,
+                        f
+                    )
+                );
+                storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
             }
-
+        }
+        try {
             if (rowStrideReaders.isEmpty() == false) {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
                 target[r.idx] = r.convert(
-                    (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered())
+                    (Block) r.reader.read(operator.fields[r.idx].blockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered())
                 );
                 operator.sanityCheckBlock(r.reader, docs.count() - offset, target[r.idx], r.idx);
             }

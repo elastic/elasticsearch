@@ -55,7 +55,10 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
         Double[] values = new Double[] { 1.1, 2.2, 3.3, 4.4 };
 
         int count = 1000;
-        try (Directory directory = newDirectory()) {
+        try (
+            Directory directory = newDirectory();
+            var perFieldFactory = new PerFieldBlockLoaderFactory(factory, new PerFieldBlockLoaderFactory.NullBlockPool(factory))
+        ) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
                 for (int i = 0; i < count; i++) {
                     double v = values[i % values.length];
@@ -66,7 +69,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory)) {
+                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), perFieldFactory)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
@@ -93,7 +96,11 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
 
     public void testMoreValues() throws IOException {
         int count = 1_000;
-        try (Directory directory = newDirectory()) {
+        BlockFactory blockFactory = blockFactory();
+        try (
+            Directory directory = newDirectory();
+            var perfFieldFactory = new PerFieldBlockLoaderFactory(blockFactory, new PerFieldBlockLoaderFactory.NullBlockPool(blockFactory))
+        ) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
                 for (int i = 0; i < count; i++) {
                     indexWriter.addDocument(List.of(new NumericDocValuesField("field", Double.doubleToRawLongBits(i / (double) count))));
@@ -105,7 +112,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory())) {
+                try (var builder = new SingletonDoubleBuilder(count - offset, perfFieldFactory)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);

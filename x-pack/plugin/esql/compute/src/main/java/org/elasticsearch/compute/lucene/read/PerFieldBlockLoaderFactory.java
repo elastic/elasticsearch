@@ -10,6 +10,8 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -21,14 +23,27 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
-public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
-    protected final BlockFactory factory;
+public final class PerFieldBlockLoaderFactory implements BlockLoader.BlockFactory, Releasable {
+    final BlockFactory factory;
+    final NullBlockPool nullBlockPool;
+    private final CircuitBreaker breaker;
 
-    protected DelegatingBlockLoaderFactory(BlockFactory factory) {
+    private long[] longPool;
+    private int[] intPool;
+    private double[] doublePool;
+
+    private long usedLongBytes;
+    private long usedIntBytes;
+    private long usedDoubleBytes;
+
+    public PerFieldBlockLoaderFactory(BlockFactory factory, NullBlockPool nullBlockPool) {
         this.factory = factory;
+        this.nullBlockPool = nullBlockPool;
+        this.breaker = factory.breaker();
     }
 
     @Override
@@ -59,6 +74,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
         return new SingletonBytesRefBuilder(expectedCount, factory);
+    }
+
+    @Override
+    public BlockLoader.Block constantNulls(int count) {
+        return nullBlockPool.constantNulls(count);
     }
 
     @Override
@@ -129,17 +149,75 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
-        return new SingletonLongBuilder(expectedCount, factory);
+        return new SingletonLongBuilder(expectedCount, this);
     }
 
     @Override
     public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
-        return new SingletonIntBuilder(expectedCount, factory);
+        return new SingletonIntBuilder(expectedCount, this);
     }
 
     @Override
     public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
-        return new SingletonDoubleBuilder(expectedCount, factory);
+        return new SingletonDoubleBuilder(expectedCount, this);
+    }
+
+    long[] getLongs(int size) {
+        long[] arr = longPool;
+        longPool = null;
+        if (arr == null || arr.length < size) {
+            long newBytes = arrayBytes(Long.BYTES, size);
+            if (newBytes > usedLongBytes) {
+                breaker.addEstimateBytesAndMaybeBreak(newBytes - usedLongBytes, "long[]");
+                usedLongBytes = newBytes;
+            }
+            arr = new long[size];
+        }
+        return arr;
+    }
+
+    void returnLongs(long[] arr) {
+        longPool = arr;
+    }
+
+    int[] getInts(int size) {
+        int[] arr = intPool;
+        intPool = null;
+        if (arr == null || arr.length < size) {
+            long newBytes = arrayBytes(Integer.BYTES, size);
+            if (newBytes > usedIntBytes) {
+                breaker.addEstimateBytesAndMaybeBreak(newBytes - usedIntBytes, "int[]");
+                usedIntBytes = newBytes;
+            }
+            arr = new int[size];
+        }
+        return arr;
+    }
+
+    void returnInts(int[] arr) {
+        intPool = arr;
+    }
+
+    double[] getDoubles(int size) {
+        double[] arr = doublePool;
+        doublePool = null;
+        if (arr == null || arr.length < size) {
+            long newBytes = arrayBytes(Double.BYTES, size);
+            if (newBytes > usedDoubleBytes) {
+                breaker.addEstimateBytesAndMaybeBreak(newBytes - usedDoubleBytes, "double[]");
+                usedDoubleBytes = newBytes;
+            }
+            arr = new double[size];
+        }
+        return arr;
+    }
+
+    void returnDoubles(double[] arr) {
+        doublePool = arr;
+    }
+
+    private static long arrayBytes(int elementBytes, int size) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) elementBytes * size);
     }
 
     @Override
@@ -149,7 +227,7 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
-        return new SingletonOrdinalsBuilder(factory, ordinals, count, isDense);
+        return new SingletonOrdinalsBuilder(this, ordinals, count, isDense);
     }
 
     @Override
@@ -231,5 +309,39 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
         return factory.newTDigestBlockBuilder(count);
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-(usedLongBytes + usedIntBytes + usedDoubleBytes));
+    }
+
+    public static class NullBlockPool implements Releasable {
+        private final BlockFactory factory;
+        private Block nullBlock;
+
+        NullBlockPool(BlockFactory factory) {
+            this.factory = factory;
+        }
+
+        public Block constantNulls(int count) {
+            if (nullBlock == null) {
+                nullBlock = factory.newConstantNullBlock(count);
+            } else {
+                if (nullBlock.getPositionCount() != count) {
+                    nullBlock.close();
+                    nullBlock = factory.newConstantNullBlock(count);
+                }
+            }
+            nullBlock.incRef();
+            return nullBlock;
+        }
+
+        @Override
+        public void close() {
+            if (nullBlock != null) {
+                nullBlock.close();
+            }
+        }
     }
 }

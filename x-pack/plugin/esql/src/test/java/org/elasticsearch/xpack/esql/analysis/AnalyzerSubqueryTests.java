@@ -997,7 +997,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
-        assertEquals(1, tsUnpack.unpackedDimensions().size());
+        assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertEquals(1, tsOuterAggregate.groupings().size());
@@ -1114,7 +1114,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
-        assertEquals(1, tsUnpack.unpackedDimensions().size());
+        assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 
@@ -39,11 +40,15 @@ public class UnpackDimsOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock packed = page.getBlock(packedChannel);
-        if (types.length == 1) {
-            return page.appendBlock(DimsPacker.unpackSingleColumn(driverContext, packed.asVector(), types[0]));
+        BytesRefBlock packedBlock = page.getBlock(packedChannel);
+        BytesRefVector packedVector = packedBlock.asVector();
+        if (packedVector == null) {
+            throw new IllegalStateException("expected a packed BytesRefVector; got [" + packedBlock + "]");
         }
-        return page.appendBlocks(DimsPacker.unpackMultiColumns(driverContext, packed, types));
+        if (types.length == 1) {
+            return page.appendBlock(DimsPacker.unpackSingleColumn(driverContext, packedVector, types[0]));
+        }
+        return page.appendBlocks(DimsPacker.unpackMultiColumns(driverContext, packedVector, types));
     }
 
     @Override

@@ -68,7 +68,7 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         Project project = as(actual, Project.class);
         Limit limit = as(project.child(), Limit.class);
         UnpackDims unpack = as(limit.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
+        assertThat(unpack.dims(), hasSize(1));
         Aggregate agg = as(unpack.child(), Aggregate.class);
         PackDims pack = as(agg.child(), PackDims.class);
         assertThat(pack.dims(), hasSize(1));

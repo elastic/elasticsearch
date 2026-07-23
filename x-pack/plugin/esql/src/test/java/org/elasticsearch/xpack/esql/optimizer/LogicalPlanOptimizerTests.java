@@ -7312,7 +7312,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         UnpackDims unpack = as(topN.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
+        assertThat(unpack.dims(), hasSize(1));
         Aggregate aggsByCluster = as(unpack.child(), Aggregate.class);
         assertThat(aggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(aggsByCluster.aggregates(), hasSize(2));
@@ -7340,10 +7340,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = as(plan, Project.class);
         Limit limit = as(project.child(), Limit.class);
         UnpackDims unpack = as(limit.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(2));
-        var unpackCluster = unpack.unpackedDimensions().get(0);
+        assertThat(unpack.dims(), hasSize(2));
+        var unpackCluster = unpack.dims().get(0);
         assertThat(Expressions.name(unpackCluster), equalTo("cluster"));
-        var unpackPod = unpack.unpackedDimensions().get(1);
+        var unpackPod = unpack.dims().get(1);
         assertThat(Expressions.name(unpackPod), equalTo("pod"));
         Project innerProject = as(unpack.child(), Project.class);
         Eval eval = as(innerProject.child(), Eval.class);
@@ -7417,7 +7417,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         UnpackDims unpack = as(topN.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(2));
+        assertThat(unpack.dims(), hasSize(2));
         Project innerProject = as(unpack.child(), Project.class);
         Eval eval = as(innerProject.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
@@ -7460,7 +7460,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project projection = as(plan, Project.class);
         TopN topN = as(projection.child(), TopN.class);
         UnpackDims unpack = as(topN.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(2));
+        assertThat(unpack.dims(), hasSize(2));
         Aggregate finalAgg = as(unpack.child(), Aggregate.class);
         Eval eval = as(finalAgg.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
@@ -7485,7 +7485,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         UnpackDims unpack = as(topN.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
+        assertThat(unpack.dims(), hasSize(1));
         Project innerProject = as(unpack.child(), Project.class);
         Eval eval = as(innerProject.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
@@ -7532,7 +7532,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         UnpackDims unpack = as(topN.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
+        assertThat(unpack.dims(), hasSize(1));
         Project innerProject = as(unpack.child(), Project.class);
         Eval evalDiv = as(innerProject.child(), Eval.class);
         assertThat(evalDiv.fields(), hasSize(1));
@@ -11124,8 +11124,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(project.child(), Limit.class);
         // UnpackDims[packed, [p]]
         var unpack = as(limit.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
-        assertThat(unpack.unpackedDimensions().getFirst().name(), equalTo("p"));
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(unpack.dims().getFirst().name(), equalTo("p"));
         // Aggregate[[bucket, _$packed_dims AS packed], [MAX(..) AS max(..), bucket, packed]]
         var aggregate = as(unpack.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));

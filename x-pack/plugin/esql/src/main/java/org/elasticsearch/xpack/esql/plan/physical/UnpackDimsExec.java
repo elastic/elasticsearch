@@ -43,7 +43,7 @@ public class UnpackDimsExec extends UnaryExec {
         throw new UnsupportedOperationException("UnpackDimsExec should be used local only");
     }
 
-    public Attribute packedAttribute() {
+    public Attribute packed() {
         return packed;
     }
 

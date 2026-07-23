@@ -59,20 +59,10 @@ public class DimsPackerTests extends ComputeTestCase {
         }
     }
 
-    static boolean encodedRowEquals(BytesRefBlock b1, BytesRefBlock b2, int position) {
-        int count1 = b1.getValueCount(position);
-        int count2 = b2.getValueCount(position);
-        if (count1 == 0 && count2 == 0) {
-            return true;
-        }
-        if (count1 != count2) {
-            return false;
-        }
-        assertThat(count1, equalTo(1));
-        assertThat(count2, equalTo(1));
-        BytesRef v1 = b1.getBytesRef(b1.getFirstValueIndex(position), new BytesRef());
-        BytesRef v2 = b2.getBytesRef(b2.getFirstValueIndex(position), new BytesRef());
-        return v1.equals(v2);
+    static boolean encodedRowEquals(BytesRefVector v1, BytesRefVector v2, int position) {
+        BytesRef scratch1 = new BytesRef();
+        BytesRef scratch2 = new BytesRef();
+        return v1.getBytesRef(position, scratch1).equals(v2.getBytesRef(position, scratch2));
     }
 
     public void testKeyword() {
@@ -94,8 +84,8 @@ public class DimsPackerTests extends ComputeTestCase {
         var block2 = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, values2);
         var encoded1 = DimsPacker.packBytesValues(driverContext, block1);
         var encoded2 = DimsPacker.packBytesValues(driverContext, block2);
-        var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1.asVector());
-        var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2.asVector());
+        var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1);
+        var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -133,8 +123,8 @@ public class DimsPackerTests extends ComputeTestCase {
         var block2 = (LongBlock) buildBlock(blockFactory, ElementType.LONG, values2);
         var encode1 = DimsPacker.packLongValues(driverContext, block1);
         var encode2 = DimsPacker.packLongValues(driverContext, block2);
-        var decoded1 = DimsPacker.unpackLongValues(driverContext, encode1.asVector());
-        var decoded2 = DimsPacker.unpackLongValues(driverContext, encode2.asVector());
+        var decoded1 = DimsPacker.unpackLongValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackLongValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -171,8 +161,8 @@ public class DimsPackerTests extends ComputeTestCase {
         var block2 = (IntBlock) buildBlock(blockFactory, ElementType.INT, values2);
         var encode1 = DimsPacker.packIntValues(driverContext, block1);
         var encode2 = DimsPacker.packIntValues(driverContext, block2);
-        var decoded1 = DimsPacker.unpackIntValues(driverContext, encode1.asVector());
-        var decoded2 = DimsPacker.unpackIntValues(driverContext, encode2.asVector());
+        var decoded1 = DimsPacker.unpackIntValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackIntValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -209,8 +199,8 @@ public class DimsPackerTests extends ComputeTestCase {
         var block2 = (BooleanBlock) buildBlock(blockFactory, ElementType.BOOLEAN, values2);
         var encode1 = DimsPacker.packBooleanValues(driverContext, block1);
         var encode2 = DimsPacker.packBooleanValues(driverContext, block2);
-        var decoded1 = DimsPacker.unpackBooleanValues(driverContext, encode1.asVector());
-        var decoded2 = DimsPacker.unpackBooleanValues(driverContext, encode2.asVector());
+        var decoded1 = DimsPacker.unpackBooleanValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackBooleanValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -254,11 +244,11 @@ public class DimsPackerTests extends ComputeTestCase {
             var block2 = new OrdinalBytesRefBlock(ordinals.build(), dict);
             var encoded1 = DimsPacker.packBytesValues(driverContext, block1);
             var encoded2 = DimsPacker.packBytesValues(driverContext, block2);
-            var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1.asVector());
-            var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2.asVector());
+            var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1);
+            var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2);
             try {
                 assertTrue(BytesRefBlock.equals(block1, block2));
-                assertTrue(BytesRefBlock.equals(encoded1, encoded2));
+                assertTrue(BytesRefVector.equals(encoded1, encoded2));
                 assertTrue(BytesRefBlock.equals(decoded1, decoded2));
             } finally {
                 Releasables.close(block1, encoded1, decoded1, block2, encoded2, decoded2);
@@ -302,8 +292,8 @@ public class DimsPackerTests extends ComputeTestCase {
             blocks1[i] = buildBlock(blockFactory, types[i], columns1.get(i));
             blocks2[i] = buildBlock(blockFactory, types[i], columns2.get(i));
         }
-        BytesRefBlock encoded1 = DimsPacker.packMultiColumns(driverContext, blocks1);
-        BytesRefBlock encoded2 = DimsPacker.packMultiColumns(driverContext, blocks2);
+        BytesRefVector encoded1 = DimsPacker.packMultiColumns(driverContext, blocks1);
+        BytesRefVector encoded2 = DimsPacker.packMultiColumns(driverContext, blocks2);
         Block[] decoded1 = DimsPacker.unpackMultiColumns(driverContext, encoded1, types);
         Block[] decoded2 = DimsPacker.unpackMultiColumns(driverContext, encoded2, types);
         try {

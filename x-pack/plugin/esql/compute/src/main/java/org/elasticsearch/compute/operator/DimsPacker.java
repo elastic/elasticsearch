@@ -30,21 +30,21 @@ final class DimsPacker {
         return Math.max(INITIAL_SIZE_IN_BYTES, positionCount);
     }
 
-    static BytesRefBlock packBytesValues(DriverContext driverContext, BytesRefBlock raw) {
+    static BytesRefVector packBytesValues(DriverContext driverContext, BytesRefBlock raw) {
         BytesRefVector vector = raw.asVector();
         if (vector != null) {
             OrdinalBytesRefVector ordinals = vector.asOrdinals();
             if (ordinals != null) {
                 var encoded = packBytesVector(driverContext, ordinals.getDictionaryVector());
                 ordinals.getOrdinalsVector().incRef();
-                return new OrdinalBytesRefVector(ordinals.getOrdinalsVector(), encoded).asBlock();
+                return new OrdinalBytesRefVector(ordinals.getOrdinalsVector(), encoded);
             } else {
-                return packBytesVector(driverContext, vector).asBlock();
+                return packBytesVector(driverContext, vector);
             }
         }
         int positionCount = raw.getPositionCount();
         try (
-            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
             var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 1024)
         ) {
             BytesRef scratch = new BytesRef();
@@ -105,10 +105,10 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefBlock packLongValues(DriverContext driverContext, LongBlock raw) {
+    static BytesRefVector packLongValues(DriverContext driverContext, LongBlock raw) {
         int positionCount = raw.getPositionCount();
         try (
-            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
             var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
         ) {
             for (int p = 0; p < positionCount; p++) {
@@ -148,10 +148,10 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefBlock packIntValues(DriverContext driverContext, IntBlock raw) {
+    static BytesRefVector packIntValues(DriverContext driverContext, IntBlock raw) {
         int positionCount = raw.getPositionCount();
         try (
-            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
             var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
         ) {
             for (int p = 0; p < positionCount; p++) {
@@ -191,10 +191,10 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefBlock packBooleanValues(DriverContext driverContext, BooleanBlock raw) {
+    static BytesRefVector packBooleanValues(DriverContext driverContext, BooleanBlock raw) {
         int positionCount = raw.getPositionCount();
         try (
-            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount);
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
             var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
         ) {
             for (int p = 0; p < positionCount; p++) {
@@ -234,19 +234,19 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefBlock packNulls(DriverContext driverContext, int positionCount) {
+    static BytesRefVector packNulls(DriverContext driverContext, int positionCount) {
         try (var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 4)) {
             ENCODER.encodeInt(0, work);
             BytesRef bytesRef = work.bytesRefView();
-            return driverContext.blockFactory().newConstantBytesRefBlockWith(bytesRef, positionCount);
+            return driverContext.blockFactory().newConstantBytesRefVector(bytesRef, positionCount);
         }
     }
 
-    static BytesRefBlock packMultiColumns(DriverContext driverContext, Block[] blocks) {
+    static BytesRefVector packMultiColumns(DriverContext driverContext, Block[] blocks) {
         int positionCount = blocks[0].getPositionCount();
         try (
-            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dimensions", 32)
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
+            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
         ) {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
@@ -272,12 +272,8 @@ final class DimsPacker {
         }
     }
 
-    static Block[] unpackMultiColumns(DriverContext driverContext, BytesRefBlock inputBlock, ElementType[] outputTypes) {
-        int positionCount = inputBlock.getPositionCount();
-        BytesRefVector inputVector = inputBlock.asVector();
-        if (inputVector == null) {
-            throw new IllegalStateException("expected encoded vector block or all null; got " + inputBlock);
-        }
+    static Block[] unpackMultiColumns(DriverContext driverContext, BytesRefVector packed, ElementType[] outputTypes) {
+        int positionCount = packed.getPositionCount();
         Block.Builder[] builders = new Block.Builder[outputTypes.length];
         try {
             for (int i = 0; i < outputTypes.length; i++) {
@@ -286,7 +282,7 @@ final class DimsPacker {
             BytesRef inScratch = new BytesRef();
             BytesRef outScratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
-                BytesRef row = inputVector.getBytesRef(p, inScratch);
+                BytesRef row = packed.getBytesRef(p, inScratch);
                 for (int col = 0; col < outputTypes.length; col++) {
                     int valueCount = ENCODER.decodeInt(row);
                     if (valueCount == 0) {
@@ -302,11 +298,7 @@ final class DimsPacker {
                     }
                 }
             }
-            Block[] result = new Block[builders.length];
-            for (int i = 0; i < builders.length; i++) {
-                result[i] = builders[i].build();
-            }
-            return result;
+            return Block.Builder.buildAll(builders);
         } finally {
             Releasables.close(builders);
         }
@@ -322,7 +314,7 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefBlock packSingleColumn(DriverContext driverContext, Block block) {
+    static BytesRefVector packSingleColumn(DriverContext driverContext, Block block) {
         ElementType elementType = block.elementType();
         return switch (elementType) {
             case NULL -> packNulls(driverContext, block.getPositionCount());

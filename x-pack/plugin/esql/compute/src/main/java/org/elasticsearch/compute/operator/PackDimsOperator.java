@@ -37,13 +37,13 @@ public class PackDimsOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         if (channels.length == 1) {
-            return page.appendBlock(DimsPacker.packSingleColumn(driverContext, page.getBlock(channels[0])));
+            return page.appendBlock(DimsPacker.packSingleColumn(driverContext, page.getBlock(channels[0])).asBlock());
         }
         Block[] blocks = new Block[channels.length];
         for (int i = 0; i < channels.length; i++) {
             blocks[i] = page.getBlock(channels[i]);
         }
-        return page.appendBlock(DimsPacker.packMultiColumns(driverContext, blocks));
+        return page.appendBlock(DimsPacker.packMultiColumns(driverContext, blocks).asBlock());
     }
 
     @Override

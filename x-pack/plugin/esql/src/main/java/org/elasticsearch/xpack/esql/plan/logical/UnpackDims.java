@@ -37,7 +37,7 @@ public class UnpackDims extends UnaryPlan {
         return packed;
     }
 
-    public List<Attribute> unpackedDimensions() {
+    public List<Attribute> dims() {
         return dims;
     }
 

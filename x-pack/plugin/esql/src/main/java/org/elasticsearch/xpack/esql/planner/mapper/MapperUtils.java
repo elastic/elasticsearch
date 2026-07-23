@@ -111,7 +111,7 @@ public class MapperUtils {
         }
 
         if (p instanceof UnpackDims unpack) {
-            return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.unpackedDimensions());
+            return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.dims());
         }
 
         if (p instanceof Dissect dissect) {

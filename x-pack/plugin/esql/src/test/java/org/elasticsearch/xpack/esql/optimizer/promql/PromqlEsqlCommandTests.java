@@ -128,8 +128,8 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(project.projections(), hasSize(3));
 
         var unpack = plan.collect(UnpackDims.class).getFirst();
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
-        assertThat(Expressions.name(unpack.unpackedDimensions().getFirst()), equalTo("pod"));
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("pod"));
 
         var outerProject = as(unpack.child(), Project.class);
         var outerEval = as(outerProject.child(), Eval.class);

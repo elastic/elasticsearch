@@ -27,10 +27,10 @@ public class PackDimsExec extends UnaryExec {
     private final Attribute packed;
     private List<Attribute> lazyOutput;
 
-    public PackDimsExec(Source source, PhysicalPlan child, List<Attribute> dims, Attribute oacked) {
+    public PackDimsExec(Source source, PhysicalPlan child, List<Attribute> dims, Attribute packed) {
         super(source, child);
         this.dims = dims;
-        this.packed = oacked;
+        this.packed = packed;
     }
 
     public List<Attribute> dims() {

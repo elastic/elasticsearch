@@ -650,7 +650,7 @@ public class LocalExecutionPlanner {
             layout.append(attr);
             types[i] = PlannerUtils.toElementType(attr.dataType());
         }
-        var packedChannel = source.layout.get(unpackDimsExec.packedAttribute().id()).channel();
+        var packedChannel = source.layout.get(unpackDimsExec.packed().id()).channel();
         return source.with(new UnpackDimsOperator.Factory(packedChannel, types), layout.build());
     }
 

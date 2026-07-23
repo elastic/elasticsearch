@@ -291,8 +291,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(scalarAgg.aggregates(), hasSize(3));
 
         var unpack = as(scalarAgg.child(), UnpackDims.class);
-        assertThat(unpack.unpackedDimensions(), hasSize(1));
-        assertThat(Expressions.name(unpack.unpackedDimensions().getFirst()), equalTo("cluster"));
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("cluster"));
 
         var sumAgg = as(unpack.child(), Aggregate.class);
         assertThat(sumAgg.groupings(), hasSize(2));

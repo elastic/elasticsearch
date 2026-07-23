@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -221,18 +220,17 @@ public final class DoubleRangeArrayBlock extends AbstractBlockRefCounted impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        fromBlock.writeTo(out);
-        toBlock.writeTo(out);
+        Block.writeTypedBlock(fromBlock, out);
+        Block.writeTypedBlock(toBlock, out);
     }
 
-    public static Block readFrom(StreamInput in) throws IOException {
+    public static Block readFrom(BlockStreamInput in) throws IOException {
         boolean success = false;
         DoubleBlock from = null;
         DoubleBlock to = null;
-        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
-            from = DoubleBlock.readFrom(blockStreamInput);
-            to = DoubleBlock.readFrom(blockStreamInput);
+            from = (DoubleBlock) Block.readTypedBlock(in);
+            to = (DoubleBlock) Block.readTypedBlock(in);
             var result = new DoubleRangeArrayBlock(from, to);
             success = true;
             return result;

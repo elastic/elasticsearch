@@ -15,8 +15,10 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -209,20 +211,24 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var lefType = PlannerUtils.toElementType(left().dataType());
+        var leftType = PlannerUtils.toElementType(left().dataType());
         var rightType = PlannerUtils.toElementType(right().dataType());
 
-        if (lefType != rightType) {
+        if (leftType == ElementType.NULL || rightType == ElementType.NULL) {
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+        }
+
+        if (leftType != rightType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for mv_intersects, left type({}) value({}) and right type({}) value({}) don't match.",
-                lefType,
+                leftType,
                 left(),
                 rightType,
                 right()
             );
         }
 
-        return switch (lefType) {
+        return switch (leftType) {
             case BOOLEAN -> new MvIntersectsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvIntersectsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvIntersectsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));

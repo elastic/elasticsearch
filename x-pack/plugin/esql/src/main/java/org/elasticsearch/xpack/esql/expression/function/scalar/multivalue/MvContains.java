@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -216,6 +217,10 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var supersetType = PlannerUtils.toElementType(left().dataType());
         var subsetType = PlannerUtils.toElementType(right().dataType());
+
+        if (subsetType == ElementType.NULL) {
+            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
+        }
 
         if (supersetType != ElementType.NULL && supersetType != subsetType) {
             throw new EsqlIllegalArgumentException(

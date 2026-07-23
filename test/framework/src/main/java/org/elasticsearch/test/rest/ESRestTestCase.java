@@ -2017,10 +2017,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
-     * {@code retryableStatuses} into an {@link AssertionError}. Intended to be wrapped in {@link #assertBusy}
-     * so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during a rolling
-     * upgrade). Non-retryable ResponseExceptions propagate unchanged. For a self-contained retry loop, use
-     * {@link #performRequestWithBuiltInRetryOnTransientStatus} instead — do not nest the two.
+     * {@code retryableStatuses} into an {@link AssertionError}. Wrap the call in {@link #assertBusy} at the
+     * call site so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during
+     * a rolling upgrade); capture the result via an {@link AtomicReference} if the response is needed outside
+     * the loop. Non-retryable ResponseExceptions propagate unchanged.
      */
     protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
         throws IOException {
@@ -2036,22 +2036,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             throw e;
         }
-    }
-
-    /**
-     * Self-contained retry loop: retries {@code request} via {@link #assertBusy} until it succeeds or
-     * {@code timeout} elapses. Do not wrap calls in an outer {@link #assertBusy}; use
-     * {@link #performRequestRaisingAssertionOnTransientStatus} inside {@link #assertBusy} instead.
-     */
-    protected Response performRequestWithBuiltInRetryOnTransientStatus(Request request, TimeValue timeout, RestStatus... retryableStatuses)
-        throws Exception {
-        var responseHolder = new AtomicReference<Response>();
-        assertBusy(
-            () -> responseHolder.set(performRequestRaisingAssertionOnTransientStatus(request, retryableStatuses)),
-            timeout.millis(),
-            TimeUnit.MILLISECONDS
-        );
-        return responseHolder.get();
     }
 
     static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {

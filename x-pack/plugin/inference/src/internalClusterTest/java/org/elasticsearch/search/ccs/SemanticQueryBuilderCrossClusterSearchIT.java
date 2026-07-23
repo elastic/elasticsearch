@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    private static final String SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID = "common-inference-id-field";
     private static final int LOCAL_INFERENCE_EMBEDDING_DIMENSIONS = 256;
     private static final int REMOTE_INFERENCE_EMBEDDING_DIMENSIONS = 384;
+    private static final String SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID = "common-inference-id-field";
     private static final String SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID = "variable-inference-id-field";
     private static final String SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID = "common-semantic-field";
     private static final String SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID = "variable-semantic-field";

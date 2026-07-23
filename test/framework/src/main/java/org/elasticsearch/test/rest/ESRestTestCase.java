@@ -2017,16 +2017,18 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
-     * {@code retryableStatuses} into an {@link AssertionError}. Call inside {@link #assertBusy} so the
-     * enclosing loop retries transient failures (e.g. a 404 while an index relocates during a rolling
-     * upgrade). Non-retryable ResponseExceptions propagate unchanged.
+     * {@code retryableStatuses} into an {@link AssertionError}. Intended to be wrapped in {@link #assertBusy}
+     * so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during a rolling
+     * upgrade). Non-retryable ResponseExceptions propagate unchanged. For a self-contained retry loop, use
+     * {@link #performRequestWithBuiltInRetryOnTransientStatus} instead — do not nest the two.
      */
-    protected Response performRequestRetryingOnTransientStatus(Request request, RestStatus... retryableStatuses) throws IOException {
+    protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
+        throws IOException {
         try {
             return client().performRequest(request);
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
-            if (Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status)) {
+            if (isRetryableStatus(status, retryableStatuses)) {
                 throw new AssertionError(
                     "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
                     e
@@ -2037,17 +2039,23 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Read-once convenience: retries {@code request} via {@link #assertBusy} until it succeeds or {@code timeout} elapses.
+     * Self-contained retry loop: retries {@code request} via {@link #assertBusy} until it succeeds or
+     * {@code timeout} elapses. Do not wrap calls in an outer {@link #assertBusy}; use
+     * {@link #performRequestRaisingAssertionOnTransientStatus} inside {@link #assertBusy} instead.
      */
-    protected Response performRequestWithRetryOnTransientStatus(Request request, TimeValue timeout, RestStatus... retryableStatuses)
+    protected Response performRequestWithBuiltInRetryOnTransientStatus(Request request, TimeValue timeout, RestStatus... retryableStatuses)
         throws Exception {
         var responseHolder = new AtomicReference<Response>();
         assertBusy(
-            () -> responseHolder.set(performRequestRetryingOnTransientStatus(request, retryableStatuses)),
+            () -> responseHolder.set(performRequestRaisingAssertionOnTransientStatus(request, retryableStatuses)),
             timeout.millis(),
             TimeUnit.MILLISECONDS
         );
         return responseHolder.get();
+    }
+
+    static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {
+        return Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status);
     }
 
     /**

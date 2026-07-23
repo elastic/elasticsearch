@@ -125,7 +125,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
+            var response = performRequestRaisingAssertionOnTransientStatus(
+                trainedModelStatsRequest(modelId),
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -162,12 +167,20 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
         assertThat(stat.toString(), actualMemoryUsage.toString(), equalTo(expectedMemoryUsage.toString()));
     }
 
-    private Response getTrainedModelStats(String modelId) throws Exception {
+    private Request trainedModelStatsRequest(String modelId) {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = performRequestWithRetryOnTransientStatus(request, TimeValue.timeValueSeconds(30), RestStatus.NOT_FOUND);
-        assertOK(response);
-        return response;
+        return request;
+    }
+
+    private Response getTrainedModelStats(String modelId) throws Exception {
+        // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
+        return performRequestWithBuiltInRetryOnTransientStatus(
+            trainedModelStatsRequest(modelId),
+            TimeValue.timeValueSeconds(30),
+            RestStatus.NOT_FOUND,
+            RestStatus.SERVICE_UNAVAILABLE
+        );
     }
 
     private void putModelDefinition(String modelId) throws IOException {

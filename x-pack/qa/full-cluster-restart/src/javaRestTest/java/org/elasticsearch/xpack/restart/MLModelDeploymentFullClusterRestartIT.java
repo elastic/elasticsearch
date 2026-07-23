@@ -131,7 +131,8 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
             Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-            var response = performRequestRetryingOnTransientStatus(request, RestStatus.NOT_FOUND);
+            // Transient 404/503 while ML indices relocate or the plugin is still recovering after restart.
+            var response = performRequestRaisingAssertionOnTransientStatus(request, RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));

@@ -38,13 +38,26 @@ esqlCsvSpecTests {
 
 def currentVersion = buildParams.bwcVersions.currentVersion
 
-def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
-  systemProperty("tests.version.remote_cluster", currentVersion)
-  systemProperty("tests.version.local_cluster", currentVersion)
-  maxParallelForks = 1
-  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-  classpath = sourceSets.csvSpecTest.runtimeClasspath
-  dependsOn generateEsqlSpecTests
+// Generated csv-spec classes live in per-category sub-packages; each category runs as its own task loading exactly
+// that category's data. CCS disables views (AbstractMultiClusterSpecIT.supportsViews()==false), so the "views"
+// category is omitted here, as is "external" (dataset-backed specs run only on the external-source suites).
+def esqlCsvSpecCategories = ['core', 'norows', 'spatial', 'textmap', 'timeseries', 'vectors']
+
+def currentToCurrentCategoryTests = esqlCsvSpecCategories.collect { category ->
+  tasks.register("v${currentVersion}#csvSpecTests_${category}", StandaloneRestIntegTestTask) {
+    systemProperty("tests.version.remote_cluster", currentVersion)
+    systemProperty("tests.version.local_cluster", currentVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    filter {
+      includeTestsMatching "org.elasticsearch.xpack.esql.ccq.${category}.*"
+    }
+    dependsOn generateEsqlSpecTests
+  }
+}
+def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests") {
+  dependsOn currentToCurrentCategoryTests
 }
 
 tasks.named("bwcTest").configure {
@@ -91,27 +104,37 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
   }
 
-  def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {
-    usesBwcDistribution(bwcVersion)
-    systemProperty("tests.version.remote_cluster", bwcVersion)
-    systemProperty("tests.version.local_cluster", currentVersion)
-    maxParallelForks = 1
-    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-    classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
+  def csvSpecTestsNewToOld = esqlCsvSpecCategories.collect { category ->
+    tasks.register("v${bwcVersion}#csvSpecTests_${category}#newToOld", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.version.remote_cluster", bwcVersion)
+      systemProperty("tests.version.local_cluster", currentVersion)
+      maxParallelForks = 1
+      testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+      classpath = sourceSets.csvSpecTest.runtimeClasspath
+      filter {
+        includeTestsMatching "org.elasticsearch.xpack.esql.ccq.${category}.*"
+      }
+      dependsOn generateEsqlSpecTests
+    }
   }
 
-  def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
-    usesBwcDistribution(bwcVersion)
-    systemProperty("tests.version.local_cluster", bwcVersion)
-    systemProperty("tests.version.remote_cluster", currentVersion)
-    maxParallelForks = 1
-    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-    classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
+  def csvSpecTestsOldToNew = esqlCsvSpecCategories.collect { category ->
+    tasks.register("v${bwcVersion}#csvSpecTests_${category}#oldToNew", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.version.local_cluster", bwcVersion)
+      systemProperty("tests.version.remote_cluster", currentVersion)
+      maxParallelForks = 1
+      testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+      classpath = sourceSets.csvSpecTest.runtimeClasspath
+      filter {
+        includeTestsMatching "org.elasticsearch.xpack.esql.ccq.${category}.*"
+      }
+      dependsOn generateEsqlSpecTests
+    }
   }
 
-  // One csvSpecTests per version; both cross-cluster directions run under it.
+  // One csvSpecTests per version; both cross-cluster directions (all categories) run under it.
   def csvSpecTests = tasks.register("v${bwcVersion}#csvSpecTests") {
     dependsOn csvSpecTestsNewToOld, csvSpecTestsOldToNew
   }

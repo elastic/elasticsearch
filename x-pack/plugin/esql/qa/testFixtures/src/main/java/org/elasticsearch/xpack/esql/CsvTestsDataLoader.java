@@ -627,9 +627,28 @@ public class CsvTestsDataLoader {
             return;
         }
         if (indicesToLoad != null) {
-            loadDatasetsIntoEs(client, indicesToLoad);
+            // Restrict the requested indices to those actually supported on this cluster (inference, lookup mode,
+            // source mapping, time-series, capabilities), mirroring the "load all" path. E.g. semantic_text is
+            // skipped when the cluster has no inference test service; its tests skip too (required_capability).
+            Set<String> available = new HashSet<>();
+            for (TestDataset dataset : availableDatasetsForEs(
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck
+            )) {
+                available.add(dataset.indexName());
+            }
+            List<String> supportedIndices = new ArrayList<>();
+            for (String indexName : indicesToLoad) {
+                if (available.contains(indexName)) {
+                    supportedIndices.add(indexName);
+                }
+            }
+            loadDatasetsIntoEs(client, supportedIndices);
             if (timeSeriesOnly == false) {
-                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+                loadEnrichPoliciesForLoadedSourceIndices(client, supportedIndices);
             }
         } else {
             loadDataSets(

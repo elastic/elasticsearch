@@ -38,6 +38,8 @@ public class SpecDataManifestTests extends ESTestCase {
     private static final Pattern SRC = Pattern.compile("(?:^|\\||\\(|;|\\r|\\n)\\s*(?:FROM|TS)\\s+([^|()]+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern JOIN = Pattern.compile("\\bLOOKUP\\s+JOIN\\s+\"?([A-Za-z0-9_.*\\-:]+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ENRICH = Pattern.compile("\\bENRICH\\s+(?:_[a-z]+:)?\"?([A-Za-z0-9_.*\\-:]+)", Pattern.CASE_INSENSITIVE);
+    // The PROMQL command names its source index inline: "PROMQL index=k8s step=5m (...)".
+    private static final Pattern PROMQL = Pattern.compile("\\bindex\\s*=\\s*\"?([A-Za-z0-9_.*\\-:]+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern SRC_TAIL = Pattern.compile("\\bMETADATA\\b|\\bOPTIONS\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9_.*\\-:@/]+");
 
@@ -90,6 +92,58 @@ public class SpecDataManifestTests extends ESTestCase {
         }
     }
 
+    /**
+     * A category also loads enrich policies and views that reference indices the csv-spec queries never name: an
+     * enrich policy is executed against its source index, and a view's definition ({@code /views/<name>.esql})
+     * queries indices. This asserts every category loads those transitively-required indices too, so per-category
+     * REST runs don't fail with "Unknown index" — a gap CsvIT's lazy loading would otherwise mask.
+     */
+    public void testCategoriesCoverEnrichSourcesAndViewDefinitions() {
+        List<String> problems = new ArrayList<>();
+        for (Category category : CsvTestsDataLoader.CATEGORIES.values()) {
+            Set<String> loaded = new HashSet<>(category.indices());
+            for (String policy : category.enrich()) {
+                var config = CsvTestsDataLoader.ENRICH_POLICIES.get(policy);
+                if (config != null && loaded.contains(config.index()) == false) {
+                    problems.add(
+                        "category ["
+                            + category.name()
+                            + "] loads enrich policy ["
+                            + policy
+                            + "] but not its source index ["
+                            + config.index()
+                            + "]"
+                    );
+                }
+            }
+            for (String view : category.views()) {
+                String definition = CsvTestsDataLoader.getResourceString("/views/" + view + ".esql");
+                for (Source source : sourcesOf(definition)) {
+                    String base = strip(source.raw());
+                    boolean wildcard = base.indexOf('*') >= 0 || base.indexOf('?') >= 0;
+                    if (base.isEmpty() || wildcard || IDENTIFIER.matcher(base).matches() == false) {
+                        continue;
+                    }
+                    // A view definition can also reference other views (loaded as views, not indices) — only check indices.
+                    if (CsvTestsDataLoader.CSV_DATASET.containsKey(base) && loaded.contains(base) == false) {
+                        problems.add(
+                            "category ["
+                                + category.name()
+                                + "] loads view ["
+                                + view
+                                + "] whose definition reads index ["
+                                + base
+                                + "] not loaded by the category"
+                        );
+                    }
+                }
+            }
+        }
+        if (problems.isEmpty() == false) {
+            fail("spec_data.yml categories miss transitively-required indices:\n  " + String.join("\n  ", problems));
+        }
+    }
+
     private record Source(String raw, boolean lookupJoin) {}
 
     private List<Source> sourcesOf(String query) {
@@ -106,6 +160,9 @@ public class SpecDataManifestTests extends ESTestCase {
         }
         for (String t : matches(JOIN, query)) {
             out.add(new Source(t, true));
+        }
+        for (String t : matches(PROMQL, query)) {
+            out.add(new Source(t, false));
         }
         return out;
     }

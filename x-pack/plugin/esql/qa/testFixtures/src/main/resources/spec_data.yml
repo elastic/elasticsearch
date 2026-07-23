@@ -675,7 +675,7 @@ categories:
   textmap:
     indices: ["flattened_keyed", "flattened_many", "flattened_otel_logs", "flattened_typed", "host_info_lookup", "host_threat_list", "path_lookup", "ts_flattened"]
   timeseries:
-    indices: ["datenanos-k8s", "exp_histo_sample", "flattened_otel_logs", "histogram_standard_index", "histogram_timeseries_index", "k8s", "k8s-downsampled", "k8s_nonexistent", "k8s_stored_source", "k8s_unmapped", "metric_temporality", "otel-metrics", "prom-metrics", "tdigest_standard_index", "tdigest_timeseries_index", "ts_window"]
+    indices: ["datenanos-k8s", "exp_histo_sample", "flattened_otel_logs", "histogram_standard_index", "histogram_timeseries_index", "k8s", "k8s-downsampled", "k8s_nonexistent", "k8s_retyped", "k8s_stored_source", "k8s_unmapped", "metric_temporality", "otel-metrics", "prom-metrics", "promql_classic_histogram", "promql_histogram_no_le", "tdigest_standard_index", "tdigest_timeseries_index", "ts_window"]
   vectors:
     indices: ["dense_vector", "dense_vector_arithmetic", "dense_vector_bfloat16", "dense_vector_coalesce", "dense_vector_text", "mmr_text_vector_keyword", "semantic_text"]
   views:
@@ -765,11 +765,11 @@ files:
   k8s-timeseries-max-over-time: "timeseries"
   k8s-timeseries-min-over-time: "timeseries"
   k8s-timeseries-present-over-time: "timeseries"
-  k8s-timeseries-promql-collapsed: "norows"
-  k8s-timeseries-promql-instant: "norows"
-  k8s-timeseries-promql-nested: "norows"
-  k8s-timeseries-promql-without: "norows"
-  k8s-timeseries-promql: "norows"
+  k8s-timeseries-promql-collapsed: "timeseries"
+  k8s-timeseries-promql-instant: "timeseries"
+  k8s-timeseries-promql-nested: "timeseries"
+  k8s-timeseries-promql-without: "timeseries"
+  k8s-timeseries-promql: "timeseries"
   k8s-timeseries-rate: "timeseries"
   k8s-timeseries-stored-source: "timeseries"
   k8s-timeseries-sum-over-time: "timeseries"
@@ -806,8 +806,8 @@ files:
   null: "core"
   otel-metrics-promql-without: "timeseries"
   present: "core"
-  promql-histogram-quantile: "norows"
-  promql-native-histogram-support: "norows"
+  promql-histogram-quantile: "timeseries"
+  promql-native-histogram-support: "timeseries"
   qstr-function: "core"
   range: "core"
   registered_domain: "core"

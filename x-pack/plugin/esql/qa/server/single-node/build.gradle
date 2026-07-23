@@ -57,33 +57,52 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
-def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
-  usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
-  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
-  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-  classpath = sourceSets.csvSpecTest.runtimeClasspath
-  dependsOn generateEsqlSpecTests
+// The generated csv-spec test classes live in per-category sub-packages (see GenerateEsqlSpecTestsTask). Each
+// category runs as its own task against a cluster loaded with exactly that category's data, so a bare "FROM *" is
+// scoped to the category and views only exist in the "views" category. The "external" category is intentionally
+// omitted: its dataset-backed specs only run on the external-source suites (they assumeFalse-skip here).
+def esqlCsvSpecCategories = ['core', 'norows', 'spatial', 'textmap', 'timeseries', 'vectors', 'views']
+
+def csvSpecCategoryTasks = esqlCsvSpecCategories.collect { category ->
+  tasks.register("csvSpecTests_${category}", StandaloneRestIntegTestTask) {
+    usesDefaultDistribution("to be triaged")
+    maxParallelForks = 1
+    jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    filter {
+      includeTestsMatching "org.elasticsearch.xpack.esql.qa.single_node.${category}.*"
+    }
+    dependsOn generateEsqlSpecTests
+  }
+}
+def csvSpecTests = tasks.register('csvSpecTests') {
+  description = 'Runs all per-category csv-spec test tasks.'
+  dependsOn csvSpecCategoryTasks
 }
 tasks.named('check').configure { dependsOn csvSpecTests }
 
-// Second rest-test variant: runs EsqlSpecIT against a cluster with xpack security enabled and
-// the REST client authenticated as a superuser. The cluster reads the tests.cluster.security.enabled
-// system property (see Clusters.java); ESRestTestCase.restClientSettings() reads the two auth
-// system properties. No test classes are modified.
-tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
-  usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
-  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
-  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-  classpath = sourceSets.csvSpecTest.runtimeClasspath
-  filter {
-    // Runs the generated per-csv-spec-file classes with security enabled.
-    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpec*IT'
+// Security variant: same per-category csv-spec tasks against a cluster with xpack security enabled and the REST
+// client authenticated as a superuser (see Clusters.java / ESRestTestCase.restClientSettings()). No test classes
+// are modified. Not wired to check (run explicitly, or via javaRestTestSecure).
+def csvSpecSecureCategoryTasks = esqlCsvSpecCategories.collect { category ->
+  tasks.register("javaRestTestSecure_${category}", StandaloneRestIntegTestTask) {
+    usesDefaultDistribution("to be triaged")
+    maxParallelForks = 1
+    jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    filter {
+      includeTestsMatching "org.elasticsearch.xpack.esql.qa.single_node.${category}.*"
+    }
+    systemProperty 'tests.cluster.security.enabled', 'true'
+    systemProperty 'tests.rest.cluster.username', 'test-admin'
+    systemProperty 'tests.rest.cluster.password', 'x-pack-test-password'
   }
-  systemProperty 'tests.cluster.security.enabled', 'true'
-  systemProperty 'tests.rest.cluster.username', 'test-admin'
-  systemProperty 'tests.rest.cluster.password', 'x-pack-test-password'
+}
+tasks.register('javaRestTestSecure') {
+  description = 'Runs all per-category csv-spec test tasks with security enabled.'
+  dependsOn csvSpecSecureCategoryTasks
 }
 
 tasks.named('yamlRestTest') {

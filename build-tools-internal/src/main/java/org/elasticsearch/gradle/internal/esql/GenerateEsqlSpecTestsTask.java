@@ -29,7 +29,11 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 
@@ -87,11 +91,6 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
         getFileSystemOperations().delete(spec -> spec.delete(outputDir));
 
         String packageName = getPackageName().get();
-        String packagePath = packageName.replace('.', '/');
-        File packageDir = new File(outputDir, packagePath);
-        if (packageDir.mkdirs() == false && packageDir.exists() == false) {
-            throw new IOException("Could not create directory: " + packageDir);
-        }
 
         List<String> prefixes = getVariantPrefixes().get();
         List<String> baseClasses = getVariantBaseClasses().get();
@@ -101,6 +100,7 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
         }
 
         File specDir = getSpecFilesDir().getAsFile().get();
+        Map<String, String> fileCategories = parseFileCategories(new File(specDir, "spec_data.yml"));
         File[] specFiles = specDir.listFiles((dir, name) -> name.endsWith(".csv-spec"));
         if (specFiles == null) {
             return;
@@ -110,6 +110,17 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
             String specFileName = specFile.getName();
             String baseName = specFileName.substring(0, specFileName.length() - ".csv-spec".length());
             String pascalName = toPascalCase(baseName);
+            // Every csv-spec file must be assigned to a category in spec_data.yml. The generated class goes into a
+            // per-category sub-package so a per-category test task can select it (loading exactly its category's data).
+            String category = fileCategories.get(baseName);
+            if (category == null) {
+                throw new IllegalStateException("csv-spec file [" + specFileName + "] has no category in spec_data.yml (files: section)");
+            }
+            String classPackage = packageName + "." + category;
+            File categoryDir = new File(outputDir, classPackage.replace('.', '/'));
+            if (categoryDir.mkdirs() == false && categoryDir.exists() == false) {
+                throw new IOException("Could not create directory: " + categoryDir);
+            }
             for (int i = 0; i < prefixes.size(); i++) {
                 String encoded = allEncodedPatterns.get(i);
                 List<String> patterns = encoded.isEmpty() ? List.of() : Arrays.asList(encoded.split(","));
@@ -117,15 +128,34 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
                     continue;
                 }
                 String className = prefixes.get(i) + pascalName + "IT";
-                File javaFile = new File(packageDir, className + ".java");
+                File javaFile = new File(categoryDir, className + ".java");
                 Files.writeString(
                     javaFile.toPath(),
-                    buildClassSource(packageName, className, baseClasses.get(i), specFileName),
+                    buildClassSource(classPackage, packageName, className, baseClasses.get(i), specFileName),
                     StandardCharsets.UTF_8
                 );
-                getLogger().info("Generated {}", javaFile.getName());
+                getLogger().info("Generated {}/{}", category, javaFile.getName());
             }
         }
+    }
+
+    /**
+     * Parses the {@code files:} section of spec_data.yml into a map of csv-spec base name (no extension) to category
+     * name. Entries look like {@code   stats: "core"} (two-space indent, quoted category); the {@code categories:}
+     * block above it is either deeper-indented or list-valued, so it does not match.
+     */
+    private static Map<String, String> parseFileCategories(File manifest) throws IOException {
+        String text = Files.readString(manifest.toPath(), StandardCharsets.UTF_8);
+        int filesIdx = text.indexOf("\nfiles:");
+        if (filesIdx < 0) {
+            throw new IOException("spec_data.yml has no 'files:' section: " + manifest);
+        }
+        Map<String, String> out = new HashMap<>();
+        Matcher m = Pattern.compile("(?m)^  ([A-Za-z0-9_.-]+): \"([^\"]+)\"$").matcher(text.substring(filesIdx));
+        while (m.find()) {
+            out.put(m.group(1), m.group(2));
+        }
+        return out;
     }
 
     private static boolean matchesAnyPattern(File file, List<String> patterns) {
@@ -149,7 +179,13 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
         return sb.toString();
     }
 
-    private static String buildClassSource(String packageName, String className, String baseClassName, String specFileName) {
+    private static String buildClassSource(
+        String packageName,
+        String basePackageName,
+        String className,
+        String baseClassName,
+        String specFileName
+    ) {
         return """
             /*
              * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -166,6 +202,7 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
             import java.util.List;
 
             import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+            import BASE_PACKAGE_NAME.BASE_CLASS_NAME;
 
             import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -187,6 +224,7 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
                 }
             }
             """.replace("SPEC_FILE_NAME", specFileName)
+            .replace("BASE_PACKAGE_NAME", basePackageName)
             .replace("PACKAGE_NAME", packageName)
             .replace("BASE_CLASS_NAME", baseClassName)
             .replace("CLASS_NAME", className);

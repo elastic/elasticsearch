@@ -1508,7 +1508,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var indexShard = findIndexShard(index, i);
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
-            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
 
             initialHollowPrimaryTermGenerations.put(
@@ -1518,7 +1520,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         var telemetryPluginA = getTelemetryPlugin(indexNodeA);
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L))
+        );
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         assertThat(
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
@@ -1537,7 +1541,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
             hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), true);
-            hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false));
 
             // No extra flushes triggered on relocating hollow shards with `HollowIndexEngine`
             var commitAfterRelocationToNodeA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA)
@@ -1554,7 +1560,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA),
             equalTo((long) numberOfShards)
         );
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L))
+        );
     }
 
     public void testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm() throws Exception {
@@ -1626,7 +1634,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var indexShardRelocated = findIndexShard(indexName);
         var engine = indexShardRelocated.getEngineOrNull();
         assertThat(engine, instanceOf(HollowIndexEngine.class));
-        hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false);
+        // Removed via afterIndexShardClosed callback
+        assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false));
         hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
 
         internalCluster().stopNode(indexNodeA);
@@ -2371,6 +2380,31 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertNoFailures(bulkFuture.get());
     }
 
+    /// Verifies that an indexing primary fails itself and reloads from the object store when a search shard
+    /// registers a commit that is newer than the one the primary is currently serving, rather than continuing
+    /// to serve stale data.
+    ///
+    /// The "search shard has a newer commit than the primary" condition is manufactured via a hollow-shard
+    /// un-hollowing scenario:
+    ///
+    /// - A single-shard index holding N documents is built on index node A and relocated to index node B as a
+    ///   hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
+    /// - N further documents are indexed directly into B. This forces B to un-hollow: it pulls its N original
+    ///   documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
+    ///   the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
+    /// - Because B left before publishing its un-hollow commit, the shard is re-assigned to A, which recovers
+    ///   from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
+    ///   The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
+    ///   commit and the commit carrying the new documents) to the object store.
+    /// - A search shard is added for the index. During its recovery it registers the newest commit it finds on
+    ///   the object store - the one uploaded by B - which is newer than the commit A is serving.
+    ///
+    /// The test asserts that this registration causes A's primary to be failed and to reload the newer un-hollow
+    /// commit from the object store: A ends up un-hollow, at a primary term greater than that of B's un-hollow
+    /// commit, and serving all 2N documents (including the dirty reads of the never-acknowledged bulk). The
+    /// original bulk request into B is never acknowledged, since B was isolated while its writes were in flight.
+    /// Random delays are injected around the shard-failure and register-commit responses so that both orderings
+    /// of those two events are exercised.
     public void testHollowShardFailsIfSearchShardRegistersNewerCommit() throws Exception {
         var nodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -2428,6 +2462,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         var bulkFuture = bulkRequest.execute();
+
+        // Wait until node B has queued the (blocked) unhollow gen N+1 upload before isolating it, so isolation
+        // cannot win the race and reject the write with a "no master" block before unhollowing starts.
+        assertBusy(() -> assertTrue(commitServiceB.hasPendingBccUploads(indexShardB.shardId())));
 
         // Isolate node B
         Set<String> isolatedSide = Collections.singleton(indexNodeB);

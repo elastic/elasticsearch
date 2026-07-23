@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
  */
 public enum FunctionType {
     /**
-     * Aggregates data within each time series over a time window.
+     * Aggregates samples within each time series over a time window.
      * <p>
-     * Input: Range vector (multiple samples per series over time range)
+     * Input: Range vector, with multiple samples per series over the requested window.
      * <br>
-     * Output: Instant vector (one aggregated value per series)
+     * Output: Instant vector, with one aggregated value per series.
      * <br>
-     * Grouping: Implicit by time series (_tsid)
+     * Grouping: Implicit by time series.
      * <p>
      * Examples:
      * <ul>
@@ -35,154 +35,109 @@ public enum FunctionType {
     WITHIN_SERIES_AGGREGATION(PromqlDataType.RANGE_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Aggregates data across multiple time series at a single point in time.
+     * Aggregates multiple time series for each evaluation interval.
      * <p>
-     * Input: Instant vector (one sample per series at evaluation time)
+     * Input: Instant vector, with one sample per series for the interval.
      * <br>
-     * Output: Instant vector (aggregated across series)
+     * Output: Instant vector, aggregated across series.
      * <br>
-     * Grouping: Explicit by labels (by/without)
+     * Grouping: Explicit by labels ({@code by}/{@code without}) or ungrouped.
      * <p>
      * Examples:
      * <ul>
      * <li>Basic: sum(), avg(), max(), min(), count()</li>
      * <li>Statistical: stddev(), stdvar(), quantile()</li>
-     * <li>Top-k: topk(), bottomk()</li>
      * <li>Grouping: group(), count_values()</li>
      * </ul>
      */
     ACROSS_SERIES_AGGREGATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Transforms each sample in a vector independently (element-wise operations).
+     * Ranks multiple time series for each evaluation interval and keeps a subset of them.
      * <p>
-     * Input: Instant vector
+     * Input: Instant vector, with one sample per series for the interval.
      * <br>
-     * Output: Instant vector (same cardinality, transformed values)
+     * Output: Instant vector, with the selected input series.
+     * <br>
+     * Grouping: Explicit {@code by} partitions the ranking; selected series keep their full label identity.
+     * <p>
+     * Unlike aggregations, ranking functions preserve the full label identity of selected series.
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>Top-k: topk()</li>
+     * <li>Bottom-k: bottomk()</li>
+     * </ul>
+     */
+    ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
+
+    /**
+     * Transforms each sample independently without changing vector cardinality.
+     * <p>
+     * Input: Instant vector.
+     * <br>
+     * Output: Instant vector with the same label sets.
+     * <br>
+     * Grouping: none; each sample is transformed independently.
      * <p>
      * Examples:
      * <ul>
      * <li>Math: abs(), ceil(), floor(), round(), sqrt(), exp(), ln(), log2(), log10()</li>
-     * <li>Trigonometric: sin(), cos(), tan(), asin(), acos(), atan(), sinh(), cosh(), tanh()</li>
-     * <li>Clamping: clamp(), clamp_max(), clamp_min()</li>
-     * <li>Sign: sgn()</li>
+     * <li>Trigonometry: sin(), cos()</li>
+     * <li>Clamping/sign: clamp(), clamp_max(), clamp_min(), sgn()</li>
      * </ul>
      */
     VALUE_TRANSFORMATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Manipulates or queries the label set of time series.
+     * Manipulates, queries, or filters series based on their labels.
      * <p>
-     * Input: Instant vector
-     * <br>
-     * Output: Instant vector (modified labels or label-based filtering)
-     * <p>
-     * Examples:
-     * <ul>
-     * <li>Manipulation: label_replace(), label_join()</li>
-     * <li>Querying: absent()</li>
-     * </ul>
+     * Examples: label_replace(), label_join(), absent()
      */
     METADATA_MANIPULATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
      * Extracts or computes time-based values from timestamps.
      * <p>
-     * Input: Instant vector
-     * <br>
-     * Output: Instant vector (timestamp replaced with time component)
-     * <p>
-     * Examples: day_of_month(), day_of_week(), days_in_month(), hour(), minute(), month(), year(), timestamp()
+     * Examples: day_of_month(), day_of_week(), days_in_month(), hour(), minute(),
+     * month(), year(), timestamp()
      */
     TIME_EXTRACTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Operates on native histogram data types.
-     * <p>
-     * Input: Instant vector (histogram samples)
-     * <br>
-     * Output: Instant vector or scalar
+     * Operates on native histogram samples.
      * <p>
      * Examples: histogram_quantile(), histogram_avg(), histogram_count(), histogram_sum()
      */
     HISTOGRAM(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Converts a scalar to a vector.
+     * Converts a scalar to an instant vector.
      * <p>
-     * Input: Scalar
-     * <br>
-     * Output: Instant vector (single sample with no labels)
-     * <p>
-     * Example: {@code vector(42)} produces an instant vector with one sample with value {@code 42}
+     * Example: {@code vector(42)}
      */
     VECTOR_CONVERSION(PromqlDataType.SCALAR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Converts a vector that contains only a single element to a scalar.
+     * Converts a single-element instant vector to a scalar.
+     * <p>
      * If the vector does not contain exactly one element, {@code NaN} is returned.
-     * <p>
-     * Input: Instant vector (single sample)
-     * <br>
-     * Output: Scalar
-     * <p>
-     * Example: {@code scalar(vector(42))} produces {@code 42}
+     * Example: {@code scalar(vector(42))}
      */
     SCALAR_CONVERSION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.SCALAR),
 
     /**
-     * Produces a scalar value.
-     * <p>
-     * Input: None
-     * <br>
-     * Output: Scalar
+     * Produces a scalar without consuming an input argument.
      * <p>
      * Examples: {@code pi()}, {@code time()}
      */
     SCALAR(null, PromqlDataType.SCALAR);
 
-    private final PromqlDataType inputType;
-    private final PromqlDataType outputType;
+    public final PromqlDataType inputType;
+    public final PromqlDataType outputType;
 
     FunctionType(PromqlDataType inputType, PromqlDataType outputType) {
         this.inputType = inputType;
         this.outputType = outputType;
     }
-
-    /**
-     * Returns whether this function operates on range vectors.
-     */
-    public boolean isRangeVector() {
-        return this == WITHIN_SERIES_AGGREGATION;
-    }
-
-    /**
-     * Returns whether this function operates on instant vectors.
-     */
-    public boolean isInstantVector() {
-        return this != WITHIN_SERIES_AGGREGATION;
-    }
-
-    /**
-     * Returns whether this function performs aggregation.
-     */
-    public boolean isAggregation() {
-        return this == WITHIN_SERIES_AGGREGATION || this == ACROSS_SERIES_AGGREGATION;
-    }
-
-    /**
-     * Returns whether this function transforms values element-wise.
-     */
-    public boolean isElementWise() {
-        return this == VALUE_TRANSFORMATION || this == TIME_EXTRACTION || this == METADATA_MANIPULATION;
-    }
-
-    public PromqlDataType outputType() {
-        return outputType;
-    }
-
-    public PromqlDataType inputType() {
-        return inputType;
-    }
-
 }

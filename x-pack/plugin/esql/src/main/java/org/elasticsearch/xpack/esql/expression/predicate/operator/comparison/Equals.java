@@ -201,8 +201,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                         if (value instanceof BytesRef br) {
                             value = br.utf8ToString();
                         }
-                        TermQuery termQuery = new TermQuery(source(), kn, value);
-                        return new SingleValueQuery(termQuery, kn, false);
+                        return new TermQuery(source(), kn, value);
                     }).orElseThrow();
                 }
             }

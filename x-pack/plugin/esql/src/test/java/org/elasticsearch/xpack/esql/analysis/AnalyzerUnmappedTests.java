@@ -424,6 +424,33 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"));
     }
 
+    // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
+    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveFork.
+    public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message) (WHERE true)
+            | FORK (WHERE true) (WHERE true)
+            """), containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // Same guard as above for a FORK nested inside a FORK branch: the outer branch drops the unmapped field ahead of the inner FORK,
+    // so both the outer sibling materialization and the nesting are seen before the single-FORK rejection fires.
+    public void testLoadModeRejectsNestedForkWithDroppedUnmappedField() {
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message | FORK (WHERE true) (WHERE true)) (WHERE true)
+            """), containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        partialMappingTest().statementError(setUnmappedLoad("""
+            FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
+            | FORK (DROP unmapped_message) (WHERE true)
+            """), containsString("FORK after subquery is not supported"));
+    }
+
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
@@ -925,7 +952,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -948,24 +975,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("baz", Map.of())
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("test2", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("test3", Map.of())
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        var resolutions = indexResolutions(mergedResolution("test1,test2,test3", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+            typeConflictVerificationFailure(setUnmappedLoad("FROM test1, test2, test3 " + suffix), resolutions);
         }
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -982,7 +1009,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashNotPartiallyUnmapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -1004,7 +1031,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testSameMappingHashWithUnmappedIndexAutoCast() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
@@ -1476,6 +1503,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         // assert PUNKs are resolved
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
         assertTwoLeggedPunkResolution(plan, "partial_double", DataType.DOUBLE);
+    }
+
+    public void testNullifyAllowsScoreKnnWithPartiallyMappedDenseVector() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_dense", denseVectorField("partial_dense")), Set.of("partial_dense"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedNullify("FROM idx* | EVAL score = score(knn(partial_dense, [1, 2, 3])) | KEEP score"));
+        assertThat(plan, not(nullValue()));
     }
 
     /**
@@ -2030,6 +2066,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             // The raw (uncast) field reaches the default output and falls back to null where unmapped.
             assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
         }
+    }
+
+    private static EsField denseVectorField(String name) {
+        return new EsField(name, DataType.DENSE_VECTOR, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
     public void testUnmappedFieldsDefaultWithQueryStringFullTextFunctionsDoesNotLoadUnmappedFields() {

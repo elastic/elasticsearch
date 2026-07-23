@@ -1164,6 +1164,9 @@ public class EsqlFunctionRegistry {
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);
             }
+            for (String sub : def.snapshotCapabilities()) {
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
+            }
         }
     }
 

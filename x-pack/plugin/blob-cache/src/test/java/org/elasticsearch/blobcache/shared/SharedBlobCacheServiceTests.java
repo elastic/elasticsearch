@@ -4112,10 +4112,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            // before populating, withMemorySegmentSlices should return false
+            // before populating, withSliceAddresses should return false
             long[] offsets = { 0, (long) regionSize + 10, (long) regionSize * 2 + 5 };
             int sliceLen = 50;
-            assertFalse(cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> fail("should not be invoked")));
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+            assertFalse(cacheFile.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> fail("should not be invoked")));
 
             // populate all regions
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4139,15 +4140,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            // now withMemorySegmentSlices should succeed for slices within regions
-            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> {
-                assertEquals(3, slices.length);
+            // now withSliceAddresses should succeed for slices within regions
+            boolean available = cacheFile.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
                 for (int i = 0; i < 3; i++) {
-                    assertNotNull(slices[i]);
-                    assertTrue(slices[i].isReadOnly());
-                    assertEquals(sliceLen, (int) slices[i].byteSize());
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                    assertNotEquals(0L, addr);
+                    MemorySegment slice = MemorySegment.ofAddress(addr).reinterpret(sliceLen);
                     byte[] sliceData = new byte[sliceLen];
-                    MemorySegment.copy(slices[i], ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
+                    MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
                     for (int j = 0; j < sliceLen; j++) {
                         assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
                     }
@@ -4213,12 +4213,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int sliceLen = 20;
             long[] offsets = { 0, 30, 60, 100 };
             int count = offsets.length;
-            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, count, slices -> {
-                assertEquals(count, slices.length);
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[count]);
+            boolean available = cacheFile.withSliceAddresses(offsets, sliceLen, count, addrsOut, addrs -> {
                 for (int i = 0; i < count; i++) {
-                    assertEquals(sliceLen, (int) slices[i].byteSize());
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                    assertNotEquals(0L, addr);
+                    MemorySegment slice = MemorySegment.ofAddress(addr).reinterpret(sliceLen);
                     byte[] sliceData = new byte[sliceLen];
-                    MemorySegment.copy(slices[i], ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
+                    MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
                     for (int j = 0; j < sliceLen; j++) {
                         assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
                     }
@@ -4283,7 +4285,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int sliceLen = 200;
             int crossBoundaryOffset = regionSize - 100; // straddles region 0 -> region 1
             long[] offsets = { 10, crossBoundaryOffset, (long) regionSize * 2 + 5 };
-            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> {
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+            boolean available = cacheFile.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
                 fail("action should not be invoked when a range crosses a region boundary");
             });
             assertFalse(available);
@@ -4342,7 +4345,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             long[] offsets = { 0, 50 };
-            assertFalse(cacheFile.withMemorySegmentSlices(offsets, 20, 2, slices -> fail("should not be invoked")));
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            assertFalse(cacheFile.withSliceAddresses(offsets, 20, 2, addrsOut, addrs -> fail("should not be invoked")));
         }
     }
 
@@ -4402,7 +4406,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var region0 = cacheService.get(cacheKey, fileLength, 0);
             long[] offsets = { 50, (long) regionSize + 10 };
             int sliceLen = 50;
-            assertFalse(cacheFile.withMemorySegmentSlices(offsets, sliceLen, 2, slices -> fail("should not be invoked")));
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            assertFalse(cacheFile.withSliceAddresses(offsets, sliceLen, 2, addrsOut, addrs -> fail("should not be invoked")));
 
             // region 0's ref should have been released by the finally block
             synchronized (cacheService) {
@@ -4465,7 +4470,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int freeBeforeCall = cacheService.freeRegionCount();
 
             long[] offsets = { 0, 50 };
-            IOException thrown = expectThrows(IOException.class, () -> cacheFile.withMemorySegmentSlices(offsets, 20, 2, slices -> {
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
+            IOException thrown = expectThrows(IOException.class, () -> cacheFile.withSliceAddresses(offsets, 20, 2, addrsOut, addrs -> {
                 throw new IOException("test exception");
             }));
             assertEquals("test exception", thrown.getMessage());
@@ -4511,7 +4517,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(cacheFile.withMemorySegmentSlice(0, 100, slice -> fail("should not be invoked")));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
 
-            assertFalse(cacheFile.withMemorySegmentSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
+            MemorySegment addrsOut1 = MemorySegment.ofArray(new long[1]);
+            assertFalse(cacheFile.withSliceAddresses(new long[] { 0L }, 100, 1, addrsOut1, addrs -> fail("should not be invoked")));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
         }
     }
@@ -4581,11 +4588,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertArrayEquals(expected, actual);
 
                 Arrays.fill(actual, (byte) 0);
-                final boolean slicesAvailable = cacheFile.withMemorySegmentSlices(new long[] { readOffset }, readLength, 1, slices -> {
-                    assertThat(slices.length, equalTo(1));
-                    assertThat(slices[0], notNullValue());
-                    assertTrue(slices[0].isReadOnly());
-                    MemorySegment.copy(slices[0], ValueLayout.JAVA_BYTE, 0, actual, 0, actual.length);
+                MemorySegment addrsOut = MemorySegment.ofArray(new long[1]);
+                final boolean slicesAvailable = cacheFile.withSliceAddresses(new long[] { readOffset }, readLength, 1, addrsOut, addrs -> {
+                    long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, 0);
+                    assertNotEquals(0L, addr);
+                    MemorySegment slice = MemorySegment.ofAddress(addr).reinterpret(actual.length);
+                    MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, actual, 0, actual.length);
                 });
                 assertTrue(slicesAvailable);
                 assertArrayEquals(expected, actual);

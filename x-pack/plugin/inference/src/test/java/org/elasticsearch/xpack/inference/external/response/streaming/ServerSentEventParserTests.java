@@ -24,6 +24,9 @@ public class ServerSentEventParserTests extends ESTestCase {
     private static final String MIXED_TERM_DATA = "{\"username\":\"Alice\"}";
 
     public void testRetryAndIdAreUnimplemented() {
+        // Deliberate deviation #5: "id" would set the Last-Event-ID (used as a reconnect header on
+        // reconnect) and "retry" would set the reconnect interval in ms. We ignore both because we
+        // do not implement reconnect logic and ServerSentEvent carries neither.
         var payload = """
             id: 2
 
@@ -102,21 +105,29 @@ public class ServerSentEventParserTests extends ESTestCase {
         assertEvents(events, List.of(new ServerSentEvent("message", "hello\nthere")));
     }
 
-    private void assertEvents(Deque<ServerSentEvent> actualEvents, List<ServerSentEvent> expectedEvents) {
-        assertThat(actualEvents.size(), equalTo(expectedEvents.size()));
-        var expectedEvent = expectedEvents.iterator();
-        actualEvents.forEach(event -> assertThat(event, equalTo(expectedEvent.next())));
-    }
+    /**
+     * WHATWG SSE spec example (https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation):
+     * three {@code data:} lines in one event are concatenated with a single LF between each,
+     * yielding {@code "YHOO\n+2\n10"}. The leading space after each colon is stripped once per the spec.
+     */
+    public void testMultipleDataLinesConcatenatedPerSpecExample() {
+        var payload = """
+            data: YHOO
+            data: +2
+            data: 10
 
-    // by default, Java's UTF-8 decode does not remove the byte order mark
-    public void testByteOrderMarkIsRemoved() {
-        // these are the bytes for "<byte-order mark>data: hello\n\n"
-        var payload = new byte[] { -17, -69, -65, 100, 97, 116, 97, 58, 32, 104, 101, 108, 108, 111, 10, 10 };
+            """.getBytes(StandardCharsets.UTF_8);
 
         var parser = new ServerSentEventParser();
         var events = parser.parse(payload);
 
-        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+        assertEvents(events, List.of(new ServerSentEvent("message", "YHOO\n+2\n10")));
+    }
+
+    private void assertEvents(Deque<ServerSentEvent> actualEvents, List<ServerSentEvent> expectedEvents) {
+        assertThat(actualEvents.size(), equalTo(expectedEvents.size()));
+        var expectedEvent = expectedEvents.iterator();
+        actualEvents.forEach(event -> assertThat(event, equalTo(expectedEvent.next())));
     }
 
     public void testEmptyEventIsSetAsEmptyString() {
@@ -262,6 +273,162 @@ public class ServerSentEventParserTests extends ESTestCase {
             var parser = new ServerSentEventParser();
             assertEvents(parser.parse(scenario), List.of(new ServerSentEvent(MIXED_TERM_EVENT_TYPE, MIXED_TERM_DATA)));
         }
+    }
+
+    public void testLeadingSpaceAfterColonIsStrippedOnce() {
+        {
+            // One leading space stripped; interior spaces in the value are preserved.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data: {\"foo\": \"bar baz\"}\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "{\"foo\": \"bar baz\"}")));
+        }
+        {
+            // Two leading spaces: only the first is stripped; the second is part of the value.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data:  hello\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", " hello")));
+        }
+        {
+            // No leading space: value is taken verbatim.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data:hello\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+        }
+    }
+
+    public void testEventStateResetsBetweenMessages() {
+        // Proves reset() clears the type buffer: event 1 sets a custom type, event 2 omits it
+        // and must revert to the default "message".
+        var parser = new ServerSentEventParser();
+        var events = parser.parse("""
+            event: custom
+            data: hello
+
+            data: world
+
+            """.getBytes(StandardCharsets.UTF_8));
+        assertEvents(events, List.of(new ServerSentEvent("custom", "hello"), new ServerSentEvent("message", "world")));
+    }
+
+    public void testMultipleConsecutiveBlankLinesDispatchOnce() {
+        // Only the first blank line dispatches the event; subsequent blank lines find no data
+        // field accumulated and produce no additional event.
+        var parser = new ServerSentEventParser();
+        var events = parser.parse("data: hello\n\n\n\n".getBytes(StandardCharsets.UTF_8));
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+    }
+
+    public void testCommentInterleavedWithinEventIsIgnored() {
+        // A comment line between event: and data: lines does not interrupt accumulation;
+        // the event still dispatches correctly (extends the standalone-comment coverage).
+        var parser = new ServerSentEventParser();
+        var events = parser.parse("""
+            event: mytype
+            :this is a comment
+            data: hello
+
+            """.getBytes(StandardCharsets.UTF_8));
+        assertEvents(events, List.of(new ServerSentEvent("mytype", "hello")));
+    }
+
+    public void testUnknownFieldIsIgnoredButDataPreserved() {
+        // Unknown field names are silently skipped; the data field still accumulates normally.
+        var parser = new ServerSentEventParser();
+        var events = parser.parse("""
+            foo: bar
+            data: hello
+
+            """.getBytes(StandardCharsets.UTF_8));
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+    }
+
+    public void testLoneEmptyDataDispatchesEmptyEvent() {
+        // Spec dispatch step 2 ("If the data buffer is an empty string, return.") runs BEFORE
+        // step 3's trailing-LF strip. A lone "data:" appends "" + LF → buffer "\n" (not empty at
+        // step 2) → strip trailing LF → dispatch with data "". A "data" with no colon is equivalent.
+        {
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data:\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "")));
+        }
+        {
+            // A bare "data" line (no colon) is treated as data with an empty value — same result.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "")));
+        }
+    }
+
+    /**
+     * WHATWG SSE spec example (https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation):
+     * the stream {@code "data\n\ndata\ndata\n\ndata:"} fires exactly two events — the first block dispatches
+     * an empty-string data event, the middle two-line block dispatches a single-newline ({@code "\n"}) data
+     * event — and the trailing {@code "data:"} block is discarded because it is not followed by a blank line.
+     */
+    public void testTwoEventsFireAndTrailingBlockIsDiscarded() {
+        var payload = "data\n\ndata\ndata\n\ndata:".getBytes(StandardCharsets.UTF_8);
+
+        var parser = new ServerSentEventParser();
+        var events = parser.parse(payload);
+
+        assertEvents(events, List.of(new ServerSentEvent("message", ""), new ServerSentEvent("message", "\n")));
+    }
+
+    // by default, Java's UTF-8 decode does not remove the byte order mark
+    public void testByteOrderMarkIsRemoved() {
+        // these are the bytes for "<byte-order mark>data: hello\n\n"
+        var payload = new byte[] { -17, -69, -65, 100, 97, 116, 97, 58, 32, 104, 101, 108, 108, 111, 10, 10 };
+
+        var parser = new ServerSentEventParser();
+        var events = parser.parse(payload);
+
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+    }
+
+    public void testByteOrderMarkOnlyStrippedAtStreamStart() {
+        {
+            // BOM mid-value: the character is inside the value, not at the start of the first line.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data: he﻿llo\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "he﻿llo")));
+        }
+        {
+            // BOM at the start of a later event's data value: firstLine is already false, no strip.
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("data: first\n\ndata: ﻿second\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "first"), new ServerSentEvent("message", "﻿second")));
+        }
+    }
+
+    public void testFieldNamesAreCaseInsensitive_DeviatesFromSpec() {
+        // Deviation #3: we lower-case field names before matching. The WHATWG spec matches
+        // case-sensitively, so "DATA" and "EVENT" should be unknown fields yielding no event.
+        // We accept them as "data" and "event" (more lenient than spec).
+        {
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("DATA: hello\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
+        }
+        {
+            var parser = new ServerSentEventParser();
+            var events = parser.parse("EVENT: custom\nDATA: world\n\n".getBytes(StandardCharsets.UTF_8));
+            assertEvents(events, List.of(new ServerSentEvent("custom", "world")));
+        }
+    }
+
+    public void testNoColonLineOnlyHonorsDataField_DeviatesFromSpec() {
+        // Deviation #4: a no-colon line is only treated as a field when the bare name is "data".
+        // The spec would treat any no-colon line as that field with an empty value; so a bare
+        // "event" line should set the event type to "". We ignore it instead (observably equivalent
+        // for the fields we consume, but a deviation).
+        var parser = new ServerSentEventParser();
+        var events = parser.parse("""
+            event
+            data: hello
+
+            """.getBytes(StandardCharsets.UTF_8));
+        // The bare "event" line has no effect; the event type defaults to "message".
+        assertEvents(events, List.of(new ServerSentEvent("message", "hello")));
     }
 
     private void assertEvents(Deque<ServerSentEvent> actualEvents, List<ServerSentEvent> expectedEvents, String context) {

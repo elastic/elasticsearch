@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -2167,6 +2170,49 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testGrokTimeoutIsUserError() {
+        String indexName = "test_grok_timeout";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("message", "type=keyword"));
+        client().prepareIndex(indexName)
+            .setSource(
+                "message",
+                "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+                    + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018"
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        admin().cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder().put(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.getKey(), "200ms").build()
+                )
+            )
+            .actionGet();
+
+        try {
+            // This pattern causes catastrophic backtracking and reliably exceeds the 200 ms watchdog timeout.
+            // The same pattern is used in GrokTests.testExponentialExpressions.
+            var ex = expectThrows(
+                ElasticsearchException.class,
+                () -> run(
+                    "FROM "
+                        + indexName
+                        + " | GROK message \"\"\""
+                        + "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+                        + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10}"
+                        + " Datum->%{DATESTAMP_OTHER:param11}"
+                        + "\"\"\""
+                ).close()
+            );
+            assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
+        } finally {
+            clearPersistentSettings(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
         }
     }
 

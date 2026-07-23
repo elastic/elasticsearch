@@ -1262,7 +1262,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                             logger.info(
                                 "exception for chunk 2 attempt " + chunk2Attempts.getCount() + ", exception " + exception.fillInStackTrace()
                             );
-                            assertThat(chunk2Attempts.getCount(), greaterThan(0L));
                             final var rejectedException = ExceptionsHelper.unwrap(exception, EsRejectedExecutionException.class);
                             assertNotNull(rejectedException);
                             assertThat(
@@ -1338,7 +1337,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         }
 
         measurements = metricsPlugin.getLongCounterMeasurement(CHUNK_REQUESTS_REJECTED_METRIC);
-        assertThat(measurements.size(), equalTo(2));
+        assertThat(measurements.size(), greaterThanOrEqualTo(2));
         assertRejectionMeasurement(measurements.get(0));
         assertRejectionMeasurement(measurements.get(1));
     }

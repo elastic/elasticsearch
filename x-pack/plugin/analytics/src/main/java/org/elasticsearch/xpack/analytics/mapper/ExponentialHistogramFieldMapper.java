@@ -640,7 +640,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
         context.path().remove();
         if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed(null);
+            return new ParseResult.Malformed();
         }
         return new ParseResult.Indexed();
     }

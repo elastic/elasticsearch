@@ -102,6 +102,24 @@ public class FallbackStorageRouterTests extends ESTestCase {
         assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
+    /**
+     * copy_to destination + syntheticFallback both active, not inside a copy_to traversal:
+     * COPY_TO_DESTINATION takes priority over SYNTHETIC_FALLBACK.
+     */
+    public void testCopyToDestinationBeatsSyntheticFallback() {
+        var fc = ctx().isCopyToDestinationField(true).isWithinCopyTo(false).syntheticFallback(true).build();
+        assertEquals(Optional.of(FallbackStorageRouter.Reason.COPY_TO_DESTINATION), FallbackStorageRouter.resolvePrecaptureReason(fc));
+    }
+
+    /**
+     * copy_to destination + syntheticFallback both active, but isWithinCopyTo=true blocks the
+     * COPY_TO_DESTINATION branch; SYNTHETIC_FALLBACK is then the winning reason.
+     */
+    public void testWithinCopyToFallsBackToSyntheticFallback() {
+        var fc = ctx().isCopyToDestinationField(true).isWithinCopyTo(true).syntheticFallback(true).build();
+        assertEquals(Optional.of(FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK), FallbackStorageRouter.resolvePrecaptureReason(fc));
+    }
+
     /** Mapper in FALLBACK synthetic source mode → SYNTHETIC_FALLBACK. */
     public void testSyntheticFallbackReturnsSyntheticFallbackReason() {
         var fc = ctx().syntheticFallback(true).build();

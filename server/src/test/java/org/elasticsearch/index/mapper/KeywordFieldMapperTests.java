@@ -718,6 +718,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
+    /**
+     * A keyword field with a normalizer uses FALLBACK synthetic source, meaning the original value is
+     * reconstructed from {@code _ignored_source}. When {@code ignore_above} is also configured and a
+     * value exceeds the limit, {@code FallbackStorageRouter} must still commit the pre-captured value
+     * to {@code _ignored_source} (not discard it), so that synthetic source can return the full
+     * original value.
+     */
+    public void testNormalizerSyntheticSourceIgnoreAboveCommitsPrecapture() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("normalizer", "lowercase")
+                    .field("normalizer_skip_store_original_value", false)
+                    .field("ignore_above", 5)
+            )
+        );
+        // "AbCDef" is 6 chars and exceeds ignore_above=5; the original value must still appear in
+        // synthetic source via _ignored_source (committed by FallbackStorageRouter despite Malformed result).
+        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "AbCDef")));
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackStorageRouter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -150,7 +151,7 @@ class FlattenedFieldParser {
             }
             FieldMapper mappedSubField = mappedSubFields.get(key);
             if (mappedSubField != null) {
-                mappedSubField.parse(context.documentParserContext());
+                FallbackStorageRouter.parseField(context.documentParserContext(), mappedSubField);
             } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
             } else if (usesArrayOrderBinaryDocValues) {
@@ -182,7 +183,7 @@ class FlattenedFieldParser {
         // and are not part of the flattened field's root/keyed representation.
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
-            mappedSubField.parse(context.documentParserContext());
+            FallbackStorageRouter.parseField(context.documentParserContext(), mappedSubField);
             return;
         }
 

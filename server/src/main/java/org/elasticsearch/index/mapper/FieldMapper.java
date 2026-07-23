@@ -311,7 +311,7 @@ public abstract class FieldMapper extends Mapper {
             return new ParseResult.MultiValueViolation(mvvStash);
         }
         if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed(null);
+            return new ParseResult.Malformed();
         }
         return new ParseResult.Indexed();
     }
@@ -319,7 +319,11 @@ public abstract class FieldMapper extends Mapper {
     protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
-            mapper.parse(context);
+            ParseResult result = mapper.parse(context);
+            if (result instanceof ParseResult.MultiValueViolation mvv
+                && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+            }
         }
         context.path().remove();
     }

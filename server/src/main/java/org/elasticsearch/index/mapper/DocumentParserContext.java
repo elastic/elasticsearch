@@ -589,7 +589,7 @@ public abstract class DocumentParserContext {
     /**
      * Moves the pending pre-capture entry for {@code fieldPath} into the committed ignored-field list.
      */
-    public final void commitPendingPreCapture(String fieldPath) {
+    final void commitPendingPreCapture(String fieldPath) {
         for (int i = 0; i < pendingIgnoredFieldValues.size(); i++) {
             if (pendingIgnoredFieldValues.get(i).name().equals(fieldPath)) {
                 ignoredFieldValues.add(pendingIgnoredFieldValues.remove(i));
@@ -601,7 +601,7 @@ public abstract class DocumentParserContext {
     /**
      * Removes the pending pre-capture entry for {@code fieldPath} without committing it.
      */
-    public final void discardPendingPreCapture(String fieldPath) {
+    final void discardPendingPreCapture(String fieldPath) {
         pendingIgnoredFieldValues.removeIf(nv -> nv.name().equals(fieldPath));
     }
 

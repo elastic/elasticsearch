@@ -102,7 +102,7 @@ public final class FallbackStorageRouter {
     ) {
 
         /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
-        public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper, boolean parsesArrayValue) {
+        public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper) {
             Mapper.SourceKeepMode mode = mapper.sourceKeepMode().isPresent()
                 ? mapper.sourceKeepMode().get()
                 : ctx.sourceKeepModeFromIndexSettings();
@@ -111,7 +111,7 @@ public final class FallbackStorageRouter {
                 false,
                 mapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK,
                 mode,
-                parsesArrayValue,
+                mapper.parsesArrayValue(),
                 ctx.inArrayScope(),
                 ctx.isWithinCopyTo(),
                 ctx.isCopyToDestinationField(mapper.fullPath())
@@ -208,7 +208,7 @@ public final class FallbackStorageRouter {
      * @return the outcome of parsing the field value
      */
     public static ParseResult parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
-        FieldContext fc = FieldContext.forField(context, fieldMapper, fieldMapper.parsesArrayValue());
+        FieldContext fc = FieldContext.forField(context, fieldMapper);
 
         // Tentative pre-capture when the field participates in any ignored-source fallback path
         boolean precaptured = false;
@@ -227,7 +227,7 @@ public final class FallbackStorageRouter {
                 }
                 yield result;
             }
-            case ParseResult.Malformed ignored -> {
+            case ParseResult.Malformed() -> {
                 if (precaptured) {
                     if (fc.syntheticFallback()) {
                         // FALLBACK-mode fields reconstruct synthetic source from _ignored_source, so
@@ -261,14 +261,14 @@ public final class FallbackStorageRouter {
         org.elasticsearch.xcontent.XContentBuilder builder
     ) throws IOException {
         return switch (route(reason)) {
-            case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
+            case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
             case IGNORE_MALFORMED -> {
                 IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
                 yield true;
             }
             case ON_FAILURE -> {
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
+                    OnFailureStoredValues.storeEncoded(context, fieldPath, XContentDataHelper.encodeXContentBuilder(builder));
                 }
                 yield true;
             }
@@ -333,10 +333,10 @@ public final class FallbackStorageRouter {
 
     /**
      * Pre-captures the current parser position for {@code fieldPath} (a child of {@code context.parent()})
-     * before the field is parsed, so its XContent can be reconstructed later.
+     * before the field is parsed, so its XContent can be reconstructed later in {@code _ignored_source}.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
+    public static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -344,11 +344,12 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Pre-captures the current parser position for {@code context.parent()} before its content is parsed.
+     * Pre-captures the current parser position for {@code context.parent()} before its content is parsed
+     * so its XContent can be reconstructed later in {@code _ignored_source}.
      * Use when {@code context.parent()} is the object being captured, not a container.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCaptureParent(DocumentParserContext context, Reason reason) throws IOException {
+    public static DocumentParserContext preCaptureParent(DocumentParserContext context) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -368,6 +369,20 @@ public final class FallbackStorageRouter {
             return false;
         }
         context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, context.encodeFlattenedToken()));
+        return true;
+    }
+
+    private static boolean writeToIgnoredSource(
+        DocumentParserContext context,
+        String fieldPath,
+        org.elasticsearch.xcontent.XContentBuilder builder
+    ) throws IOException {
+        if (context.canAddIgnoredField() == false) {
+            return false;
+        }
+        context.addIgnoredField(
+            IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, XContentDataHelper.encodeXContentBuilder(builder))
+        );
         return true;
     }
 

@@ -331,7 +331,7 @@ public final class DocumentParser {
             var captureReason = sourceKeepMode == Mapper.SourceKeepMode.ALL
                 ? FallbackStorageRouter.Reason.SOURCE_KEEP_ALL
                 : FallbackStorageRouter.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
-            context = FallbackStorageRouter.preCaptureParent(context, captureReason);
+            context = FallbackStorageRouter.preCaptureParent(context);
             token = context.parser().currentToken();
             parser = context.parser();
         }
@@ -577,11 +577,7 @@ public final class DocumentParser {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectBuilder = null;
-                context = FallbackStorageRouter.preCapture(
-                    context,
-                    context.path().pathAsText(currentFieldName),
-                    FallbackStorageRouter.Reason.DYNAMIC_RUNTIME
-                );
+                context = FallbackStorageRouter.preCapture(context, context.path().pathAsText(currentFieldName));
             } else {
                 // When subobjects are disabled, only check for a matching dynamic template for this object field.
                 // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
@@ -737,7 +733,7 @@ public final class DocumentParser {
         var fc = FallbackStorageRouter.FieldContext.forArrayElements(context, mapper, fullPath);
         var preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
         if (preCapReason.isPresent()) {
-            context = FallbackStorageRouter.preCapture(context, fullPath, preCapReason.get());
+            context = FallbackStorageRouter.preCapture(context, fullPath);
         } else if (fc.canAddIgnoredField()
             && fc.storesArraysNatively() == false
             && mapper instanceof ObjectMapper objectMapper

@@ -21,10 +21,10 @@ public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Mal
     record Indexed() implements ParseResult {}
 
     /**
-     * The value was malformed. {@code capturedValue} holds the encoded token for storage in
-     * {@code ._ignore_malformed}.
+     * The value was malformed and {@code ignore_malformed} is enabled. The mapper has already written
+     * the raw value to {@code ._ignore_malformed} before returning this result; no further write is needed.
      */
-    record Malformed(BytesRef capturedValue) implements ParseResult {}
+    record Malformed() implements ParseResult {}
 
     /**
      * A {@code multi_value=false} constraint was violated. {@code capturedValue} holds the encoded

@@ -109,7 +109,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isExplicitlyMapped(field)) {
+            if (context.isMappedField(field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -139,7 +139,7 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (context.isExplicitlyMapped(field)) {
+            if (context.isMappedField(field)) {
                 return true;
             }
         }
@@ -217,7 +217,7 @@ public class SearchContextStats implements SearchStats {
             // than an explicitly mapped field; those shards store the field's terms in Lucene
             // even though it is absent from the mapping, so counting without this guard
             // inflates the result.
-            if (context.isExplicitlyMapped(field.string()) == false) {
+            if (context.isMappedField(field.string()) == false) {
                 continue;
             }
             for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
@@ -259,7 +259,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isExplicitlyMapped(field.string()) == false) {
+                    if (context.isMappedField(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());
@@ -290,7 +290,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isExplicitlyMapped(field.string()) == false) {
+                    if (context.isMappedField(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());

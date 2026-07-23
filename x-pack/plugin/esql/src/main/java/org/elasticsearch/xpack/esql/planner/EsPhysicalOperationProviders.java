@@ -44,10 +44,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -169,17 +171,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
 
         /**
-         * Returns {@code true} if {@code name} is an explicitly mapped field in this shard's
-         * index — including index-level runtime fields, but excluding dynamically-resolved
-         * sub-keys of {@code flattened} fields. Those sub-keys appear in Lucene's field infos
-         * even though they are absent from the mapping, and counting them with an EXISTS query
-         * would inflate aggregation results when field types differ across indices.
+         * Returns {@code true} if {@code name} is a concrete mapped field in this shard's
+         * index — including index-level runtime fields and dynamically-resolved sub-fields of
+         * {@link MetadataFieldMapper} instances, but excluding dynamically-resolved sub-keys of
+         * {@code flattened} fields. Those sub-keys appear in Lucene's field infos even though they
+         * are absent from the mapping, and counting them with an EXISTS query would inflate
+         * aggregation results when field types differ across indices.
          * <p>
          * The default implementation uses the mapping lookup alone. {@link DefaultShardContext}
          * overrides this to also respect query-time runtime fields and {@code allowedFields}.
          */
-        public boolean isExplicitlyMapped(String name) {
-            return mappingLookup().getFullNameToFieldType().containsKey(name);
+        public boolean isMappedField(String name) {
+            MappingLookup lookup = mappingLookup();
+            if (lookup.getFullNameToFieldType().containsKey(name)) {
+                return true;
+            }
+            int dotIndex = name.indexOf('.');
+            if (dotIndex > 0) {
+                return lookup.getMapper(name.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+                    && metaMapper.fieldType() instanceof DynamicFieldType dft
+                    && dft.getChildFieldType(name.substring(dotIndex + 1)) != null;
+            }
+            return false;
         }
     }
 
@@ -413,12 +426,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public boolean isExplicitlyMapped(String name) {
-            // For the unmapped field we are loading, bypass the explicit-mapping gate.
+        public boolean isMappedField(String name) {
+            // For the unmapped field we are loading, bypass the mapped-field gate.
             // This allows both truly unmapped fields (which use a source-based loader) and
             // dynamic subfields of flattened fields (which use the keyed block loader) to
             // produce real values rather than ConstantNull.
-            return name.equals(fullFieldName) || super.isExplicitlyMapped(name);
+            return name.equals(fullFieldName) || super.isMappedField(name);
         }
 
         @Override
@@ -470,7 +483,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /**
      * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
-     * explicitly mapped. Flattened fields store terms for their sub-keys in Lucene even though
+     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
      * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
      * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
      * means COUNT(*) — count every document — so no per-field guard is applied in that case.
@@ -484,7 +497,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return innerFn;
         }
         return ctx -> {
-            if (shardContexts.get(ctx.index()).isExplicitlyMapped(fieldName) == false) {
+            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
                 return List.of();
             }
             return innerFn.apply(ctx);
@@ -790,9 +803,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Don't use fieldType() for the existence check — it resolves sub-keys of
             // flattened fields dynamically, but those are not reported by field caps
             // and would cause element_type mismatches at runtime.
-            // Use isExplicitlyMapped() (virtual) so subclasses such as DefaultShardContextForUnmappedField
+            // Use isMappedField() (virtual) so subclasses such as DefaultShardContextForUnmappedField
             // can allow specific unmapped fields to pass through.
-            if (isExplicitlyMapped(name) == false) {
+            if (isMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             MappedFieldType fieldType = fieldType(name);
@@ -834,8 +847,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public boolean isExplicitlyMapped(String name) {
-            return ctx.isExplicitlyMapped(name);
+        public boolean isMappedField(String name) {
+            return ctx.isMappedField(name);
         }
 
         @Override

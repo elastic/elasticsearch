@@ -269,7 +269,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // Empty left side cascading through downstream operators.
+    // Empty left side cascading through downstream operators (one KEEP + one STATS per join type).
 
     public void testPropagateEmptyRelationThroughSemiJoinWithDownstreamKeep() {
         runGoldenTest("""
@@ -283,6 +283,40 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithDownstreamKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithDownstreamStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithDownstreamKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithDownstreamStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
             | STATS cnt = COUNT(*)
             """, STAGES);
     }

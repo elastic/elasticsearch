@@ -335,6 +335,239 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
     }
 
+    public void testCanRemainYesWhenDisabled() {
+        final var decider = createDecider(false, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final ShardRouting shardRouting = createShardRouting();
+
+        // The node's cache is fully committed, but that should not matter while the decider is disabled.
+        final ClusterInfo clusterInfo = createClusterInfo(
+            Map.of(SEARCH_NODE_ID, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, CACHE_SIZE_IN_BYTES, NO_COMMITMENT_BYTES)),
+            Map.of()
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("shared cache capacity decider is disabled"));
+    }
+
+    public void testCanRemainYesWhenCanRemainSpecificallyDisabled() {
+        final var decider = createDecider(
+            true,
+            false,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
+            LOW_WATERMARK_PERCENT,
+            HIGH_WATERMARK_PERCENT
+        );
+        final ShardRouting shardRouting = createShardRouting();
+
+        // The node's cache is fully committed, but that should not matter while canRemain is specifically disabled.
+        final ClusterInfo clusterInfo = createClusterInfo(
+            Map.of(SEARCH_NODE_ID, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, CACHE_SIZE_IN_BYTES, NO_COMMITMENT_BYTES)),
+            Map.of()
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("shared cache capacity decider's canRemain check is disabled"));
+    }
+
+    public void testCanRemainYesWhenNodeIsNotSearchNode() {
+        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final ShardRouting shardRouting = createShardRouting();
+
+        // The index node has no cache commitment data at all. The role check should short-circuit before that data is ever consulted.
+        final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(INDEX_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("shared cache capacity decider is applicable only to search nodes"));
+    }
+
+    public void testCanRemainYesWhenNodeCacheDataMissing() {
+        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final ShardRouting shardRouting = createShardRouting();
+
+        final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            decision.getExplanation(),
+            containsString("no cache size and commitment data available for node [" + SEARCH_NODE_ID + "]")
+        );
+    }
+
+    public void testCanRemainNotPreferredWhenOverHighWatermark() {
+        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final ShardRouting shardRouting = createShardRouting();
+
+        // The node is already 97% committed, which exceeds the 95% high watermark (and the 75% low watermark).
+        final long overWatermarkCommitmentBytes = bytesForPercent(97);
+        final long highWatermarkBytes = bytesForPercent(HIGH_WATERMARK_PERCENT);
+        final ClusterInfo clusterInfo = createClusterInfo(
+            Map.of(SEARCH_NODE_ID, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, overWatermarkCommitmentBytes, NO_COMMITMENT_BYTES)),
+            Map.of()
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
+        assertThat(
+            decision.getExplanation(),
+            containsString(
+                "node ["
+                    + SEARCH_NODE_ID
+                    + "] cache commitment ["
+                    + overWatermarkCommitmentBytes
+                    + "] bytes exceeds the high watermark ["
+                    + highWatermarkBytes
+                    + "]"
+            )
+        );
+    }
+
+    public void testCanRemainYesWhenBelowHighWatermark() {
+        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final ShardRouting shardRouting = createShardRouting();
+
+        // The node is 80% committed, which exceeds the 75% low watermark but stays below the 95% high watermark. canRemain only cares
+        // about the high watermark.
+        final long belowHighWatermarkCommitmentBytes = bytesForPercent(80);
+        final long highWatermarkBytes = bytesForPercent(HIGH_WATERMARK_PERCENT);
+        final ClusterInfo clusterInfo = createClusterInfo(
+            Map.of(
+                SEARCH_NODE_ID,
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, belowHighWatermarkCommitmentBytes, NO_COMMITMENT_BYTES)
+            ),
+            Map.of()
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+
+        final Decision decision = decider.canRemain(
+            indexMetadata(routingAllocation, shardRouting),
+            shardRouting,
+            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
+            routingAllocation
+        );
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            decision.getExplanation(),
+            containsString(
+                "node ["
+                    + SEARCH_NODE_ID
+                    + "] cache commitment ["
+                    + belowHighWatermarkCommitmentBytes
+                    + "] bytes is below the high watermark ["
+                    + highWatermarkBytes
+                    + "]"
+            )
+        );
+    }
+
+    public void testCanRemainAccountingModeDivergence() {
+        final ShardRouting shardRouting = createShardRouting();
+
+        final long lowBoostedCommitmentBytes = bytesForPercent(10);
+        final long highUnboostedCommitmentBytes = bytesForPercent(90);
+        final long totalCommitmentBytes = lowBoostedCommitmentBytes + highUnboostedCommitmentBytes;
+        final long highWatermarkBytes = bytesForPercent(HIGH_WATERMARK_PERCENT);
+
+        // The node has a low boosted commitment but a high unboosted commitment, so the two accounting modes should disagree about
+        // whether the high watermark has been exceeded.
+        final ClusterInfo clusterInfo = createClusterInfo(
+            Map.of(
+                SEARCH_NODE_ID,
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, lowBoostedCommitmentBytes, highUnboostedCommitmentBytes)
+            ),
+            Map.of()
+        );
+
+        // In BOOSTED mode only the boosted bytes count, which stays well below the high watermark.
+        final var boostedDecider = createDecider(
+            true,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
+            LOW_WATERMARK_PERCENT,
+            HIGH_WATERMARK_PERCENT
+        );
+        final RoutingAllocation boostedAllocation = createRoutingAllocation(boostedDecider, shardRouting, clusterInfo);
+        final Decision boostedDecision = boostedDecider.canRemain(
+            indexMetadata(boostedAllocation, shardRouting),
+            shardRouting,
+            boostedAllocation.routingNodes().node(SEARCH_NODE_ID),
+            boostedAllocation
+        );
+        assertThat(boostedDecision.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            boostedDecision.getExplanation(),
+            containsString(
+                "node ["
+                    + SEARCH_NODE_ID
+                    + "] cache commitment ["
+                    + lowBoostedCommitmentBytes
+                    + "] bytes is below the high watermark ["
+                    + highWatermarkBytes
+                    + "]"
+            )
+        );
+
+        // In TOTAL mode the combined boosted and unboosted bytes already exceed the high watermark.
+        final var totalDecider = createDecider(
+            true,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL,
+            LOW_WATERMARK_PERCENT,
+            HIGH_WATERMARK_PERCENT
+        );
+        final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
+        final Decision totalDecision = totalDecider.canRemain(
+            indexMetadata(totalAllocation, shardRouting),
+            shardRouting,
+            totalAllocation.routingNodes().node(SEARCH_NODE_ID),
+            totalAllocation
+        );
+        assertThat(totalDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
+        assertThat(
+            totalDecision.getExplanation(),
+            containsString(
+                "node ["
+                    + SEARCH_NODE_ID
+                    + "] cache commitment ["
+                    + totalCommitmentBytes
+                    + "] bytes exceeds the high watermark ["
+                    + highWatermarkBytes
+                    + "]"
+            )
+        );
+    }
+
     private static long bytesForPercent(int percent) {
         return CACHE_SIZE_IN_BYTES * percent / 100;
     }
@@ -354,15 +587,27 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         int lowWatermarkPercent,
         int highWatermarkPercent
     ) {
+        return createDecider(enabled, true, accountingMode, lowWatermarkPercent, highWatermarkPercent);
+    }
+
+    private static SharedCacheCapacityAllocationDecider createDecider(
+        boolean enabled,
+        boolean canRemainEnabled,
+        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode,
+        int lowWatermarkPercent,
+        int highWatermarkPercent
+    ) {
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), enabled)
+                .put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), canRemainEnabled)
                 .put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), accountingMode.name())
                 .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), lowWatermarkPercent + "%")
                 .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), highWatermarkPercent + "%")
                 .build(),
             Set.of(
                 SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
+                SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
                 SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
                 SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
                 SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
@@ -382,12 +627,6 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
     }
 
-    /**
-     * Builds a {@link RoutingAllocation} with only {@code decider} registered. No other allocation deciders are consulted anywhere in
-     * this test class: every test calls {@link SharedCacheCapacityAllocationDecider#canAllocate} directly rather than going through
-     * {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders} or {@code AllocationService}, so a broader decider
-     * set would be unused boilerplate.
-     */
     private RoutingAllocation createRoutingAllocation(AllocationDecider decider, ShardRouting shardRouting, ClusterInfo clusterInfo) {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(createClusterState(shardRouting))
             .allocationDeciders(decider)
@@ -395,6 +634,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             .build();
         routingAllocation.debugDecision(true);
         return routingAllocation;
+    }
+
+    private static IndexMetadata indexMetadata(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.metadata().getProject().index(shardRouting.getIndexName());
     }
 
     private ClusterInfo createClusterInfo(

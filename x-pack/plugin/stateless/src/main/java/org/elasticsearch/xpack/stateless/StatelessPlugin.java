@@ -1303,6 +1303,7 @@ public class StatelessPlugin extends Plugin
             EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
             SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
+            SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
             SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
             SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,

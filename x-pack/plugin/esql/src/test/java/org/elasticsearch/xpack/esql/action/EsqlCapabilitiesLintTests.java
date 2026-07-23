@@ -58,8 +58,8 @@ public class EsqlCapabilitiesLintTests extends ESTestCase {
         TreeMap<String, List<String>> violations = new TreeMap<>();
 
         for (URL url : urls) {
-            String path = url.toURI().getPath();
-            String specFile = path.substring(path.lastIndexOf('/') + 1);
+            String urlStr = url.toString();
+            String specFile = urlStr.substring(urlStr.lastIndexOf('/') + 1);
 
             List<Object[]> cases = SpecReader.readURLSpec(url, CsvSpecReader.specParser());
             for (Object[] row : cases) {

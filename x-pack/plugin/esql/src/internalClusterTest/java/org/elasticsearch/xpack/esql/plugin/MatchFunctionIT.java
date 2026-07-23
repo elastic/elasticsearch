@@ -93,6 +93,20 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after LIMIT"));
     }
 
+    public void testWhereMatchAfterHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        var query = """
+            SET unmapped_fields="nullify";
+            FROM test
+            | HIGHLIGHT "fox" ON content
+            | WHERE match(content, "fox")
+            | KEEP content, unmapped_field_baz
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after HIGHLIGHT"));
+    }
+
     public void testNotWhereMatch() {
         var query = """
             FROM test

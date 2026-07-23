@@ -316,7 +316,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
-                    && (lp instanceof Dedup == false),
+                    && (lp instanceof Dedup == false)
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -329,7 +330,7 @@ public abstract class FullTextFunction extends Function
             plan,
             scoreFunction.canonical(),
             Score.class,
-            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false) && (lp instanceof Highlight == false),
             m -> "[" + m.functionName() + "] function",
             failures
         );

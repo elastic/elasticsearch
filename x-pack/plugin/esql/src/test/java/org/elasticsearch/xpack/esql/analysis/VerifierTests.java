@@ -2012,7 +2012,13 @@ public class VerifierTests extends ESTestCase {
                 containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
             );
         }
-
+        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled()) {
+            // Plans below HIGHLIGHT can project away the doc IDs required by runtime Lucene evaluators.
+            fullText().error(
+                "from test | highlight \"data\" on title | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after HIGHLIGHT")
+            );
+        }
     }
 
     public void testFullTextFunctionsAfterFork() {
@@ -4666,6 +4672,7 @@ public class VerifierTests extends ESTestCase {
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
         fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
         fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT \"fox\" ON title");
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
         fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");

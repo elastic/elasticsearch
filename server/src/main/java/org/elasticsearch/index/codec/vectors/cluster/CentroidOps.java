@@ -436,6 +436,9 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         @Override
         public float[] computeFloatGlobalCentroid(float[][] centroids, int dims) {
             final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
             for (float[] centroid : centroids) {
                 for (int j = 0; j < dims; j++) {
                     globalCentroid[j] += centroid[j];
@@ -746,6 +749,9 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         @Override
         public float[] computeFloatGlobalCentroid(byte[][] centroids, int dims) {
             final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
             for (byte[] centroid : centroids) {
                 for (int j = 0; j < dims; j++) {
                     globalCentroid[j] += centroid[j];

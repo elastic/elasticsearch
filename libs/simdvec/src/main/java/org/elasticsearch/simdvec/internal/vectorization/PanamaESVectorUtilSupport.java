@@ -912,7 +912,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     public float squareDistance(byte[] a, float[] b) {
         int i = 0;
         float result = 0;
-        // SIMD path: load bytes as floats, load floats, subtract, square, accumulate
+        // SIMD path: load bytes as floats, load floats, subtract, square, accumulate.
+        // BYTES_FOR_4BYTE_SPECIES is a byte vector species sized so that each byte lane maps to
+        // exactly one float lane after castShape — i.e., its lane count equals FLOAT_SPECIES.length().
         if (a.length >= BYTES_FOR_4BYTE_SPECIES.length()) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
             int limit = a.length - BYTES_FOR_4BYTE_SPECIES.length();

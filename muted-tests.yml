@@ -574,9 +574,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/154655
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
-  method: testPreFlushWaitsForOngoingFlushes
-  issue: https://github.com/elastic/elasticsearch/issues/154658
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/10_basic/Create index with write aliases}
   issue: https://github.com/elastic/elasticsearch/issues/154659
@@ -595,3 +592,11 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformMigrationIT
   method: testRcs1SetupAgain
   issue: https://github.com/elastic/elasticsearch/issues/154836
+- class: org.elasticsearch.oldrepos.OldRepositoriesIT
+  issue: https://github.com/elastic/elasticsearch/issues/154229
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:change_point.values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/154877
+- class: org.elasticsearch.cluster.routing.ShardRoutingTests
+  method: testEqualsIgnoringVersion
+  issue: https://github.com/elastic/elasticsearch/issues/154886

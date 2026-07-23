@@ -13,9 +13,7 @@ import com.carrotsearch.hppc.ObjectDoubleHashMap;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,8 +37,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
 
-import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
@@ -345,22 +341,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             out.writeMap(this.shardCacheRequirements, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
             out.writeMap(this.nodeCacheSizeAndCommitments, StreamOutput::writeString, StreamOutput::writeWriteable);
         }
-    }
-
-    /**
-     * This creates a fake ShardRouting from limited info available in NodeAndShard.
-     * This will not be the same as real shard, however this is fine as ClusterInfo is only written
-     * in TransportClusterAllocationExplainAction when handling an allocation explain request with includeDiskInfo during upgrade
-     * that is later presented to the user and is not used by any code.
-     */
-    private static ShardRouting createFakeShardRoutingFromNodeAndShard(NodeAndShard nodeAndShard) {
-        return newUnassigned(
-            nodeAndShard.shardId,
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake"),
-            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
-        ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 
     @Override

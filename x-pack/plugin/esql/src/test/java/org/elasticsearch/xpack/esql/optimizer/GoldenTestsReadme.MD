@@ -75,6 +75,80 @@ You can use this in combination with `-Dtests.method` to overwrite specific test
 This can also be used in combination with `git diff` to inspect the differences if you prefer that
 method to comparing `.actual` and `.expected` files.
 
+### Which transport version do written files reflect?
+
+Golden tests normally run with a *random* minimum transport version (to cover mixed- and
+remote-cluster planning), but written files must not depend on what the randomizer happened to
+draw — otherwise regenerating twice can produce different bytes. Writing runs therefore use a
+deterministic anchor: a declared version range (next section) is written at the version that
+starts it, everything else at the current version, pinned tests at the pin. After writing, the
+runner plans once more at the far end of the versions the files cover and fails the write if the
+output differs — the plan forks inside that window, and the fork must be declared (see below);
+regenerating cannot paper over it.
+
+## Different expectations at different transport versions
+
+Some plans legitimately change shape at a specific transport version. Declare those points and the
+runner keeps one set of expected files per version range:
+
+```java
+public void testMultiTypeField() {
+  builder("FROM employees | WHERE emp_no::keyword == \"10001\"")
+      .expectationChangesAt("compact_multi_type_es_field") // the plan changes shape here
+      .run();
+}
+```
+
+- `expectationChangesAt("tv_name")` **splits** coverage: both shapes stay verified. The current
+  shape's files stay directly in the test directory, exactly like an unlabeled test; each older
+  range's files live in a subdirectory named by the version that ends the range —
+  `testMultiTypeField/analysis.expected` (current),
+  `testMultiTypeField/before_compact_multi_type_es_field/analysis.expected` (older).
+- `since("tv_name")` **removes** coverage below the version. Use it on a new feature's tests with
+  the feature's own transport version — plans below it never existed. The two words exist so a
+  reviewer sees which of the two happened.
+
+Values are registered transport version names (`TransportVersion.fromName`); declare labels
+oldest-first; neither combines with a pinned `transportVersion(...)`. Tests without labels keep
+the flat layout, and directory names carry no order, so a new label never renames existing
+directories or breaks existing mutes. If one gate changes most of a suite, declare the label once
+in the suite's shared builder helper — the failing tests tell you exactly which ones fork.
+
+### Two runs per suite
+
+Suites opt in with:
+
+```java
+@ParametersFactory(argumentFormatting = "%1$s")
+public static Iterable<Object[]> parameters() {
+    return goldenModes();
+}
+
+public MyGoldenTests(@Name("mode") String mode) {
+    super(mode);
+}
+```
+
+`testFoo {current}` plans at the current version against the newest range — deterministic, so a
+version-gated change fails in the PR that introduces it. `testFoo {historical}` plans once per
+range, at a random released version inside it. The two names mute independently: muting a flaky
+`{historical}` leaves the `{current}` alarm armed.
+
+### Failure cheat-sheet
+
+- `{current}` red, `{historical}` green: your change is version-gated — add a label with your
+  gate's version and regenerate. Skipping the label doesn't work: old ranges regenerate at their
+  own starting version, so the old shape comes back and `{current}` stays red.
+- `{historical}` flaky on an unlabeled test: you found an undeclared fork; the failure diff shows
+  both shapes. Declare it (label or `since`) and regenerate.
+- Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
+  Harmless, but clean up as the message says — delete the `before_<label>` directory and remove
+  the declaration; nothing else moves. `-Dgolden.gc.strict` escalates the warning to a failure,
+  for scheduled cleanup sweeps.
+- Error that a declaration no longer resolves: the transport version name was retired, meaning the
+  code path it gated is gone. Remove the declaration; for a label, also delete its
+  `before_<label>` directory (its files described planning that no longer exists).
+
 ## How do I run **all** the golden tests?
 ```sh
 ./gradlew :x-pack:plugin:esql:test --tests "*GoldenTests"

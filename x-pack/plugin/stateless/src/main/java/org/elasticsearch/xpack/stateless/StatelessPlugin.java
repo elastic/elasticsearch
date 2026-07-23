@@ -1404,10 +1404,10 @@ public class StatelessPlugin extends Plugin
                             }
                         }
                     );
-                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
+                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNos -> {
                         var engine = indexShard.getEngineOrNull();
                         if (engine != null && engine instanceof IndexEngine indexEngine) {
-                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNo);
+                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNos);
                             // The local checkpoint is updated as part of the post-replication actions of ReplicationOperation. However, if
                             // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
                             // may need to wait for the checkpoint to progress in order to send out a new VBCC commit notification. To

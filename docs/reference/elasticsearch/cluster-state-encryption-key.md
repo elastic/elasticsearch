@@ -69,7 +69,7 @@ The `cluster_state_encryption` health indicator reports on the status of the clu
 Resetting the cluster state encryption key is **destructive and irreversible**. Any data that was encrypted with the previous key is permanently lost.
 :::
 
-As a last resort, for example after suspected key compromise or an unrecoverable encryption state, you can discard the current cluster state encryption key and everything encrypted with it:
+As a last resort, if the encryption password is lost or corrupted and can't be recovered, you can discard the current cluster state encryption key and everything encrypted with it:
 
 ```console
 POST /_encryption/_reset?accept_data_loss=true

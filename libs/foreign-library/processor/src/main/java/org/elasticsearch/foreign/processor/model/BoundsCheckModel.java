@@ -182,7 +182,7 @@ public sealed interface BoundsCheckModel {
             return null;
         }
         int elementBits = resolveElementBits("@VectorSegment", annotation.elementBits(), param, messager);
-        if (elementBits < 0) {
+        if (elementBits <= 0) {
             return null;
         }
         if (annotation.aligned() && annotation.elementBits() % 8 != 0) {
@@ -217,7 +217,7 @@ public sealed interface BoundsCheckModel {
         }
 
         int elementBits = resolveElementBits("@MatrixSegment", annotation.elementBits(), param, messager);
-        if (elementBits < 0) {
+        if (elementBits <= 0) {
             return null;
         }
 

@@ -64,7 +64,7 @@ import static java.util.stream.Collectors.joining;
 public class PartitionedHashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTITION_COUNT = 32;
-    public static final int DEFAULT_PARTITION_CONVERSION_THRESHOLD = 5_000;
+    public static final int DEFAULT_PARTITION_CONVERSION_THRESHOLD = 100_000;
     public static final int DEFAULT_PER_PARTITION_EMIT_THRESHOLD = 10_000;
     public static final double DEFAULT_PER_PARTITION_EMIT_UNIQUENESS_THRESHOLD = 0.1;
 

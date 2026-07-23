@@ -1,0 +1,5 @@
+area: Allocation
+issues: []
+pr: 154790
+summary: Clamp heap estimates to zero when applying deltas
+type: bug

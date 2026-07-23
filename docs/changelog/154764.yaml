@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 154764
+summary: Index node heap overhead by object size
+type: enhancement

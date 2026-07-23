@@ -4695,10 +4695,7 @@ public class AnalyzerTests extends ESTestCase {
 
         // Unknown column at the same scale still errors through the shared no-match path.
         String unknown = "FROM wide | KEEP does_not_exist";
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer().addIndex(resolution).query(unknown)
-        );
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer().addIndex(resolution).query(unknown));
         assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
     }
 

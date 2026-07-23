@@ -435,8 +435,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
 
         doAnswer(invocation -> {
-            CancelRecoveriesAction.Request req = invocation.getArgument(2);
-            TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
             sentRequests.add(req);
             handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
             return null;
@@ -564,8 +564,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
 
         doAnswer(invocation -> {
-            CancelRecoveriesAction.Request req = invocation.getArgument(2);
-            TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
             sentRequests.add(req);
             handler.handleException(new ConnectTransportException(invocation.getArgument(0), "oops"));
             return null;
@@ -632,8 +632,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var sentRequests = new CopyOnWriteArrayList<CancelRecoveriesAction.Request>();
 
         doAnswer(invocation -> {
-            CancelRecoveriesAction.Request req = invocation.getArgument(2);
-            TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
             sentRequests.add(req);
             handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
             return null;
@@ -695,8 +695,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var sentRequests = new CopyOnWriteArrayList<CancelRecoveriesAction.Request>();
 
         doAnswer(invocation -> {
-            CancelRecoveriesAction.Request req = invocation.getArgument(2);
-            TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
             sentRequests.add(req);
             handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
             return null;

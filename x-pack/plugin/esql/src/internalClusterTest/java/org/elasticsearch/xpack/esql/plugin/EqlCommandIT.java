@@ -98,7 +98,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testEventQueryReturnsRows() {
-        String query = "EQL \"process where true\" WITH {\"indices\": \"" + INDEX + "\"}";
+        String query = "EQL " + INDEX + " \"process where true\"";
         try (EsqlQueryResponse resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("_index", "_id", "_source"));
             assertColumnTypes(resp.columns(), List.of("keyword", "keyword", "_source"));
@@ -112,7 +112,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testSequenceQueryUnnestsToOneRowPerEvent() {
         // process (pid 100) followed by network (pid 100) forms one sequence; pid 200 has no network follow-up.
-        String query = "EQL \"sequence by process.pid [process where true] [network where true]\" WITH {\"indices\": \"" + INDEX + "\"}";
+        String query = "EQL " + INDEX + " \"sequence by process.pid [process where true] [network where true]\"";
         try (EsqlQueryResponse resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("_seq", "_position", "join_keys", "_index", "_id", "_source"));
             assertColumnTypes(resp.columns(), List.of("long", "integer", "keyword", "keyword", "keyword", "_source"));

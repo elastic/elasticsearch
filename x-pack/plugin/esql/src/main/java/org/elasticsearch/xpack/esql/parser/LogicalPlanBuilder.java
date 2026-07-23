@@ -1017,7 +1017,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression query = expression(ctx.stringOrParameter());
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Object> config = options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of();
+        Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
+        // Indices are a first-class leading argument now (like FROM), not a WITH option. Reject the old
+        // form and thread the pattern through the request config until the typed-schema increment resolves
+        // it via field-caps directly.
+        if (config.containsKey("indices")) {
+            throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
+        }
+        config.put("indices", visitIndexPattern(ctx.indexPattern()));
         return new UnresolvedEqlRelation(source, query, config);
     }
 

@@ -118,7 +118,7 @@ externalCommand
     ;
 
 eqlCommand
-    : DEV_EQL stringOrParameter commandNamedParameters
+    : DEV_EQL indexPattern (COMMA indexPattern)* stringOrParameter metadata? commandNamedParameters
     ;
 
 indexPatternAndMetadataFields

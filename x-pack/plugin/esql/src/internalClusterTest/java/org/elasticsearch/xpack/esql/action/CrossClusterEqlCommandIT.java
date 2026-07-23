@@ -73,7 +73,7 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             .get();
 
         // Run the EQL command from the LOCAL cluster, targeting the REMOTE index via cluster-qualified pattern.
-        String query = "EQL \"process where true\" WITH {\"indices\": \"" + REMOTE_CLUSTER_1 + ":eql_events\"} | STATS count = COUNT(*)";
+        String query = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where true\" | STATS count = COUNT(*)";
         try (EsqlQueryResponse resp = runQuery(query, false)) {
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows, hasSize(1));

@@ -34,18 +34,18 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
     public void testEventQuery() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        var plan = query("EQL \"process where true\"");
+        var plan = query("EQL logs-* \"process where true\"");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
         assertThat(eql.query(), instanceOf(Literal.class));
         assertThat(BytesRefs.toString(as(eql.query(), Literal.class).value()), equalTo("process where true"));
-        assertThat(eql.options().size(), equalTo(0));
+        assertThat(eql.options().get("indices"), equalTo("logs-*"));
     }
 
     public void testSequenceQuery() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        var plan = query("EQL \"sequence [process where true] [network where true]\"");
+        var plan = query("EQL logs-* \"sequence [process where true] [network where true]\"");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
         assertThat(
@@ -57,7 +57,7 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
     public void testWithOptions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        var plan = query("EQL \"process where true\" WITH { \"indices\": \"logs-*\", \"size\": 100 }");
+        var plan = query("EQL logs-* \"process where true\" WITH { \"size\": 100 }");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
         Map<String, Object> options = eql.options();

@@ -6,7 +6,7 @@
 eventQueryCountsMatchingEvents
 required_capability: eql_command
 
-EQL "process where true" WITH {"indices": "eql_test", "event_category_field": "category"}
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | STATS count = COUNT(*)
 ;
 
@@ -17,7 +17,7 @@ count:long
 eventQueryAppliesTheEqlPredicate
 required_capability: eql_command
 
-EQL "process where pid == 100" WITH {"indices": "eql_test", "event_category_field": "category"}
+EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"}
 | STATS count = COUNT(*)
 ;
 
@@ -30,7 +30,7 @@ required_capability: eql_command
 
 // Uses a non-default timestamp field (ingested) and a tiebreaker field (pid) to exercise those options
 // end to end against the EQL engine; the query still resolves the two process events correctly.
-EQL "process where true" WITH {"indices": "eql_test", "event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
+EQL eql_test "process where true" WITH {"event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
 | STATS count = COUNT(*)
 ;
 
@@ -41,7 +41,7 @@ count:long
 sequenceQueryUnnestsToOneRowPerEvent
 required_capability: eql_command
 
-EQL "sequence by pid [process where true] [network where true]" WITH {"indices": "eql_test", "event_category_field": "category"}
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
 | KEEP join_keys, _position
 | SORT join_keys, _position
 ;
@@ -56,7 +56,7 @@ join_keys:keyword | _position:integer
 sequenceQueryCountsEventsAndSequences
 required_capability: eql_command
 
-EQL "sequence by pid [process where true] [network where true]" WITH {"indices": "eql_test", "event_category_field": "category"}
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
 | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_seq)
 ;
 

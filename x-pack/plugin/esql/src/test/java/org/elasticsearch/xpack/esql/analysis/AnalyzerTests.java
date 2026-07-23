@@ -4665,6 +4665,43 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(idAttr.name(), equalTo("id"));
     }
 
+    /**
+     * Wide child output (> NAME_INDEX_THRESHOLD) so reference resolution takes the exact-name index path in
+     * {@code ResolveRefs} (WHERE/SORT via {@code resolveExpressions}, explicit KEEP via {@code keepResolver})
+     * rather than the per-reference linear scan. Results must match the scan path.
+     */
+    public void testWideOutputResolvesThroughNameIndex() {
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < 200; i++) {
+            String name = "f" + i;
+            mapping.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        EsIndex index = new EsIndex("wide", mapping, Map.of("wide", IndexMode.STANDARD), Map.of(), Map.of());
+        IndexResolution resolution = IndexResolution.valid(index);
+
+        String query = """
+            FROM wide
+            | WHERE f5 == "a"
+            | SORT f10 ASC
+            | KEEP f0, f5, f10, f199
+            """;
+        LogicalPlan plan = analyzer().addIndex(resolution).query(query);
+
+        var output = plan.output();
+        assertThat(Expressions.names(output), contains("f0", "f5", "f10", "f199"));
+        for (Attribute a : output) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Unknown column at the same scale still errors through the shared no-match path.
+        String unknown = "FROM wide | KEEP does_not_exist";
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(resolution).query(unknown)
+        );
+        assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
     public void testExplicitRetainOriginalFieldWithCast() {
         // Use the existing union index fixture (id has keyword/integer union types)
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();

@@ -1123,7 +1123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
-                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                default -> resolveExpressions(plan, childrenOutput);
             };
 
             return resolved;
@@ -2053,8 +2053,53 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        /**
+         * Above this many child attributes, exact-name resolution builds a one-shot name index for the node
+         * instead of rescanning the whole output per reference, turning O(references * fields) into
+         * O(fields + references). Below it, the per-reference scan is cheaper than building the map.
+         */
+        private static final int NAME_INDEX_THRESHOLD = 128;
+
+        // Resolve references for nodes without a dedicated resolver (WHERE, SORT, LIMIT, ...).
+        private LogicalPlan resolveExpressions(LogicalPlan plan, List<Attribute> childrenOutput) {
+            if (childrenOutput.size() <= NAME_INDEX_THRESHOLD) {
+                return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+            // Build the exact-name index lazily on first reference so ref-less wide nodes (e.g. LIMIT) don't pay for it.
+            Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
+            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> {
+                if (nameIndex.get() == null) {
+                    nameIndex.set(buildNameIndex(childrenOutput));
+                }
+                return maybeResolveAttribute(ua, nameIndex.get(), childrenOutput);
+            });
+        }
+
+        // Skips synthetic attributes to match the scanning resolver; duplicate names share a bucket so they stay ambiguous.
+        private static Map<String, List<Attribute>> buildNameIndex(List<Attribute> attrs) {
+            Map<String, List<Attribute>> index = new HashMap<>(attrs.size());
+            for (Attribute a : attrs) {
+                if (a.synthetic() == false) {
+                    index.computeIfAbsent(a.name(), k -> new ArrayList<>(1)).add(a);
+                }
+            }
+            return index;
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
+        }
+
+        private Attribute maybeResolveAttribute(
+            UnresolvedAttribute ua,
+            Map<String, List<Attribute>> nameIndex,
+            List<Attribute> childrenOutput
+        ) {
+            // if we already tried and failed to resolve this attribute, don't try again
+            if (ua.customMessage()) {
+                return ua;
+            }
+            return resolveAttribute(ua, nameIndex, childrenOutput, log);
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
@@ -2070,8 +2115,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+            return resolveAttribute(ua, null, childrenOutput, logger);
+        }
+
+        private static Attribute resolveAttribute(
+            UnresolvedAttribute ua,
+            Map<String, List<Attribute>> nameIndex,
+            List<Attribute> childrenOutput,
+            Logger logger
+        ) {
             Attribute resolved = ua;
-            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = nameIndex == null
+                ? resolveAgainstList(ua, childrenOutput)
+                : resolveAgainstList(ua, nameIndex, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -2209,6 +2265,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // otherwise resolve them
             else {
+                // Build the exact-name index lazily and only for wide outputs; pattern/star projections don't use it.
+                boolean useIndex = childOutput.size() > NAME_INDEX_THRESHOLD;
+                Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
                 for (var proj : projections) {
                     final List<Attribute> resolved;
@@ -2223,7 +2282,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = List.of(proj.toAttribute());
                         priority = 2;
                     } else if (proj instanceof UnresolvedAttribute ua) {
-                        resolved = resolveAgainstList(ua, childOutput);
+                        if (useIndex) {
+                            if (nameIndex.get() == null) {
+                                nameIndex.set(buildNameIndex(childOutput));
+                            }
+                            resolved = resolveAgainstList(ua, nameIndex.get(), childOutput);
+                        } else {
+                            resolved = resolveAgainstList(ua, childOutput);
+                        }
                         priority = 1;
                     } else if (proj.resolved()) {
                         resolved = List.of(proj.toAttribute());
@@ -2444,6 +2510,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
+    }
+
+    private static List<Attribute> resolveAgainstList(
+        UnresolvedAttribute ua,
+        Map<String, List<Attribute>> nameIndex,
+        Collection<Attribute> attrList
+    ) {
+        var matches = AnalyzerRules.maybeResolveAgainstList(ua, nameIndex, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
     }
 

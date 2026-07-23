@@ -128,6 +128,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // Full-text functions, SCORE and `:` operator are not allowed after HIGHLIGHT
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN|SCORE)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",

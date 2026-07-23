@@ -48,7 +48,6 @@ public final class FullTextFunctionGenerator {
         ChangePointGenerator.CHANGE_POINT,
         MvExpandGenerator.MV_EXPAND,
         DedupGenerator.DEDUP,
-        // TODO: Remove when runtime full-text filters after HIGHLIGHT become supported.
         HighlightGenerator.HIGHLIGHT
     );
 

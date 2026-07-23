@@ -76,7 +76,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         updateClusterSettings(cluster2Client(), setting);
     }
 
-    public void testHAProxyModeConnectionWorks() throws IOException {
+    public void testHAProxyModeConnectionWorks() throws Exception {
         String proxyAddress = "haproxy:9600";
         logger.info("Configuring remote cluster [{}]", proxyAddress);
         Settings settings = Settings.builder()
@@ -85,7 +85,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .build();
         updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client()));
+        assertBusy(() -> assertTrue(isConnected(cluster1Client())));
 
         {
             Request searchRequest = new Request("POST", "/haproxynosn:test2/_search");
@@ -94,7 +94,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         }
     }
 
-    public void testHAProxyModeConnectionWithSNIToCluster1Works() throws IOException {
+    public void testHAProxyModeConnectionWithSNIToCluster1Works() throws Exception {
         Settings settings = Settings.builder()
             .put("cluster.remote.haproxysni1.mode", "proxy")
             .put("cluster.remote.haproxysni1.proxy_address", "haproxy:9600")
@@ -102,7 +102,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .build();
         updateClusterSettings(cluster2Client(), settings);
 
-        assertTrue(isConnected(cluster2Client()));
+        assertBusy(() -> assertTrue(isConnected(cluster2Client())));
 
         {
             Request searchRequest = new Request("POST", "/haproxysni1:test1/_search");
@@ -111,7 +111,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         }
     }
 
-    public void testHAProxyModeConnectionWithSNIToCluster2Works() throws IOException {
+    public void testHAProxyModeConnectionWithSNIToCluster2Works() throws Exception {
         Settings settings = Settings.builder()
             .put("cluster.remote.haproxysni2.mode", "proxy")
             .put("cluster.remote.haproxysni2.proxy_address", "haproxy:9600")
@@ -119,7 +119,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .build();
         updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client()));
+        assertBusy(() -> assertTrue(isConnected(cluster1Client())));
 
         {
             Request searchRequest = new Request("POST", "/haproxysni2:test2/_search");
@@ -128,7 +128,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         }
     }
 
-    public void testProxyModeConnectionWorks() throws IOException {
+    public void testProxyModeConnectionWorks() throws Exception {
         String cluster2RemoteClusterSeed = RemoteClusterTestCluster.CLUSTER_2_NAME + ":9300";
         logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
         Settings settings = Settings.builder()
@@ -138,7 +138,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
         updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client()));
+        assertBusy(() -> assertTrue(isConnected(cluster1Client())));
 
         {
             Request searchRequest = new Request("POST", "/cluster2:test2/_search");

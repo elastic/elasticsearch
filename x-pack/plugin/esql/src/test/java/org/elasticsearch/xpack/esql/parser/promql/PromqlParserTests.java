@@ -128,6 +128,24 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("1:24: Parameter value [`1m`] must not be a quoted identifier"));
     }
 
+    public void testParamValueRemoteClusterPatternRejected() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL step=foo:bar (avg(foo))"));
+        assertThat(e.getMessage(), containsString("Invalid parameter value [foo:bar]"));
+    }
+
+    public void testParamValueSelectorPatternRejected() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL step=foo::bar (avg(foo))"));
+        assertThat(e.getMessage(), containsString("Invalid parameter value [foo::bar]"));
+    }
+
+    public void testParamValueUnknownParamRejected() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL step=?_unknown (avg(foo))", new QueryParams(List.of()))
+        );
+        assertThat(e.getMessage(), containsString("No value found for parameter [?_unknown]"));
+    }
+
     public void testMissingParams() {
         Stream.of(
             parse("PROMQL foo / bar"),

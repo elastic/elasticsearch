@@ -38,6 +38,7 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class TestModel extends Model {
 
+    // TODO: Randomly use task type EMBEDDING
     public static TestModel createRandomInstance() {
         return createRandomInstance(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
     }

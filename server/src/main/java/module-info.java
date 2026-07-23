@@ -322,7 +322,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
-    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
+    exports org.elasticsearch.reservedstate.service
+        to
+            org.elasticsearch.multiproject,
+            org.elasticsearch.serverless.multiproject,
+            org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -414,6 +418,7 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.diskbbq,
             org.elasticsearch.xpack.stateless;
 
+    exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;

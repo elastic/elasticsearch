@@ -417,6 +417,14 @@ public class ESVectorUtil {
         }
     }
 
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
+    }
+
     /** AND bit count striding over 4 bytes at a time. */
     static int andBitCountInt(byte[] a, byte[] b) {
         int distance = 0, i = 0;

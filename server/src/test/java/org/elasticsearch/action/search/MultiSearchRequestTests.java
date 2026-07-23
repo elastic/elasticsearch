@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -274,6 +275,32 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(sliceRequest.routing(), equalTo("s1"));
         assertTrue(sliceRequest.isRoutingFromSlice());
         assertThat(sliceRequest.searchSlice(), equalTo("s1"));
+    }
+
+    public void testParseRequestIgnoresMrtInCpsAndWarns() throws IOException {
+        final String requestContent = """
+            {"index":"test","ccs_minimize_roundtrips":true}
+            {"query":{"match_all":{}}}
+            {"index":"test2"}
+            {"query":{"match_all":{}}}
+            """;
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Map.of("ccs_minimize_roundtrips", "true")).build();
+
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false,
+            Optional.of(true)
+        );
+        assertThat(request.requests().size(), equalTo(2));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+        }
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
     }
 
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {

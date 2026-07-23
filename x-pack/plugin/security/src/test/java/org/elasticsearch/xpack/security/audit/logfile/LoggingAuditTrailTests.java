@@ -97,6 +97,9 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEntry;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -173,10 +176,12 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2061,6 +2066,138 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build());
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanSuppressAuditEntry() throws Exception {
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return true;
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanEnrichAuditEntry() throws Exception {
+        final String maskedValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    // enrich runs last in build(), so it can read and override fields already set by the builder
+                    assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
+                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + maskedValue + "\""));
+        assertThat(logLine, not(containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\"")));
+    }
+
+    public void testCustomizerCanAddAuditEntryField() throws Exception {
+        final String addedField = LoggingAuditTrail.PRINCIPAL_FIELD_NAME;
+        final String addedValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    assertThat(entry.get(addedField), nullValue());
+                    entry.set(addedField, addedValue);
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        // the newly added field is present
+        assertThat(logLine, containsString("\"" + addedField + "\":\"" + addedValue + "\""));
+        // and existing fields set by the builder are left untouched
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\""));
+    }
+
+    public void testCustomizerSuppressReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // suppress() only fires when the context carries the event's realm and indices
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return expectedRealm.equals(ctx.realm()) && Arrays.equals(expectedIndices, ctx.indices());
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerEnrichReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // enrich() writes a value derived from the context, proving it saw the event's realm and indices
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, ctx.realm() + ":" + ctx.indices().length);
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertThat(
+            singleLogLine(logger),
+            containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + expectedRealm + ":" + expectedIndices.length + "\"")
+        );
     }
 
     public void testSecurityConfigChangedEventSelection() {

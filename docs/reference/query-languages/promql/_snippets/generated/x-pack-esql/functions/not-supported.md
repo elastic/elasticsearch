@@ -17,4 +17,3 @@
 * `sort`
 * `sort_desc`
 * `timestamp`
-* `topk`

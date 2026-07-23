@@ -106,14 +106,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      */
     private final Map<String, String> declaredDateFormats;
     /**
-     * Physical (file) names of declared-type columns; empty when none. Set via {@link #withDeclaredTypeColumns} and
-     * threaded to each {@link NdJsonPageDecoder} so a cross-kind token on a declared column routes through the error
-     * policy instead of silently reading as null (an inferred column keeps the schema-on-read null tolerance). The
-     * text formats keep the SPI no-op default for the whole-column null-fill decision; NDJSON only needs the set to
-     * pick the per-value cross-kind policy, so it consumes it here rather than in the SPI default.
-     */
-    private final Set<String> declaredTypeColumns;
-    /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
      * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
      * the canonical config rather than the projected/resolved schema so a data node's shipped-back
@@ -125,7 +117,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), Set.of());
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of());
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -140,8 +132,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
         String canonicalConfig,
-        Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Map<String, String> declaredDateFormats
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -151,7 +142,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
     }
 
     @Override
@@ -164,8 +154,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            declaredDateFormats,
-            declaredTypeColumns
+            declaredDateFormats
         );
     }
 
@@ -182,31 +171,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            physicalNameToPattern,
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * Declared-type columns keyed by physical (file) name. NDJSON does not make the whole-column null-fill
-     * decision the by-name columnar readers do; it consumes this set to decide, per value, whether a cross-kind
-     * token routes through the error policy (declared) or keeps the schema-on-read silent null (inferred).
-     */
-    @Override
-    public NdJsonFormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        if (physicalDeclaredColumns == null || physicalDeclaredColumns.isEmpty()) {
-            return this;
-        }
-        return new NdJsonFormatReader(
-            settings,
-            blockFactory,
-            resolvedSchema,
-            schemaSampleSize,
-            segmentSizeBytes,
-            datetimeFormatter,
-            canonicalConfig,
-            declaredDateFormats,
-            physicalDeclaredColumns
+            physicalNameToPattern
         );
     }
 
@@ -231,8 +196,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newSegmentSize,
             newDatetimeFormatter,
             canon,
-            declaredDateFormats,
-            declaredTypeColumns
+            declaredDateFormats
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -341,17 +305,34 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolve the effective schema when the planner has bound a read schema. When the
-     * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
-     * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
-     * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
-     * planner-supplied schema standing in for the per-file inference result.
+     * Resolve the effective schema when the planner has bound a read schema for this file.
+     * <p>
+     * <b>The bound schema wins on type.</b> It is the planner's read contract — a declared type, or a type
+     * reconciled across every file of the dataset — and the reader-level {@code projection} may be nothing
+     * more than what this file's own values happened to look like. Letting the projection's type win means a
+     * column declared {@code long} is read as {@code int} because the values in view were small, and the
+     * resulting block fails to cast in a compute engine still expecting {@code long}.
+     * <p>
+     * Inference never has more information than the planner here: the planner saw the declaration, or saw
+     * every file. A value that does not fit the bound type is the error policy's business at parse time, not
+     * grounds to retype the column.
+     * <p>
+     * The projection still supplies nullability for matching names, and contributes any column the bound
+     * schema does not mention. Bound column order is preserved.
      */
     private static List<Attribute> mergeBoundWithProjection(List<Attribute> bound, List<Attribute> projection) {
         if (projection == null || projection.isEmpty()) {
             return bound;
         }
-        return mergeInferredWithPreferred(bound, projection);
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute a : bound) {
+            byName.put(a.name(), a);
+        }
+        for (Attribute p : projection) {
+            Attribute existing = byName.get(p.name());
+            byName.put(p.name(), existing == null ? p : existing.withNullability(p.nullable()));
+        }
+        return List.copyOf(byName.values());
     }
 
     /**
@@ -504,6 +485,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         // Bound read schema wins when non-null; null falls through to per-file inference.
         // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
+        //
+        // A bound schema is used as given. It must NOT be supplemented by inferring here: this method is
+        // handed storage that may be a single-use stream, and opening it again for inference both breaks
+        // that contract and re-reads the file on every chunk. Whoever owns the file's leading bytes resolves
+        // any facts the projection does not carry before the read starts.
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
@@ -550,7 +536,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.maxRecordBytes(),
             datetimeFormatter,
             declaredDateFormats,
-            declaredTypeColumns,
             context.statsBaseOffset(),
             context.statsStripeSize(),
             context.statsFileFinal(),

@@ -21,7 +21,9 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
@@ -118,8 +120,10 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -612,6 +616,336 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var query = as(fieldExtract.child(), EsQueryExec.class);
         var expected = unscore(existsQuery(textField));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * mv_in_range over an indexed numeric field pushes a bare (any-value) range query to Lucene and drops the FilterExec
+     * entirely (YES): the range matches exactly what the evaluator computes for a numeric field, so no row-level recheck
+     * is needed. The range is not wrapped in a SingleValueQuery — any-value semantics are exactly what a bare range gives.
+     */
+    public void testMvInRangePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("salary").from(25000, true).to(30000, true));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * NOT mv_in_range over a numeric field pushes must_not(range) and drops the FilterExec (YES) — sound because the
+     * pushed range is exact, so negating it in Lucene is exact too.
+     */
+    public void testMvInRangeNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): byte-encoded
+     * types are held conservatively out of the exact-YES set, so the range surfaces candidate documents and the retained
+     * evaluator re-checks them. Contrast the numeric YES cases above, which drop the FilterExec.
+     */
+    public void testMvInRangeKeywordRecheck() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("a", true).to("m", true)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
+     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     */
+    public void testMvInRangeTextNotPushed() {
+        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
+        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /**
+     * A multivalued (or null) literal bound is never pushed: it has no well-defined range, so the predicate stays in
+     * the FilterExec rather than pushing a degenerate range that RECHECK could not correct under negation.
+     */
+    public void testMvInRangeMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, [25000, 26000], 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /**
+     * A date field is a YES type too — it drops the FilterExec and pins the date path through Range's per-type bound
+     * formatting, which the integer plan tests above do not exercise.
+     */
+    public void testMvInRangeDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(hire_date, \"2020-01-01\"::datetime, \"2021-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(
+            rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+        );
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** long, date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range shape. */
+    public void testMvInRangeYesTypeFormatting() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var lng = plannerOptimizer.plan("from test | where mv_in_range(long, 10::long, 20::long)", IS_SV_STATS, analyzer);
+        assertThat(lng.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(lng).toString(), equalTo(unscore(rangeQuery("long").from(10, true).to(20, true)).toString()));
+
+        var dn = plannerOptimizer.plan(
+            "from test | where mv_in_range(date_nanos, \"2020-01-01\"::date_nanos, \"2021-01-01\"::date_nanos)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(dn.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedDn = unscore(
+            rangeQuery("date_nanos").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time_nanos")
+        );
+        assertThat(pushedQuery(dn).toString(), equalTo(expectedDn.toString()));
+
+        var ul = plannerOptimizer.plan(
+            "from test | where mv_in_range(unsigned_long, 10::unsigned_long, 20::unsigned_long)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(ul.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedUl = unscore(rangeQuery("unsigned_long").from(10, true).to(20, true));
+        assertThat(pushedQuery(ul).toString(), equalTo(expectedUl.toString()));
+    }
+
+    /**
+     * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
+     * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
+     * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
+     * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
+     */
+    public void testMvInRangeDoubleRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
+            assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("field " + field + " must still push a range pre-filter", pushedQuery(plan), is(not(nullValue())));
+        }
+    }
+
+    /** ip and version are byte-encoded, so like keyword they push the range but stay RECHECK (retain the FilterExec). */
+    public void testMvInRangeIpVersionRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(ip), is(not(nullValue())));
+        var version = plannerOptimizer.plan(
+            "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(version), is(not(nullValue())));
+    }
+
+    /**
+     * NOT of a RECHECK-typed mv_in_range (double / keyword / ip / version) is not pushed at all. The range is a superset,
+     * so must_not(range) would drop true matches and the retained recheck can't restore them — the whole predicate stays
+     * a filter (NO). Contrast the integral YES types, whose NOT pushes an exact must_not(range) (testMvInRangeNotPushdown).
+     */
+    public void testMvInRangeNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var bounds = Map.of(
+            "double",
+            "1.0, 2.0",
+            "keyword",
+            "\"a\", \"m\"",
+            "ip",
+            "\"1.1.1.1\"::ip, \"2.2.2.2\"::ip",
+            "version",
+            "\"1.0.0\"::version, \"2.0.0\"::version"
+        );
+        for (var field : bounds.keySet()) {
+            var plan = plannerOptimizer.plan(
+                "from test | where not mv_in_range(" + field + ", " + bounds.get(field) + ")",
+                IS_SV_STATS,
+                analyzer
+            );
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
+        }
+    }
+
+    /**
+     * Exclusive bounds via the options map. For an integral field the pushed range carries the exact exclusive endpoints
+     * (gt/lt) and the FilterExec is still dropped (YES). For a RECHECK field (double/keyword/…) the range is only a
+     * pre-filter, so the exclusive flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward
+     * rounding a reduced-precision mapper would apply to an exclusive bound) and the retained evaluator applies the
+     * exclusivity. (A zero double lower bound is widened outward to -0.0 to keep both signed zeros in the superset.)
+     */
+    public void testMvInRangeExclusivePushdown() {
+        var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
+        assertThat(lower.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(lower).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, true)).toString()));
+
+        var both = plannerOptimizer.plan(
+            "from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false, \"include_upper\": false})"
+        );
+        assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
+
+        // RECHECK type: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
+        var dbl = plannerOptimizer.plan(
+            "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false, \"include_upper\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            pushedQuery(dbl).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
+        );
+
+        var kw = plannerOptimizer.plan(
+            "from test | where mv_in_range(keyword, \"a\", \"m\", {\"include_lower\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            pushedQuery(kw).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        );
+    }
+
+    /**
+     * mv_like over an indexed keyword field pushes a BARE wildcard query and drops the FilterExec entirely (YES).
+     * The bare query is the predicate: a Lucene wildcard query already matches a document when any of the field's
+     * terms matches. Critically it is NOT wrapped in SingleValueQuery — that wrap is what scalar LIKE gets
+     * (see PhysicalPlanOptimizerTests#testLikePushdown), and it would match only single-valued documents, which is
+     * the exact bug mv_like exists to fix.
+     */
+    public void testMvLikePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_like(first_name, \"Ann*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var query = pushedQuery(plan);
+        assertThat(query, instanceOf(WildcardQueryBuilder.class));
+        assertThat(query.toString(), equalTo(unscore(wildcardQuery("first_name", "Ann*")).toString()));
+    }
+
+    /**
+     * NOT mv_like pushes must_not(wildcard) and drops the FilterExec — sound because the pushed query is exact, so
+     * negating it in Lucene is exact too. A document with no value for the field has no matching term, so it survives
+     * the must_not, which is what the two-valued contract requires.
+     */
+    public void testMvLikeNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_like(first_name, \"Ann*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(wildcardQuery("first_name", "Ann*")));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * A text field is not pushed at all, even though `job` carries an exact `.raw` subfield: the subfield's
+     * ignore_above hole would make the pushed query under-match relative to the evaluator. The FilterExec stays,
+     * so the NO fallback is asserted rather than assumed.
+     */
+    public void testMvLikeTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_like(job, \"Ann*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), not(instanceOf(WildcardQueryBuilder.class)));
+    }
+
+    /**
+     * The empty pattern is deliberately NOT pushed. The evaluator maps it to Automata.makeEmptyString() so it matches a
+     * value that is the empty string (agreeing with LIKE), but a Lucene wildcard query built from an empty pattern
+     * matches no term, so pushing it would drop those documents. The FilterExec is retained and the evaluator answers.
+     * The pushed-vs-evaluator differential in EsqlActionIT is what surfaced this.
+     */
+    public void testMvLikeEmptyPatternNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_like(first_name, \"\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), not(instanceOf(WildcardQueryBuilder.class)));
+    }
+
+    /**
+     * mv_rlike pushes a BARE regexp query for the same reason mv_like pushes a bare wildcard: a Lucene regexp query is
+     * existential over the field's terms, so it is the predicate rather than an approximation of it. Not wrapped in
+     * SingleValueQuery, and the FilterExec is dropped.
+     */
+    public void testMvRLikePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_rlike(first_name, \"Ann.*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var query = pushedQuery(plan);
+        assertThat(query, instanceOf(RegexpQueryBuilder.class));
+        assertThat(query.toString(), equalTo(unscore(regexpQuery("first_name", "Ann.*")).toString()));
+    }
+
+    /** NOT mv_rlike pushes must_not(regexp) and drops the FilterExec — exact, as the positive form is exact. */
+    public void testMvRLikeNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_rlike(first_name, \"Ann.*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(regexpQuery("first_name", "Ann.*")));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * A text field is not pushed for mv_rlike either, for the same reason as mv_like: the exact subfield's ignore_above
+     * hole would make the pushed query under-match. Without this, deleting the TEXT gate in MvRegexMatch.translatable
+     * would silently push a wrong-answer RegexpQuery against job.raw with no red test.
+     */
+    public void testMvRLikeTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_rlike(job, \"Ann.*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), not(instanceOf(RegexpQueryBuilder.class)));
+    }
+
+    /**
+     * A calculated (non-FieldAttribute) argument cannot push — isPushableFieldAttribute requires a FieldAttribute. The
+     * FilterExec is retained and the evaluator answers.
+     */
+    public void testMvLikeCalculatedFieldNotPushed() {
+        var plan = plannerOptimizer.plan("from test | eval f = concat(first_name, \"x\") | where mv_like(f, \"Ann*\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), not(instanceOf(WildcardQueryBuilder.class)));
+    }
+
+    /**
+     * Pins the premise of the pushed-vs-evaluator differential in EsqlActionIT. That differential compares
+     * {@code WHERE mv_like(v, p)} (pushed) against {@code EVAL x = mv_like(v, p) | WHERE x} (evaluated), and it only
+     * proves anything if the second form does NOT push. This is that exact shape — a reference attribute over a plain
+     * field, not a calculated field — and it must retain the FilterExec. If a future optimizer inlined the single-use
+     * eval alias into the filter, both differential arms would push, the differential would compare pushed against
+     * pushed, and this test is what goes red first.
+     */
+    public void testMvLikeEvalReferenceNotPushed() {
+        var plan = plannerOptimizer.plan("from test | eval x = mv_like(first_name, \"Ann*\") | where x");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), not(instanceOf(WildcardQueryBuilder.class)));
+    }
+
+    /**
+     * mv_rlike DOES push the empty pattern, the one case where the two functions diverge: RegExp("") accepts exactly the
+     * empty string and a Lucene RegexpQuery("") matches the empty-string term, so pushed and evaluator agree (unlike
+     * mv_like's empty wildcard, which matches no term — see testMvLikeEmptyPatternNotPushed). Pinning both sides makes
+     * the deliberate asymmetry deletion-proof.
+     */
+    public void testMvRLikeEmptyPatternPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_rlike(first_name, \"\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan), instanceOf(RegexpQueryBuilder.class));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(regexpQuery("first_name", "")).toString()));
+    }
+
+    private static QueryBuilder pushedQuery(PhysicalPlan plan) {
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        return esQueryExec.query();
     }
 
     /**

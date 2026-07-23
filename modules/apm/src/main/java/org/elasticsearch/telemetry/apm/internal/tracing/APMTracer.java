@@ -22,6 +22,7 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
+import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.apache.logging.log4j.LogManager;
@@ -515,11 +516,41 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
+    public void setAttributes(Traceable traceable, Attributes attributes) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAllAttributes(attributes);
+        }
+    }
+
     @Override
     public void setStatusToError(Traceable traceable, String description) {
         final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setStatus(StatusCode.ERROR, description);
+        }
+    }
+
+    public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        return span == null ? NoopSpanStatusBuilder.INSTANCE : new APMSpanStatusBuilder(span);
+    }
+
+    private record APMSpanStatusBuilder(Span span) implements SpanStatusBuilder {
+
+        @Override
+        public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
+            span.setStatus(statusCode, description);
+            return this;
+        }
+    }
+
+    private enum NoopSpanStatusBuilder implements SpanStatusBuilder {
+        INSTANCE {
+            @Override
+            public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
+                return this;
+            }
         }
     }
 

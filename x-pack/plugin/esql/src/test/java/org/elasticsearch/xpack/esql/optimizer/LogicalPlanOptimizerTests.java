@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -134,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -197,7 +197,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -1077,8 +1076,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, false);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
+            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, ExecuteLocation.ANY);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };
@@ -2954,45 +2953,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
-    public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_\uD83D\uDC14 foo");
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        assertPartialTypeKeyword(relation, "foo");
-    }
-
-    public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-
-        assertPartialTypeKeyword(relation, "partial_type_keyword");
-    }
-
-    public void testInsist_multipleInsistClauses_insistsAreFolded() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword | INSIST_\uD83D\uDC14 foo");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-
-        assertPartialTypeKeyword(relation, "partial_type_keyword");
-        assertPartialTypeKeyword(relation, "foo");
-    }
-
-    private static void assertPartialTypeKeyword(EsRelation relation, String name) {
-        var attribute = (FieldAttribute) singleValue(relation.output().stream().filter(attr -> attr.name().equals(name)).toList());
-        assertThat(attribute.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
-    }
-
     public void testSimplifyLikeNoWildcard() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -4620,6 +4580,108 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "3:31: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
             e.getMessage().substring(header.length())
         );
+    }
+
+    /**
+     * mv_like/mv_rlike validate their pattern in postOptimizationVerification (after constant folding), so a pattern
+     * that folds to a constant is accepted — here CONCAT of two literals — even though it is not a literal at analysis.
+     */
+    public void testMvLikePatternFoldsToConstant() {
+        assertNotNull(plan("from test | where mv_like(first_name, concat(\"Ann\", \"*\"))"));
+        assertNotNull(plan("from test | where mv_rlike(first_name, concat(\"Ann\", \".*\"))"));
+        // A constant-propagated EVAL variable is likewise accepted.
+        assertNotNull(plan("from test | eval p = \"Ann*\" | where mv_like(first_name, p)"));
+    }
+
+    public void testMvLikePatternMustBeConstant() {
+        for (String fn : List.of("mv_like", "mv_rlike")) {
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> plan("from test | where " + fn + "(first_name, last_name)")
+            );
+            assertThat(e.getMessage(), containsString("second argument of [" + fn + "(first_name, last_name)] must be a constant"));
+        }
+    }
+
+    public void testMvLikePatternMustNotBeNull() {
+        // A null literal pattern passes analysis (null is type-compatible), but folds to null and is rejected here.
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("from test | where mv_like(first_name, null)"));
+        assertThat(e.getMessage(), containsString("must not be null"));
+        // So does a pattern that only folds to null after optimization.
+        VerificationException c = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, concat(\"a\", null))")
+        );
+        assertThat(c.getMessage(), containsString("must not be null"));
+    }
+
+    public void testMvLikePatternMustBeSingleValued() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, [\"\", \"\"])")
+        );
+        assertThat(e.getMessage(), containsString("must be a single pattern string"));
+        VerificationException r = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_rlike(first_name, [\"\", \"\"])")
+        );
+        assertThat(r.getMessage(), containsString("must be a single pattern string"));
+    }
+
+    public void testMvLikePatternMustBeWellFormed() {
+        VerificationException wildcard = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, \"foo\\\\\")")
+        );
+        assertThat(wildcard.getMessage(), containsString("invalid pattern"));
+        VerificationException regex = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_rlike(first_name, \"(\")")
+        );
+        assertThat(regex.getMessage(), containsString("invalid pattern"));
+        // An over-complex wildcard (determinize work-limit) also fails as an invalid pattern.
+        VerificationException complex = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, \"" + "*ab".repeat(200) + "\")")
+        );
+        assertThat(complex.getMessage(), containsString("invalid pattern"));
+    }
+
+    /**
+     * A constant field folds the whole predicate (through the evaluator) before the LogicalVerifier runs, so the
+     * pattern checks must guard that fold path too — otherwise a null pattern NPEs and a multivalue pattern silently
+     * folds to false. The field itself may also be a constant null, which folds to constant false <em>before</em> the
+     * pattern is looked at; the pattern must still be validated there, so an author-error pattern fails loudly no matter
+     * what the field is. Each bad pattern must fail — null/multivalue with a shape error, malformed with the verifier's
+     * framed message — and a valid one still folds normally.
+     */
+    public void testMvLikeConstantFieldStillValidatesPattern() {
+        // Null and multivalue patterns: shape errors, over both a constant string field and a constant null field.
+        for (String q : List.of(
+            "row x = mv_like(\"abc\", null)",
+            "row x = mv_like(\"abc\", [\"a*\", \"b*\"])",
+            "row x = mv_rlike(\"abc\", null)",
+            "row x = mv_rlike(\"abc\", [\"a.*\", \"b.*\"])",
+            "row x = mv_like(null, null)",
+            "row x = mv_like(null, [\"a*\", \"b*\"])",
+            "row x = mv_rlike(null, null)",
+            "row x = mv_rlike(null, [\"a.*\", \"b.*\"])"
+        )) {
+            Exception e = expectThrows(Exception.class, () -> plan(q));
+            assertThat(
+                "expected [" + q + "] to fail with a pattern error",
+                e.getMessage(),
+                anyOf(containsString("must not be null"), containsString("must be a single pattern string"))
+            );
+        }
+        // Malformed patterns: the verifier's framed message, on the fold path and with a null field too.
+        for (String q : List.of("row x = mv_rlike(\"abc\", \"(\")", "row x = mv_rlike(null, \"(\")")) {
+            Exception e = expectThrows(Exception.class, () -> plan(q));
+            assertThat("expected [" + q + "] to fail with a framed pattern error", e.getMessage(), containsString("invalid pattern"));
+        }
+        // A valid constant pattern folds normally (to false here) with no error, over a string field and a null field.
+        assertNotNull(plan("row x = mv_like(\"abc\", \"a*\")"));
+        assertNotNull(plan("row x = mv_like(null, \"a*\")"));
     }
 
     /**
@@ -6399,6 +6461,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(languages.name(), is("emp_no"));
     }
 
+    public void testPartiallyFoldCaseKeepsKeywordForTextArm() {
+        var plan = optimizedPlan("""
+              FROM test
+            | EVAL c = CASE(true, TO_TEXT(first_name))
+            """);
+
+        var eval = as(plan, Eval.class);
+        var alias = eval.expressions().get(0);
+        assertThat(alias.dataType(), is(DataType.KEYWORD));
+        var toString = as(Alias.unwrap(alias), ToString.class);
+        assertThat(toString.dataType(), is(DataType.KEYWORD));
+    }
+
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
 
@@ -7763,6 +7838,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    public void testTranslateNoFalsePositiveTimeBucketWhenEvalAliasOverridden() {
+        // Regression: when EVAL defines date_trunc(@timestamp) in a variable that is later overridden
+        // as a non-grouping STATS output, TranslateTimeSeriesAggregate incorrectly counted it as a
+        // second time bucket and threw "expected at most one time bucket" (#143697).
+        var plan = planMetrics("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1h, @timestamp)
+            | STATS tbucket = max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)
+            | LIMIT 10
+            """);
+        Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+        plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+        assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+        assertNotNull(tsHolder.get().timeBucket());
+        assertThat(tsHolder.get().timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
     public void testTranslateWithInlineFilterWithImplicitLastOverTime() {
         var query = """
             TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
@@ -8092,7 +8184,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Holder<Rate> holder = new Holder<>();
             plan.forEachExpressionDown(Rate.class, holder::set);
             assertNotNull(holder.get());
-            assertFalse(holder.get().hasWindow());
+            assertTrue(holder.get().hasWindow());
             assertTrue(holder.get().hasFilter());
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
@@ -8207,8 +8299,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(Rate.class, rateHolder::set);
             assertNotNull(maxHolder.get());
             assertNotNull(rateHolder.get());
+            // rate() keeps its window (not cleared) alongside the filter, for the extrapolation range fix;
+            // max_over_time() doesn't extrapolate, so its window is still cleared once it has a filter.
             assertFalse(maxHolder.get().hasWindow());
-            assertFalse(rateHolder.get().hasWindow());
+            assertTrue(rateHolder.get().hasWindow());
             assertTrue(maxHolder.get().hasFilter());
             assertTrue(rateHolder.get().hasFilter());
             WindowFilter lotWindowFilter = (WindowFilter) maxHolder.get().filter();
@@ -8244,8 +8338,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 assertFalse(rateHolder.get().hasFilter());
                 assertThat(((Duration) rateHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
             } else {
-                // rate has window filter (window cleared); max_over_time no filter (still has window)
-                assertFalse(rateHolder.get().hasWindow());
+                // rate has window filter and keeps its window too; max_over_time no filter (still has window)
+                assertTrue(rateHolder.get().hasWindow());
                 assertTrue(rateHolder.get().hasFilter());
                 WindowFilter windowFilter = (WindowFilter) rateHolder.get().filter();
                 assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
@@ -9080,7 +9174,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var command : List.of(
             "ENRICH languages_idx on first_name",
             "EVAL x = 1",
-            // "INSIST emp_no", // TODO
             "KEEP emp_no",
             "DROP emp_no",
             "RENAME emp_no AS x",

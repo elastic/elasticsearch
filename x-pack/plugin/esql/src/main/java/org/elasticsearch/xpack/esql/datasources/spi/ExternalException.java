@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.esql.core.QlException;
  *     read or decode (bad/unsupported input, missing object).</li>
  *     <li>{@link ExternalServerException} &rarr; 500, a bug or broken invariant in our own reading
  *     code.</li>
- *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable transport failure talking to
- *     the remote store.</li>
+ *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable back-pressure /
+ *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
+ *     condition such as permit exhaustion).</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.

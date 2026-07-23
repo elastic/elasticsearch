@@ -15,20 +15,35 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * An interface for that supply centroids.
+ * An interface for accessing centroids
  */
 public interface CentroidSupplier {
 
+    /**
+     * Number of centroids
+     */
     int size();
 
+    /**
+     * Gets a specific centroid by ordinal
+     */
     float[] centroid(int centroidOrdinal) throws IOException;
 
+    /**
+     * Any indexing information that may be available
+     */
     CentroidIndex centroidIndex();
 
+    /**
+     * Slices information
+     */
     default CentroidSlices slices() throws IOException {
         return null;
     }
 
+    /**
+     * Accesses the centroids as a {@link KMeansFloatVectorValues}
+     */
     KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {

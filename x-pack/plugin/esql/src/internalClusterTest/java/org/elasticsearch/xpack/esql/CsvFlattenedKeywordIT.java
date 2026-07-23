@@ -1018,7 +1018,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
-                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }
@@ -1307,8 +1306,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
         "ABSENT_OVER_TIME:field is missing",
-        "BUCKET:from is missing",
-        "BUCKET:to is missing",
         "CIDR_MATCH:blockX is missing",
         "CLAMP:field is missing",
         "CLAMP:max is missing",
@@ -1320,74 +1317,37 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "COUNT_DISTINCT_OVER_TIME:field is missing",
         "COUNT_OVER_TIME:field is missing",
         "DATE_DIFF:unit is missing",
-        "DECAY:scale is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
-        "GREATER_THAN:rhs is missing",
-        "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "HASH:algorithm is missing",
-        "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LESS_THAN:rhs is missing",
-        "LESS_THAN_OR_EQUAL:rhs is missing",
-        "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
-        "MATCH_PHRASE:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
-        // MV_SORT's order argument must be foldable (MvSort#resolveType calls Validations.isFoldable
-        // on it), so a field_extract(...) call there is rejected by the verifier regardless of
-        // flattened rewriting; no csv-spec entry can exercise this slot with a field reference.
-        "MV_SORT:order is missing",
+        // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
+        // keyword/text parameters are not exercised via flattened-keyword field extraction.
+        "MV_IN_RANGE:field is missing",
+        "MV_IN_RANGE:lower is missing",
+        "MV_IN_RANGE:upper is missing",
+        // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
+        // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
+        // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_EQUALS:lhs is missing",
-        "NOT_EQUALS:rhs is missing",
-        "NOT_IN:field is missing",
-        "NOT_IN:inlist is missing",
-        "NOT_LIKE:pattern is missing",
-        "NOT_LIKE:str is missing",
-        "NOT_RLIKE:pattern is missing",
-        "NOT_RLIKE:str is missing",
         "PRESENT_OVER_TIME:field is missing",
         "QSTR:query is missing",
-        "RLIKE:pattern is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
-        "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
-        "TBUCKET:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TOP:order is missing",
-        "TOP_SNIPPETS:query is missing",
-        "TO_CARTESIANPOINT:field is missing",
-        "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATEPERIOD:field is missing",
-        "TO_DATETIME:field is missing",
-        "TO_DATE_NANOS:field is missing",
-        "TO_DATE_RANGE:field is missing",
-        "TO_DENSE_VECTOR:field is missing",
-        "TO_DOUBLE:field is missing",
-        "TO_GEOHASH:field is missing",
-        "TO_GEOHEX:field is missing",
-        "TO_GEOSHAPE:field is missing",
-        "TO_GEOTILE:field is missing",
-        "TO_TIMEDURATION:field is missing",
-        "TO_UNSIGNED_LONG:field is missing",
-        "TO_VERSION:field is missing",
-        "TRANGE:end_time is missing",
-        "TRANGE:start_time_or_offset is missing",
-        "TSTEP:from is missing",
-        "TSTEP:to is missing",
         "WITHOUT:dimension is missing"
     );
 
@@ -1432,6 +1392,20 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
 
+                        /*
+                         * The parser just refuses to build these real looking functions, instead building something
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them. NOT_LIKE
+                         * and NOT_RLIKE fall into the same bucket: they parse to Not(WildcardLike(...))/Not(RLike(...)),
+                         * so there is no distinct AST node to track coverage against.
+                         */
+                        boolean rewrittenAwayAtParseTime = switch (name) {
+                            case "NOT_EQUALS", "NOT_IN", "NOT_LIKE", "NOT_RLIKE" -> true;
+                            default -> false;
+                        };
+                        if (rewrittenAwayAtParseTime) {
+                            return;
+                        }
+
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;
                         for (Map<String, Object> sig : signatures) {
@@ -1447,7 +1421,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
                                     if (hint != null) {
                                         Object kind = hint.get("kind");
-                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                        if ("entity".equals(kind) || "aggregation".equals(kind) || "constant".equals(kind)) {
                                             continue;
                                         }
                                     }

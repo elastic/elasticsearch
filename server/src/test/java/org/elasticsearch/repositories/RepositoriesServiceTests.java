@@ -61,6 +61,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -90,10 +92,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void startRepositoriesService() throws Exception {
         threadPool = new TestThreadPool(RepositoriesService.class.getName());
 
         final TransportService transportService = new TransportService(
@@ -164,9 +164,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopRepositoriesService() throws Exception {
         if (threadPool != null) {
             threadPool.shutdownNow();
             threadPool = null;

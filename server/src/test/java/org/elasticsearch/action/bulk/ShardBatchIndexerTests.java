@@ -17,16 +17,17 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfEncoder;
-import org.elasticsearch.eirf.EirfRowBuilder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -100,17 +101,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return new IndexRequest("index").id(id).source(XContentType.JSON, "title", "hello", "count", 42, "tag", "bulk");
     }
 
-    /** Builds an EirfBatch with the given number of docs, each with title/count/tag fields. */
-    private static EirfBatch buildBatch(int numDocs) {
-        EirfRowBuilder builder = new EirfRowBuilder();
+    private static SourceBatch buildBatch(int numDocs) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            builder.startDocument();
-            builder.setString("title", "doc-" + i);
-            builder.setInt("count", i);
-            builder.setString("tag", "batch");
-            builder.endDocument();
+            sources.add(new BytesArray("{\"title\":\"doc-" + i + "\",\"count\":" + i + ",\"tag\":\"batch\"}"));
         }
-        return builder.build();
+        return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
     public void testBatchIndexOnPrimarySingleDoc() throws Exception {
@@ -125,7 +121,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(1)) {
+        try (SourceBatch batch = buildBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -157,7 +153,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(numDocs)) {
+        try (SourceBatch batch = buildBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -195,7 +191,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(numDocs)) {
+        try (SourceBatch batch = buildBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -230,7 +226,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(2)) {
+        try (SourceBatch batch = buildBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -271,7 +267,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(1)) {
+        try (SourceBatch batch = buildBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -298,7 +294,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(numDocs)) {
+        try (SourceBatch batch = buildBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -332,7 +328,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(1)) {
+        try (SourceBatch batch = buildBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -364,7 +360,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(numDocs)) {
+        try (SourceBatch batch = buildBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -399,7 +395,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(2)) {
+        try (SourceBatch batch = buildBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
@@ -492,7 +488,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             }
         }
 
-        try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(),
                 SplitShardCountSummary.IRRELEVANT,
@@ -543,7 +539,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             }
         }
 
-        try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(),
                 SplitShardCountSummary.IRRELEVANT,
@@ -585,7 +581,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             }
         }
 
-        try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(),
                 SplitShardCountSummary.IRRELEVANT,
@@ -618,7 +614,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        try (EirfBatch batch = buildBatch(2)) {
+        try (SourceBatch batch = buildBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();

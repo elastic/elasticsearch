@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -57,14 +58,29 @@ public class CacheBlobReaderService {
     private final Client client;
     private final ByteSizeValue indexingShardCacheBlobReaderChunkSize;
     private final ThreadPool threadPool;
+    private final FillCacheMemoryPressure fillCacheMemoryPressure;
+
+    /**
+     * Convenience constructor for tests: uses a {@link FillCacheMemoryPressure} with the default (heap-relative) limit and no metrics.
+     */
+    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client, ThreadPool threadPool) {
+        this(settings, cacheService, client, threadPool, new FillCacheMemoryPressure(settings, MeterRegistry.NOOP, threadPool.generic()));
+    }
 
     // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
     // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
-    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client, ThreadPool threadPool) {
+    public CacheBlobReaderService(
+        Settings settings,
+        StatelessSharedBlobCacheService cacheService,
+        Client client,
+        ThreadPool threadPool,
+        FillCacheMemoryPressure fillCacheMemoryPressure
+    ) {
         this.cacheService = cacheService;
         this.client = client;
         this.indexingShardCacheBlobReaderChunkSize = TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(settings);
         this.threadPool = threadPool;
+        this.fillCacheMemoryPressure = fillCacheMemoryPressure;
     }
 
     /**
@@ -103,20 +119,27 @@ public class CacheBlobReaderService {
             createReadCompleteCallback(fileName, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
+        final CacheBlobReader cacheBlobReader;
         if (latestUploadInfo.isUploaded()) {
-            return objectStoreCacheBlobReader;
+            cacheBlobReader = objectStoreCacheBlobReader;
         } else {
             var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
                 getIndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, latestUploadInfo.preferredNodeId()),
                 createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
             );
-            return getSwitchingCacheBlobReader(
+            cacheBlobReader = getSwitchingCacheBlobReader(
                 tracker,
                 locationPrimaryTermAndGeneration,
                 objectStoreCacheBlobReader,
                 indexingShardCacheBlobReader
             );
         }
+        // Cache-miss reads serve searches and must not wait for fill budget; they are naturally bounded by search thread concurrency.
+        // All speculative fills (warming, online prewarming, commit prefetching) go through the memory pressure.
+        if (cachePopulationReason == BlobCacheMetrics.CachePopulationReason.CacheMiss) {
+            return cacheBlobReader;
+        }
+        return new PressuredCacheBlobReader(cacheBlobReader, fillCacheMemoryPressure);
     }
 
     // protected to override in tests

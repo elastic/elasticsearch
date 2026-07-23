@@ -510,6 +510,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             import org.elasticsearch.foreign.Variadic;
             @LibrarySpecification(symbolResolver = OpenLib.FakeResolver.class)
@@ -522,8 +523,8 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
                 class FakeResolver implements SymbolResolver {
                     public FakeResolver() {}
-                    public MemorySegment resolve(String name, SymbolLookup lookup) {
-                        return MemorySegment.ofAddress(1L);
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
                     }
                 }
             }

@@ -234,8 +234,8 @@ public class BlobFileRanges implements Writeable {
      * lesser-known value so any known timestamp wins.
      */
     public static long mostRecentKnownTimestamp(long a, long b) {
-        assert a != SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP : a;
-        assert b != SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP : b;
+        assert a > 0 || a == SharedBlobCacheService.UNKNOWN_TIMESTAMP : a;
+        assert b > 0 || b == SharedBlobCacheService.UNKNOWN_TIMESTAMP : b;
         if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
             return b;
         }

@@ -120,7 +120,7 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
 
     private void semanticQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-        final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
         // Query a field that has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(

@@ -93,7 +93,14 @@ public class MapperUtils {
         }
 
         if (p instanceof EqlRelation eql) {
-            return new EqlSourceExec(eql.source(), eqlQueryString(eql.query()), eql.options(), eql.mode(), eql.output());
+            return new EqlSourceExec(
+                eql.source(),
+                eqlQueryString(eql.query()),
+                eql.indexPattern().indexPattern(),
+                eql.options(),
+                eql.mode(),
+                eql.output()
+            );
         }
 
         return unsupported(p);

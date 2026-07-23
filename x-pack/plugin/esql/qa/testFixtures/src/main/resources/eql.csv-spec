@@ -1,7 +1,7 @@
-// Tests for the EQL source command, which delegates execution to the EQL engine and exposes the
-// results under a fixed schema. Assertions pipe the EQL output through downstream ES|QL (STATS / KEEP /
-// SORT) rather than asserting the opaque _source column directly, which both keeps the expected values
-// stable and demonstrates that EQL composes as a regular source. The command is snapshot-only.
+// Tests for the EQL source command, which delegates execution to the EQL engine and exposes the results as
+// typed columns (the target index's field-caps mapping, one column per field). Assertions pipe the EQL output
+// through downstream ES|QL (WHERE / STATS / KEEP / SORT) to show that EQL composes as a regular typed source.
+// The command is snapshot-only.
 
 eventQueryCountsMatchingEvents
 required_capability: eql_command
@@ -38,15 +38,56 @@ count:long
 2
 ;
 
+eventQueryExposesTypedColumns
+required_capability: eql_command
+
+// The EQL output is a typed table: WHERE filters and KEEP projects real columns, not an opaque _source.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| WHERE pid == 100
+| KEEP name, pid
+;
+
+name:keyword | pid:long
+cmd.exe      | 100
+;
+
+eventQueryExposesDateColumn
+required_capability: eql_command
+
+// Pins the date column end to end: the fields API renders @timestamp as epoch millis, the converter reads it
+// back into a datetime column.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP @timestamp, name
+| SORT name
+;
+
+@timestamp:datetime      | name:keyword
+2026-07-22T10:00:00.000Z | cmd.exe
+2026-07-22T10:00:02.000Z | powershell.exe
+;
+
+eventQueryGroupsByTypedColumn
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
 sequenceQueryUnnestsToOneRowPerEvent
 required_capability: eql_command
 
 EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
-| KEEP join_keys, _position
-| SORT join_keys, _position
+| KEEP join_keys, _sequence_stage
+| SORT join_keys, _sequence_stage
 ;
 
-join_keys:keyword | _position:integer
+join_keys:keyword | _sequence_stage:integer
 100               | 0
 100               | 1
 200               | 0
@@ -57,7 +98,7 @@ sequenceQueryCountsEventsAndSequences
 required_capability: eql_command
 
 EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
-| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_seq)
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)
 ;
 
 events:long | sequences:long

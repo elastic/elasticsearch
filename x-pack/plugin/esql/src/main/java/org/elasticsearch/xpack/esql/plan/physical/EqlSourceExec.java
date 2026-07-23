@@ -35,13 +35,22 @@ public class EqlSourceExec extends LeafExec {
     );
 
     private final String query;
+    private final String indices;
     private final Map<String, Object> options;
     private final EqlRelation.Mode mode;
     private final List<Attribute> attributes;
 
-    public EqlSourceExec(Source source, String query, Map<String, Object> options, EqlRelation.Mode mode, List<Attribute> attributes) {
+    public EqlSourceExec(
+        Source source,
+        String query,
+        String indices,
+        Map<String, Object> options,
+        EqlRelation.Mode mode,
+        List<Attribute> attributes
+    ) {
         super(source);
         this.query = query;
+        this.indices = indices;
         this.options = options;
         this.mode = mode;
         this.attributes = attributes;
@@ -51,6 +60,7 @@ public class EqlSourceExec extends LeafExec {
     private EqlSourceExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
+            in.readString(),
             in.readString(),
             (Map<String, Object>) in.readGenericValue(),
             in.readEnum(EqlRelation.Mode.class),
@@ -62,6 +72,7 @@ public class EqlSourceExec extends LeafExec {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeString(query);
+        out.writeString(indices);
         out.writeGenericValue(options);
         out.writeEnum(mode);
         out.writeNamedWriteableCollection(attributes);
@@ -74,11 +85,15 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EqlSourceExec::new, query, options, mode, attributes);
+        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes);
     }
 
     public String query() {
         return query;
+    }
+
+    public String indices() {
+        return indices;
     }
 
     public Map<String, Object> options() {
@@ -96,7 +111,7 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, options, mode, attributes);
+        return Objects.hash(query, indices, options, mode, attributes);
     }
 
     @Override
@@ -109,6 +124,7 @@ public class EqlSourceExec extends LeafExec {
         }
         EqlSourceExec other = (EqlSourceExec) obj;
         return Objects.equals(query, other.query)
+            && Objects.equals(indices, other.indices)
             && Objects.equals(options, other.options)
             && mode == other.mode
             && Objects.equals(attributes, other.attributes);

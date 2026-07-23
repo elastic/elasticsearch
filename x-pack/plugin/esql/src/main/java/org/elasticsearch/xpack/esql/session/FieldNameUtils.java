@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
@@ -76,6 +77,13 @@ public class FieldNameUtils {
     );
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+
+        // TODO(eql-narrow-fieldnames): the EQL command's output is the whole mapping (its query references
+        // fields the ES|QL field-name walk cannot see, and a narrow set risks a zero-column schema for
+        // `EQL x "q" | STATS COUNT(*)`); resolve all fields for now. The dedup increment can narrow this.
+        if (parsed.anyMatch(UnresolvedEqlRelation.class::isInstance)) {
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
+        }
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);

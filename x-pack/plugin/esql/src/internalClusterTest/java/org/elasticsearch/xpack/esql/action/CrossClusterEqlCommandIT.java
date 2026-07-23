@@ -25,10 +25,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Verifies that the {@code EQL} source command works across clusters. The command passes its
- * {@code WITH {"indices": ...}} option through to {@code EqlSearchAction} unchanged, so a
- * {@code remote_cluster:index} pattern is resolved by the EQL engine's own cross-cluster support:
- * the query is issued on the local cluster but the events are read from a remote cluster.
+ * Verifies that the {@code EQL} source command works across clusters. Its leading index-pattern argument may be
+ * cluster-qualified ({@code remote_cluster:index}); that pattern is resolved through field-caps and handed to
+ * {@code EqlSearchAction}, whose own cross-cluster support reads the events from the remote cluster while the
+ * query is issued on the local cluster. This is also the canary for coordinator-only cross-cluster execution-info
+ * finalization, so it must actually run, not merely compile.
  */
 public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
 
@@ -78,6 +79,12 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(0), equalTo(2L)); // the two remote process events (not the network event)
+
+            // The EQL pattern registers the remote cluster in the execution info, but the plan is coordinator-only
+            // (no per-cluster compute reports back). Pin that the coordinator-only finalization still marks the
+            // remote cluster SUCCESSFUL rather than leaving it stuck RUNNING.
+            EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
     }
 }

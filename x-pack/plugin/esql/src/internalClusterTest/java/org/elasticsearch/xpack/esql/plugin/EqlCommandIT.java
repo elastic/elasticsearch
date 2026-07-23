@@ -29,9 +29,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end integration test for the {@code EQL "<query>"} source command. Loads the EQL plugin into the test
- * cluster alongside ES|QL and exercises the real delegation path: the ES|QL coordinator issues an
- * {@code EqlSearchAction} and converts the response into rows under the command's fixed schema.
+ * End-to-end integration test for the {@code EQL <indexPattern> "<query>"} source command. Loads the EQL plugin
+ * into the test cluster alongside ES|QL and exercises the real delegation path: the ES|QL coordinator resolves
+ * the target index's mapping through field-caps, issues an {@code EqlSearchAction} requesting those fields, and
+ * converts the response into typed rows. This test pins real typed VALUES (not just column names) so it catches
+ * fields-API value-shape surprises the unit tests cannot model.
  */
 public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
@@ -97,36 +99,56 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             .get();
     }
 
-    public void testEventQueryReturnsRows() {
+    public void testEventQueryReturnsTypedRows() {
+        // Columns are the mapping resolved through field-caps, name-sorted, one typed column per field.
         String query = "EQL " + INDEX + " \"process where true\"";
         try (EsqlQueryResponse resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("_index", "_id", "_source"));
-            assertColumnTypes(resp.columns(), List.of("keyword", "keyword", "_source"));
+            assertColumnNames(resp.columns(), List.of("@timestamp", "event.category", "process.name", "process.pid"));
+            assertColumnTypes(resp.columns(), List.of("date", "keyword", "keyword", "long"));
 
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows, hasSize(2)); // the two process events, not the network event
-            List<String> ids = rows.stream().map(row -> Objects.toString(row.get(1))).collect(Collectors.toList());
-            assertThat(ids, containsInAnyOrder("p1", "p2"));
+
+            List<String> names = rows.stream().map(row -> Objects.toString(row.get(2))).collect(Collectors.toList());
+            assertThat(names, containsInAnyOrder("cmd.exe", "powershell.exe"));
+
+            // Pin real typed values end-to-end: the long pid and the date path (the response renders datetime as ISO).
+            List<Object> cmd = rowByName(rows, "cmd.exe");
+            assertEquals(100L, cmd.get(3));
+            assertEquals("2026-07-22T10:00:00.000Z", cmd.get(0));
         }
     }
 
-    public void testSequenceQueryUnnestsToOneRowPerEvent() {
+    public void testSequenceQueryUnnestsToOneRowPerEventWithTypedColumns() {
         // process (pid 100) followed by network (pid 100) forms one sequence; pid 200 has no network follow-up.
         String query = "EQL " + INDEX + " \"sequence by process.pid [process where true] [network where true]\"";
         try (EsqlQueryResponse resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("_seq", "_position", "join_keys", "_index", "_id", "_source"));
-            assertColumnTypes(resp.columns(), List.of("long", "integer", "keyword", "keyword", "keyword", "_source"));
+            assertColumnNames(
+                resp.columns(),
+                List.of("_sequence", "_sequence_stage", "join_keys", "@timestamp", "event.category", "process.name", "process.pid")
+            );
+            assertColumnTypes(resp.columns(), List.of("long", "integer", "keyword", "date", "keyword", "keyword", "long"));
 
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows, hasSize(2)); // one sequence, two events (process then network), unnested
 
-            // All rows belong to sequence 0, ordered by stage position.
+            // Row 0: the process event (stage 0). join_keys is the pid the sequence matched on.
             assertEquals(0L, rows.get(0).get(0));
             assertEquals(0, rows.get(0).get(1));
-            assertEquals("p1", Objects.toString(rows.get(0).get(4)));
+            assertEquals("100", Objects.toString(rows.get(0).get(2)));
+            assertEquals("process", Objects.toString(rows.get(0).get(4)));
+            assertEquals("cmd.exe", Objects.toString(rows.get(0).get(5)));
+            assertEquals(100L, rows.get(0).get(6));
+
+            // Row 1: the network event (stage 1). It has no process.name, so that column is null.
             assertEquals(0L, rows.get(1).get(0));
             assertEquals(1, rows.get(1).get(1));
-            assertEquals("n1", Objects.toString(rows.get(1).get(4)));
+            assertEquals("network", Objects.toString(rows.get(1).get(4)));
+            assertNull(rows.get(1).get(5));
         }
+    }
+
+    private static List<Object> rowByName(List<List<Object>> rows, String processName) {
+        return rows.stream().filter(row -> processName.equals(Objects.toString(row.get(2)))).findFirst().orElseThrow();
     }
 }

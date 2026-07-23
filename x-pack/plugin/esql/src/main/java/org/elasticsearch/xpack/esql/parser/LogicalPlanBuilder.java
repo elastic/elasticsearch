@@ -1015,17 +1015,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
         Source source = source(ctx);
+        // Indices are a first-class leading argument (like FROM), not a WITH option; resolution rides the
+        // shared field-caps path in ResolveEqlRelation.
+        IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Expression query = expression(ctx.stringOrParameter());
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
-        // Indices are a first-class leading argument now (like FROM), not a WITH option. Reject the old
-        // form and thread the pattern through the request config until the typed-schema increment resolves
-        // it via field-caps directly.
         if (config.containsKey("indices")) {
             throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
         }
-        config.put("indices", visitIndexPattern(ctx.indexPattern()));
-        return new UnresolvedEqlRelation(source, query, config);
+        // The grammar tolerates a trailing METADATA clause for symmetry with FROM, but the EQL command does not
+        // wire metadata columns yet. Reject it loudly rather than parse-and-drop it (the columns would silently
+        // not appear now that the schema is the field-caps mapping, not a fixed _index/_id/_source triple).
+        if (ctx.metadata() != null) {
+            throw new ParsingException(source(ctx.metadata()), "METADATA is not supported on the EQL command");
+        }
+        return new UnresolvedEqlRelation(source, indexPattern, query, config);
     }
 
     /**

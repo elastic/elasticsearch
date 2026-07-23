@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.eql;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -21,85 +22,265 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
- * Unit tests for {@link EqlPageConverter}: they build an {@link EqlSearchResponse} by hand and assert the
- * produced {@link Page} matches the fixed schema, with no client or driver involved.
+ * Unit tests for {@link EqlPageConverter}: they build an {@link EqlSearchResponse} (with fields-API values) by
+ * hand and assert the produced {@link Page} matches the resolved typed schema, with no client or driver involved.
+ * The schema is passed in explicitly, mirroring what the analyzer resolves from field-caps.
  */
 public class EqlPageConverterTests extends ESTestCase {
 
-    public void testEventMode() {
-        Event e0 = event("logs-1", "a1", "{\"process\":{\"pid\":1}}");
-        Event e1 = event("logs-2", "b2", "{\"process\":{\"pid\":2}}");
-        EqlSearchResponse response = eventResponse(List.of(e0, e1));
+    private static final List<Attribute> SEQUENCE_SYNTHETICS = List.of(
+        new ReferenceAttribute(EMPTY, "_sequence", LONG),
+        new ReferenceAttribute(EMPTY, "_sequence_stage", INTEGER),
+        new ReferenceAttribute(EMPTY, "join_keys", KEYWORD)
+    );
 
-        Page page = EqlPageConverter.toPage(response, EqlRelation.Mode.EVENT, TestBlockFactory.getNonBreakingInstance());
-        response.decRef();
+    public void testEventModeTypedColumns() {
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), fieldAttribute("process.pid", LONG));
+        Event e0 = event(Map.of("process.name", List.of("alpha"), "process.pid", List.of(100)));
+        Event e1 = event(Map.of("process.name", List.of("beta"), "process.pid", List.of(200)));
+
+        Page page = convert(eventResponse(List.of(e0, e1)), EqlRelation.Mode.EVENT, schema);
         try {
-            assertEquals(3, page.getBlockCount());
+            assertEquals(2, page.getBlockCount());
             assertEquals(2, page.getPositionCount());
-            assertBytesRefColumn(page, 0, "logs-1", "logs-2");   // _index
-            assertBytesRefColumn(page, 1, "a1", "b2");            // _id
-            assertBytesRefColumn(page, 2, "{\"process\":{\"pid\":1}}", "{\"process\":{\"pid\":2}}"); // _source
+            assertBytesRefColumn(page, 0, "alpha", "beta");
+            LongBlock pid = page.getBlock(1);
+            assertEquals(100L, pid.getLong(0));
+            assertEquals(200L, pid.getLong(1));
         } finally {
             page.releaseBlocks();
         }
     }
 
-    public void testSequenceModeUnnestsToOneRowPerEvent() {
-        Sequence s0 = new Sequence(List.of("host-a"), List.of(event("logs", "p0", "{}"), event("logs", "n0", "{}")));
-        Sequence s1 = new Sequence(List.of("host-b"), List.of(event("logs", "p1", "{}"), event("logs", "n1", "{}")));
-        EqlSearchResponse response = sequenceResponse(List.of(s0, s1));
+    public void testDateColumnReadsEpochMillis() {
+        List<Attribute> schema = List.of(fieldAttribute("@timestamp", DATETIME));
+        // The request asks for the date field with format epoch_millis, so the fields API renders a digit string.
+        Event e0 = event(Map.of("@timestamp", List.of("1609459200000")));
 
-        Page page = EqlPageConverter.toPage(response, EqlRelation.Mode.SEQUENCE, TestBlockFactory.getNonBreakingInstance());
-        response.decRef();
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
         try {
-            assertEquals(6, page.getBlockCount());
+            LongBlock ts = page.getBlock(0);
+            assertEquals(1609459200000L, ts.getLong(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testAllConvertibleTypeArms() {
+        // One column per non-keyword/non-date convertible type, covering both Number- and String-shaped wire values.
+        List<Attribute> schema = List.of(
+            fieldAttribute("i", INTEGER),
+            fieldAttribute("d", DOUBLE),
+            fieldAttribute("b", BOOLEAN),
+            fieldAttribute("bs", BOOLEAN),
+            fieldAttribute("ip", IP),
+            fieldAttribute("v", VERSION)
+        );
+        Event e0 = event(
+            Map.of(
+                "i",
+                List.of(42),          // Integer
+                "d",
+                List.of(3.5),         // Double
+                "b",
+                List.of(true),        // Boolean
+                "bs",
+                List.of("true"),      // String → parsed
+                "ip",
+                List.of("1.2.3.4"),   // String → encoded IP bytes
+                "v",
+                List.of("1.2.3")      // String → encoded version bytes
+            )
+        );
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertEquals(42, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(3.5, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.0);
+            assertTrue(((BooleanBlock) page.getBlock(2)).getBoolean(0));
+            assertTrue(((BooleanBlock) page.getBlock(3)).getBoolean(0));
+            BytesRef scratch = new BytesRef();
+            assertEquals(EsqlDataTypeConverter.stringToIP("1.2.3.4"), ((BytesRefBlock) page.getBlock(4)).getBytesRef(0, scratch));
+            assertEquals(EsqlDataTypeConverter.stringToVersion("1.2.3"), ((BytesRefBlock) page.getBlock(5)).getBytesRef(0, scratch));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNullElementInMultivalueIsDropped() {
+        List<Attribute> schema = List.of(fieldAttribute("tags", KEYWORD));
+        Event e0 = event(Map.of("tags", Arrays.asList("a", null, "b")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            BytesRefBlock tags = page.getBlock(0);
+            assertEquals(2, tags.getValueCount(0)); // the null element is dropped
+            BytesRef scratch = new BytesRef();
+            int first = tags.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), tags.getBytesRef(first, scratch));
+            assertEquals(new BytesRef("b"), tags.getBytesRef(first + 1, scratch));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMultivalueFieldBecomesMultivaluePosition() {
+        List<Attribute> schema = List.of(fieldAttribute("tags", KEYWORD));
+        Event e0 = event(Map.of("tags", List.of("a", "b", "c")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            BytesRefBlock tags = page.getBlock(0);
+            assertEquals(3, tags.getValueCount(0));
+            BytesRef scratch = new BytesRef();
+            int first = tags.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), tags.getBytesRef(first, scratch));
+            assertEquals(new BytesRef("b"), tags.getBytesRef(first + 1, scratch));
+            assertEquals(new BytesRef("c"), tags.getBytesRef(first + 2, scratch));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testAbsentFieldBecomesNull() {
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), fieldAttribute("process.pid", LONG));
+        Event e0 = event(Map.of("process.name", List.of("alpha"))); // no pid
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "alpha");
+            LongBlock pid = page.getBlock(1);
+            assertTrue("absent field must be null", pid.isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testUnsupportedColumnIsAllNull() {
+        UnsupportedAttribute blob = new UnsupportedAttribute(
+            EMPTY,
+            "blob",
+            new UnsupportedEsField("blob", List.of("binary"), null, Map.of())
+        );
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), blob);
+        Event e0 = event(Map.of("process.name", List.of("alpha"), "blob", List.of("ignored")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "alpha");
+            assertTrue("unsupported column must be all null", page.getBlock(1).areAllValuesNull());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSequenceModeUnnestsToOneRowPerEventWithSynthetics() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(List.of("host-a"), List.of(fieldEvent("p0"), fieldEvent("n0")));
+        Sequence s1 = new Sequence(List.of("host-b"), List.of(fieldEvent("p1"), fieldEvent("n1")));
+
+        Page page = convert(sequenceResponse(List.of(s0, s1)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            assertEquals(4, page.getBlockCount());
             assertEquals(4, page.getPositionCount()); // 2 sequences * 2 events
 
             LongBlock seq = page.getBlock(0);
-            IntBlock position = page.getBlock(1);
+            IntBlock stage = page.getBlock(1);
             assertEquals(0L, seq.getLong(0));
-            assertEquals(0, position.getInt(0));
+            assertEquals(0, stage.getInt(0));
             assertEquals(0L, seq.getLong(1));
-            assertEquals(1, position.getInt(1));
+            assertEquals(1, stage.getInt(1));
             assertEquals(1L, seq.getLong(2));
-            assertEquals(0, position.getInt(2));
+            assertEquals(0, stage.getInt(2));
             assertEquals(1L, seq.getLong(3));
-            assertEquals(1, position.getInt(3));
+            assertEquals(1, stage.getInt(3));
 
-            assertBytesRefColumn(page, 2, "host-a", "host-a", "host-b", "host-b"); // by
-            assertBytesRefColumn(page, 4, "p0", "n0", "p1", "n1");                 // _id
+            assertBytesRefColumn(page, 2, "host-a", "host-a", "host-b", "host-b"); // join_keys
+            assertBytesRefColumn(page, 3, "p0", "n0", "p1", "n1");                 // process.name
         } finally {
             page.releaseBlocks();
         }
     }
 
-    public void testMissingEventBecomesNulls() {
-        Event present = event("logs", "p0", "{}");
+    public void testMissingEventNullsFieldsButKeepsSynthetics() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Event present = fieldEvent("p0");
         Event missing = new Event("", "", null, null, true);
         Sequence s0 = new Sequence(List.of("k"), List.of(present, missing));
-        EqlSearchResponse response = sequenceResponse(List.of(s0));
 
-        Page page = EqlPageConverter.toPage(response, EqlRelation.Mode.SEQUENCE, TestBlockFactory.getNonBreakingInstance());
-        response.decRef();
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
         try {
-            BytesRefBlock id = page.getBlock(4);
-            assertFalse(id.isNull(0));
-            assertTrue("missing event's _id must be null", id.isNull(1));
-            BytesRefBlock source = page.getBlock(5);
-            assertTrue("missing event's _source must be null", source.isNull(1));
+            LongBlock seq = page.getBlock(0);
+            IntBlock stage = page.getBlock(1);
+            assertEquals(0L, seq.getLong(1)); // synthetics still populated for the missing event's row
+            assertEquals(1, stage.getInt(1));
+            BytesRefBlock name = page.getBlock(3);
+            assertFalse(name.isNull(0));
+            assertTrue("missing event's field must be null", name.isNull(1));
         } finally {
             page.releaseBlocks();
         }
     }
 
-    private static Event event(String index, String id, String source) {
-        BytesReference sourceRef = new BytesArray(source);
-        return new Event(index, id, sourceRef, null, false);
+    public void testNullJoinKeyBecomesNullNotString() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(Collections.singletonList(null), List.of(fieldEvent("p0")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            BytesRefBlock joinKeys = page.getBlock(2);
+            assertTrue("a null join key must render as null, not the string \"null\"", joinKeys.isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    private static Page convert(EqlSearchResponse response, EqlRelation.Mode mode, List<Attribute> schema) {
+        Page page = EqlPageConverter.toPage(response, mode, schema, TestBlockFactory.getNonBreakingInstance());
+        response.decRef();
+        return page;
+    }
+
+    private static Event event(Map<String, ? extends List<?>> fields) {
+        Map<String, DocumentField> fetched = new java.util.HashMap<>();
+        for (Map.Entry<String, ? extends List<?>> e : fields.entrySet()) {
+            @SuppressWarnings("unchecked")
+            List<Object> values = (List<Object>) e.getValue();
+            fetched.put(e.getKey(), new DocumentField(e.getKey(), values));
+        }
+        return new Event("logs", randomAlphaOfLength(4), null, fetched, false);
+    }
+
+    private static Event fieldEvent(String name) {
+        return event(Map.of("process.name", List.of(name)));
+    }
+
+    private static List<Attribute> concat(List<Attribute> head, Attribute tail) {
+        return java.util.stream.Stream.concat(head.stream(), java.util.stream.Stream.of(tail)).toList();
     }
 
     private static EqlSearchResponse eventResponse(List<Event> events) {

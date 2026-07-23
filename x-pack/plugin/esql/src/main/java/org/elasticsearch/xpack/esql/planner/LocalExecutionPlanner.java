@@ -1999,8 +1999,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
-        EqlSearchRequest request = EqlRequests.build(eqlSource.query(), eqlSource.options());
-        return PhysicalOperation.fromSource(new EqlSourceOperator.Factory(client, request, eqlSource.mode()), layout.build());
+        EqlSearchRequest request = EqlRequests.build(eqlSource.query(), eqlSource.indices(), eqlSource.output(), eqlSource.options());
+        return PhysicalOperation.fromSource(
+            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output()),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

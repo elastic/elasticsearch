@@ -17,7 +17,10 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+
+import java.util.List;
 
 /**
  * Coordinator-local source operator that delegates to the EQL engine: on first poll it issues a single
@@ -31,7 +34,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
  */
 public class EqlSourceOperator extends SourceOperator {
 
-    public record Factory(Client client, EqlSearchRequest request, EqlRelation.Mode mode) implements SourceOperatorFactory {
+    public record Factory(Client client, EqlSearchRequest request, EqlRelation.Mode mode, List<Attribute> schema)
+        implements
+            SourceOperatorFactory {
         @Override
         public String describe() {
             return "EqlSourceOperator[mode=" + mode + ", indices=" + String.join(",", request.indices()) + "]";
@@ -39,7 +44,7 @@ public class EqlSourceOperator extends SourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlSourceOperator(driverContext, client, request, mode);
+            return new EqlSourceOperator(driverContext, client, request, mode, schema);
         }
     }
 
@@ -47,6 +52,7 @@ public class EqlSourceOperator extends SourceOperator {
     private final Client client;
     private final EqlSearchRequest request;
     private final EqlRelation.Mode mode;
+    private final List<Attribute> schema;
 
     private boolean requested;
     private boolean emitted;
@@ -57,11 +63,18 @@ public class EqlSourceOperator extends SourceOperator {
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
 
-    public EqlSourceOperator(DriverContext driverContext, Client client, EqlSearchRequest request, EqlRelation.Mode mode) {
+    public EqlSourceOperator(
+        DriverContext driverContext,
+        Client client,
+        EqlSearchRequest request,
+        EqlRelation.Mode mode,
+        List<Attribute> schema
+    ) {
         this.driverContext = driverContext;
         this.client = client;
         this.request = request;
         this.mode = mode;
+        this.schema = schema;
     }
 
     private void ensureRequested() {
@@ -77,7 +90,7 @@ public class EqlSourceOperator extends SourceOperator {
                 // response into blocks. We do not own a reference here — the EQL transport action delivers the
                 // response via respondAndRelease and releases it once this listener returns — so we must not
                 // decRef it ourselves (doing so over-releases).
-                Page built = EqlPageConverter.toPage(response, mode, driverContext.blockFactory());
+                Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory());
                 synchronized (this) {
                     if (closed) {
                         // The operator was closed (cancellation / sibling-operator failure) before the response

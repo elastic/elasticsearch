@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.Collections;
 import java.util.List;
@@ -20,32 +21,43 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Unresolved leaf produced by the parser for the {@code EQL "<query>" [WITH {...}]} source command.
+ * Unresolved leaf produced by the parser for the {@code EQL <indexPattern> "<query>" [WITH {...}]} source command.
  *
- * <p>The command delegates execution to the EQL engine rather than re-implementing EQL as an ES|QL
- * logical plan. The {@code query} expression carries the raw EQL query string (a string literal or a
- * parameter reference); {@code options} carries the folded {@code WITH {...}} configuration (target
- * indices, size, timestamp field, etc.).
+ * <p>The command delegates execution to the EQL engine rather than re-implementing EQL as an ES|QL logical plan.
+ * {@code indexPattern} is the target index pattern — a first-class leading argument like {@code FROM}, not a
+ * {@code WITH} option; {@code query} carries the raw EQL query string (a literal or parameter reference);
+ * {@code options} carries the folded {@code WITH {...}} tuning.
  *
- * <p>Resolution happens in the analyzer ({@code ResolveEqlRelation}): the EQL query string is parsed
- * to determine the result mode (event / sequence / sample) and — for sequence and sample queries —
- * the number of stages, which together fix the output schema. No field-caps round-trip is needed
- * because the event payload is exposed as an opaque {@code _source} column; the EQL engine validates
- * referenced fields at execution time and surfaces any errors through the search response.
+ * <p>Resolution happens in the analyzer ({@code ResolveEqlRelation}): the index pattern rides the shared
+ * field-caps path (the same {@code IndexResolver}/{@code IndexResolution} {@code FROM} uses) to a typed output
+ * schema, and the EQL query string is parsed to determine the result mode (event / sequence / sample), which
+ * prepends the sequence synthetics.
  *
- * @see EqlRelation the resolved counterpart carrying the fixed output schema.
+ * @see EqlRelation the resolved counterpart carrying the typed output schema.
  */
 public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvable {
 
+    private final IndexPattern indexPattern;
     private final Expression query;
     private final Map<String, Object> options;
     private final String unresolvedMsg;
 
-    public UnresolvedEqlRelation(Source source, Expression query, Map<String, Object> options) {
+    public UnresolvedEqlRelation(Source source, IndexPattern indexPattern, Expression query, Map<String, Object> options) {
+        this(source, indexPattern, query, options, "Unresolved EQL query [" + query.sourceText() + "]");
+    }
+
+    public UnresolvedEqlRelation(
+        Source source,
+        IndexPattern indexPattern,
+        Expression query,
+        Map<String, Object> options,
+        String unresolvedMsg
+    ) {
         super(source);
+        this.indexPattern = indexPattern;
         this.query = query;
         this.options = options;
-        this.unresolvedMsg = "Unresolved EQL query [" + query.sourceText() + "]";
+        this.unresolvedMsg = unresolvedMsg;
     }
 
     @Override
@@ -60,7 +72,11 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
 
     @Override
     protected NodeInfo<UnresolvedEqlRelation> info() {
-        return NodeInfo.create(this, UnresolvedEqlRelation::new, query, options);
+        return NodeInfo.create(this, UnresolvedEqlRelation::new, indexPattern, query, options, unresolvedMsg);
+    }
+
+    public IndexPattern indexPattern() {
+        return indexPattern;
     }
 
     public Expression query() {
@@ -94,7 +110,7 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
     @Override
     public int hashCode() {
         // No source(): equals() below ignores it, and equal nodes must hash equal.
-        return Objects.hash(query, options, unresolvedMsg);
+        return Objects.hash(indexPattern, query, options, unresolvedMsg);
     }
 
     @Override
@@ -106,7 +122,8 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
             return false;
         }
         UnresolvedEqlRelation other = (UnresolvedEqlRelation) obj;
-        return Objects.equals(query, other.query)
+        return Objects.equals(indexPattern, other.indexPattern)
+            && Objects.equals(query, other.query)
             && Objects.equals(options, other.options)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }

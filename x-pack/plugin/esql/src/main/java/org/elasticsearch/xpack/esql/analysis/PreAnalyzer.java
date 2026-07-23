@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -98,6 +99,23 @@ public class PreAnalyzer {
                         "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
                     );
                 }
+            }
+        });
+        // The EQL source command resolves its schema through the same field-caps path as FROM: its pattern
+        // joins the same indexes map, so preAnalyzeMainIndices resolves it once into the shared IndexResolution.
+        // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
+        // UnresolvedRelation conflict above (unreachable today — EQL cannot yet co-occur in a subquery with TS).
+        plan.forEachUp(UnresolvedEqlRelation.class, p -> {
+            IndexMode existing = indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
+            if (existing != null && existing != IndexMode.STANDARD) {
+                throw new IllegalStateException(
+                    "index pattern '"
+                        + p.indexPattern()
+                        + "' found with with different index mode: "
+                        + existing
+                        + " != "
+                        + IndexMode.STANDARD
+                );
             }
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();

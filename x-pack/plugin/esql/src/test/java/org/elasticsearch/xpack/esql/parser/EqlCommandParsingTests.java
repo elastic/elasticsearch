@@ -39,7 +39,8 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
         assertThat(eql.query(), instanceOf(Literal.class));
         assertThat(BytesRefs.toString(as(eql.query(), Literal.class).value()), equalTo("process where true"));
-        assertThat(eql.options().get("indices"), equalTo("logs-*"));
+        assertThat(eql.indexPattern().indexPattern(), equalTo("logs-*"));
+        assertThat(eql.options().size(), equalTo(0));
     }
 
     public void testSequenceQuery() {
@@ -54,15 +55,31 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testMultipleIndexPatterns() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        var plan = query("EQL logs-a,logs-b \"process where true\"");
+
+        UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.indexPattern().indexPattern(), equalTo("logs-a,logs-b"));
+    }
+
+    public void testMetadataIsRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where true\" METADATA _index"));
+        assertThat(e.getMessage(), containsString("METADATA is not supported on the EQL command"));
+    }
+
     public void testWithOptions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         var plan = query("EQL logs-* \"process where true\" WITH { \"size\": 100 }");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.indexPattern().indexPattern(), equalTo("logs-*"));
         Map<String, Object> options = eql.options();
-        assertThat(options.size(), equalTo(2));
-        assertThat(options.get("indices"), equalTo("logs-*"));
+        assertThat(options.size(), equalTo(1));
         assertThat(options.get("size"), equalTo(100));
     }
 

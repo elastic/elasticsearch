@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.eql.parser.EqlQueryMode;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
@@ -80,6 +79,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -840,17 +840,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL "<query>"} source command into a fully-typed
-     * {@link EqlRelation}. The EQL query string is parsed with the {@link org.elasticsearch.xpack.eql.parser.EqlParser} to
-     * determine the result mode (event / sequence / sample) and, for sequence and sample queries, the number of stages. Those
-     * two facts fix the output schema (see {@link EqlRelation#buildOutput}). No field-caps resolution is needed because the
-     * event payload is exposed as an opaque {@code _source} column; the EQL engine validates referenced fields at execution
-     * time. If the query string is not yet a folded literal (e.g. an unbound parameter), the node is left unresolved.
+     * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL <indexPattern> "<query>"} source command into a
+     * fully-typed {@link EqlRelation}. Two independent facts fix the output schema:
+     * <ul>
+     *   <li>The EQL query string is parsed with the {@link org.elasticsearch.xpack.eql.parser.EqlParser} to determine the
+     *       result mode (event / sequence / sample). Sequence and sample queries prepend the synthetics {@code _sequence},
+     *       {@code _sequence_stage} and {@code join_keys}.</li>
+     *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
+     *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
+     *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
+     *       (anything outside {@link EqlPageConverter#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
+     *       {@code FROM}.</li>
+     * </ul>
+     * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
+     * it into the standard "Unknown index" failure). If the query string is not yet a folded literal (e.g. an unbound
+     * parameter), the node is left unresolved.
      */
-    private static class ResolveEqlRelation extends AnalyzerRule<UnresolvedEqlRelation> {
+    private static class ResolveEqlRelation extends ParameterizedAnalyzerRule<UnresolvedEqlRelation, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(UnresolvedEqlRelation plan) {
+        protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
             String queryString = extractEqlQuery(plan.query());
             if (queryString == null) {
                 // Not a simple literal yet (e.g. a parameter reference); leave unresolved for the verifier.
@@ -872,7 +881,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
                 case SAMPLE -> EqlRelation.Mode.SAMPLE;
             };
-            return new EqlRelation(plan.source(), plan.query(), plan.options(), mode);
+
+            IndexResolution resolution = context.indexResolution().get(plan.indexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // Mirror ResolveTable's invalid branch, including the equal-message short-circuit that avoids a rule loop.
+                String message = resolution == null ? "[none specified]" : resolution.toString();
+                return plan.unresolvedMessage().equals(message)
+                    ? plan
+                    : new UnresolvedEqlRelation(plan.source(), plan.indexPattern(), plan.query(), plan.options(), message);
+            }
+
+            List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
+            List<Attribute> output = new ArrayList<>(mapped.size() + 3);
+            if (mode != EqlRelation.Mode.EVENT) {
+                output.add(new ReferenceAttribute(plan.source(), "_sequence", LONG));
+                output.add(new ReferenceAttribute(plan.source(), "_sequence_stage", INTEGER));
+                output.add(new ReferenceAttribute(plan.source(), "join_keys", KEYWORD));
+            }
+            for (Attribute attr : mapped) {
+                output.add(gateUnconvertibleType(plan.source(), attr));
+            }
+            // Event mode against an empty mapping would leave no columns; mirror FROM and emit NO_FIELDS so the
+            // relation always has at least one column (non-event modes always carry the three synthetics).
+            List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
+            return new EqlRelation(plan.source(), plan.indexPattern(), plan.query(), plan.options(), mode, finalOutput);
+        }
+
+        /**
+         * Replaces a mapped column whose type the converter cannot extract with an {@link UnsupportedAttribute} (same UX as
+         * {@code FROM}). Columns field-caps already turned unsupported ({@link UnsupportedAttribute} — itself a
+         * {@link FieldAttribute} subtype) pass through untouched, preserving their original type info. Union-type conflicts
+         * are diagnosed through the blessed {@link FieldAttribute#flagTypeConflicts()} path (the message names the ambiguity,
+         * matching {@code FROM}). The remaining gate is on {@link DataType}: anything outside {@code CONVERTIBLE_TYPES} becomes
+         * unsupported.
+         */
+        private static Attribute gateUnconvertibleType(Source source, Attribute attr) {
+            // UnsupportedAttribute extends FieldAttribute; leave field-caps' own unsupported columns untouched.
+            if (attr instanceof UnsupportedAttribute) {
+                return attr;
+            }
+            // A union-type field (ambiguous type across indices) surfaces as a FieldAttribute with dataType
+            // UNSUPPORTED; use the blessed FROM mechanism so the error names the conflict, not a generic EQL limit.
+            if (attr instanceof FieldAttribute fa && fa.hasTypeConflicts()) {
+                return fa.flagTypeConflicts();
+            }
+            if (attr instanceof FieldAttribute fa && EqlPageConverter.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
+                String typeName = fa.dataType().typeName();
+                UnsupportedEsField field = new UnsupportedEsField(fa.name(), List.of(typeName), null, Map.of());
+                return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");
+            }
+            return attr;
         }
 
         private static String extractEqlQuery(Expression query) {

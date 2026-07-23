@@ -1178,6 +1178,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         List<Attribute> extraPassthrough
     ) {
         PromqlCommand promqlCommand = ctx.promqlCommand();
+        // Across-series reductions such as {@code topk} pass the child value through unchanged (no ES|QL aggregate
+        // function of their own). Physical aggregate planning only registers real AggregateFunctions in the layout,
+        // so a bare Attribute here would be dropped and the ProjectExec that wraps AggregateExec would fail with
+        // "can't find input for [topk(...)]". Wrap in Values() - same as createInnermostAggregatePlan - so the
+        // passthrough is a proper aggregate. Identity grouping keeps one input row per group, so Values is a no-op
+        // semantically.
+        if (aggExpr instanceof AggregateFunction == false) {
+            aggExpr = new Values(aggExpr.source(), aggExpr);
+        }
         NamedExpression value = new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr);
 
         var translation = labels.translate(plan.output());

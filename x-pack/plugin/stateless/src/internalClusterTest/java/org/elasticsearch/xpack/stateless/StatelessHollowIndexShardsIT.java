@@ -14,7 +14,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -3052,7 +3051,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             thread.start();
         }
 
-        logger.info("Waiting for hollowRelocationsLatch ({} relocations needed)", hollowRelocationsLatch.getCount());
+        logger.info("Waiting for hollowRelocationsLatch");
         Throwable latchFailure = null;
         try {
             safeAwait(hollowRelocationsLatch, TimeValue.timeValueMinutes(10));
@@ -3065,29 +3064,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         // Always stop threads even if the latch wait times out, to avoid threads holding cluster resources
         // during test teardown and causing a suite-level timeout.
         stopThreads.set(true);
-        if (hollowRelocationsLatch.getCount() > 0) {
-            logger.warn(
-                "hollowRelocationsLatch timed out with {} relocations remaining; dumping thread stack traces and cluster state",
-                hollowRelocationsLatch.getCount()
-            );
-            for (Thread thread : threads) {
-                logger.warn(
-                    "Thread [{}] state [{}]:\n\tat {}",
-                    thread.getName(),
-                    thread.getState(),
-                    Arrays.stream(thread.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\tat "))
-                );
-            }
-            try {
-                logger.warn(
-                    "cluster state at latch timeout:\n{}",
-                    safeGet(client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState()
-                );
-            } catch (Throwable t) {
-                // diagnostics are best-effort and must not replace the real failure
-                logger.warn("failed to fetch cluster state at latch timeout", t);
-            }
-        }
         // Join with a shared deadline so that a wedged stress thread produces a diagnosable failure here instead of
         // blocking the test until the suite timeout abandons it without any useful report.
         final long joinDeadline = System.currentTimeMillis() + TimeValue.timeValueMinutes(3).millis();
@@ -3552,64 +3528,51 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     }
 
     private void ensureGreenViaMasterNode(String masterNode, String index, boolean waitForEvents) {
-        // Use assertBusy to retry health checks rather than relying on a single health request window.
-        // A single ~30-second health-request timeout is not always enough when the cluster is recovering
-        // from injected failures (e.g. object-store faults), which would kill the calling thread.
+        var healthRequest = client(masterNode).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, index)
+            .setWaitForStatus(ClusterHealthStatus.GREEN)
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true);
+        if (waitForEvents) {
+            healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
+        }
+        final var future = healthRequest.execute();
         long start = System.currentTimeMillis();
         try {
             assertBusy(() -> {
                 if (System.currentTimeMillis() - start > 10 * 1000) {
-                    try {
-                        logger.warn(
-                            "cluster state:\n{}",
-                            safeGet(client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState()
-                        );
-                        logger.warn("cluster pending tasks:\n{}", getClusterPendingTasks());
-                        logger.warn(
-                            "recoveries:\n{}",
-                            safeGet(client(masterNode).admin().indices().recoveries(new RecoveryRequest(index))).shardRecoveryStates()
-                                .entrySet()
-                                .stream()
-                                .map(
-                                    e -> e.getKey()
-                                        + ":"
-                                        + e.getValue()
-                                            .stream()
-                                            .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
-                                            .collect(Collectors.joining(","))
-                                )
-                                .toList()
-                        );
-                    } catch (Throwable t) {
-                        // diagnostics are best-effort and must not abort the health check retries
-                        logger.warn("failed to fetch cluster diagnostics", t);
-                    }
+                    logger.warn(
+                        "cluster state:\n{}",
+                        client(masterNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
+                    );
+                    logger.warn("cluster pending tasks:\n{}", getClusterPendingTasks());
+                    logger.warn(
+                        "recoveries:\n{}",
+                        client(masterNode).admin()
+                            .indices()
+                            .recoveries(new RecoveryRequest(index))
+                            .get()
+                            .shardRecoveryStates()
+                            .entrySet()
+                            .stream()
+                            .map(
+                                e -> e.getKey()
+                                    + ":"
+                                    + e.getValue()
+                                        .stream()
+                                        .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
+                                        .collect(Collectors.joining(","))
+                            )
+                            .toList()
+                    );
                 }
-                var healthRequest = client(masterNode).admin()
-                    .cluster()
-                    .prepareHealth(TEST_REQUEST_TIMEOUT, index)
-                    .setWaitForStatus(ClusterHealthStatus.GREEN)
-                    .setWaitForNoInitializingShards(true)
-                    .setWaitForNoRelocatingShards(true);
-                if (waitForEvents) {
-                    healthRequest = healthRequest.setWaitForEvents(Priority.LANGUID);
-                }
-                final ClusterHealthResponse healthResponse;
-                try {
-                    healthResponse = healthRequest.get();
-                } catch (Exception e) {
-                    // A transient failure of the health request itself (e.g. under injected object store failures) should be
-                    // retried like a non-green response rather than aborting the wait. assertBusy only retries AssertionErrors.
-                    throw new AssertionError("cluster health request failed", e);
-                }
-                assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-            }, 5, TimeUnit.MINUTES);
-        } catch (Exception | AssertionError e) {
-            // assertBusy reports its timeout as an AssertionError, which the Exception-only catch used to miss
-            throw new AssertionError(
-                "cluster did not become GREEN within " + TimeValue.timeValueMillis(System.currentTimeMillis() - start),
-                e
-            );
+                assertThat(future.isDone(), equalTo(true));
+            }, 1, TimeUnit.MINUTES);
+            assertThat(future.get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        } catch (Exception e) {
+            assert false : "unexpected exception: " + e;
+            throw new RuntimeException(e);
         }
     }
 

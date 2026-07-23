@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -53,16 +54,6 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test_index";
 
     private static final Map<String, Object> SPARSE_EMBEDDING_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
-    private static final Map<String, Object> TEXT_EMBEDDING_SERVICE_SETTINGS = Map.of(
-        "model",
-        "my_model",
-        "dimensions",
-        256,
-        "similarity",
-        "cosine",
-        "api_key",
-        "my_api_key"
-    );
     private static final Map<String, Object> EMBEDDING_SERVICE_SETTINGS = Map.of(
         "model",
         "my_model",
@@ -74,12 +65,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
         "my_api_key"
     );
 
-    private record FieldInfo(String fieldName, String inferenceId, String fieldType) {}
-
-    @FunctionalInterface
-    private interface ClauseGenerator {
-        QueryBuilder generate(FieldInfo fieldInfo, String queryText);
-    }
+    private record FieldInfo(String fieldName, String inferenceId, String fieldType, TaskType inferenceTaskType) {}
 
     private final Map<String, TaskType> inferenceIds = new HashMap<>();
 
@@ -112,7 +98,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     public void testManyMatchQueryClauses() throws Exception {
         manyQueryClausesTestCase(
             randomIntBetween(18, 24),
-            (fi, q) -> new MatchQueryBuilder(fi.fieldName(), q),
+            (fi, query) -> new MatchQueryBuilder(fi.fieldName(), query),
             Set.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.EMBEDDING)
         );
     }
@@ -120,37 +106,28 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     public void testManySparseVectorQueryClauses() throws Exception {
         manyQueryClausesTestCase(
             randomIntBetween(18, 24),
-            (fi, q) -> new SparseVectorQueryBuilder(fi.fieldName(), null, q),
+            (fi, query) -> new SparseVectorQueryBuilder(fi.fieldName(), null, query),
             Set.of(TaskType.SPARSE_EMBEDDING)
         );
     }
 
     public void testManyKnnQueryClauses() throws Exception {
         int clauseCount = randomIntBetween(18, 24);
-        manyQueryClausesTestCase(clauseCount, (fi, q) -> {
-            if (fi.fieldType.equals(SemanticFieldMapper.CONTENT_TYPE)) {
-                return new KnnVectorQueryBuilder(
-                    fi.fieldName(),
-                    new EmbeddingQueryVectorBuilder(fi.inferenceId(), new InferenceStringGroup(q), null),
-                    clauseCount,
-                    clauseCount * 10,
-                    null,
-                    null
-                );
-            } else {
-                return new KnnVectorQueryBuilder(
-                    fi.fieldName(),
-                    new TextEmbeddingQueryVectorBuilder(null, q),
-                    clauseCount,
-                    clauseCount * 10,
-                    null,
-                    null
-                );
-            }
-        }, Set.of(TaskType.EMBEDDING, TaskType.TEXT_EMBEDDING));
+        manyQueryClausesTestCase(clauseCount, (fi, query) -> new KnnVectorQueryBuilder(
+            fi.fieldName(),
+            switch(fi.inferenceTaskType()) {
+                case EMBEDDING -> new EmbeddingQueryVectorBuilder(fi.inferenceId(), new InferenceStringGroup(query), null);
+                case TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(null, query);
+                default -> throw new IllegalArgumentException("Unhandled task type [" + fi.inferenceTaskType() + "]");
+            },
+            clauseCount,
+            clauseCount * 10,
+            null,
+            null
+        ), Set.of(TaskType.EMBEDDING, TaskType.TEXT_EMBEDDING));
     }
 
-    private void manyQueryClausesTestCase(int clauseCount, ClauseGenerator clauseGenerator, Set<TaskType> taskTypesToTest)
+    private void manyQueryClausesTestCase(int clauseCount, BiFunction<FieldInfo, String, QueryBuilder> clauseGenerator, Set<TaskType> taskTypesToTest)
         throws Exception {
         List<FieldInfo> fields = new ArrayList<>(clauseCount);
         for (int i = 0; i < clauseCount; i++) {
@@ -162,7 +139,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
                 : SemanticTextFieldMapper.CONTENT_TYPE;
             Map<String, Object> serviceSettings = getServiceSettings(taskType);
             createInferenceEndpoint(taskType, inferenceId, serviceSettings);
-            fields.add(new FieldInfo(fieldName, inferenceId, fieldType));
+            fields.add(new FieldInfo(fieldName, inferenceId, fieldType, taskType));
         }
 
         XContentBuilder mapping = generateMapping(fields);
@@ -173,7 +150,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
             Map<String, Object> source = Map.of(fieldInfo.fieldName(), randomAlphaOfLength(10));
             DocWriteResponse docWriteResponse = client().prepareIndex(INDEX_NAME).setSource(source).get(TEST_REQUEST_TIMEOUT);
             assertThat(docWriteResponse.getResult(), is(DocWriteResponse.Result.CREATED));
-            boolQuery.should(clauseGenerator.generate(fieldInfo, randomAlphaOfLength(10)));
+            boolQuery.should(clauseGenerator.apply(fieldInfo, randomAlphaOfLength(10)));
         }
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
@@ -205,7 +182,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     private static Map<String, Object> getServiceSettings(TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> SPARSE_EMBEDDING_SERVICE_SETTINGS;
-            case TEXT_EMBEDDING -> TEXT_EMBEDDING_SERVICE_SETTINGS;
+            case TEXT_EMBEDDING -> EMBEDDING_SERVICE_SETTINGS;
             case EMBEDDING -> EMBEDDING_SERVICE_SETTINGS;
             default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
         };

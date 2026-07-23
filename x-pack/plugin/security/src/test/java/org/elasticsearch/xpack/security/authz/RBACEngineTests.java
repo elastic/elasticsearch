@@ -650,6 +650,26 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     /**
+     * An API key's effective role is a {@link org.elasticsearch.xpack.core.security.authz.permission.LimitedRole}
+     * (its assigned role intersected with the owner's role), on which {@code application()} cannot be
+     * materialized. Enumeration must be skipped and return empty rather than throwing
+     * {@code UnsupportedOperationException} — otherwise a DLS search under an API key fails with a 500.
+     */
+    public void testApplicationResourcesAndPrivilegesEmptyForLimitedRole() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "kibana", "read", "saved_object:dashboard/get");
+        final Role limited = Role.builder(RESTRICTED_INDICES, "api-key")
+            .addApplicationPrivilege(read, newHashSet("space:marketing"))
+            .build()
+            .limitedBy(Role.builder(RESTRICTED_INDICES, "owner").addApplicationPrivilege(read, newHashSet("space:marketing")).build());
+        assertThat(limited.canEnumerateApplicationPrivileges(), is(false));
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(limited, null);
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of()));
+        assertThat(authzInfo.getApplicationPrivileges(), equalTo(Map.of()));
+    }
+
+    /**
      * Wildcards in the request are treated as
      * <em>does the user have ___ privilege on every possible index that matches this pattern?</em>
      * Or, expressed differently,

@@ -1125,6 +1125,11 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         private Map<String, List<String>> computeApplicationResources() {
+            if (role.canEnumerateApplicationPrivileges() == false) {
+                // e.g. an API key's limited role — application() cannot be materialized. Surface nothing
+                // rather than throwing; the DLS template simply sees no application resources for this user.
+                return Map.of();
+            }
             final var application = role.application();
             final Set<String> applicationNames = application.getApplicationNames();
             if (applicationNames.isEmpty()) {
@@ -1158,6 +1163,10 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         private Map<String, List<String>> computeApplicationPrivileges() {
+            if (role.canEnumerateApplicationPrivileges() == false) {
+                // e.g. an API key's limited role — see computeApplicationResources().
+                return Map.of();
+            }
             final var application = role.application();
             final Set<String> applicationNames = application.getApplicationNames();
             if (applicationNames.isEmpty()) {

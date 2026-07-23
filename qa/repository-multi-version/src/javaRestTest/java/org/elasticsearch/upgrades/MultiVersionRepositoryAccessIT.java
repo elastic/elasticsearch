@@ -116,14 +116,14 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    private static final ElasticsearchCluster oldCluster = buildCluster(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion());
+    private static final ElasticsearchCluster oldCluster = buildCluster(OLD_CLUSTER_VERSION);
 
-    private static final ElasticsearchCluster newCluster = buildCluster(Version.CURRENT.toString(), false);
+    private static final ElasticsearchCluster newCluster = buildCluster(Version.CURRENT.toString());
 
-    private static ElasticsearchCluster buildCluster(String version, boolean detachedVersion) {
+    private static ElasticsearchCluster buildCluster(String version) {
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(version, detachedVersion)
+            .version(version)
             .nodes(2)
             .setting("path.repo", () -> repoDirectory.getRoot().getPath())
             .setting("xpack.security.enabled", "false");

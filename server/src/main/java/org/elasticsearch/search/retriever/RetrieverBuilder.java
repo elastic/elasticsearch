@@ -56,6 +56,13 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
+    /**
+     * The maximum depth to which retrievers may be nested within one another when parsing a search request. This is a hardcoded
+     * limit that guards against {@link StackOverflowError}s that would otherwise be thrown while recursively parsing a deeply
+     * nested retriever tree.
+     */
+    public static final int MAX_NESTED_DEPTH = 100;
+
     protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(
             (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
@@ -79,9 +86,25 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
+            int nestedDepth;
+
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                return getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(RetrieverBuilder.class)) {
+                    nestedDepth++;
+                    if (nestedDepth > MAX_NESTED_DEPTH) {
+                        throw new IllegalArgumentException(
+                            "The nested depth of the [retriever] exceeds the maximum nested depth of ["
+                                + MAX_NESTED_DEPTH
+                                + "] for retrievers"
+                        );
+                    }
+                }
+                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(RetrieverBuilder.class)) {
+                    nestedDepth--;
+                }
+                return namedObject;
             }
         };
 

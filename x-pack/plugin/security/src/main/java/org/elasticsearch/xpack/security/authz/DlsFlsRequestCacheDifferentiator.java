@@ -16,12 +16,16 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> {
@@ -59,9 +63,18 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
                 indexAccessControl.getFieldPermissions().hasFieldLevelSecurity(),
                 indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
             );
+            // Must render the DLS template with the SAME _user context as the reader wrapper
+            // (SecurityIndexReaderWrapper), otherwise the cache key would not reflect the filter that
+            // is actually applied — allowing one user's cached results to be served to another.
+            final AuthorizationEngine.AuthorizationInfo authorizationInfo = AUTHORIZATION_INFO_VALUE.get(
+                securityContext.getThreadContext()
+            );
+            final Map<String, List<String>> applicationResources = authorizationInfo == null
+                ? Map.of()
+                : authorizationInfo.getApplicationResources();
             indexAccessControl.buildCacheKey(
                 out,
-                SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get())
+                SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get(), applicationResources)
             );
         }
     }

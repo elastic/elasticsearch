@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -114,6 +115,8 @@ public final class DocumentPermissions implements CacheKey {
      * @param scriptService {@link ScriptService} for evaluating query templates
      * @param shardId {@link ShardId}
      * @param searchExecutionContextProvider {@link SearchExecutionContext}
+     * @param applicationResources the user's application-privilege resources, exposed to DLS query
+     * templates as {@code _user.applications}
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
@@ -121,10 +124,11 @@ public final class DocumentPermissions implements CacheKey {
         User user,
         ScriptService scriptService,
         ShardId shardId,
-        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+        Map<String, List<String>> applicationResources
     ) throws IOException {
         if (hasDocumentLevelPermissions()) {
-            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService, applicationResources));
             assert listOfEvaluatedQueries != null : "evaluated queries must not be null";
             assert false == listOfEvaluatedQueries.isEmpty() : "evaluated queries must not be empty";
 

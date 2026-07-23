@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -82,7 +83,38 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         userModel.put("email", user.email());
         userModel.put("roles", Arrays.asList(user.roles()));
         userModel.put("metadata", user.metadata());
+        userModel.put("applications", Map.of());
         assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
+    }
+
+    public void testTemplatingExposesApplicationResources() throws Exception {
+        User user = new User("_username", new String[] { "role1" }, "_full_name", "_email", Map.of("key", "value"), true);
+        Map<String, List<String>> applicationResources = Map.of("kibana-.kibana", List.of("*", "space:default", "space:marketing"));
+
+        TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
+            @Override
+            public String execute() {
+                return "rendered_text";
+            }
+        };
+        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
+
+        XContentBuilder builder = jsonBuilder();
+        String query = Strings.toString(
+            new TermQueryBuilder("field", "{{_user.applications}}").toXContent(builder, ToXContent.EMPTY_PARAMS)
+        );
+        Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.emptyMap());
+        builder = jsonBuilder().startObject().field("template");
+        script.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String querySource = Strings.toString(builder.endObject());
+
+        SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, user, applicationResources);
+
+        ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
+        verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userModel = (Map<String, Object>) argument.getValue().getParams().get("_user");
+        assertThat(userModel.get("applications"), equalTo(applicationResources));
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {

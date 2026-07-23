@@ -286,6 +286,19 @@ public interface AuthorizationEngine {
         default AuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
             return this;
         }
+
+        /**
+         * Returns the application-privilege resources granted to this user, keyed by application name
+         * (e.g. {@code "kibana-.kibana" -> ["*", "space:default", "space:marketing"]}). This is exposed to
+         * document-level-security query templates as {@code _user.applications}, so a role's DLS query can
+         * filter documents by the application resources the user holds. The resource strings are opaque to
+         * Elasticsearch (never parsed or interpreted here). Empty by default; only the RBAC implementation
+         * populates it. Implementations must return a deterministically-ordered result so that the value is
+         * stable across the two DLS render sites (filter query and request-cache key).
+         */
+        default Map<String, List<String>> getApplicationResources() {
+            return Map.of();
+        }
     }
 
     /**

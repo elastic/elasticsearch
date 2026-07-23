@@ -1106,6 +1106,29 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
+        public Map<String, List<String>> getApplicationResources() {
+            final var application = role.application();
+            final Set<String> applicationNames = application.getApplicationNames();
+            if (applicationNames.isEmpty()) {
+                return Map.of();
+            }
+            final Map<String, List<String>> result = new HashMap<>(applicationNames.size());
+            for (String applicationName : applicationNames) {
+                // Union the resource patterns across every privilege granted for this application.
+                // TreeSet gives a deterministic order, which keeps the rendered DLS query (and therefore
+                // the request-cache key derived from it) stable across render sites.
+                final Set<String> resources = new TreeSet<>();
+                for (ApplicationPrivilege privilege : application.getPrivileges(applicationName)) {
+                    resources.addAll(application.getResourcePatterns(privilege));
+                }
+                if (resources.isEmpty() == false) {
+                    result.put(applicationName, List.copyOf(resources));
+                }
+            }
+            return result.isEmpty() ? Map.of() : result;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) {
                 return true;

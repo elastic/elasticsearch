@@ -21,12 +21,15 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -90,7 +93,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
+                BooleanQuery filterQuery = documentPermissions.filter(
+                    getUser(),
+                    scriptService,
+                    shardId,
+                    searchExecutionContextProvider,
+                    getApplicationResources()
+                );
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
@@ -117,6 +126,19 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     protected User getUser() {
         return Objects.requireNonNull(securityContext.getUser());
+    }
+
+    /**
+     * The authenticated user's application-privilege resources (applicationName -&gt; resource patterns),
+     * read from the node-local {@link AuthorizationServiceField#AUTHORIZATION_INFO_VALUE authorization info}
+     * in the thread context. Exposed to DLS query templates as {@code _user.applications}. Returns an empty
+     * map when no authorization info is present (e.g. a custom authorization engine).
+     */
+    protected Map<String, List<String>> getApplicationResources() {
+        final AuthorizationEngine.AuthorizationInfo authorizationInfo = AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.get(
+            securityContext.getThreadContext()
+        );
+        return authorizationInfo == null ? Map.of() : authorizationInfo.getApplicationResources();
     }
 
 }

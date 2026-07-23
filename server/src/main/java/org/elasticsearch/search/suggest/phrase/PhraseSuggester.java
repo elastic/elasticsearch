@@ -76,8 +76,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         // CandidateScorer builds a Lucene PriorityQueue sized to shard_size and each DirectCandidateGenerator builds
         // a Lucene SuggestWordQueue sized to its generator size. Both pre-allocate a heap array of length size + 1,
         // which is the dominant cost, so we reserve them on the request circuit breaker around the correction lookup.
-        // This way an oversized shard_size (or direct generator size) trips the breaker instead of causing an
-        // OutOfMemoryError that could take the shard (or node) down.
         long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
         for (PhraseSuggestionContext.DirectCandidateGenerator generator : generators) {
             collectorBytes += priorityQueueRamBytesUsed(generator.size());

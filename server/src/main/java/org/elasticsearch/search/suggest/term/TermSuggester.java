@@ -46,8 +46,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         final SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
         // DirectSpellChecker#suggestSimilar builds a Lucene SuggestWordQueue (a PriorityQueue) sized to shard_size,
         // pre-allocating an Object[shard_size + 1] backing array per token. This is the dominant cost, so we reserve it
-        // on the request circuit breaker first. This way an oversized shard_size trips the breaker instead of causing an
-        // OutOfMemoryError that could take the shard (or node) down.
+        // on the request circuit breaker first.
         final long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
         searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
         try {

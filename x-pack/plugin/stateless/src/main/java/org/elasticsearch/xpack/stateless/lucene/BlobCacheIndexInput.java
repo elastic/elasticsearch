@@ -183,10 +183,15 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         checkMergeReadAborted();
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return false;
         }
         long[] adjusted = offsets;
@@ -196,7 +201,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFileReader.withMemorySegmentSlices(adjusted, length, count, action);
+        return cacheFileReader.withSliceAddresses(adjusted, length, count, addressesScratch, action);
     }
 
     @Override

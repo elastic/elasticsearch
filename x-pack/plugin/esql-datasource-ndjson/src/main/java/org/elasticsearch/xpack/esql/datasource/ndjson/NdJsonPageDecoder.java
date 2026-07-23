@@ -20,6 +20,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -921,7 +923,7 @@ public class NdJsonPageDecoder implements Closeable {
         }
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
-            decoder.setupBuilders(blockBuilders);
+            decoder.setupBuilders(blockBuilders, batchSize);
             return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
         } finally {
             Releasables.close(blockBuilders);
@@ -1042,7 +1044,11 @@ public class NdJsonPageDecoder implements Closeable {
             long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
 
             try {
-                decoder.setupBuilders(rowScratch);
+                // One record's worth, not one page's worth: these scratch builders hold exactly the row being
+                // decoded and are built-and-released before the next one. Sizing them at batchSize would zero a
+                // page-sized array (and reserve it on the breaker) per record — the whole cost of the lenient
+                // path — to hold a single value. Multivalued cells grow the scratch on demand.
+                decoder.setupBuilders(rowScratch, 1);
                 try {
                     decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
@@ -1328,14 +1334,20 @@ public class NdJsonPageDecoder implements Closeable {
             this.declaredFormatter = pattern != null ? DateFormatter.forPattern(pattern) : null;
         }
 
-        // Builders setup independently as we need to create new ones for each page.
-        void setupBuilders(Block.Builder[] blockBuilders) {
+        /**
+         * Builders are set up independently as we need to create new ones for each page — and, on the lenient
+         * path, for each record. {@code estimatedSize} is how many positions the caller expects these builders
+         * to hold: {@code batchSize} for the page builders, {@code 1} for the per-record scratch builders. It is
+         * only an initial capacity — a builder grows on demand — but it is eagerly allocated and charged to the
+         * circuit breaker, so a caller that over-states it pays for the whole array on every setup.
+         */
+        void setupBuilders(Block.Builder[] blockBuilders, int estimatedSize) {
             if (dataType != null) {
                 // The type -> block-shape mapping is not re-derived here: it belongs to the declared-read SPI,
                 // which delegates the enumeration to PlannerUtils.toElementType. A reader-local copy of it is
                 // exactly how unsigned_long came to pass dataset validation and then throw at page setup.
                 try {
-                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
+                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, estimatedSize);
                 } catch (IllegalArgumentException e) {
                     throw unsupportedTypeForNdjson(dataType, e);
                 }
@@ -1344,7 +1356,7 @@ public class NdJsonPageDecoder implements Closeable {
 
             if (children != null) {
                 for (var child : children.values()) {
-                    child.setupBuilders(blockBuilders);
+                    child.setupBuilders(blockBuilders, estimatedSize);
                 }
             }
         }
@@ -1373,17 +1385,28 @@ public class NdJsonPageDecoder implements Closeable {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
             String fieldName;
+            boolean poisoned = false;
             while ((fieldName = parser.nextFieldName()) != null) {
                 var childDecoder = lookupChild(fieldName);
                 parser.nextToken();
-                if (childDecoder == unprojected) {
+                if (childDecoder == unprojected || poisoned) {
                     // Unknown/unprojected field: advance to its value then skip (no decode).
                     // For string values nextFieldName() uses _skipString() internally on the next
                     // call, so we avoid _finishString2 for non-projected string fields.
+                    // Also used to drain remaining fields after a child poisoned this position.
                     parser.skipChildren();
                 } else {
-                    childDecoder.decodeValue(parser, inArray);
+                    try {
+                        childDecoder.decodeValue(parser, inArray);
+                    } catch (PoisonedPositionException e) {
+                        poisoned = true;
+                        parser.skipChildren(); // drain current field's value, then loop drains the rest
+                    }
                 }
+            }
+            // Parser is now at END_OBJECT. Re-throw so the enclosing array handler can cancel the position.
+            if (poisoned) {
+                throw PoisonedPositionException.INSTANCE;
             }
         }
 
@@ -1469,6 +1492,25 @@ public class NdJsonPageDecoder implements Closeable {
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
                     child.endPositionEntry(includeChildren);
+                }
+            }
+        }
+
+        /**
+         * Cancels the current position entry (rolling back all values appended since
+         * {@link #beginPositionEntry}) and writes a null for this position instead. Used
+         * when a coercion failure poisoned an array: the whole position is nulled rather
+         * than committed as a partial multivalue, matching the columnar reader contract.
+         */
+        private void cancelAndNullPositionEntry(boolean includeChildren) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                ((AbstractBlockBuilder) blockBuilder).cancelPositionEntry();
+                blockTracker.set(blockIdx);
+                blockBuilder.appendNull();
+            }
+            if (includeChildren && children != null) {
+                for (var child : children.values()) {
+                    child.cancelAndNullPositionEntry(includeChildren);
                 }
             }
         }
@@ -1567,15 +1609,32 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                     boolean includeChildren = first == JsonToken.START_OBJECT;
                     beginPositionEntry(includeChildren);
-                    decodeValue(parser, true);
-                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    try {
                         decodeValue(parser, true);
+                        while (parser.nextToken() != JsonToken.END_ARRAY) {
+                            decodeValue(parser, true);
+                        }
+                        endPositionEntry(includeChildren);
+                    } catch (PoisonedPositionException e) {
+                        while (parser.nextToken() != JsonToken.END_ARRAY) {
+                            parser.skipChildren();
+                        }
+                        cancelAndNullPositionEntry(includeChildren);
                     }
-                    endPositionEntry(includeChildren);
                     return;
                 }
                 while (parser.nextToken() != JsonToken.END_ARRAY) {
-                    decodeValue(parser, true);
+                    try {
+                        decodeValue(parser, true);
+                    } catch (PoisonedPositionException e) {
+                        // Drain the rest of this nested array, then rethrow so the
+                        // enclosing array handler can drain its own remaining elements
+                        // and cancel the position entry correctly.
+                        while (parser.nextToken() != JsonToken.END_ARRAY) {
+                            parser.skipChildren();
+                        }
+                        throw e;
+                    }
                 }
                 return;
             }
@@ -1667,6 +1726,7 @@ public class NdJsonPageDecoder implements Closeable {
                 case UNSIGNED_LONG -> decodeUnsignedLongValue(parser, token, inArray);
                 case DOUBLE -> decodeDoubleValue(parser, token, inArray);
                 case DATETIME -> decodeDatetimeValue(parser, token, inArray);
+                case DATE_NANOS -> decodeDateNanosValue(parser, token, inArray);
                 case KEYWORD, TEXT -> {
                     var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
                     ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
@@ -1823,13 +1883,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
-            if (declaredFormatter != null && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT)) {
+            if (declaredFormatter != null
+                && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)) {
                 // A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
                 // CsvFormatReader.tryParseDatetime does (declaredFormatters win over looksNumeric): a column
                 // declared {datetime, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT as epoch
-                // millis. Parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME
-                // string->datetime conversion the columnar readers use — so identical bytes + declared format
-                // yield the same instant across every format.
+                // millis, and {datetime, format:"epoch_second"} reads 1704067200.5 as fractional seconds. Parses
+                // through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME string->datetime
+                // conversion the columnar readers use — so identical bytes + declared format yield the same
+                // instant across every format. getValueAsString returns the token's source text verbatim; a
+                // token the format cannot parse (e.g. a scientific-notation float like 1.7E9 under
+                // epoch_second) fails per value through the read's error policy, never silently.
                 try {
                     ((LongBlock.Builder) blockBuilder).appendLong(
                         DeclaredTypeCoercions.parseDatetimeMillis(parser.getValueAsString(), declaredFormatter)
@@ -1846,6 +1910,15 @@ public class NdJsonPageDecoder implements Closeable {
                 } catch (InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                // No declared format: a fractional JSON number is epoch milliseconds and rounds to the nearest
+                // milli, matching the ::datetime semantic (ToDatetime maps DOUBLE via safeDoubleToLong) and the
+                // columnar double->datetime coercion (supports(DOUBLE, DATETIME) is true).
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(DataTypeConverter.safeDoubleToLong(parser.getDoubleValue()));
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
             } else if (token == JsonToken.VALUE_STRING) {
                 // No declared format: parse with the file-level formatter (STRICT_DATE_OPTIONAL_TIME by default).
                 try {
@@ -1854,8 +1927,67 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
             } else {
-                // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
+                // a boolean (or a non-scalar) in a datetime column: unsupported cross-kind drift
                 crossKindDrift(parser, inArray, DataType.DATETIME);
+            }
+        }
+
+        /**
+         * The {@code date_nanos} twin of {@link #decodeDatetimeValue}, one rail down — mirroring
+         * {@code CsvFormatReader.tryParseDateNanos} exactly:
+         * <ul>
+         *   <li>a declared {@code format} is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
+         *       the datetime arm above (declared formatters win over token kind);</li>
+         *   <li>a numeric token without one is epoch <b>nanoseconds</b> — the declared type names the numeric
+         *       unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}).
+         *       A negative epoch has no {@code date_nanos} representation, so it fails the cell through the
+         *       error policy rather than ever emitting a negative nanos long;</li>
+         *   <li>a string token without one parses with the file-level {@link #datetimeFormatter} — the same
+         *       rail the datetime arm and CSV use ({@code strict_date_optional_time} by default, which parses
+         *       nanosecond fractions) — but through {@code dateNanosToLong} so the instant lands in nanos.</li>
+         * </ul>
+         * Every parse arm goes through {@link EsqlDataTypeConverter#dateNanosToLong}, the SAME string -&gt;
+         * date_nanos conversion the columnar declared coercion and CSV use, so identical bytes with an
+         * identical declared format yield the same instant across every format. A boolean or a fractional
+         * number is an unsupported cross-kind drift, matching the datetime arm.
+         */
+        private void decodeDateNanosValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (declaredFormatter != null
+                && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)) {
+                // The unit rule, mirroring the datetime arm: a declared format names the unit / parse dialect, so a
+                // fractional token is meaningful through it (epoch_second reads 1704067200.5 as sub-second precision,
+                // which date_nanos can actually represent). Without a format a fractional token stays cross-kind drift
+                // below — a fraction of a nanosecond has no meaning, nanos being the type's finest unit.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        EsqlDataTypeConverter.dateNanosToLong(parser.getValueAsString(), declaredFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    long nanos = parser.getLongValue();
+                    if (nanos < 0) {
+                        // pre-epoch: no date_nanos representation — per-cell failure, never a negative nanos long
+                        coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                    } else {
+                        ((LongBlock.Builder) blockBuilder).appendLong(nanos);
+                    }
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS); // beyond-long epoch: a real value error
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        EsqlDataTypeConverter.dateNanosToLong(parser.getValueAsString(), datetimeFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATE_NANOS);
+                }
+            } else {
+                // a boolean, or a fractional number, in a date_nanos column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.DATE_NANOS);
             }
         }
 
@@ -1900,6 +2032,11 @@ public class NdJsonPageDecoder implements Closeable {
                 // first bad field), not once per bad field. The record's scratch is discarded, so no null-fill is
                 // needed and further coercion failures on the same doomed record must not consume the budget again.
                 parser.skipChildren();
+                if (inArray) {
+                    // Inside an array, a normal return would let the array loop call endPositionEntry with no
+                    // values appended — an AssertionError. Throw so the array handler drains and cancels instead.
+                    throw PoisonedPositionException.INSTANCE;
+                }
                 return;
             }
             String value = parser.getValueAsString();
@@ -1937,6 +2074,12 @@ public class NdJsonPageDecoder implements Closeable {
             skipWarnings.add(message);
             checkErrorBudgetOrThrow();
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+            if (inArray) {
+                // Inside an array: throw to signal that the whole position must be nulled.
+                // The array decode loop catches PoisonedPositionException, drains remaining elements,
+                // and calls cancelAndNullPositionEntry to roll back any good elements already appended.
+                throw PoisonedPositionException.INSTANCE;
+            }
         }
 
         /**
@@ -1994,6 +2137,26 @@ public class NdJsonPageDecoder implements Closeable {
             skipWarnings.add(message);
             checkErrorBudgetOrThrow();
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+        }
+    }
+
+    /**
+     * Thrown by {@link BlockDecoder#coercionFailure} when a value inside a JSON array fails coercion,
+     * to signal that the entire array position must be nulled. Caught by the array decode loop in
+     * {@link BlockDecoder#decodeValue}, which drains remaining elements and calls
+     * {@link BlockDecoder#cancelAndNullPositionEntry}. Propagates through
+     * {@link BlockDecoder#decodeObject} (which drains remaining fields and re-throws) so that a
+     * failure inside a nested object also cancels the enclosing array position.
+     * <p>
+     * Uses a static singleton with a suppressed stack trace to keep the throw/catch overhead minimal
+     * on the failure path, since no stack context is needed — the error details are recorded by
+     * {@link BlockDecoder#coercionFailure} before throwing.
+     */
+    private static final class PoisonedPositionException extends RuntimeException {
+        static final PoisonedPositionException INSTANCE = new PoisonedPositionException();
+
+        private PoisonedPositionException() {
+            super(null, null, true, false);
         }
     }
 

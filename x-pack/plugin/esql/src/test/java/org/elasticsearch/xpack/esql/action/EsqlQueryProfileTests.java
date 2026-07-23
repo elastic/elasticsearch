@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -45,7 +46,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomIntBetween(0, 1000),
             randomNonNegativeLong(),
             randomFrom(UnmappedResolution.values()),
-            randomIntBetween(0, 100)
+            randomIntBetween(0, 100),
+            randomNonNegativeLong()
         );
     }
 
@@ -67,7 +69,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         long bytesScanned = instance.bytesScanned();
         UnmappedResolution unmappedResolution = instance.unmappedResolution();
         int externalWarmAggregates = instance.externalWarmAggregates();
-        switch (randomIntBetween(0, 15)) {
+        long splitDiscovery = instance.splitDiscoveryNanos();
+        switch (randomIntBetween(0, 16)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -81,9 +84,10 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 10 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
             case 11 -> filesScanned = randomValueOtherThan(filesScanned, () -> randomIntBetween(0, 100));
             case 12 -> splitsScanned = randomValueOtherThan(splitsScanned, () -> randomIntBetween(0, 1000));
-            case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, () -> randomNonNegativeLong());
+            case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, ESTestCase::randomNonNegativeLong);
             case 14 -> unmappedResolution = randomValueOtherThan(unmappedResolution, () -> randomFrom(UnmappedResolution.values()));
             case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
+            case 16 -> splitDiscovery = randomValueOtherThan(splitDiscovery, ESTestCase::randomNonNegativeLong);
         }
         return new EsqlQueryProfile(
             query,
@@ -101,7 +105,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             splitsScanned,
             bytesScanned,
             unmappedResolution,
-            externalWarmAggregates
+            externalWarmAggregates,
+            splitDiscovery
         );
     }
 

@@ -38,8 +38,17 @@ public final class SpecialFunctionGeneratorRegistry {
     /** Algorithm names accepted by the {@code hash} function. */
     private static final String[] HASH_ALGORITHMS = { "MD5", "SHA-256", "SHA-384", "SHA-512" };
 
-    /** Time-unit strings accepted by {@code date_diff} and {@code date_unit_count}. */
+    /** Time-unit strings accepted by {@code date_diff}. */
     private static final String[] DATE_DIFF_UNITS = { "second", "minute", "hour", "day", "week", "month", "year" };
+
+    /**
+     * Valid {@code from_unit} values for {@code date_unit_count}.
+     * The function's {@code count()} method only handles variable-length units (day/week/month/year)
+     * as {@code from_unit}; fixed-length units (second/minute/hour) reach an {@code IllegalArgumentException}
+     * unless they cancel with the {@code to_unit} via {@code constNanos}. Using only calendar units
+     * here avoids that runtime error.
+     */
+    private static final String[] DATE_UNIT_COUNT_FROM_UNITS = { "day", "week", "month", "year" };
 
     /** Date-part names accepted by {@code date_extract}. */
     private static final String[] DATE_EXTRACT_PARTS = {
@@ -105,10 +114,13 @@ public final class SpecialFunctionGeneratorRegistry {
         });
 
         // date_unit_count(to_unit, from_unit, date): both unit params must be literals.
+        // from_unit must be a calendar (variable-length) unit: day/week/month/year.
+        // Fixed-length units (second/minute/hour) as from_unit reach an unsupported code path
+        // and throw IllegalArgumentException at runtime when the to_unit is also variable-length.
         r.put("date_unit_count", (name, sig, cols, unmapped, depth, recurse) -> {
             String date = recurse.recurse(sig.params().get(2).type(), cols, unmapped, depth - 1);
             if (date == null) return null;
-            return name + "(\"" + randomFrom(DATE_DIFF_UNITS) + "\", \"" + randomFrom(DATE_DIFF_UNITS) + "\", " + date + ")";
+            return name + "(\"" + randomFrom(DATE_DIFF_UNITS) + "\", \"" + randomFrom(DATE_UNIT_COUNT_FROM_UNITS) + "\", " + date + ")";
         });
 
         // ---- MV functions ---------------------------------------------------

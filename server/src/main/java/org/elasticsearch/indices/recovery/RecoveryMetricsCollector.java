@@ -142,7 +142,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     private static Map<String, Object> recoveryTimeMetricLabels(IndexShard indexShard) {
         return Map.of(
-            "primary",
+            "es_is_primary",
             indexShard.routingEntry().primary(),
             "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()

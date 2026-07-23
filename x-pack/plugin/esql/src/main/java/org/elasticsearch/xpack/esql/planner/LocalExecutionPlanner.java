@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
@@ -330,7 +331,8 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            new Holder<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -780,6 +782,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -796,7 +799,7 @@ public class LocalExecutionPlanner {
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+        if (parallelWorkerExecutor != null) {
             int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
             parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
                 parallelWorkerExecutor,
@@ -1314,12 +1317,21 @@ public class LocalExecutionPlanner {
 
         Expression queryExpr = highlight.query();
         if (queryExpr == null) {
-            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
-        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+        String analyzerName = options.analyzerName();
+
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            queryExpr,
+            fieldNames,
+            analyzerName,
+            context.analysisRegistry()
+        );
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            translated.queryText(),
             options.preTag(),
             options.postTag(),
             options.encoder(),
@@ -1329,18 +1341,20 @@ public class LocalExecutionPlanner {
             HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
+            analyzerName,
             options.maxAnalyzedOffset()
-        );
+            // The query and MemoryIndex must use the same analyzer.
+        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
 
+        Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
         // The generated attributes are appended in the same order as the ON fields,
         // so the operator's appended blocks line up with these layout channels.
-        Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
@@ -1837,6 +1851,14 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+        // Federation kill switch, data-node backstop. This is where an external source becomes a running operator, so
+        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a disabled node regardless of who
+        // planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled coordinator during a
+        // rolling restart that has not yet reached this node. The coordinator FROM <dataset> path is closed earlier by
+        // the DatasetResolver gate; the snapshot-only inline EXTERNAL command bypasses that gate and is stopped only
+        // here, after its planning-time source resolution and split discovery have run.
+        Federation.ensureEnabled();
+
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 
@@ -2267,7 +2289,8 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Holder<TopNExec> lastVisitedTopN
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

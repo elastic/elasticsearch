@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -25,23 +26,28 @@ import java.util.Set;
 
 /// Transport action for batch cancellation of now-undesired recoveries.
 /// The elected master node uses this action to directly request cancellation of recoveries.
-// TODO: Introduce transport version when we wire this up on the master
 public class CancelRecoveriesAction {
+
+    /// Minimum cluster-wide transport version before the master starts sending direct cancellation requests
+    public static final TransportVersion DIRECT_RECOVERY_CANCELLATION = TransportVersion.fromName("direct_recovery_cancellation");
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:index/shard/recovery/cancel_recoveries");
 
     /// Request to cancel multiple recoveries in a single batch.
     public static class Request extends UntypedActionRequest {
+        private final long term;
         private final long clusterStateVersion;
         private final List<ShardRecoveryCancellation> shardRecoveryCancellations;
 
-        public Request(long clusterStateVersion, List<ShardRecoveryCancellation> shardRecoveryCancellations) {
+        public Request(long term, long clusterStateVersion, List<ShardRecoveryCancellation> shardRecoveryCancellations) {
+            this.term = term;
             this.clusterStateVersion = clusterStateVersion;
             this.shardRecoveryCancellations = shardRecoveryCancellations;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.term = in.readVLong();
             this.clusterStateVersion = in.readVLong();
             this.shardRecoveryCancellations = in.readCollectionAsList(ShardRecoveryCancellation::new);
         }
@@ -54,8 +60,13 @@ public class CancelRecoveriesAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeVLong(term);
             out.writeVLong(clusterStateVersion);
             out.writeCollection(shardRecoveryCancellations);
+        }
+
+        public long term() {
+            return term;
         }
 
         public long clusterStateVersion() {
@@ -71,52 +82,63 @@ public class CancelRecoveriesAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Request request = (Request) o;
-            return clusterStateVersion == request.clusterStateVersion
+            return term == request.term
+                && clusterStateVersion == request.clusterStateVersion
                 && shardRecoveryCancellations.equals(request.shardRecoveryCancellations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterStateVersion, shardRecoveryCancellations);
+            return Objects.hash(term, clusterStateVersion, shardRecoveryCancellations);
+        }
+
+        @Override
+        public String toString() {
+            return "CancelRecoveriesAction.Request{term="
+                + term
+                + ", clusterStateVersion="
+                + clusterStateVersion
+                + ", cancellations="
+                + shardRecoveryCancellations
+                + "}";
         }
     }
 
-    /// Details of a single shard recovery to be cancelled.
-    public record ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) implements Writeable {
+    /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
+    public record CancelledInQueue(ShardId shardId, String allocationId) implements Writeable {
 
-        public ShardRecoveryCancellation(StreamInput in) throws IOException {
-            this(new ShardId(in), in.readString(), in.readBoolean());
+        public CancelledInQueue(StreamInput in) throws IOException {
+            this(new ShardId(in), in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             out.writeString(allocationId);
-            out.writeBoolean(cancelIfStarted);
         }
     }
 
-    /// Response containing the allocation IDs of recoveries that were found in the throttling queue and cancelled.
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
     /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {
-        private final Set<String> cancelledInQueue;
+        private final Set<CancelledInQueue> cancelledInQueue;
 
-        public Response(Set<String> cancelledInQueue) {
+        public Response(Set<CancelledInQueue> cancelledInQueue) {
             this.cancelledInQueue = Set.copyOf(cancelledInQueue);
         }
 
         public Response(StreamInput in) throws IOException {
-            this.cancelledInQueue = in.readCollectionAsImmutableSet(StreamInput::readString);
+            this.cancelledInQueue = in.readCollectionAsImmutableSet(CancelledInQueue::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(cancelledInQueue);
+            out.writeCollection(cancelledInQueue);
         }
 
-        /// Returns the allocation IDs of recoveries that were cancelled from the throttling queue.
-        public Set<String> cancelledInQueue() {
+        /// Returns the recoveries that were cancelled from the throttling queue.
+        public Set<CancelledInQueue> cancelledInQueue() {
             return cancelledInQueue;
         }
 

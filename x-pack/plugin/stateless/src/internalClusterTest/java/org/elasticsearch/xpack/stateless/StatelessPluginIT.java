@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
+
+import static org.hamcrest.Matchers.equalTo;
+
 public class StatelessPluginIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testCreateStatelessCluster() throws Exception {
@@ -20,6 +26,25 @@ public class StatelessPluginIT extends AbstractStatelessPluginIntegTestCase {
         final int numSearchNodes = randomIntBetween(0, 5);
         startSearchNodes(numSearchNodes);
         ensureStableCluster(1 + numIndexNodes + numSearchNodes);
+    }
+
+    public void testReaderHeapBreakerLimitIsDynamicallyUpdated() {
+        startMasterAndIndexNode();
+        final String searchNode = startSearchNode();
+
+        final var breakerService = internalCluster().getInstance(CircuitBreakerService.class, searchNode);
+        assertThat(breakerService.getBreaker(StatelessReaderHeapBreaker.NAME).getLimit(), equalTo(-1L));
+
+        updateClusterSettings(Settings.builder().put(StatelessReaderHeapBreaker.LIMIT_SETTING.getKey(), "100mb"));
+
+        final long expected = StatelessReaderHeapBreaker.LIMIT_SETTING.get(
+            Settings.builder().put(StatelessReaderHeapBreaker.LIMIT_SETTING.getKey(), "100mb").build()
+        ).getBytes();
+        assertThat(
+            "dynamic settings update must propagate to the live breaker limit",
+            breakerService.getBreaker(StatelessReaderHeapBreaker.NAME).getLimit(),
+            equalTo(expected)
+        );
     }
 
 }

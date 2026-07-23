@@ -423,6 +423,11 @@ class StatelessIndexEventListener implements IndexEventListener {
             searchDirectory,
             indexShard.getOperationPrimaryTerm()
         );
+        logger.info(
+            "beforeRecoveryOnSearchShard: {} read search shard state from object store: {}",
+            indexShard.shardId(),
+            batchedCompoundCommit == null ? "null (empty commit)" : batchedCompoundCommit.primaryTermAndGeneration()
+        );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
@@ -434,6 +439,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             indexShard.shardId(),
             listener.<RegisterCommitResponse>delegateFailure((l, response) -> {
                 var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                logger.info("beforeRecoveryOnSearchShard: {} last uploaded is: {}", indexShard.shardId(), lastUploaded);
                 var nodeId = response.getNodeId();
                 assert nodeId != null : response;
 

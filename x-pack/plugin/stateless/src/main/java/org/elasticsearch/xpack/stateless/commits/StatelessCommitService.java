@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -909,6 +910,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
         recordBccTimestampRangeMetric(virtualBcc);
 
+        try {
+            Thread.sleep(Randomness.createSecure().nextInt(0, 200));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        logger.info(
+            "createAndRunCommitUpload: {} starting BCC upload for {}",
+            virtualBcc.getShardId(),
+            virtualBcc.getPrimaryTermAndGeneration()
+        );
         bccUpload.run();
     }
 
@@ -945,7 +956,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         uploadedBcc,
                         virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
                     );
+                    logger.info("newUploadTaskListener: finished uploading blob {}", virtualBcc);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
+                    logger.info("newUploadTaskListener: upload notification sent for blob {}", virtualBcc);
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
@@ -1884,6 +1897,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // We do this prior to adding to pending upload generations since we rely on this for search commit registration.
                 blobReference = createBlobReference(expectedVirtualBcc);
 
+                try {
+                    Thread.sleep(Randomness.createSecure().nextInt(0, 200));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                logger.info(
+                    "{} adding generation [{}] to pendingUploadBccGenerations (blob not yet in object store)",
+                    shardId,
+                    expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
+                );
                 final var previous = pendingUploadBccGenerations.put(
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
@@ -2136,6 +2159,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         + "] for shard "
                         + shardId;
                 latestUploadedBcc = uploadedBcc;
+                logger.info(
+                    "{} BCC upload complete: generation [{}] (term+gen {}) now visible in object store; removed from pendingUploadBccGenerations={}",
+                    shardId,
+                    newGeneration,
+                    uploadedBcc.primaryTermAndGeneration(),
+                    isUpload
+                );
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);

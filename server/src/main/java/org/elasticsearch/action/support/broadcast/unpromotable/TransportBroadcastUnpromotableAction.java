@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -38,6 +40,8 @@ import java.util.concurrent.Executor;
 
 public abstract class TransportBroadcastUnpromotableAction<Request extends BroadcastUnpromotableRequest, Response extends ActionResponse>
     extends HandledTransportAction<Request, Response> {
+
+    public static final Logger debugLogger = LogManager.getLogger(TransportBroadcastUnpromotableAction.class);
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -77,6 +81,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final var unpromotableShards = request.indexShardRoutingTable.assignedUnpromotableShards();
+        debugLogger.info("TransportBroadcastUnpromotableAction: sending {} action to shards {}", this.getClass(), unpromotableShards);
         final var responses = new ArrayList<Response>(unpromotableShards.size());
 
         try (var listeners = new RefCountingListener(listener.map(v -> combineUnpromotableShardResponses(responses)))) {
@@ -92,6 +97,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                             responses.add(response);
                         }
                     });
+                    debugLogger.info("TransportBroadcastUnpromotableAction: sending {} request to node {}", request, node);
                     transportService.sendRequest(
                         node,
                         transportUnpromotableAction,

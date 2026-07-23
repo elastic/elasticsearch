@@ -2498,6 +2498,157 @@ set:keyword | element:keyword | set_contains_element:boolean
 // end::mv_contains-result[]
 ;
 
+mvLike
+required_capability: fn_mv_like
+// tag::mv_like[]
+ROW names = ["Anna", "Bob", "Carl"]
+| EVAL any_starts_with_a = mv_like(names, "A*")
+// end::mv_like[]
+;
+
+// tag::mv_like-result[]
+names:keyword     | any_starts_with_a:boolean
+[Anna, Bob, Carl] | true
+// end::mv_like-result[]
+;
+
+mvLikePrefix
+required_capability: fn_mv_like
+// tag::mv_like_prefix[]
+ROW names = ["Anna", "Bob"]
+| EVAL has_bo = mv_like(names, "Bo*")
+// end::mv_like_prefix[]
+;
+
+// tag::mv_like_prefix-result[]
+names:keyword | has_bo:boolean
+[Anna, Bob]   | true
+// end::mv_like_prefix-result[]
+;
+
+// Two-valued: the result is never null, so NOT flips it cleanly instead of propagating null.
+mvLikeNot
+required_capability: fn_mv_like
+// tag::mv_like_not[]
+ROW names = ["Anna", "Bob"]
+| EVAL no_carl = NOT mv_like(names, "Carl*")
+// end::mv_like_not[]
+;
+
+// tag::mv_like_not-result[]
+names:keyword | no_carl:boolean
+[Anna, Bob]   | true
+// end::mv_like_not-result[]
+;
+
+// A null field matches nothing and yields false — not null — so NOT yields true rather than propagating null.
+// The keyword cast keeps the field typed, so this runs the real evaluator over an all-null block rather than
+// folding the predicate away. A genuinely empty (zero-value) field needs a real index and is pinned end to end.
+mvLikeNullField
+required_capability: fn_mv_like
+ROW names = null::keyword
+| EVAL matched = mv_like(names, "*"), unmatched = NOT mv_like(names, "*")
+| KEEP matched, unmatched
+;
+
+matched:boolean | unmatched:boolean
+false           | true
+;
+
+// The pattern need only be a constant after folding, not a literal: CONCAT of two literals is accepted (the
+// constant-ness is checked in postOptimizationVerification, after constant folding).
+mvLikeConstantFoldedPattern
+required_capability: fn_mv_like
+required_capability: fn_mv_rlike
+ROW names = ["Anna", "Bob"]
+| EVAL wildcard = mv_like(names, CONCAT("A", "*")), regex = mv_rlike(names, CONCAT("A", ".*"))
+| KEEP wildcard, regex
+;
+
+wildcard:boolean | regex:boolean
+true             | true
+;
+
+// mv_like/mv_rlike in a STATS ... WHERE filtered aggregation — the same per-row evaluator path, exercised as an
+// aggregation filter.
+mvLikeStatsWhere
+required_capability: fn_mv_like
+required_capability: fn_mv_rlike
+ROW names = ["Anna", "Bob"]
+| STATS a = COUNT(*) WHERE mv_like(names, "A*"), b = COUNT(*) WHERE mv_rlike(names, "A.*"), none = COUNT(*) WHERE mv_like(names, "Z*")
+;
+
+a:long | b:long | none:long
+1      | 1      | 0
+;
+
+// Real multivalued keyword field, so field_extract coverage runs (ROW literals do not exercise it).
+mvLikeField
+required_capability: fn_mv_like
+FROM employees
+| WHERE emp_no <= 10002 AND mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvRLikeField
+required_capability: fn_mv_rlike
+FROM employees
+| WHERE emp_no <= 10002 AND mv_rlike(job_positions, "Senior.*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvRLike
+required_capability: fn_mv_rlike
+// tag::mv_rlike[]
+ROW names = ["Anna", "Bob", "Carl"]
+| EVAL any_starts_with_a = mv_rlike(names, "A.*")
+// end::mv_rlike[]
+;
+
+// tag::mv_rlike-result[]
+names:keyword     | any_starts_with_a:boolean
+[Anna, Bob, Carl] | true
+// end::mv_rlike-result[]
+;
+
+mvRLikeClass
+required_capability: fn_mv_rlike
+// tag::mv_rlike_class[]
+ROW names = ["Anna", "Bob"]
+| EVAL has_three_letter_b_name = mv_rlike(names, "[Bb]ob")
+// end::mv_rlike_class[]
+;
+
+// tag::mv_rlike_class-result[]
+names:keyword | has_three_letter_b_name:boolean
+[Anna, Bob]   | true
+// end::mv_rlike_class-result[]
+;
+
+// RLIKE anchors the whole value, so a substring pattern does not match — and the result is false, not null.
+mvRLikeWholeValue
+required_capability: fn_mv_rlike
+ROW names = ["annabel", "bob"]
+| EVAL whole = mv_rlike(names, "anna"), anchored = mv_rlike(names, "anna.*")
+| KEEP whole, anchored
+;
+
+whole:boolean | anchored:boolean
+false         | true
+;
+
 mvContains_bothsides
 required_capability: fn_mv_contains_v1
 // tag::mv_contains_bothsides[]
@@ -2750,6 +2901,26 @@ row a = "cheese" | eval repeated = repeat(a, 0);
 
 a:keyword | repeated:keyword
 cheese | ""
+;
+
+// Large empty REPEAT used to loop needlessly
+repeatEmptyMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("", 2147483647);
+
+repeated:keyword
+""
+;
+
+// int length*count overflow used to bypass the size guard
+repeatLengthOverflowMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("ab", 2147483647);
+warning:Line 1:16: evaluation of [REPEAT(\"ab\", 2147483647)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported
+
+repeated:keyword
+null
 ;
 
 repeatNegative

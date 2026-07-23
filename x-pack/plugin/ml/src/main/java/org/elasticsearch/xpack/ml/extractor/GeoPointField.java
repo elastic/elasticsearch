@@ -14,7 +14,7 @@ import java.util.Set;
 
 public class GeoPointField extends DocValueField {
 
-    static final String TYPE = "geo_point";
+    public static final String TYPE = "geo_point";
 
     private static final Set<String> TYPES = Collections.singleton(TYPE);
 

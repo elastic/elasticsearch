@@ -113,9 +113,13 @@ public class TransformUpdater {
      * @param hasLinkedProjects whether the current project has linked projects (skips source index privilege checks)
      * @param cloudCredentialManager UIAM credential manager; always required.
      * @param mintCloudCredential when {@code true} and UIAM is enabled, mint a new credential before writing the
-     *                            config (Update); validation uses the caller's thread-context token only. When
+     *                            config (Update); validation uses the caller-supplied credential only. When
      *                            {@code false} (Reset, Upgrade), validation loads a stored credential by
      *                            {@link TransformConfig#getCredentialId()} when no caller credential is present.
+     * @param callerCredential the caller's UIAM cloud credential, extracted by the caller on the coordinating
+     *                          node (e.g. from {@code UpdateTransformAction.Request#getCloudCredential()}), or
+     *                          {@code null} when none is available. Validation and minting each consume their
+     *                          own independent copy via {@link CloudCredential#copyOf}.
      * @param listener the listener called containing the result of the update
      */
 
@@ -138,6 +142,7 @@ public class TransformUpdater {
         final Settings destIndexSettings,
         final TransformCloudCredentialManager cloudCredentialManager,
         final boolean mintCloudCredential,
+        @Nullable final CloudCredential callerCredential,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
@@ -207,11 +212,14 @@ public class TransformUpdater {
         });
 
         // <4> Mint cloud credential if UIAM is present. Runs after the noop/dryRun short-circuits in
-        // <3> so a noop update never mints an orphan credential at UIAM.
+        // <3> so a noop update never mints an orphan credential at UIAM. Passes callerCredential
+        // directly (no copy needed): mint runs after <2> below, which already dispatched and closed
+        // its own independent copy, so nothing else still needs this reference by the time mint runs.
         ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
             if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && mintCloudCredential) {
                 cloudCredentialManager.mintAndPersist(
                     updatedConfig.getId(),
+                    callerCredential,
                     l.delegateFailureAndWrap((ll, newTokenId) -> ll.onResponse(Tuple.tuple(destIndexMappings, newTokenId)))
                 );
             } else {
@@ -256,6 +264,7 @@ public class TransformUpdater {
                 transformConfigManager,
                 cloudCredentialManager,
                 mintCloudCredential,
+                callerCredential,
                 l
             );
         });
@@ -293,17 +302,23 @@ public class TransformUpdater {
         TransformConfigManager transformConfigManager,
         TransformCloudCredentialManager cloudCredentialManager,
         boolean mintCloudCredential,
+        @Nullable CloudCredential callerCredential,
         ActionListener<Map<String, String>> listener
     ) {
         ActionListener<ValidateTransformAction.Response> wrapped = listener.delegateFailureAndWrap(
             (l, response) -> l.onResponse(response.getDestIndexMappings())
         );
 
-        // Update: prefer the caller's UIAM credential from the thread context (survives validate via
-        // the request payload through executeAsyncWithOrigin's system-origin stash).
-        var callerCredential = cloudCredentialManager.currentCallerCredential();
+        // Update: prefer the caller-supplied UIAM credential (extracted by the caller on the
+        // coordinating node; survives validate via the request payload through
+        // executeAsyncWithOrigin's system-origin stash).
+        //
+        // Uses an independent copy: dispatchValidateTransform's receiver (TransportValidateTransformAction)
+        // unconditionally closes whatever credential it's given once validate resolves (it has to, to
+        // cover the redirect-to-another-node case), which would zero out callerCredential before <4>
+        // in updateTransform above gets to mint with it.
         if (callerCredential != null) {
-            dispatchValidateTransform(config, client, deferValidation, timeout, callerCredential, wrapped);
+            dispatchValidateTransform(config, client, deferValidation, timeout, CloudCredential.copyOf(callerCredential), wrapped);
             return;
         }
 

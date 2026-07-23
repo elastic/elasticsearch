@@ -647,7 +647,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 response = FieldCapabilitiesResponse.empty();
             }
             threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
-                .execute(ActionRunnable.supply(listener, () -> (Response) new EsqlResolveFieldsResponse(response)));
+                .execute(ActionRunnable.supply(listener, () -> (Response) new EsqlResolveFieldsResponse(response, List.of())));
         }
     }
 }

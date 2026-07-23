@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 public class EsqlResolveFieldsResponse extends ActionResponse {
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
@@ -36,21 +41,30 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
      * but a 9.2.0 coordinator with 9.2.1+ nodes will still require the workaround.
      */
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName("esql_resolve_fields_response_used");
+    public static final TransportVersion RESOLVED_INDEX_ABSTRACTIONS = TransportVersion.fromName("esql_resolved_index_abstractions");
 
     private final FieldCapabilitiesResponse caps;
+    private final List<ResolvedIndexAbstraction> resolvedIndexAbstractions;
 
-    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps) {
+    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps, List<ResolvedIndexAbstraction> resolvedIndexAbstractions) {
         this.caps = caps;
+        this.resolvedIndexAbstractions = resolvedIndexAbstractions;
     }
 
     public EsqlResolveFieldsResponse(StreamInput in) throws IOException {
         this.caps = readMinTransportVersion(new FieldCapabilitiesResponse(in), in);
+        this.resolvedIndexAbstractions = in.getTransportVersion().supports(RESOLVED_INDEX_ABSTRACTIONS)
+            ? in.readCollectionAsImmutableList(ResolvedIndexAbstraction::readFrom)
+            : List.of();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         caps.writeTo(out);
         writeMinTransportVersion(out);
+        if (out.getTransportVersion().supports(RESOLVED_INDEX_ABSTRACTIONS)) {
+            out.writeCollection(resolvedIndexAbstractions);
+        }
     }
 
     private static FieldCapabilitiesResponse readMinTransportVersion(FieldCapabilitiesResponse caps, StreamInput in) throws IOException {
@@ -100,5 +114,25 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
 
     public FieldCapabilitiesResponse caps() {
         return caps;
+    }
+
+    public Collection<ResolvedIndexAbstraction> resolvedIndexAbstractions() {
+        return resolvedIndexAbstractions;
+    }
+
+    public Collection<String> resolved(IndexAbstraction.Type type) {
+        return resolvedIndexAbstractions.stream().filter(a -> Objects.equals(a.type, type)).map(ResolvedIndexAbstraction::name).toList();
+    }
+
+    public record ResolvedIndexAbstraction(String name, IndexAbstraction.Type type) implements Writeable {
+        public static ResolvedIndexAbstraction readFrom(StreamInput in) throws IOException {
+            return new ResolvedIndexAbstraction(in.readString(), in.readEnum(IndexAbstraction.Type.class));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeEnum(type);
+        }
     }
 }

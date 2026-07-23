@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -35,12 +34,6 @@ import static org.hamcrest.Matchers.instanceOf;
  * positions are exercised too.
  */
 public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvaluatorTests {
-
-    @Before
-    public void assumeRuntimeMatchPhraseEnabled() {
-        // Runtime match_phrase is gated behind a snapshot-only capability; there is nothing to test in release builds.
-        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
-    }
 
     private static MatchPhrase runtimeMatchPhrase(String queryValue) {
         return runtimeMatchPhrase(TEXT, queryValue);

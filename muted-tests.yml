@@ -133,9 +133,6 @@ tests:
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
-  issue: https://github.com/elastic/elasticsearch/issues/147973
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -577,9 +574,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/154655
-- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
-  method: testLargeRequestIsNeverDispatched
-  issue: https://github.com/elastic/elasticsearch/issues/154657
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardFlushIT
   method: testPreFlushWaitsForOngoingFlushes
   issue: https://github.com/elastic/elasticsearch/issues/154658
@@ -601,3 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testCommaSeparatedResourceFirstFileWinsRoundTrips
   issue: https://github.com/elastic/elasticsearch/issues/154662
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformMigrationIT
+  method: testRcs1SetupAgain
+  issue: https://github.com/elastic/elasticsearch/issues/154836

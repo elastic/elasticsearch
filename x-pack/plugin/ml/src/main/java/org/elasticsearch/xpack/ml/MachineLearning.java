@@ -810,6 +810,18 @@ public class MachineLearning extends Plugin
     public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
 
     /**
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
+     */
+    public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
+        "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
+        true,
+        Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -931,6 +943,7 @@ public class MachineLearning extends Plugin
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,
+            REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
@@ -1135,6 +1148,7 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
+            clusterService,
             client,
             machineLearningExtension.get(),
             anomalyDetectionAuditor

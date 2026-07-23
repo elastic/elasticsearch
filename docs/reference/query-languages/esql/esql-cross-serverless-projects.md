@@ -264,7 +264,7 @@ FROM logs*,-linked-project-1:logs-archive
 | STATS COUNT(*)
 ```
 
-The two forms have different semantics. `-linked-project-1:*` is a *project-level* exclusion. It requires the project to have been included by a preceding expression, like the `-_origin:*` example above. `-linked-project-1:<index>` is an *index-level* exclusion. It is equivalent to `linked-project-1:-<index>` and may appear standalone. The same applies to the origin project, so `-_origin:logs` is equivalent to `_origin:-logs`.
+The two forms have different semantics. `-linked-project-1:*` is a *project-level* exclusion. It requires the project to have been included by a preceding expression, like the `-_origin:*` example above. `-linked-project-1:<index>` is an *index-level* exclusion, where `<index>` is any index name or wildcard pattern other than `*`. It is equivalent to `linked-project-1:-<index>` and can appear standalone. The same applies to the origin project, so `-_origin:logs` is equivalent to `_origin:-logs`.
 
 Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
 

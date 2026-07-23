@@ -61,14 +61,13 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     public IndicesMetrics(
         MeterRegistry meterRegistry,
         IndicesService indicesService,
-        TimeValue metricsInterval,
+        TimeValue cacheExpiry,
         ClusterService clusterService,
         SystemIndices systemIndices
     ) {
         this.registry = meterRegistry;
-        // Use half of the update interval to ensure that results aren't cached across updates,
-        // while preventing the cache from expiring when reading different gauges within the same update.
-        var cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
+        // The cache lets the async gauge callbacks fired within a single collection reuse one stats snapshot,
+        // while still expiring before the next collection cycle. See NodeMetrics#NODE_METRICS_CACHE_TTL_SETTING.
         this.stateCache = new IndicesStatsCache(indicesService, cacheExpiry);
         this.clusterService = clusterService;
         this.systemIndices = systemIndices;

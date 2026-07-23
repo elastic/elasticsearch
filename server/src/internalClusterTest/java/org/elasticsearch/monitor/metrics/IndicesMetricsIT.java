@@ -12,7 +12,6 @@ package org.elasticsearch.monitor.metrics;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -46,25 +45,17 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class IndicesMetricsIT extends ESIntegTestCase {
 
-    public static class TestAPMInternalSettings extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, FailingFieldPlugin.class);
+        return List.of(TestTelemetryPlugin.class, FailingFieldPlugin.class);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            // disable the node-metrics stats cache so each gauge read returns fresh values
+            .put(NodeMetrics.NODE_METRICS_CACHE_TTL_SETTING.getKey(), TimeValue.timeValueSeconds(0))
             .build();
     }
 

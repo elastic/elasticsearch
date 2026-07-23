@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.stateless.metrics;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -46,28 +46,17 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
-    public static class TestAPMInternalSettings extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(
-            List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, FailingFieldPlugin.class),
-            super.nodePlugins()
-        );
+        return CollectionUtils.concatLists(List.of(TestTelemetryPlugin.class, FailingFieldPlugin.class), super.nodePlugins());
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            // disable the node-metrics stats cache so each gauge read returns fresh values
+            .put(NodeMetrics.NODE_METRICS_CACHE_TTL_SETTING.getKey(), TimeValue.timeValueSeconds(0))
             .build();
     }
 

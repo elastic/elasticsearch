@@ -21,7 +21,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -68,25 +67,17 @@ import static org.hamcrest.Matchers.lessThan;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
-    public static class TestAPMInternalSettings extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, TestAnalysisPlugin.class);
+        return List.of(TestTelemetryPlugin.class, TestAnalysisPlugin.class);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            // disable the node-metrics stats cache so each gauge read returns fresh values
+            .put(NodeMetrics.NODE_METRICS_CACHE_TTL_SETTING.getKey(), TimeValue.timeValueSeconds(0))
             .build();
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +30,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +42,58 @@ import java.util.Set;
  * and more. The metrics are periodically updated based on a schedule.
  */
 public class NodeMetrics extends AbstractLifecycleComponent {
+
+    /**
+     * Private view of the telemetry.export.interval setting to be used in validator below without dependency on apm from server.
+     * Keep its default in sync with {@code OtelSdkSettings#TELEMETRY_EXPORT_INTERVAL}.
+     */
+    private static final Setting<TimeValue> TELEMETRY_EXPORT_INTERVAL_VIEW = Setting.timeSetting(
+        "telemetry.export.interval",
+        settings -> TimeValue.parseTimeValue(settings.get("telemetry.agent.metrics_interval", "60s"), "telemetry.export.interval"),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a collected node/indices stats snapshot is reused before it is recomputed.
+     * It is defaulted to the preexisting used value derived from the metric collection cycle of APM Agent.
+     */
+    public static final Setting<TimeValue> NODE_METRICS_CACHE_TTL_SETTING = Setting.timeSetting(
+        "node.metrics.cache_ttl",
+        TimeValue.timeValueSeconds(5),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue value) {
+                if (value.millis() < 0) {
+                    throw new IllegalArgumentException("[node.metrics.cache_ttl] must be non-negative, got [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(TimeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent == false) {
+                    return;
+                }
+                TimeValue collectionInterval = (TimeValue) settings.get(TELEMETRY_EXPORT_INTERVAL_VIEW);
+                if (value.compareTo(collectionInterval) > 0) {
+                    throw new IllegalArgumentException(
+                        "[node.metrics.cache_ttl] ("
+                            + value
+                            + ") must not exceed the OTel SDK collection interval [telemetry.export.interval] ("
+                            + collectionInterval
+                            + ")"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_EXPORT_INTERVAL_VIEW).iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     private final Logger logger = LogManager.getLogger(NodeMetrics.class);
     private final MeterRegistry registry;
     private final NodeService nodeService;
@@ -52,16 +106,14 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      *
      * @param meterRegistry     The MeterRegistry used to register metrics.
      * @param nodeService       The NodeService for interacting with the Elasticsearch node and extracting statistics.
-     * @param metricsInterval   The interval at which metrics are collected and sent to the APM Server
+     * @param cacheExpiry       How long a collected {@link NodeStats} snapshot is reused; see
+     *                          {@link #NODE_METRICS_CACHE_TTL_SETTING}.
      * */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue metricsInterval) {
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue cacheExpiry) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
         this.metrics = new ArrayList<>(17);
-        // we set the cache to expire after half the metrics collection interval so that there is
-        // enough time for the cache not to update during the same poll period and that it expires
-        // before a new poll period
-        this.cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
+        this.cacheExpiry = cacheExpiry;
     }
 
     /**

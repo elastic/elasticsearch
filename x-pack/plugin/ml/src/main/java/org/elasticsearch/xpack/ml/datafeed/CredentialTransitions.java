@@ -409,7 +409,14 @@ public final class CredentialTransitions {
                 );
                 l.onResponse(null);
             } else {
-                l.onFailure(e);
+                l.onFailure(
+                    DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                        effectiveConfig.getId(),
+                        effectiveConfig.getProjectRouting(),
+                        e,
+                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
+                    )
+                );
             }
         });
         executeWithHeadersAsync(

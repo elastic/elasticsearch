@@ -92,10 +92,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     public void testTemplatingExposesApplicationResources() throws Exception {
         User user = new User("_username", new String[] { "role1" }, "_full_name", "_email", Map.of("key", "value"), true);
         Map<String, List<String>> applicationResources = Map.of("kibana-.kibana", List.of("*", "space:default", "space:marketing"));
-        Map<String, List<String>> applicationPrivileges = Map.of(
-            "kibana-.kibana",
-            List.of("space:marketing|saved_object:dashboard/get")
-        );
+        Map<String, List<String>> applicationPrivileges = Map.of("kibana-.kibana", List.of("space:marketing|saved_object:dashboard/get"));
 
         TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
             @Override

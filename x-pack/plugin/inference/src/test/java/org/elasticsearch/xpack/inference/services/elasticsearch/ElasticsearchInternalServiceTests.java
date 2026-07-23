@@ -986,7 +986,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
     public void testUpdateModelWithEmbeddingDetails_TextEmbeddingCustomElandEmbeddingsModelUpdatesDimensions() {
         var service = createService(mock(Client.class));
-        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+        var elandServiceSettings = new ElasticsearchInternalTextEmbeddingServiceSettings(
             1,
             4,
             "invalid",

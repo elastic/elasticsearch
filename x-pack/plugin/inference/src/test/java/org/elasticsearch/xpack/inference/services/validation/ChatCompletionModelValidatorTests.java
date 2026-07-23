@@ -40,7 +40,7 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
     @Mock
     private Model mockModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
 
     private ChatCompletionModelValidator underTest;
 

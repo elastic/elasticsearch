@@ -240,41 +240,63 @@ class AbstractRateGroupingFunction {
             } else {
                 slices[startIndex] += numValuesToConsume;
             }
-            siftDown(0);
+            siftTopElementDown();
             return numValuesToConsume;
         }
 
         private void siftUp(int localSliceIndex) {
+            int sliceStart = getSliceStart(localSliceIndex);
+            int sliceEnd = getSliceEnd(localSliceIndex);
+            long sliceTimestamp = valuesBuffer.timestamps.get(sliceStart);
             int currentIdx = localSliceIndex;
             while (currentIdx > 0) {
-                int parentIndex = (currentIdx - 1) / 2;
-                if (getNextTimestamp(currentIdx) <= getNextTimestamp(parentIndex)) {
+                int parentIdx = (currentIdx - 1) / 2;
+                if (sliceTimestamp <= getNextTimestamp(parentIdx)) {
                     break;
                 }
-                swapSlices(currentIdx, parentIndex);
-                currentIdx = parentIndex;
+                moveSlice(parentIdx, currentIdx);
+                currentIdx = parentIdx;
             }
+            slices[startIndex + 2 * currentIdx] = sliceStart;
+            slices[startIndex + 2 * currentIdx + 1] = sliceEnd;
         }
 
-        private void siftDown(int localSliceIndex) {
-            int currentIdx = localSliceIndex;
+        private void siftTopElementDown() {
+            int sliceStart = slices[startIndex];
+            int sliceEnd = slices[startIndex + 1];
+            long sliceTimestamp = valuesBuffer.timestamps.get(sliceStart);
             int numSlices = getNumSlices();
+            int currentIdx = 0;
             while (true) {
                 int leftChild = 2 * currentIdx + 1;
                 int rightChild = 2 * currentIdx + 2;
                 int largest = currentIdx;
-                if (leftChild < numSlices && getNextTimestamp(leftChild) > getNextTimestamp(largest)) {
-                    largest = leftChild;
-                }
-                if (rightChild < numSlices && getNextTimestamp(rightChild) > getNextTimestamp(largest)) {
-                    largest = rightChild;
+                if (rightChild < numSlices) {
+                    long leftTs = getNextTimestamp(leftChild);
+                    long rightTs = getNextTimestamp(rightChild);
+                    if (leftTs > rightTs) {
+                        if (leftTs > sliceTimestamp) {
+                            largest = leftChild;
+                        }
+                    } else {
+                        if (rightTs > sliceTimestamp) {
+                            largest = rightChild;
+                        }
+                    }
+                } else if (leftChild < numSlices) {
+                    long leftTs = getNextTimestamp(leftChild);
+                    if (leftTs > sliceTimestamp) {
+                        largest = leftChild;
+                    }
                 }
                 if (largest == currentIdx) {
                     break;
                 }
-                swapSlices(currentIdx, largest);
+                moveSlice(largest, currentIdx);
                 currentIdx = largest;
             }
+            slices[startIndex + 2 * currentIdx] = sliceStart;
+            slices[startIndex + 2 * currentIdx + 1] = sliceEnd;
         }
 
         private int getNumSlices() {
@@ -293,15 +315,11 @@ class AbstractRateGroupingFunction {
             return slices[startIndex + localSliceIndex * 2 + 1];
         }
 
-        private void swapSlices(int localIndexA, int localIndexB) {
-            int offsetA = startIndex + localIndexA * 2;
-            int offsetB = startIndex + localIndexB * 2;
-            int startA = slices[offsetA];
-            int endA = slices[offsetA + 1];
-            slices[offsetA] = slices[offsetB];
-            slices[offsetA + 1] = slices[offsetB + 1];
-            slices[offsetB] = startA;
-            slices[offsetB + 1] = endA;
+        private void moveSlice(int fromLocalIndex, int toLocalIndex) {
+            int fromOffset = startIndex + fromLocalIndex * 2;
+            int toOffset = startIndex + toLocalIndex * 2;
+            slices[toOffset] = slices[fromOffset];
+            slices[toOffset + 1] = slices[fromOffset + 1];
         }
     }
 

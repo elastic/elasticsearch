@@ -896,6 +896,7 @@ public class IndexEngine extends InternalEngine {
     // For cleanup after resharding
     public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
         super.deleteByQuery(query);
+        onReshardCleanup();
     }
 
     @Override

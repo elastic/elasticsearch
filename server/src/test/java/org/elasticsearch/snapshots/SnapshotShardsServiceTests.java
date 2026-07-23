@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -24,6 +25,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
@@ -308,6 +312,45 @@ public class SnapshotShardsServiceTests extends ESTestCase {
         assertThat(
             SnapshotShardsService.summarizeFailure(wrappedWithTwoNested),
             is("RuntimeException[wrapped]; nested: IOException[nested]; nested: IOException[root]")
+        );
+    }
+
+    public void testGetShardStateIdIncludesReshardCleanupUUID() throws IOException {
+        final long maxSeqNo = randomNonNegativeLong();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(maxSeqNo);
+
+        final String historyUuid = UUIDs.randomBase64UUID(random());
+        final IndexCommit commitWithoutCleanup = mock(IndexCommit.class);
+        when(commitWithoutCleanup.getUserData()).thenReturn(
+            Map.of(
+                Engine.HISTORY_UUID_KEY,
+                historyUuid,
+                SequenceNumbers.MAX_SEQ_NO,
+                Long.toString(maxSeqNo),
+                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                Long.toString(maxSeqNo)
+            )
+        );
+        assertThat(SnapshotShardsService.getShardStateId(indexShard, commitWithoutCleanup), is(historyUuid + "-na-" + maxSeqNo + "-na"));
+
+        final String cleanupUuid = UUIDs.randomBase64UUID(random());
+        final IndexCommit commitWithCleanup = mock(IndexCommit.class);
+        when(commitWithCleanup.getUserData()).thenReturn(
+            Map.of(
+                Engine.HISTORY_UUID_KEY,
+                historyUuid,
+                SequenceNumbers.MAX_SEQ_NO,
+                Long.toString(maxSeqNo),
+                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                Long.toString(maxSeqNo),
+                Engine.RESHARD_CLEANUP_UUID_KEY,
+                cleanupUuid
+            )
+        );
+        assertThat(
+            SnapshotShardsService.getShardStateId(indexShard, commitWithCleanup),
+            is(historyUuid + "-na-" + maxSeqNo + "-" + cleanupUuid)
         );
     }
 

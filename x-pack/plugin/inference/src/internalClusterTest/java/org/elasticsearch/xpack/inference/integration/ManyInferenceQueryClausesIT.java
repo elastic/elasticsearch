@@ -113,22 +113,18 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
 
     public void testManyKnnQueryClauses() throws Exception {
         int clauseCount = randomIntBetween(18, 24);
-        manyQueryClausesTestCase(clauseCount, (fi, query) -> new KnnVectorQueryBuilder(
-            fi.fieldName(),
-            switch(fi.inferenceTaskType()) {
-                case EMBEDDING -> new EmbeddingQueryVectorBuilder(fi.inferenceId(), new InferenceStringGroup(query), null);
-                case TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(null, query);
-                default -> throw new IllegalArgumentException("Unhandled task type [" + fi.inferenceTaskType() + "]");
-            },
-            clauseCount,
-            clauseCount * 10,
-            null,
-            null
-        ), Set.of(TaskType.EMBEDDING, TaskType.TEXT_EMBEDDING));
+        manyQueryClausesTestCase(clauseCount, (fi, query) -> new KnnVectorQueryBuilder(fi.fieldName(), switch (fi.inferenceTaskType()) {
+            case EMBEDDING -> new EmbeddingQueryVectorBuilder(fi.inferenceId(), new InferenceStringGroup(query), null);
+            case TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(null, query);
+            default -> throw new IllegalArgumentException("Unhandled task type [" + fi.inferenceTaskType() + "]");
+        }, clauseCount, clauseCount * 10, null, null), Set.of(TaskType.EMBEDDING, TaskType.TEXT_EMBEDDING));
     }
 
-    private void manyQueryClausesTestCase(int clauseCount, BiFunction<FieldInfo, String, QueryBuilder> clauseGenerator, Set<TaskType> taskTypesToTest)
-        throws Exception {
+    private void manyQueryClausesTestCase(
+        int clauseCount,
+        BiFunction<FieldInfo, String, QueryBuilder> clauseGenerator,
+        Set<TaskType> taskTypesToTest
+    ) throws Exception {
         List<FieldInfo> fields = new ArrayList<>(clauseCount);
         for (int i = 0; i < clauseCount; i++) {
             String fieldName = randomAlphaOfLength(10);

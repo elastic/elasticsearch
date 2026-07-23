@@ -60,7 +60,7 @@ public final class CacheControl implements ToXContentObject, NamedWriteable {
         parser.declareString(optionalConstructorArg(), new ParseField(CACHE_CONTROL_TYPE_FIELD));
         parser.declareField(
             optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), CACHE_CONTROL_TTL_FIELD),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), null, CACHE_CONTROL_TTL_FIELD),
             new ParseField(CACHE_CONTROL_TTL_FIELD),
             ObjectParser.ValueType.STRING_OR_NULL
         );

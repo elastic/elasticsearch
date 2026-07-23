@@ -41,6 +41,20 @@ public class CacheControlTests extends AbstractBWCSerializationTestCase<CacheCon
         }
     }
 
+    public void testParsingCacheControl_TtlNull() throws IOException {
+        String json = """
+            {
+                "type": "ephemeral",
+                "ttl": null
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            var cacheControl = CacheControl.PARSER.apply(parser, null);
+            assertThat(cacheControl, is(new CacheControl("ephemeral", null)));
+        }
+    }
+
     public void testParsingCacheControl_OnlyType() throws IOException {
         String json = """
             {

@@ -14,7 +14,6 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -70,6 +69,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -454,7 +454,7 @@ public class CsvIT extends ESTestCase {
                             loadViews();
                             loadAliases();
                         }
-                        case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
+                        case EsqlResolveFieldsAction.NAME -> loadIndices((EsqlResolveFieldsRequest) request);
                         case GetInferenceModelAction.NAME -> loadInference((GetInferenceModelAction.Request) request);
                     }
                     return true;
@@ -532,7 +532,7 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static void loadIndices(FieldCapabilitiesRequest request) {
+    private static void loadIndices(EsqlResolveFieldsRequest request) {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {

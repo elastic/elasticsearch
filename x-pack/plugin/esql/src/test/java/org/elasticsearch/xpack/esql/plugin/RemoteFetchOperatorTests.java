@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -68,7 +66,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
             3,
-            new ThreadContext(Settings.EMPTY),
             EchoFetchClient::new
         );
     }
@@ -202,7 +199,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testFetchesAcrossNodesAndReassemblesInInputOrder() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(
             new RemoteFetchService.FetchField("salary", DataType.INTEGER),
             new RemoteFetchService.FetchField("name", DataType.KEYWORD)
@@ -238,7 +234,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -290,7 +285,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
      */
     public void testEmptyInputPageEmitsEmptyPageWithFullSchema() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -304,7 +298,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -338,7 +331,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
      */
     public void testPlainFetchRejectsEmptyBatchResponse() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -356,7 +348,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -385,7 +376,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
      */
     public void testFilteredMergePreservesConstantInputBlocks() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -404,7 +394,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -443,7 +432,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testFilteredFetchDropsRowsAndRemapsPositions() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(
             new RemoteFetchService.FetchField("salary", DataType.INTEGER),
             new RemoteFetchService.FetchField("name", DataType.KEYWORD)
@@ -474,7 +462,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -522,7 +509,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testStreamingFetchWaitsForAllGroupsBeforeConservativeOutput() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -539,7 +525,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -576,7 +561,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testFilteredFetchCanDropAllRowsInGroupAfterLastPageMarker() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -595,7 +579,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -630,7 +613,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testPushdownRequiresMappedResponsePages() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -648,7 +630,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -673,7 +654,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testPlainFetchRejectsMappedResponsePages() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -691,7 +671,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -716,7 +695,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testInvalidRequestShapesRejected() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -728,7 +706,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             IllegalArgumentException.class,
             () -> new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 List.of(),
                 outputFields,
@@ -742,24 +719,13 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
         IllegalArgumentException noOutputFields = expectThrows(
             IllegalArgumentException.class,
-            () -> new RemoteFetchOperator(
-                driverContext,
-                threadContext,
-                0,
-                fields,
-                List.of(),
-                null,
-                ConfigurationAware.CONFIGURATION_MARKER,
-                2,
-                client
-            )
+            () -> new RemoteFetchOperator(driverContext, 0, fields, List.of(), null, ConfigurationAware.CONFIGURATION_MARKER, 2, client)
         );
         assertThat(noOutputFields.getMessage(), containsString("remote fetch requires at least one output field"));
     }
 
     public void testUnsupportedPushdownRejectedAtOperatorConstruction() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         ReferenceAttribute outputField = new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
@@ -778,7 +744,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             IllegalArgumentException.class,
             () -> new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 List.of(outputField),
@@ -801,7 +766,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             new InvalidPositionCase("too_large", "out of range")
         )) {
             DriverContext driverContext = driverContext();
-            ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
             List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
             RecordingClient client = new RecordingClient(driverContext) {
@@ -825,7 +789,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             try (
                 RemoteFetchOperator operator = new RemoteFetchOperator(
                     driverContext,
-                    threadContext,
                     0,
                     fields,
                     outputFields,
@@ -851,7 +814,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testAddInputFailureKeepsOperatorUnfinishedUntilFailureIsThrown() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
@@ -865,7 +827,6 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,
@@ -891,14 +852,12 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
     public void testIsBlockedWaitsForRemoteFetchEvenWhenMoreInputCanBeAccepted() {
         DriverContext driverContext = driverContext();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
 
         try (
             RemoteFetchOperator operator = new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 0,
                 fields,
                 outputFields,

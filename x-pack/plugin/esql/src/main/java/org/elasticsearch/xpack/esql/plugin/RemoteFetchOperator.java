@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -52,14 +51,12 @@ public final class RemoteFetchOperator implements Operator {
         PhysicalPlan pushdownPlan,
         Configuration configuration,
         int maxOutstandingRequests,
-        ThreadContext threadContext,
         RemoteFetchService.ClientFactory clientFactory
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new RemoteFetchOperator(
                 driverContext,
-                threadContext,
                 handleChannel,
                 requestFields,
                 outputFields,
@@ -164,9 +161,11 @@ public final class RemoteFetchOperator implements Operator {
     private long batchesSent;
     private int exchangesOpened;
 
+    // Note: no ThreadContext parameter on purpose. This operator only interacts with its exchanges synchronously
+    // on the driver thread; response-header propagation for the async transport work is owned by
+    // BidirectionalBatchExchangeClient and replayed via TargetExchangeChannel#close.
     RemoteFetchOperator(
         DriverContext driverContext,
-        ThreadContext threadContext,
         int handleChannel,
         List<RemoteFetchService.FetchField> requestFields,
         List<Attribute> outputFields,

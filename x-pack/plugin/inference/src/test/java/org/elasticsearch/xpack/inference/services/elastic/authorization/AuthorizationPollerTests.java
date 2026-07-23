@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.action.InternalDeleteInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
@@ -501,11 +503,15 @@ public class AuthorizationPollerTests extends ESTestCase {
         ccmService = createMockCCMService(true);
 
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
+        givenDeleteActionRespondsWith(AcknowledgedResponse.TRUE);
 
         var poller = createPoller();
         poller.sendAuthorizationRequest();
 
-        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+        var requestArgCaptor = ArgumentCaptor.forClass(InternalDeleteInferenceEndpointsAction.Request.class);
+        verify(mockClient).execute(eq(InternalDeleteInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        assertThat(requestArgCaptor.getValue().getInferenceEntityIds(), is(endpointsToDelete));
+        verify(mockRegistry, never()).deleteModel(any(), any());
     }
 
     public void testSendsAuthorizationRequest_ShouldIgnoreRemovedEndpointsNotInRegistry() {
@@ -517,11 +523,15 @@ public class AuthorizationPollerTests extends ESTestCase {
         ccmService = createMockCCMService(true);
 
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
+        givenDeleteActionRespondsWith(AcknowledgedResponse.TRUE);
 
         var poller = createPoller();
         poller.sendAuthorizationRequest();
 
-        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+        var requestArgCaptor = ArgumentCaptor.forClass(InternalDeleteInferenceEndpointsAction.Request.class);
+        verify(mockClient).execute(eq(InternalDeleteInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        assertThat(requestArgCaptor.getValue().getInferenceEntityIds(), is(endpointsToDelete));
+        verify(mockRegistry, never()).deleteModel(any(), any());
     }
 
     public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
@@ -535,7 +545,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var poller = createPoller();
         poller.sendAuthorizationRequest();
 
-        verify(mockRegistry, never()).deleteModels(any(), any());
+        verify(mockClient, never()).execute(eq(InternalDeleteInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     private AuthorizationPoller createPoller() {
@@ -580,6 +590,14 @@ public class AuthorizationPollerTests extends ESTestCase {
         // Throwing an exception should cause the poller to shutdown and mark itself as completed
         eisSettings = mock(ElasticInferenceServiceSettings.class);
         when(eisSettings.isPeriodicAuthorizationEnabled()).thenThrow(exception);
+    }
+
+    private void givenDeleteActionRespondsWith(AcknowledgedResponse response) {
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(response);
+            return null;
+        }).when(mockClient).execute(eq(InternalDeleteInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     private void sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(

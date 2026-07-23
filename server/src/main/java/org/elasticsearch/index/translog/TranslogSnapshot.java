@@ -62,6 +62,47 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return checkpoint;
     }
 
+    /**
+     * Used for translog recovery. Returns an {@link Translog.Operation} for a single op and a
+     * {@link Translog.IndexBatch} for a batch read.
+     * @throws IOException
+     */
+    public Translog.Record nextRecord() throws IOException {
+
+        while (readOperations < totalOperations) {
+            final int opSize = readSize(reusableBuffer, position);
+            reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
+            final Translog.Record record = readRecord(reuse);
+            position += opSize;
+
+            if (record instanceof Translog.Operation op) {
+                readOperations++;
+                if (op.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    return op;
+                }
+                skippedOperations++;
+                continue;
+            }
+
+            final Translog.IndexBatch batch = (Translog.IndexBatch) record;
+            readOperations += batch.docCount();
+
+            final long trimmedAboveSeqNo = checkpoint.trimmedAboveSeqNo;
+            final Translog.IndexBatch filtered = batch.filterOps(
+                seqNo -> seqNo <= trimmedAboveSeqNo || trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
+            );
+            if (filtered == null) {
+                skippedOperations += batch.docCount();
+                continue;
+            }
+            skippedOperations += batch.docCount() - filtered.docCount();
+            return filtered;
+        }
+
+        reuse = null; // release buffer, it may be large and is no longer needed
+        return null;
+    }
+
     public Translog.Operation next() throws IOException {
         while (readOperations < totalOperations) {
             final Translog.Operation operation = nextOperation();

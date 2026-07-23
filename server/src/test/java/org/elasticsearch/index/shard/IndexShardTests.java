@@ -56,6 +56,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -78,6 +79,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -131,6 +134,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -3196,6 +3200,477 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
 
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithinSeqNoRange() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final AtomicInteger recoveryBatchCalls = new AtomicInteger();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+                assert batch == null;
+                recoveryBatchCalls.incrementAndGet();
+                return super.indexBatch(operations, batch);
+            }
+        });
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 6;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                source.map(Map.of("value", "v" + i));
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        // A real translog holding one batch with seqNos 0..numDocs-1 (doc "doc-i" carries seqNo i).
+        final Translog.IndexBatch batch = TestTranslog.indexBatch(sources, XContentType.JSON, 0, term, "doc-");
+        try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+            // Non-trivial window: exclude seqNos 0,1 (below from) and numDocs-1 (above to); keep [2, numDocs-2].
+            final long fromSeqNo = 2;
+            final long toSeqNo = numDocs - 2;
+            primary.recoveryState().getTranslog().totalOperations(numDocs);
+            primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+            primary.state = IndexShardState.RECOVERING;
+            try (Translog.Snapshot snapshot = translog.newSnapshot(fromSeqNo, toSeqNo)) {
+                primary.runTranslogRecovery(
+                    primary.getEngine(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                );
+            }
+        }
+
+        assertThat(getShardDocIDs(primary), containsInAnyOrder("doc-2", "doc-3", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(3));
+        assertThat(recoveryBatchCalls.get(), greaterThan(0));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithOneFailure() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        // Index of the op (within the batch) whose result is swapped for an injected failure, to
+        // produce the SUCCESS-SUCCESS-FAILURE-SUCCESS-SUCCESS sequence described above.
+        final int failedIndex = 2;
+        IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+                // Delegate to the real engine so every op is genuinely indexed, then swap in a
+                // synthetic failure result for one op. This isolates the aggregation logic under
+                // test (IndexShard#runTranslogRecovery counting/throwing) from engine-level failure
+                // semantics, which are exercised elsewhere.
+                final List<Engine.IndexResult> results = super.indexBatch(operations, batch);
+                final Engine.IndexResult original = results.get(failedIndex);
+                results.set(
+                    failedIndex,
+                    new Engine.IndexResult(
+                        new RuntimeException("injected failure"),
+                        original.getVersion(),
+                        original.getTerm(),
+                        original.getSeqNo(),
+                        original.getId()
+                    )
+                );
+                return results;
+            }
+        });
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                source.map(Map.of("value", "v" + i));
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final Translog.IndexBatch batch = TestTranslog.indexBatch(sources, XContentType.JSON, 0, term, "doc-");
+        try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+            primary.recoveryState().getTranslog().totalOperations(numDocs);
+            primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+            primary.state = IndexShardState.RECOVERING;
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                final RuntimeException thrown = expectThrows(
+                    RuntimeException.class,
+                    () -> primary.runTranslogRecovery(
+                        primary.getEngine(),
+                        snapshot,
+                        Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                        primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                    )
+                );
+                assertThat(thrown.getMessage(), equalTo("injected failure"));
+            }
+        }
+
+        // All 4 successful ops (everything except index 2) must be counted before the throw.
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs - 1));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithDynamicMapping() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger indexCalls = new AtomicInteger();
+        IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+                batchCalls.incrementAndGet();
+                return super.indexBatch(operations, batch);
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                indexCalls.incrementAndGet();
+                return super.index(index);
+            }
+        });
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        // The doc at this index carries a field absent from the mapping, forcing a dynamic mapping
+        // update at replay time.
+        final int mappingUpdateIndex = 2;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                if (i == mappingUpdateIndex) {
+                    source.map(Map.of("value", "v" + i, "newfield", "x")); // put something which is not in the mapping
+                } else {
+                    source.map(Map.of("value", "v" + i));
+                }
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final Translog.IndexBatch batch = TestTranslog.indexBatch(sources, XContentType.JSON, 0, term, "doc-");
+        try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+            primary.recoveryState().getTranslog().totalOperations(numDocs);
+            primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+            primary.state = IndexShardState.RECOVERING;
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                primary.runTranslogRecovery(
+                    primary.getEngine(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                );
+            }
+        }
+
+        // The batch is abandoned before being submitted to the engine once a dynamic mapping update
+        // is detected; recovery falls back to indexing each remaining op individually instead.
+        assertThat(batchCalls.get(), equalTo(0));
+        assertThat(indexCalls.get(), equalTo(numDocs - 1));
+        assertThat(getShardDocIDs(primary), containsInAnyOrder("doc-0", "doc-1", "doc-3", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs - 1));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithEscfEncoding() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        IndexShard primary = newShard(routing, metadata, null, new InternalEngineFactory());
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                source.map(Map.of("value", "v" + i));
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final BytesReference batchData;
+        try (EscfBatch escf = EscfEncoder.encode(sources, XContentType.JSON)) {
+            batchData = new BytesArray(escf.data().toBytesRef(), true);
+        }
+        final List<Translog.IndexBatch.Op> ops = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            ops.add(new Translog.IndexBatch.IndexOp(1L, i, 100L + i, i, XContentType.JSON, Uid.encodeId("doc-" + i), null));
+        }
+        final Translog.IndexBatch batch = new Translog.IndexBatch(batchData, term, ops);
+        try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+            primary.recoveryState().getTranslog().totalOperations(numDocs);
+            primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+            primary.state = IndexShardState.RECOVERING;
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                primary.runTranslogRecovery(
+                    primary.getEngine(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                );
+            }
+        }
+
+        assertThat(getShardDocIDs(primary), containsInAnyOrder("doc-0", "doc-1", "doc-2", "doc-3", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchPrepareIndexThrows() throws Exception {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        final int failingOpIndex = 2;
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "dynamic": "strict", "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger indexCalls = new AtomicInteger();
+        IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+                batchCalls.incrementAndGet();
+                return super.indexBatch(operations, batch);
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                indexCalls.incrementAndGet();
+                return super.index(index);
+            }
+        });
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                if (i == failingOpIndex) {
+                    // Unknown field under a strict mapping: prepareIndex will throw StrictDynamicMappingException.
+                    source.map(Map.of("value", "v" + i, "newfield", "x"));
+                } else {
+                    source.map(Map.of("value", "v" + i));
+                }
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final Translog.IndexBatch batch = TestTranslog.indexBatch(sources, XContentType.JSON, 0, term, "doc-");
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "prepareIndex failure warning",
+                    "org.elasticsearch.index.shard.IndexShard",
+                    Level.WARN,
+                    "failed to prepare index"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "ignoring corrupt translog entry",
+                    "org.elasticsearch.index.shard.IndexShard",
+                    Level.INFO,
+                    "ignoring recovery of a corrupt translog entry"
+                )
+            );
+
+            try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+                primary.recoveryState().getTranslog().totalOperations(numDocs);
+                primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+                primary.state = IndexShardState.RECOVERING;
+                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                    primary.runTranslogRecovery(
+                        primary.getEngine(),
+                        snapshot,
+                        Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                        primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                    );
+                }
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        // Batch path was never used; individual index calls cover the successful ops only.
+        assertThat(batchCalls.get(), equalTo(0));
+        assertThat(indexCalls.get(), equalTo(numDocs - 1));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs - 1));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchMixedFailures() throws Exception {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        final int ignorableFailureIndex = 1;
+        final int nonIgnorableFailureIndex = 3;
+        IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+                final List<Engine.IndexResult> results = super.indexBatch(operations, batch);
+                final Engine.IndexResult ignorable = results.get(ignorableFailureIndex);
+                results.set(
+                    ignorableFailureIndex,
+                    new Engine.IndexResult(
+                        new IllegalArgumentException("ignorable failure"),
+                        ignorable.getVersion(),
+                        ignorable.getTerm(),
+                        ignorable.getSeqNo(),
+                        ignorable.getId()
+                    )
+                );
+                final Engine.IndexResult nonIgnorable = results.get(nonIgnorableFailureIndex);
+                results.set(
+                    nonIgnorableFailureIndex,
+                    new Engine.IndexResult(
+                        new RuntimeException("non-ignorable failure"),
+                        nonIgnorable.getVersion(),
+                        nonIgnorable.getTerm(),
+                        nonIgnorable.getSeqNo(),
+                        nonIgnorable.getId()
+                    )
+                );
+                return results;
+            }
+        });
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                source.map(Map.of("value", "v" + i));
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final Translog.IndexBatch batch = TestTranslog.indexBatch(sources, XContentType.JSON, 0, term, "doc-");
+
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "ignorable failure log",
+                    "org.elasticsearch.index.shard.IndexShard",
+                    Level.INFO,
+                    "ignoring recovery of a corrupt translog entry"
+                )
+            );
+
+            try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+                primary.recoveryState().getTranslog().totalOperations(numDocs);
+                primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+                primary.state = IndexShardState.RECOVERING;
+                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                    // Non-ignorable failure throws RTE
+                    final RuntimeException thrown = expectThrows(
+                        RuntimeException.class,
+                        () -> primary.runTranslogRecovery(
+                            primary.getEngine(),
+                            snapshot,
+                            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                            primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                        )
+                    );
+                    assertThat(thrown.getMessage(), equalTo("non-ignorable failure"));
+                }
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        // All 3 successful ops (0, 2, 4) are counted before failures are processed.
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(3));
         closeShards(primary);
     }
 

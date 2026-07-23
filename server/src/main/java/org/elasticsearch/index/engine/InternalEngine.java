@@ -1374,9 +1374,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
-        assert operations.size() == batch.docCount()
-            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+    public List<IndexResult> indexBatch(List<Index> operations, @Nullable SourceBatch batch) throws IOException {
+        assert assertValidBatchCall(operations, batch);
+
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
             boolean isRecovery = operations.getFirst().origin().isRecovery();
@@ -1423,6 +1423,20 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * A {@code null} batch is only permitted when replaying from translog. Otherwise the
+     * operations must map 1:1 onto the batch's rows.
+     */
+    private static boolean assertValidBatchCall(List<Index> operations, @Nullable SourceBatch batch) {
+        if (batch == null) {
+            assert operations.getFirst().origin().isFromTranslog() : "null batch only permitted for translog replay";
+        } else {
+            assert operations.size() == batch.docCount()
+                : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+        }
+        return true;
+    }
+
     private static boolean assertNoDuplicateUidsInSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize) {
         final Set<BytesRef> seenUids = HashSet.newHashSet(subBatchSize);
         for (int i = subBatchIdx; i < subBatchIdx + subBatchSize; i++) {
@@ -1458,6 +1472,7 @@ public class InternalEngine extends Engine {
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
+        assert (fromTranslog && batch == null) || (fromTranslog == false && batch != null);
         final Index[] subBatchOps = new Index[subBatchSize];
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
 

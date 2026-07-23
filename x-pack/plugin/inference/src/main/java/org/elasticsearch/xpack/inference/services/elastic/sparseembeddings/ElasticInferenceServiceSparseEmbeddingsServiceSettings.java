@@ -109,6 +109,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             map.remove(MODEL_ID);
             map.remove(MAX_INPUT_TOKENS);
             map.remove(MAX_BATCH_SIZE);
+            map.remove(RateLimitSettings.FIELD_NAME);
             return builder.build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);

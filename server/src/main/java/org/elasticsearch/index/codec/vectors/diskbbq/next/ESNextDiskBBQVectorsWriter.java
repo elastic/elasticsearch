@@ -556,12 +556,22 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 }
                 byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
                 postingsOutput.writeByte(encoding);
+
                 offHeapQuantizedVectors.reset(size, ord -> vectorCentroidIdx[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
                 // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
-                    // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-                });
+                if (sliceField != null && centroidSupplier.slices() == null) {
+                    // This is the case where we have small slices when merging so we better write all our vectors in one centroid.
+                    // We are not writing the docIds as we know they are writing in vector ord order.
+                    // we will use the delegated FloatVectorValue instance on read to do the translation for us.
+                    assert centroidSupplier.size() == 1;
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, null);
+                } else {
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
+                        // for vector i we write `bulk` size docs or the remaining docs
+                        idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                    });
+                }
+
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
 
@@ -762,7 +772,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
         // TODO: teach the tiered strategy about slices and reuse per-slice priors.
         if (sliceField != null) {
-            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
+            return calculateCentroidsFullRebuildSliced(floatVectorValues, mergeState);
         }
 
         // Gather prior segment statistics for tiered merge strategy selection
@@ -848,11 +858,20 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
     }
 
-    private CentroidInformation calculateCentroidsFullRebuildSliced(
-        KMeansFloatVectorValues floatVectorValues,
-        FieldInfo fieldInfo,
-        MergeState mergeState
-    ) throws IOException {
+    private CentroidInformation calculateCentroidsFullRebuildSliced(KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
+        throws IOException {
+        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
+        assert slicedFieldInfo != null;
+        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
+        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
+        final int numSlices = values.getValueCount();
+        if (floatVectorValues.size() / numSlices <= 4 * flatVectorThreshold) {
+            // for small slices, don't cluster the slices. We allow for a bit more headroom than normal idices
+            // as flat representation of slices id more efficient as it does not require writting doc ids.
+            float[][] centroid = new float[][] { CentroidOps.FLOAT.computeMeanCentroid(floatVectorValues, floatVectorValues.dimension()) };
+            int[] assignments = new int[floatVectorValues.size()];
+            return new CentroidInformation(floatVectorValues.dimension(), centroid, assignments, OverspillAssignments.NONE, null);
+        }
         HierarchicalKMeans<float[]> hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
@@ -864,11 +883,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         }
-        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
-        assert slicedFieldInfo != null;
-        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
-        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
-        final int numSlices = values.getValueCount();
         final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
         iterator.advance(0);
         values.nextDoc();

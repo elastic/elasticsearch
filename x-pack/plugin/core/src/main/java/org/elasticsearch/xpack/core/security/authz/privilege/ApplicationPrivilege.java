@@ -68,10 +68,13 @@ public final class ApplicationPrivilege extends Privilege {
      * The action patterns granted by this privilege (the expanded actions of a named privilege, or the
      * bespoke action patterns of an inline privilege). Exposed so that a resolved role can surface the
      * actions a user holds — e.g. to a document-level-security query template. Patterns may contain
-     * wildcards; callers that compare against literal actions must account for that.
+     * wildcards (including a bare {@code "*"}); callers that compare against literal actions must account
+     * for that. Uses {@link Set#copyOf} rather than {@link Set#of} so a (theoretically) duplicated pattern
+     * does not throw, since {@code patterns} originates from a package-private constructor with no dedup
+     * guarantee.
      */
     public Set<String> getActions() {
-        return Set.of(patterns);
+        return Set.copyOf(Arrays.asList(patterns));
     }
 
     /**

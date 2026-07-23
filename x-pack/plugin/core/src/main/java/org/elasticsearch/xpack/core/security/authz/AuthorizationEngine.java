@@ -290,11 +290,19 @@ public interface AuthorizationEngine {
         /**
          * Returns the application-privilege resources granted to this user, keyed by application name
          * (e.g. {@code "kibana-.kibana" -> ["*", "space:default", "space:marketing"]}). This is exposed to
-         * document-level-security query templates as {@code _user.applications}, so a role's DLS query can
-         * filter documents by the application resources the user holds. The resource strings are opaque to
-         * Elasticsearch (never parsed or interpreted here). Empty by default; only the RBAC implementation
-         * populates it. Implementations must return a deterministically-ordered result so that the value is
-         * stable across the two DLS render sites (filter query and request-cache key).
+         * document-level-security query templates as {@code _user.applications}, and its flattened union
+         * across all applications as {@code _user.application_resources}, so a role's DLS query can filter
+         * documents by the application resources the user holds.
+         * <p>
+         * The resource strings are opaque to Elasticsearch (never parsed or interpreted here) and are
+         * <em>patterns</em>, so a value may be a wildcard such as {@code "*"} (grant-all); a DLS template
+         * author matching these with a {@code terms} query must account for that. The flattened
+         * {@code _user.application_resources} unions across every application, collapsing the per-application
+         * dimension — only {@code _user.applications} preserves which application a resource came from.
+         * <p>
+         * Empty by default; only the RBAC implementation populates it. Implementations must return a
+         * deterministically-ordered result (keys and values) so that the value is stable across the two DLS
+         * render sites (filter query and request-cache key), otherwise the request cache can be corrupted.
          */
         default Map<String, List<String>> getApplicationResources() {
             return Map.of();
@@ -305,10 +313,21 @@ public interface AuthorizationEngine {
          * Each value is a list of {@code <resource>|<action>} composite grant tuples (e.g.
          * {@code "space:marketing|saved_object:dashboard/get"}), i.e. the cross-product of each granted
          * privilege's actions with the resources it was granted on. Exposed to document-level-security query
-         * templates as {@code _user.application_privileges} so a DLS query can filter by "does the user hold
-         * this action on this resource" — the resource-scoped equivalent of {@link #getApplicationResources()}.
-         * Action strings are opaque to Elasticsearch and may contain wildcard patterns. Empty by default;
-         * only the RBAC implementation populates it, deterministically ordered.
+         * templates (as the flattened union {@code _user.application_privileges}) so a DLS query can filter by
+         * "does the user hold this action on this resource" — the resource-scoped equivalent of
+         * {@link #getApplicationResources()}. Matching the two dimensions <em>together</em> as one token avoids
+         * over-granting a user who holds action A in resource X and action B in resource Y (they must not match
+         * "action A in resource Y").
+         * <p>
+         * Both resource and action strings are opaque to Elasticsearch and may contain wildcard patterns
+         * (including a bare {@code "*"}). The two are joined with a literal {@code '|'}; this assumes neither a
+         * resource nor an action string itself contains {@code '|'} (true for the intended Kibana usage — space
+         * ids and saved-object action names never contain it). A resource or action containing {@code '|'}
+         * would make a token ambiguous (e.g. {@code "a|b"}+{@code "c"} vs {@code "a"}+{@code "b|c"}); such
+         * grants are not expected and are not currently escaped. Like {@link #getApplicationResources()} the
+         * result flattens across applications.
+         * <p>
+         * Empty by default; only the RBAC implementation populates it, deterministically ordered.
          */
         default Map<String, List<String>> getApplicationPrivileges() {
             return Map.of();

@@ -111,6 +111,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -1082,6 +1083,14 @@ public class RBACEngine implements AuthorizationEngine {
         private final Role role;
         private final Map<String, Object> info;
         private final RBACAuthorizationInfo authenticatedUserAuthorizationInfo;
+        // Lazily computed and memoized: the DLS filter is rendered at two sites (the reader wrapper and
+        // the request-cache differentiator) and, on a data node, once per shard search — all reading this
+        // same AuthorizationInfo instance from the thread context. Computing on demand and caching means
+        // the (automaton-backed) resource/privilege resolution runs at most once per request instead of
+        // once per render. The fields are volatile with a benign recompute race: any recomputation yields
+        // an equal map, so no locking is needed.
+        private volatile Map<String, List<String>> applicationResources;
+        private volatile Map<String, List<String>> applicationPrivileges;
 
         RBACAuthorizationInfo(Role role, Role authenticatedUserRole) {
             this.role = Objects.requireNonNull(role);
@@ -1107,16 +1116,26 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public Map<String, List<String>> getApplicationResources() {
+            Map<String, List<String>> cached = applicationResources;
+            if (cached == null) {
+                cached = computeApplicationResources();
+                applicationResources = cached;
+            }
+            return cached;
+        }
+
+        private Map<String, List<String>> computeApplicationResources() {
             final var application = role.application();
             final Set<String> applicationNames = application.getApplicationNames();
             if (applicationNames.isEmpty()) {
                 return Map.of();
             }
-            final Map<String, List<String>> result = new HashMap<>(applicationNames.size());
+            // TreeMap so the applicationName -> ... map itself has a deterministic iteration order, matching
+            // the TreeSet-ordered values; a template rendering {{#toJson}}_user.applications{{/toJson}} then
+            // produces stable output across render sites (and therefore a stable request-cache key).
+            final Map<String, List<String>> result = new TreeMap<>();
             for (String applicationName : applicationNames) {
                 // Union the resource patterns across every privilege granted for this application.
-                // TreeSet gives a deterministic order, which keeps the rendered DLS query (and therefore
-                // the request-cache key derived from it) stable across render sites.
                 final Set<String> resources = new TreeSet<>();
                 for (ApplicationPrivilege privilege : application.getPrivileges(applicationName)) {
                     resources.addAll(application.getResourcePatterns(privilege));
@@ -1130,16 +1149,30 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public Map<String, List<String>> getApplicationPrivileges() {
+            Map<String, List<String>> cached = applicationPrivileges;
+            if (cached == null) {
+                cached = computeApplicationPrivileges();
+                applicationPrivileges = cached;
+            }
+            return cached;
+        }
+
+        private Map<String, List<String>> computeApplicationPrivileges() {
             final var application = role.application();
             final Set<String> applicationNames = application.getApplicationNames();
             if (applicationNames.isEmpty()) {
                 return Map.of();
             }
-            final Map<String, List<String>> result = new HashMap<>(applicationNames.size());
+            final Map<String, List<String>> result = new TreeMap<>();
             for (String applicationName : applicationNames) {
                 // Emit one "<resource>|<action>" token per (granted action x resource-it-was-granted-on),
                 // so a DLS template can enforce "user holds this action on this resource" rather than the
                 // two dimensions independently. TreeSet keeps it deterministic for cache-key stability.
+                //
+                // NOTE: the '|' delimiter is assumed absent from both resource and action strings. That holds
+                // for the intended Kibana usage (space ids and saved-object action names never contain '|'),
+                // but resource/action strings are otherwise opaque to Elasticsearch — see getActions() and the
+                // AuthorizationInfo javadoc. A resource/action containing '|' would make the token ambiguous.
                 final Set<String> grants = new TreeSet<>();
                 for (ApplicationPrivilege privilege : application.getPrivileges(applicationName)) {
                     final Set<String> resources = application.getResourcePatterns(privilege);

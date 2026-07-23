@@ -592,6 +592,64 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     /**
+     * The application-privilege resources and (resource-scoped) privileges a role grants are exposed on
+     * {@link RBACAuthorizationInfo} so a DLS query template can filter by them. Verifies:
+     * <ul>
+     *   <li>resources = the deterministically-sorted union of every granted privilege's resource patterns;</li>
+     *   <li>privileges = the sorted cross-product of each granted privilege's actions with the resources it
+     *       was granted on, joined as {@code <resource>|<action>} (so space and action are matched together,
+     *       never independently); and</li>
+     *   <li>both are memoized (repeated calls return the same cached instance).</li>
+     * </ul>
+     */
+    public void testApplicationResourcesAndPrivilegesExposedForDls() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        // "read" grants two actions, granted on the marketing + finance spaces.
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "kibana", "read", "saved_object:dashboard/get", "action:login");
+        // "discover" grants one (disjoint) action, granted on the finance space only. Because its action set
+        // is disjoint from "read", the two privileges do not match each other, so their resources stay separate.
+        final ApplicationPrivilege discover = defineApplicationPrivilege(privs, "kibana", "discover", "saved_object:index-pattern/get");
+        final Role role = Role.builder(RESTRICTED_INDICES, "kibana-dls")
+            .addApplicationPrivilege(read, newHashSet("space:marketing", "space:finance"))
+            .addApplicationPrivilege(discover, Collections.singleton("space:finance"))
+            .build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of("kibana", List.of("space:finance", "space:marketing"))));
+
+        assertThat(
+            authzInfo.getApplicationPrivileges(),
+            equalTo(
+                Map.of(
+                    "kibana",
+                    List.of(
+                        "space:finance|action:login",
+                        "space:finance|saved_object:dashboard/get",
+                        "space:finance|saved_object:index-pattern/get",
+                        "space:marketing|action:login",
+                        "space:marketing|saved_object:dashboard/get"
+                    )
+                )
+            )
+        );
+
+        // Memoized: the (automaton-backed) computation runs once and repeated reads return the cached instance.
+        assertSame(authzInfo.getApplicationResources(), authzInfo.getApplicationResources());
+        assertSame(authzInfo.getApplicationPrivileges(), authzInfo.getApplicationPrivileges());
+    }
+
+    /**
+     * A role that grants no application privileges exposes empty (short-circuited) maps, so existing DLS
+     * roles pay nothing for the new fields.
+     */
+    public void testApplicationResourcesAndPrivilegesEmptyWithoutApplicationPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "no-apps").cluster(Set.of("monitor"), Set.of()).build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of()));
+        assertThat(authzInfo.getApplicationPrivileges(), equalTo(Map.of()));
+    }
+
+    /**
      * Wildcards in the request are treated as
      * <em>does the user have ___ privilege on every possible index that matches this pattern?</em>
      * Or, expressed differently,

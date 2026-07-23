@@ -630,13 +630,13 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
     }
 
-    private PhysicalOperation planPackDims(PackDimsExec parkDimsExec, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(parkDimsExec.child(), context);
-        int[] channels = new int[parkDimsExec.dims().size()];
+    private PhysicalOperation planPackDims(PackDimsExec packDimsExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(packDimsExec.child(), context);
+        int[] channels = new int[packDimsExec.dims().size()];
         for (int i = 0; i < channels.length; i++) {
-            channels[i] = source.layout.get(parkDimsExec.dims().get(i).id()).channel();
+            channels[i] = source.layout.get(packDimsExec.dims().get(i).id()).channel();
         }
-        Layout layout = source.layout.builder().append(parkDimsExec.packed()).build();
+        Layout layout = source.layout.builder().append(packDimsExec.packed()).build();
         return source.with(new PackDimsOperator.Factory(channels), layout);
     }
 

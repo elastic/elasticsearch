@@ -185,8 +185,7 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Records a {@code (doc, value)} pair in the {@code _field_names} accumulator, deduplicating
-     * within-document repeated values. Called only by
+     * Records a {@code (doc, value)} pair in the {@code _field_names} accumulator. Called only by
      * {@link FieldNamesFieldMapper#addFieldNamesColumnar}; drained by
      * {@link FieldNamesFieldMapper#postColumnarParse}.
      */

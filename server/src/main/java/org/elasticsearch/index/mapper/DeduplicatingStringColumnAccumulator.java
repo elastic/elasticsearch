@@ -28,7 +28,8 @@ import java.util.Map;
  */
 final class DeduplicatingStringColumnAccumulator {
 
-    private Map<BytesRef, Integer> dictionary = new HashMap<>();
+    // Consider using BytesRefHash as a performance optimization if this appears as a hotspot.
+    private Map<BytesRef, Integer> valueToOrd = new HashMap<>();
     private BytesRef[] ordToValue = new BytesRef[4];
     private int ordCount;
 
@@ -87,19 +88,20 @@ final class DeduplicatingStringColumnAccumulator {
             }
         }
         docOrds = null;
-        dictionary = null;
+        valueToOrd = null;
         ordToValue = null;
         return builder.finish(docCount);
     }
 
     private int intern(BytesRef value) {
-        final Integer existing = dictionary.get(value);
+        final Integer existing = valueToOrd.get(value);
         if (existing != null) {
             return existing;
         }
         final int ord = ordCount++;
-        dictionary.put(value, ord);
+        valueToOrd.put(value, ord);
         if (ord >= ordToValue.length) {
+            // Rely on Lucene's ArrayUtil.oversize to determine the best target array size
             ordToValue = Arrays.copyOf(ordToValue, ArrayUtil.oversize(ord + 1, Integer.BYTES));
         }
         ordToValue[ord] = value;

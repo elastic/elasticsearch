@@ -58,6 +58,30 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    public void testArrayValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch(
+                "array values",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"solo\"]}"),
+                doc("d2", 2L, "{\"f\":[\"alpha\",\"beta\",\"gamma\"]}"),
+                doc("d3", 3L, "{\"f\":[]}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    @AwaitsFix(bugUrl = "Uses null. Needs union column mapping support")
+    public void testArrayValuesWithNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("array values", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{}"))
+        );
+    }
+
     /**
      * Mixing scalar and array values in the same batch causes {@link EscfEncoder} to promote the column
      * to {@link EscfColumnKind#UNION}; deferred until UNION support is added to

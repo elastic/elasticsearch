@@ -123,6 +123,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -284,11 +285,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
 
             var failureListener = ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
-                assertThat(e, Matchers.instanceOf(XContentParseException.class));
-                assertThat(e.getCause(), Matchers.instanceOf(ElasticsearchParseException.class));
+                assertThat(e, instanceOf(XContentParseException.class));
+                assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
                 assertThat(
                     e.getCause().getMessage(),
-                    Matchers.containsString(
+                    containsString(
                         "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
                     )
                 );

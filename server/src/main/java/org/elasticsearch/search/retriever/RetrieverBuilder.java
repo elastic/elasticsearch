@@ -93,7 +93,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
                 if (categoryClass.equals(RetrieverBuilder.class)) {
                     nestedDepth++;
                     if (nestedDepth > MAX_NESTED_DEPTH) {
-                        throw new IllegalArgumentException(
+                        throw new RetrieverNestingDepthExceededException(
                             "The nested depth of the [retriever] exceeds the maximum nested depth of ["
                                 + MAX_NESTED_DEPTH
                                 + "] for retrievers"
@@ -108,7 +108,18 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             }
         };
 
-        return parseInnerRetrieverBuilder(parser, context);
+        try {
+            return parseInnerRetrieverBuilder(parser, context);
+        } catch (RuntimeException e) {
+            // each nested retriever parser re-wraps failures in a ParsingException;
+            // if a depth-limit is present, surface it as a single, clean IllegalArgumentException at the top level
+            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                if (cause instanceof RetrieverNestingDepthExceededException depthError) {
+                    throw depthError;
+                }
+            }
+            throw e;
+        }
     }
 
     protected static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -275,6 +286,12 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      */
     public Set<String> getExtendedUsageFields() {
         return Set.of();
+    }
+
+    private static final class RetrieverNestingDepthExceededException extends IllegalArgumentException {
+        RetrieverNestingDepthExceededException(String message) {
+            super(message);
+        }
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

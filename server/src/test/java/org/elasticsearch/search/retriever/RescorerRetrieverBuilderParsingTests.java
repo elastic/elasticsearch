@@ -66,13 +66,13 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
 
     public void testMaxNestedDepth() throws IOException {
 
-        parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH + 10));
+        parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH));
         String expectedMessage = "The nested depth of the [retriever] exceeds the maximum nested depth of ["
             + RetrieverBuilder.MAX_NESTED_DEPTH
             + "] for retrievers";
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH + 1))
+            () -> parseRetriever(nestedRescorerRetriever(RetrieverBuilder.MAX_NESTED_DEPTH + 10))
         );
         assertThat(exception.getMessage(), containsString(expectedMessage));
     }

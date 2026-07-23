@@ -61,3 +61,50 @@ steps:
           field: ".version"
           expected_value: "${NEW_VERSION}-SNAPSHOT"
           polling_interval: "30"
+
+  - label: "Generate Fetch master DRA Artifacts step"
+    key: generate-master-dra-check
+    if: build.env("WORKFLOW") == "minor"
+    depends_on: fetch-dra-artifacts
+    agents:
+      image: docker.elastic.co/release-eng/wolfi-build-essential-release-eng:latest
+      cpu: 250m
+      memory: 512Mi
+      ephemeralStorage: 1Gi
+    command: |
+      IFS='.' read -r major minor patch <<EOF
+      $${NEW_VERSION}
+      EOF
+      for part in "$$major" "$$minor" "$$patch"; do
+        case "$$part" in
+          ''|*[!0-9]*) echo "ERROR: NEW_VERSION must be MAJOR.MINOR.PATCH, got $${NEW_VERSION}" >&2; exit 1 ;;
+        esac
+      done
+      next_main="$$major.$$((minor + 1)).0"
+      echo "Waiting for $$next_main-SNAPSHOT on master"
+      cat <<EOF | buildkite-agent pipeline upload
+      steps:
+        - label: "Fetch master DRA Artifacts"
+          key: fetch-master-dra-artifacts
+          depends_on: generate-master-dra-check
+          agents:
+            image: docker.elastic.co/release-eng/wolfi-build-essential-release-eng:latest
+            cpu: 250m
+            memory: 512Mi
+            ephemeralStorage: 1Gi
+          command:
+            - echo "Polling $$next_main-SNAPSHOT on master..."
+          timeout_in_minutes: 240
+          retry:
+            automatic:
+              - exit_status: "*"
+                limit: 2
+            manual:
+              permit_on_passed: true
+          plugins:
+            - elastic/json-watcher#v1.0.0:
+                url: "https://storage.googleapis.com/elastic-artifacts-snapshot/elasticsearch/latest/master.json"
+                field: ".version"
+                expected_value: "$$next_main-SNAPSHOT"
+                polling_interval: "30"
+      EOF

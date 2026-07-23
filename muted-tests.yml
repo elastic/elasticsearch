@@ -592,9 +592,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
-  method: testFeatureImportanceValues
-  issue: https://github.com/elastic/elasticsearch/issues/154774
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/154775
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicedIndexOneVectorPerSlice
+  issue: https://github.com/elastic/elasticsearch/issues/154792

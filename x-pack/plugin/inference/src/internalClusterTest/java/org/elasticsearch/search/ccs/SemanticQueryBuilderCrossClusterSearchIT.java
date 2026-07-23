@@ -201,7 +201,11 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
                     DenseVectorFieldMapper.ElementType.FLOAT
                 ),
                 localSemanticInferenceId,
-                embeddingServiceSettings(LOCAL_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(
+                    LOCAL_INFERENCE_EMBEDDING_DIMENSIONS,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
             ),
             Map.of(
                 SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,
@@ -219,13 +223,29 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             REMOTE_INDEX_NAME,
             Map.of(
                 commonInferenceId,
-                textEmbeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                textEmbeddingServiceSettings(
+                    REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
                 remoteInferenceId,
-                textEmbeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                textEmbeddingServiceSettings(
+                    REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
                 commonSemanticInferenceId,
-                embeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                embeddingServiceSettings(
+                    REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
                 remoteSemanticInferenceId,
-                embeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(
+                    REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
             ),
             Map.of(
                 SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,

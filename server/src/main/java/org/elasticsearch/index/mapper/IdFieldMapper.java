@@ -118,23 +118,19 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Resolve the {@code _id} term used for uniqueness/versioning/GET/delete
-     * This is the single source of truth for the encoding.
+     * Resolve the {@code _id} term used for uniqueness/versioning/GET/delete. For a slice-enabled index the slice
+     * arrives as the routing value. Prefer {@link Uid#create} directly where the whole {@link Uid} is useful.
      */
     public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
-        if (sliceEnabled && routing == null) {
-            throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
-        }
-        return sliceEnabled ? SliceIdFieldMapper.encodeCompoundId(id, routing) : Uid.encodeId(id);
+        return Uid.create(sliceEnabled, id, routing).term();
     }
 
     /**
-     * Decode the user-visible plain {@code _id} string from the bytes that are stored in the {@code _id} stored field
-     * or binary doc value. For a slice-enabled index the stored bytes are the compound identity term
-     * ({@link SliceIdFieldMapper#encodeCompoundId(String, String)}).
+     * Decode the user-visible plain {@code _id} string from the bytes stored in the {@code _id} stored field or binary
+     * doc value. For a slice-enabled index those bytes are the compound identity term.
      */
     public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
-        return sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
+        return Uid.fromTerm(storedBytes, sliceEnabled).id();
     }
 
     /** Whether the mapping stores {@code _id} in columnar mode (binary doc values rather than a stored field). */

@@ -2179,24 +2179,20 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        Get(boolean realtime, boolean readFromTranslog, String id) {
-            this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
-            this.readFromTranslog = readFromTranslog;
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
+        public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
         }
 
-        public Get(boolean realtime, boolean readFromTranslog, String id, BytesRef uid) {
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
@@ -2206,11 +2202,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {

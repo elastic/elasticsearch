@@ -160,21 +160,16 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     /**
      * Slice-enabled {@code _id} encoding.
      * <p>
-     * A slice-enabled index indexes two terms per document into the {@code _id} field, derived by
-     * concatenating the id, a {@code '#'} delimiter, and (for the compound term) the slice value before encoding:
+     * A slice-enabled index indexes two terms per document into the {@code _id} field:
      * <pre>
      *   search term  : encodeId(id + "#")          (drives ids/term search — empty-slice member)
-     *   compound term: encodeId(id + "#" + slice)  (uid(): uniqueness/version/GET/delete)
+     *   compound term: {@link Uid#encodeCompoundId} (uid(): uniqueness/version/GET/delete)
      * </pre>
      * {@code '#'} is not a valid slice character (see {@link org.elasticsearch.index.SliceIndexing#VALID_SLICE_VALUE_PATTERN}),
-     * so {@code lastIndexOf('#')} always splits at the correct boundary. The two term-spaces are structurally disjoint.
+     * so the two term-spaces are structurally disjoint. The compound codec lives on {@link Uid}; these are thin aliases.
      */
     public static BytesRef encodeCompoundId(String id, String slice) {
-        if (slice.isEmpty()) {
-            // An empty slice encodes to encodeId(id + "#") which is identical to the search term — they would collide.
-            throw new IllegalArgumentException("slice must not be empty for compound _id encoding");
-        }
-        return Uid.encodeId(id + "#" + slice);
+        return Uid.encodeCompoundId(id, slice);
     }
 
     /**
@@ -184,9 +179,9 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         return Uid.encodeId(id + "#");
     }
 
-    /** Recover the plain, user-visible id from a compound (or search) term produced above. */
+    /** Recover the plain, user-visible id from a compound term produced above. */
     public static String decodeCompoundId(BytesRef term) {
-        return stripSlice(Uid.decodeId(term.bytes, term.offset, term.length));
+        return Uid.fromTerm(term, true).id();
     }
 
     /** Strip the slice suffix from an already-decoded compound id string ({@code id#slice} to {@code id}). */
@@ -194,9 +189,8 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         return compound.substring(0, compound.lastIndexOf('#'));
     }
 
-    /** Recover the slice from a compound term. Returns the empty string for a search term (empty-slice member). */
+    /** Recover the slice from a compound term. */
     public static String sliceFromCompoundId(BytesRef term) {
-        String compound = Uid.decodeId(term.bytes, term.offset, term.length);
-        return compound.substring(compound.lastIndexOf('#') + 1);
+        return Uid.fromTerm(term, true).slice();
     }
 }

@@ -99,6 +99,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -256,11 +258,15 @@ public class CsvIT extends ESTestCase {
         this.instructions = instructions;
     }
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s", shuffle = false)
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+
+        var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        Collections.shuffle(specs);
+        Collections.sort(specs, Comparator.comparing(spec -> usesViews((String) spec[1])));
+        return specs;
     }
 
     @BeforeClass
@@ -507,9 +513,16 @@ public class CsvIT extends ESTestCase {
         }
     }
 
+    private static boolean usesViews(String groupName) {
+        return switch (groupName) {
+            case "views", "approximation", "unmapped-load" -> true;
+            default -> false;
+        };
+    }
+
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName) || "unmapped-load".equals(currentGroupName)) {
+        if (usesViews(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
                 if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
                     views.maybeLoad(name, view);

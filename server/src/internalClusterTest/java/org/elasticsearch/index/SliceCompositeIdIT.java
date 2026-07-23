@@ -93,8 +93,8 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
     }
 
     private SearchRequestBuilder searchSlice(String index, String slice, QueryBuilder query) {
-        // _slice is a fetchable alias of _routing, so request it explicitly to read the hit's slice back.
-        SearchRequestBuilder search = prepareSearch(index).setQuery(query).addFetchField(SliceIndexing.PARAM_NAME);
+        // A slice-enabled index surfaces _slice by default (and never _routing), so no explicit fetch-field is needed.
+        SearchRequestBuilder search = prepareSearch(index).setQuery(query);
         search.request().searchSlice(slice);
         return search;
     }
@@ -116,11 +116,13 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(b.getId(), equalTo("1"));
         refresh("idx");
 
-        // GET within each slice returns that slice's document, with the plain id.
+        // GET within each slice returns that slice's document, with the plain id, exposing _slice and never _routing.
         GetResponse ga = getDoc("idx", "sa", "1");
         assertThat(ga.isExists(), equalTo(true));
         assertThat(ga.getId(), equalTo("1"));
         assertThat(ga.getSource().get("field"), equalTo("va"));
+        assertThat(ga.getField("_routing"), equalTo(null));
+        assertThat(ga.getField(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
         GetResponse gb = getDoc("idx", "sb", "1");
         assertThat(gb.getId(), equalTo("1"));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
@@ -131,8 +133,9 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             SearchHit hit = r.getHits().getAt(0);
             assertThat(hit.getId(), equalTo("1"));
             assertThat(hit.getSourceAsMap().get("field"), equalTo("va"));
-            // The hit surfaces the slice as the _slice field.
+            // The hit surfaces the slice as _slice and never leaks it as _routing.
             assertThat(hit.field(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+            assertThat(hit.field("_routing"), equalTo(null));
         });
         // _all sees both, and each hit carries its own _slice so same-id docs are distinguishable.
         assertResponse(searchSlice("idx", SliceIndexing.SLICE_ALL, QueryBuilders.matchAllQuery()), r -> {
@@ -140,6 +143,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             Map<String, String> sliceByValue = new HashMap<>();
             for (SearchHit hit : r.getHits().getHits()) {
                 assertThat(hit.getId(), equalTo("1"));
+                assertThat(hit.field("_routing"), equalTo(null));
                 sliceByValue.put((String) hit.getSourceAsMap().get("field"), hit.field(SliceIndexing.PARAM_NAME).getValue());
             }
             assertThat(sliceByValue, equalTo(Map.of("va", "sa", "vb", "sb")));
@@ -161,6 +165,26 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         refresh("idx");
         assertThat(getDoc("idx", "sa", "1").isExists(), equalTo(false));
         assertThat(getDoc("idx", "sb", "1").isExists(), equalTo(true));
+    }
+
+    /**
+     * A slice-enabled index hides {@code _routing} from retrieval: even an explicit {@code fields} request for it returns
+     * nothing, while {@code _slice} is retrievable. Routing and slicing never overlap in responses.
+     */
+    public void testRoutingFieldIsHiddenOnSliceIndex() {
+        createSliceIndex("hidden", 1);
+        indexDoc("hidden", "sa", "1", "va");
+        refresh("hidden");
+
+        SearchRequestBuilder search = prepareSearch("hidden").setQuery(QueryBuilders.matchAllQuery())
+            .addFetchField("_routing")
+            .addFetchField(SliceIndexing.PARAM_NAME);
+        search.request().searchSlice("sa");
+        assertResponse(search, r -> {
+            SearchHit hit = r.getHits().getAt(0);
+            assertThat(hit.field("_routing"), equalTo(null));
+            assertThat(hit.field(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+        });
     }
 
     /**

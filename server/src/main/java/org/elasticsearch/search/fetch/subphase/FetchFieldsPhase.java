@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -61,22 +63,25 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         // We need to retain `_id` and `_source` here to correctly populate the `StoredFieldSpecs` created by the
         // `FieldFetcher` constructor.
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
-        final FieldFetcher fieldFetcher = (fetchFieldsContext == null
-            || fetchFieldsContext.fields() == null
-            || fetchFieldsContext.fields().isEmpty())
-                ? null
-                : FieldFetcher.create(
-                    searchExecutionContext,
-                    fetchFieldsContext.fields()
-                        .stream()
-                        .filter(
-                            fieldAndFormat -> (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
-                                || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
-                                || IdFieldMapper.NAME.equals(fieldAndFormat.field)
-                                || SourceFieldMapper.NAME.equals(fieldAndFormat.field))
-                        )
-                        .toList()
-                );
+        // A slice-enabled index keeps routing and slicing non-overlapping: _routing is hidden from retrieval
+        // (SearchExecutionContext#getMatchingFieldNames) and the slice is surfaced as the _slice field, added below so it
+        // is returned by default.
+        final boolean sliceEnabled = searchExecutionContext.getIndexSettings().isSliceEnabled();
+        final List<FieldAndFormat> documentFields = new ArrayList<>();
+        if (fetchFieldsContext != null && fetchFieldsContext.fields() != null) {
+            for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
+                if (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
+                    || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
+                    || IdFieldMapper.NAME.equals(fieldAndFormat.field)
+                    || SourceFieldMapper.NAME.equals(fieldAndFormat.field)) {
+                    documentFields.add(fieldAndFormat);
+                }
+            }
+        }
+        if (sliceEnabled && documentFields.stream().noneMatch(f -> SliceIndexing.PARAM_NAME.equals(f.field))) {
+            documentFields.add(new FieldAndFormat(SliceIndexing.PARAM_NAME, null));
+        }
+        final FieldFetcher fieldFetcher = documentFields.isEmpty() ? null : FieldFetcher.create(searchExecutionContext, documentFields);
 
         // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext) like for instance the _ignored source field
         final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();

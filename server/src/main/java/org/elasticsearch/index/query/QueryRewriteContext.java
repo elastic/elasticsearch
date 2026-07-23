@@ -583,6 +583,10 @@ public class QueryRewriteContext {
         if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.PARAM_NAME);
         }
+        if (isRoutingHiddenBySlice(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+            return Set.of();
+        }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
             matches = mappingLookup.getMatchingFieldNames(pattern);
@@ -609,6 +613,14 @@ public class QueryRewriteContext {
 
     protected final boolean isSliceFieldAlias(String fieldName) {
         return isSliceFieldAliasEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName);
+    }
+
+    /**
+     * A slice-enabled index keeps routing and slicing non-overlapping: {@code _routing} is not retrievable by name (it is
+     * surfaced as {@code _slice} instead). Its {@link #getFieldType} stays resolvable so slice routing filters still work.
+     */
+    protected final boolean isRoutingHiddenBySlice(String fieldName) {
+        return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
     }
 
     private boolean isSliceFieldAliasEnabled() {

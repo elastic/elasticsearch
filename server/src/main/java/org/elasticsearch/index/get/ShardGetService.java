@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -473,16 +474,21 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        // For slice-enabled indices, routing is stored as doc values rather than a stored field, so it won't appear
-        // in storedFields() and must be fetched directly from doc values.
-        if (indexSettings.isSliceEnabled() && (metadataFields == null || metadataFields.containsKey(RoutingFieldMapper.NAME) == false)) {
-            SortedDocValues routingDocValues = DocValues.getSorted(docIdAndVersion.reader, RoutingFieldMapper.NAME);
-            if (routingDocValues.advanceExact(docIdAndVersion.docId)) {
-                String routingValue = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
-                if (metadataFields == null) {
-                    metadataFields = new HashMap<>();
+        // A slice-enabled index keeps routing internal: it never exposes _routing and surfaces the slice (stored as
+        // routing doc values, not a stored field) as the _slice document field instead, mirroring search.
+        if (indexSettings.isSliceEnabled()) {
+            if (metadataFields != null) {
+                metadataFields.remove(RoutingFieldMapper.NAME);
+            }
+            if (documentFields == null || documentFields.containsKey(SliceIndexing.PARAM_NAME) == false) {
+                SortedDocValues routingDocValues = DocValues.getSorted(docIdAndVersion.reader, RoutingFieldMapper.NAME);
+                if (routingDocValues.advanceExact(docIdAndVersion.docId)) {
+                    String sliceValue = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+                    if (documentFields == null) {
+                        documentFields = new HashMap<>();
+                    }
+                    documentFields.put(SliceIndexing.PARAM_NAME, new DocumentField(SliceIndexing.PARAM_NAME, List.of(sliceValue)));
                 }
-                metadataFields.put(RoutingFieldMapper.NAME, new DocumentField(RoutingFieldMapper.NAME, List.of(routingValue)));
             }
         }
 

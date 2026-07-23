@@ -629,7 +629,9 @@ public class RestIndexActionIT extends ESIntegTestCase {
         Response response = getRestClient().performRequest(searchWithSlice);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
-        assertThat(objectPath.evaluate("hits.hits.0._routing"), equalTo("s1"));
+        // A slice-enabled index surfaces the slice as _slice and never exposes _routing.
+        assertThat(objectPath.evaluate("hits.hits.0._routing"), equalTo(null));
+        assertThat(objectPath.evaluate("hits.hits.0.fields._slice.0"), equalTo("s1"));
     }
 
     public void testSearchUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {

@@ -97,14 +97,14 @@
         index:   dest_keep
         id:      "1"
         _slice: r1
-  - match: { _routing: r1 }
+  - match: { fields._slice.0: r1 }
 
   - do:
       get:
         index:   dest_keep
         id:      "2"
         _slice: r2
-  - match: { _routing: r2 }
+  - match: { fields._slice.0: r2 }
 
 ---
 "Slice alias equals command":
@@ -149,12 +149,12 @@
         index:   dest_equals
         id:      "1"
         _slice: s1
-  - match: { _routing: s1 }
+  - match: { fields._slice.0: s1 }
 
   - do:
       get:
         index:   dest_equals
         id:      "2"
         _slice: s1
-  - match: { _routing: s1 }
+  - match: { fields._slice.0: s1 }
 

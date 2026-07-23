@@ -310,6 +310,9 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                if (roundTo.field() instanceof FieldAttribute == false) {
+                    return evalExec;
+                }
                 // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
                 // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
                 // implemented here. Skip the pushdown for UP convention.

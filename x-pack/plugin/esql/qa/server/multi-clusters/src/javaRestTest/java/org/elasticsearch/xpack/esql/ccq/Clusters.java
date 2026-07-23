@@ -12,9 +12,11 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
@@ -24,6 +26,21 @@ public class Clusters {
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
+        return remoteCluster(csvDataPath, additionalSettings, shared, null);
+    }
+
+    /**
+     * @param registerFederationFeature supplier for the ES|QL federation kill-switch system property
+     *        ({@value org.elasticsearch.xpack.esql.datasources.Federation#REGISTER_PROPERTY}), re-read on every
+     *        (re)start so a test can create federation state while enabled and then bounce the remote with the
+     *        switch off. {@code null} leaves the property unset (federation enabled by default).
+     */
+    static ElasticsearchCluster remoteCluster(
+        Path csvDataPath,
+        Map<String, String> additionalSettings,
+        boolean shared,
+        Supplier<String> registerFederationFeature
+    ) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -46,6 +63,9 @@ public class Clusters {
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
         }
+        if (registerFederationFeature != null) {
+            cluster.systemProperty(Federation.REGISTER_PROPERTY, registerFederationFeature);
+        }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
         }
@@ -61,6 +81,15 @@ public class Clusters {
 
     public static ElasticsearchCluster remoteCluster() {
         return remoteCluster(emptyMap());
+    }
+
+    /**
+     * A remote cluster whose ES|QL federation kill switch is driven by {@code registerFederationFeature}, re-read on
+     * every (re)start. Used by the federation kill-switch tests to create dataset state while enabled and then bounce
+     * the remote with the switch engaged.
+     */
+    public static ElasticsearchCluster remoteCluster(Supplier<String> registerFederationFeature) {
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, registerFederationFeature);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
@@ -133,6 +162,36 @@ public class Clusters {
         }
         if (shared) {
             cluster.shared(true);
+        }
+        return cluster.build();
+    }
+
+    /**
+     * A single-node local cluster with the {@code remote_cluster_client} role but <em>no</em> {@code cluster.remote.*}
+     * settings in its config: the remote connection is configured by the test through the cluster settings API. This
+     * is required when the remote is restarted mid-test on new ports, because a seed pinned in {@code elasticsearch.yml}
+     * cannot be updated through the API, whereas an API-managed seed can be re-pointed after the bounce.
+     */
+    public static ElasticsearchCluster localClusterForDynamicRemote(Path csvDataPath) {
+        Version version = distributionVersion("tests.version.local_cluster");
+        var cluster = ElasticsearchCluster.local()
+            .name(LOCAL_CLUSTER_NAME)
+            .distribution(DistributionType.DEFAULT)
+            .version(version)
+            .nodes(1)
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
+        if (supportRetryOnShardFailures(version) == false) {
+            cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
+            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
         }
         return cluster.build();
     }

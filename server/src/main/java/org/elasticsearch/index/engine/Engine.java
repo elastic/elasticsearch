@@ -511,7 +511,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["

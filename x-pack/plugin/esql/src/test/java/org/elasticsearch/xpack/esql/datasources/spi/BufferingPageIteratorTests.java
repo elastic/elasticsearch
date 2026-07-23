@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -41,9 +42,8 @@ public class BufferingPageIteratorTests extends ESTestCase {
     private CircuitBreaker breaker;
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
         breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         blockFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();

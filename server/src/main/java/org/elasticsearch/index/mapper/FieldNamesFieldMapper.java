@@ -12,12 +12,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collections;
 
@@ -189,5 +192,41 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    /**
+     * Records that {@code field} should appear in {@code _field_names} for document {@code doc}
+     * within this batch. The column is assembled and attached in {@link #postColumnarParse}.
+     *
+     * <p>TODO: This currently supports at most one {@code _field_names} entry per document. When
+     * multi-value support is needed (user-data mappers on the columnar path), replace the
+     * {@code BytesRef[]} in {@link BatchMappingContext} with a multi-value writer owned by this
+     * mapper; callers go through {@link BatchMappingContext#addFieldNamesColumnar} unchanged.
+     */
+    void addFieldNamesColumnar(BatchMappingContext ctx, int doc, String field) {
+        if (enabled.value() == false) {
+            return;
+        }
+        final BytesRef[] names = ctx.fieldNames();
+        assert names[doc] == null
+            : "_field_names column currently supports one entry per document; doc="
+                + doc
+                + " already has ["
+                + names[doc].utf8ToString()
+                + "]";
+        names[doc] = new BytesRef(field);
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext ctx) {
+        final BytesRef[] names = ctx.fieldNamesIfPresent();
+        if (names != null) {
+            ctx.addColumn(MappedColumns.binaryColumn(names, NAME, StringField.TYPE_NOT_STORED));
+        }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
     }
 }

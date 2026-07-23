@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1819,8 +1819,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersion.minimumCompatible()
         ),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(
-            ShardStateAction.NoLongerPrimaryShardException.class,
-            ShardStateAction.NoLongerPrimaryShardException::new,
+            NoLongerPrimaryShardException.class,
+            NoLongerPrimaryShardException::new,
             142,
             TransportVersion.minimumCompatible()
         ),

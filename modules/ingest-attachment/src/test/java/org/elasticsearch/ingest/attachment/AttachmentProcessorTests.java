@@ -962,7 +962,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
-            metricsRef
+            metricsRef,
+            new LocalExtractionBackend()
         );
         int bytes = 1_048_576;
         assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());

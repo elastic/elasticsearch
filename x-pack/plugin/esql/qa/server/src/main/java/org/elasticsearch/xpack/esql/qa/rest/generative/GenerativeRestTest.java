@@ -767,8 +767,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      * Columns that are explicitly created by the command are marked {@code indexMapped=false};
      * columns that survive unchanged from the previous schema inherit their previous status.
+     * <p>
+     * Implements {@link QueryExecutor#updateIndexMapped} so that both the top-level generation loop and
+     * {@code SubqueryGenerator} (which only holds a {@link QueryExecutor} reference) track the flags identically.
      */
-    static List<Column> updateIndexMapped(
+    @Override
+    public List<Column> updateIndexMapped(
         List<Column> newSchema,
         List<Column> previousSchema,
         CommandGenerator.CommandDescription command
@@ -776,6 +780,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (newSchema == null || newSchema.isEmpty()) {
             return newSchema;
         }
+
+        // FROM is always the first command so previousSchema is empty. Handle it here,
+        // before the guard below short-circuits, so that subquery-derived indexMapped
+        // flags are not silently dropped.
+        if (FromGenerator.isFromSource(command)) {
+            Object subqueryCols = command.context().get(FromGenerator.SUBQUERY_COLUMNS);
+            if (subqueryCols == null) {
+                return newSchema;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Boolean> subqueryMapped = (Map<String, Boolean>) subqueryCols;
+            return newSchema.stream().map(col -> {
+                Boolean fromSubquery = subqueryMapped.get(col.name());
+                // Column only from a real index source: indexMapped=true (unchanged).
+                // Column from a subquery (possibly also present in a real index): use the
+                // subquery flag directly — logicalAnd(subqueryFlag, true) == subqueryFlag.
+                boolean mapped = fromSubquery != null ? fromSubquery : true;
+                return new Column(col.name(), col.type(), col.originalTypes(), mapped);
+            }).toList();
+        }
+
         if (previousSchema == null || previousSchema.isEmpty()) {
             return newSchema;
         }
@@ -959,20 +984,35 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
-            + "\\(\\s*FROM\\b).*",
+        ".*(?:"
+            // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "|"
+            // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
+            + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"
+            + ").*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, etc.) or when full-text functions/operators
-     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. It also rejects full-text after the
-     * {@code UnionAll} formed by a multi-source {@code FROM} (the union of subqueries / indices): there the verifier embeds the
-     * union's source text, which it truncates to {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end
-     * mid-branch (before the comma separating the branches). Gated on a parenthesised inner {@code FROM}.
+     * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, a {@code SORT} pinned by a following
+     * {@code LIMIT}, etc.) or when full-text functions/operators are placed after {@code LOOKUP JOIN}; the generator only walks
+     * the outer command list. It also rejects full-text after the {@code UnionAll} formed by a multi-source {@code FROM} (the
+     * union of subqueries / indices): there the verifier embeds the union's source text, which it truncates to
+     * {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end mid-branch (before the comma separating
+     * the branches). Gated on a parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
+     * <p>
+     * {@code QSTR} and {@code KQL} carry a stricter placement rule than {@code MATCH}/{@code MatchPhrase}: they are only valid
+     * directly after {@code FROM}/{@code WHERE}/{@code SORT}. When a subquery pushes any other command (e.g. {@code RENAME},
+     * {@code EVAL}, {@code GROK}, {@code DISSECT}, {@code USER_AGENT}) ahead of them in the flattened plan, the verifier reports
+     * "{@code [QSTR|KQL] function cannot be used after <COMMAND>}". {@code FullTextFunctionGenerator} applies that same allowlist
+     * only to the outer command list, so it can never avoid the error across a subquery boundary; hence any such
+     * {@code QSTR}/{@code KQL} error naming a command other than {@code FROM}/{@code WHERE}/{@code SORT} is tolerated (still
+     * gated on a parenthesised inner {@code FROM}). {@code MATCH}/{@code MatchPhrase} are intentionally excluded from this
+     * broader branch because {@code RENAME} etc. are legal before them.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {

@@ -259,12 +259,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
@@ -292,12 +286,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132

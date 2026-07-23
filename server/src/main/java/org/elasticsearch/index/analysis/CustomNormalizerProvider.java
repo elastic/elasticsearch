@@ -82,4 +82,11 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
     public CustomAnalyzer get() {
         return this.customAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // Like CustomAnalyzerProvider: AnalysisRegistry special-cases custom providers and
+        // builds a chain-based key directly, so this value is never consulted.
+        return this;
+    }
 }

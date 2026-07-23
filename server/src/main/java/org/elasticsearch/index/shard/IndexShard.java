@@ -1482,6 +1482,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
+    /**
+     * Returns the engine's max sequence number
+     *
+     * @return the max sequence number
+     */
+    public long getMaxSeqNo() {
+        return getEngine().getMaxSeqNo();
+    }
+
     public IndexingStats indexingStats() {
         return tryWithEngineOrNull(engine -> {
             final boolean throttled;
@@ -3277,17 +3286,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
-        final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
+        final long maxSeqNo = getMaxSeqNo();
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
-        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
+        if (maxSeqNo == globalCheckpoint || asyncDurability) {
             final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
             // checkpoint can be synced. Also take into account that a shard might be pending sync, which means that it isn't
             // in the in-sync set just yet but might be blocked on waiting for its persisted local checkpoint to catch up to
             // the global checkpoint.
-            final boolean syncNeeded = (asyncDurability
-                && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
+            final boolean syncNeeded = (asyncDurability && (globalCheckpoint < maxSeqNo || replicationTracker.pendingInSync()))
                 || trackedGlobalCheckpointsNeedSync;
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
@@ -3918,7 +3927,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // called by the current engine
         @Override
         public void onFailedEngine(String reason, @Nullable Exception failure) {
-            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
+            final ShardFailure shardFailure = new ShardFailure(shardRouting, getPendingPrimaryTerm(), reason, failure);
             for (Consumer<ShardFailure> listener : delegates) {
                 try {
                     listener.accept(shardFailure);
@@ -4343,7 +4352,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
-                        final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                        final long maxSeqNo = getMaxSeqNo();
                         logger.info(
                             "detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                             opPrimaryTerm,
@@ -4505,7 +4514,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      */
-    public record ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {}
+    public record ShardFailure(ShardRouting routing, long primaryTerm, String reason, @Nullable Exception cause) {}
 
     EngineFactory getEngineFactory() {
         return engineFactory;

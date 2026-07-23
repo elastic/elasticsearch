@@ -25,6 +25,7 @@ final class ClassWriterUtil {
     static final ClassDesc CD_Object = ClassDesc.of("java.lang.Object");
     static final ClassDesc CD_String = ClassDesc.of("java.lang.String");
     static final ClassDesc CD_long = ClassDesc.ofDescriptor("J");
+    static final ClassDesc CD_boolean = ClassDesc.ofDescriptor("Z");
 
     // java.lang.foreign types
     static final ClassDesc CD_MemoryLayout = ClassDesc.of("java.lang.foreign.MemoryLayout");
@@ -69,6 +70,14 @@ final class ClassWriterUtil {
     }
 
     private ClassWriterUtil() {}
+
+    /**
+     * Number of consecutive JVM local-variable slots a value of this type occupies: 2 for
+     * {@code long}/{@code double} (JVMS §2.6.1), 1 for everything else.
+     */
+    static int slotWidth(NativeType type) {
+        return (type == NativeType.LONG || type == NativeType.DOUBLE) ? 2 : 1;
+    }
 
     /** Maps a primitive {@link NativeType} to its JVM {@link ClassDesc}. Throws on non-primitive types. */
     static ClassDesc primitiveClassDesc(NativeType type) {

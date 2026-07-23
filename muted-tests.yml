@@ -421,11 +421,6 @@ tests:
   - :x-pack:plugin:ccr:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/163486
-- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
-  issue: https://github.com/elastic/elasticsearch/issues/163491
 - class: org.elasticsearch.xpack.spatial.index.fielddata.LatLonGeometryRelationVisitorTests
   tasks:
   - :x-pack:plugin:spatial:test

@@ -241,9 +241,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecTopNIT
   method: test {csv-spec:topN.topNLongRangeWildcardSort}
   issue: https://github.com/elastic/elasticsearch/issues/150874
-- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
-  method: testInferenceFailure
-  issue: https://github.com/elastic/elasticsearch/issues/150976
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnionTypesIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982
@@ -595,9 +592,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
-  method: testFeatureImportanceValues
-  issue: https://github.com/elastic/elasticsearch/issues/154774
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/154775
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicedIndexOneVectorPerSlice
+  issue: https://github.com/elastic/elasticsearch/issues/154792

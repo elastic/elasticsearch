@@ -4112,3 +4112,33 @@ FROM sample_data
 @timestamp:date          | client_ip:ip | event_duration:long
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
+
+loadPartiallyMappedNormalizedKeyword
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM normalized_keyword, normalized_keyword_unmapped
+| WHERE kw == "hello"
+| KEEP doc_id, kw
+;
+
+doc_id:keyword | kw:keyword
+a-1            | hello
+;
+
+// Exact match on the normalized keyword must stay in the compute engine; pushing it to Lucene would fold the literal through the normalizer and match case-insensitively.
+partiallyMappedNormalizedKeywordExactMatchIsCaseSensitive
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM normalized_keyword, normalized_keyword_unmapped
+| WHERE kw == "HELLO"
+| KEEP doc_id, kw
+| SORT doc_id
+;
+
+doc_id:keyword | kw:keyword
+b-1            | HELLO
+;

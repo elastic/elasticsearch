@@ -7,19 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.LowercaseNormalizer;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.IndexType;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -34,7 +21,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -98,29 +84,6 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
         }
     }
 
-    public void testPotentiallyUnmappedFieldNormalizedFromSearchStats() {
-        var plan = planWithLoad("""
-              FROM test
-            | WHERE does_not_exist == "x"
-            | KEEP does_not_exist
-            """);
-
-        // A normalizer rewrites indexed values, so the replacement must carry normalized=true (which disables exact-match pushdown).
-        var normalizedOnDataNode = new TestConfigurableSearchStats() {
-            @Override
-            public MappedFieldType fieldType(FieldAttribute.FieldName name) {
-                return name.string().equals("does_not_exist") ? normalizedKeywordFieldType(name.string()) : super.fieldType(name);
-            }
-        };
-
-        var localFields = fieldAttributes(localPlan(plan, normalizedOnDataNode), "does_not_exist");
-        assertThat(localFields, not(empty()));
-        for (FieldAttribute f : localFields) {
-            assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
-            assertThat(((KeywordEsField) f.field()).getNormalized(), equalTo(true));
-        }
-    }
-
     public void testLookupIndexFieldsNotModified() {
         Analyzer analyzer = analyzer().unmappedResolution(UnmappedResolution.LOAD)
             .addIndex("test", "mapping-basic.json")
@@ -149,13 +112,6 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
         for (FieldAttribute f : mainFields) {
             assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
         }
-    }
-
-    private static KeywordFieldType normalizedKeywordFieldType(String name) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
-        var builder = new KeywordFieldMapper.Builder(name, IndexAnalyzers.of(Map.of()), ScriptCompiler.NONE, indexSettings, false, false);
-        var normalizer = new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer());
-        return new KeywordFieldType(name, IndexType.terms(true, true), TextSearchInfo.SIMPLE_MATCH_ONLY, normalizer, builder, false);
     }
 
     private LogicalPlan planWithLoad(String query) {

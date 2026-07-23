@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -99,6 +100,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
 
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, UNKNOWN_TIMESTAMP)));
+    }
+
+    public void testCannotEvictPresentShardRegionWithBackfillInProgressTimestamp() {
+        final long now = randomLongBetween(1, Long.MAX_VALUE);
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+
+        assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, BACKFILL_IN_PROGRESS_TIMESTAMP)));
     }
 
     public void testCanEvictPresentShardRegionOutsidePinnedWindow() {

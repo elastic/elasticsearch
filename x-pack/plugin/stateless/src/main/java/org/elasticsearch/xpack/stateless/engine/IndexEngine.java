@@ -913,6 +913,8 @@ public class IndexEngine extends InternalEngine {
     // For cleanup after resharding
     public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
         super.deleteByQuery(query);
+        // Bypasses ES delete ops (no seqno); bump force-merge UUID so getShardStateId changes.
+        onShardContentChanged();
     }
 
     @Override

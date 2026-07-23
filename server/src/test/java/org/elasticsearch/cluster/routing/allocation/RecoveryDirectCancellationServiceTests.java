@@ -50,6 +50,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -72,10 +74,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@TestLogging(
-    reason = "asserting direct cancellation logs",
-    value = "org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService:DEBUG"
-)
 public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase {
 
     public void testComputeDirectCancellationCandidates() {
@@ -290,6 +288,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertTrue(cancellation.cancelIfStarted());
     }
 
+    @TestLogging(
+        reason = "asserting direct cancellation logs",
+        value = "org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService:DEBUG"
+    )
     public void testDisabledDirectCancellationsAreLoggedAndNotSent() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final var index = indexMetadata.getIndex();
@@ -345,6 +347,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertFalse(sendRequestCalled.get());
     }
 
+    @TestLogging(
+        reason = "asserting direct cancellation logs",
+        value = "org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService:DEBUG"
+    )
     public void testUnsupportedTransportVersionDirectCancellationsAreLoggedAndNotSent() {
         final var unsupportedTransportVersion = TransportVersionUtils.getPreviousVersion(
             CancelRecoveriesAction.DIRECT_RECOVERY_CANCELLATION,
@@ -815,6 +821,154 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         service.computeAndSubmitCancellations(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo));
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(0));
+    }
+
+    /// Randomized test that simulates bounded-cache evictions, failed requests, new requests, and term bumps, interleaved
+    /// in random order. Verifies that after every round the service has sent all and only the expected requests.
+    public void testCacheInvalidationAndCancellationsInterleaving() {
+        final int numShards = randomIntBetween(2, 10);
+        final int numRounds = randomIntBetween(5, 10);
+
+        final var indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), numShards, 1))
+            .build();
+        final var index = indexMetadata.getIndex();
+
+        // Keep it simple, one shard/allocationId per node
+        final var allocationIds = new HashMap<String, String>(numShards);
+        final var indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        discoveryNodesBuilder.add(newNode("master-node", "master-node", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+
+        final var shardAssignments = new HashMap<ShardId, ShardAssignment>();
+        for (int i = 0; i < numShards; i++) {
+            final var shardId = new ShardId(index, i);
+            final var primaryNodeId = "primary-node-" + i;
+            final var dataNodeId = "data-node-" + i;
+            discoveryNodesBuilder.add(newNode(primaryNodeId, primaryNodeId, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+            discoveryNodesBuilder.add(newNode(dataNodeId, dataNodeId, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+            indexRoutingTableBuilder.addShard(newShardRouting(shardId, primaryNodeId, true, STARTED));
+            final var allocId = AllocationId.newInitializing(randomIdentifier("alloc-" + i + "-"));
+            allocationIds.put(dataNodeId, allocId.getId());
+            indexRoutingTableBuilder.addShard(
+                TestShardRouting.shardRoutingBuilder(shardId, dataNodeId, false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(allocId)
+                    .build()
+            );
+            // Primary can stay on its node, replicas should all move to "desired-node"
+            shardAssignments.put(shardId, new ShardAssignment(Set.of(primaryNodeId, "desired-node"), 2, 0, 0));
+        }
+        discoveryNodesBuilder.masterNodeId("master-node").localNodeId("master-node");
+
+        final var discoveryNodes = discoveryNodesBuilder.build();
+        final var routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
+        final var balance = new DesiredBalance(1, shardAssignments);
+
+        final var taskQueue = new DeterministicTaskQueue();
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
+
+        // IDs which are expected to be in the cache at the end of each round
+        final Set<String> expectedCached = new HashSet<>();
+        // IDs whose transport request will fail in the current round
+        final Set<String> failThisRound = new HashSet<>();
+        // Sent IDs captured in the current round
+        final Set<String> actualSentThisRound = new HashSet<>();
+
+        doAnswer(invocation -> {
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            // Each data node has one initializing replica
+            assertThat(req.cancellations(), hasSize(1));
+            final String allocId = req.cancellations().getFirst().allocationId();
+            final String nodeId = ((DiscoveryNode) invocation.getArgument(0)).getId();
+            assertThat("cancellation sent to unexpected node " + nodeId, allocId, equalTo(allocationIds.get(nodeId)));
+            actualSentThisRound.add(allocId);
+            if (failThisRound.contains(allocId)) {
+                handler.handleException(new ConnectTransportException(invocation.getArgument(0), "simulated transport failure"));
+            } else {
+                handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
+            }
+            return null;
+        }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
+
+        final var serviceClusterState = mock(ClusterState.class);
+        when(serviceClusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+        final var service = new RecoveryDirectCancellationService(
+            transportService,
+            createMockClusterService(serviceClusterState, true),
+            mock(AllocationService.class),
+            mock(RerouteService.class)
+        );
+
+        long currentTerm = randomLongBetween(1, 5);
+        for (int round = 0; round < numRounds; round++) {
+            // Invalidate some entries to simulate the cache reaching its size or TTL bound
+            final var it = expectedCached.iterator();
+            while (it.hasNext()) {
+                final var allocId = it.next();
+                if (randomBoolean()) {
+                    // Technically, invalidation uses a different removal path than eviction but they both end
+                    // up calling [CacheSegment#remove] and [Cache#delete].
+                    service.sentCancellations.invalidate(allocId);
+                    it.remove();
+                }
+            }
+
+            final var expectedSentThisRound = new HashSet<String>();
+            // If we bump the master term, every request is expected to be re-sent
+            if (rarely()) {
+                currentTerm++;
+                expectedCached.addAll(allocationIds.values());
+                expectedSentThisRound.addAll(allocationIds.values());
+            } else {
+                for (final String allocId : allocationIds.values()) {
+                    if (expectedCached.contains(allocId) == false) {
+                        expectedSentThisRound.add(allocId);
+                        expectedCached.add(allocId);
+                    }
+                }
+            }
+
+            // Randomly pick which of the expected sends will fail
+            failThisRound.clear();
+            for (final String allocId : expectedSentThisRound) {
+                if (randomBoolean() && randomBoolean()) {
+                    failThisRound.add(allocId);
+                    expectedCached.remove(allocId);
+                }
+            }
+
+            final var clusterStateThisRound = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(discoveryNodes)
+                .metadata(
+                    Metadata.builder()
+                        .put(indexMetadata, true)
+                        .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
+                        .build()
+                )
+                .routingTable(routingTable)
+                .build();
+
+            actualSentThisRound.clear();
+            service.computeAndSubmitCancellations(balance, createRoutingAllocationFrom(clusterStateThisRound));
+            taskQueue.runAllRunnableTasks();
+
+            assertThat("round " + round + ": sent expected allocation IDs", actualSentThisRound, equalTo(expectedSentThisRound));
+
+            // Verify the service cache matches our tracking
+            for (final String allocId : allocationIds.values()) {
+                if (expectedCached.contains(allocId)) {
+                    assertThat(
+                        "allocation ID " + allocId + " should be in cache",
+                        service.sentCancellations.get(allocId),
+                        equalTo(new RecoveryDirectCancellationService.SentCancellation(currentTerm, false))
+                    );
+                } else {
+                    assertThat("allocation ID " + allocId + " should not be in cache", service.sentCancellations.get(allocId), nullValue());
+                }
+            }
+        }
     }
 
     private static AllocationDecider forbidRemainDecider(ShardId shardId, String forbiddenNodeId, boolean primary) {

@@ -37,10 +37,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         rootBuilder.add(new ObjectMapper.Builder("disabled").enabled(disabledFieldEnabled));
         ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo").enabled(fooFieldEnabled);
         if (includeBarField) {
-            fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()));
+            fooBuilder.add(new TextFieldMapper.Builder("bar", defaultIndexSettings(), createDefaultIndexAnalyzers(), false));
         }
         if (includeBazField) {
-            fooBuilder.add(new TextFieldMapper.Builder("baz", createDefaultIndexAnalyzers()));
+            fooBuilder.add(new TextFieldMapper.Builder("baz", defaultIndexSettings(), createDefaultIndexAnalyzers(), false));
         }
         rootBuilder.add(fooBuilder);
         return rootBuilder;
@@ -133,8 +133,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        ObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).enabled(false);
-        ObjectMapper.Builder mergeWithBuilder = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).addRuntimeFields(
+        ObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type).enabled(false);
+        ObjectMapper.Builder mergeWithBuilder = new RootObjectMapper.Builder(type).addRuntimeFields(
             Collections.singletonMap("test", new TestRuntimeField("test", "long"))
         );
 
@@ -515,7 +515,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, defaultIndexSettings(), createDefaultIndexAnalyzers(), false);
         builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, INDEX_SETTINGS));
         return builder;
     }

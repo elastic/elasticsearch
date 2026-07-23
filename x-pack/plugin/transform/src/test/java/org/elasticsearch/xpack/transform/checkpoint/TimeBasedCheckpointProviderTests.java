@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -25,9 +24,8 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -75,7 +73,6 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
-    private ParentTaskAssigningClient parentTaskClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -87,7 +84,6 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -262,7 +258,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint expectedNextCheckpoint
     ) throws InterruptedException {
-        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap());
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap(), null);
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
@@ -329,11 +325,12 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     private TimeBasedCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new TimeBasedCheckpointProvider(
             clock,
-            parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
+            () -> client.threadPool().getThreadContext(),
+            () -> client,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            mock(CrossProjectModeDecider.class)
         );
     }
 

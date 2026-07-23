@@ -34,13 +34,14 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,6 +144,34 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
             new Object[] { new WildcardQuery(new Term("color", "blu*")), LuceneSliceQueue.PartitioningStrategy.SEGMENT },
             new Object[] {
                 new TermInSetQuery("color", List.of(new BytesRef("red"), new BytesRef("blue"))),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            /*
+             * Nested boolean: a costly point-range buried under TWO levels of BooleanQuery
+             * (the older non-visitor logic only descended one level and would have missed this).
+             */
+            new Object[] {
+                new BooleanQuery.Builder().add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("color", "red")), BooleanClause.Occur.MUST)
+                        .add(
+                            new IndexOrDocValuesQuery(
+                                LongPoint.newRangeQuery("@timestamp", 1735689600121L, 2735689600122L),
+                                SortedNumericDocValuesField.newSlowRangeQuery("@timestamp", 1735689600121L, 2735689600122L)
+                            ),
+                            BooleanClause.Occur.MUST
+                        )
+                        .build(),
+                    BooleanClause.Occur.MUST
+                ).add(new TermQuery(new Term("color", "blue")), BooleanClause.Occur.SHOULD).build(),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            /*
+             * Costly clause hidden behind MUST_NOT. The old recursion treated MUST_NOT branches as
+             * children of the boolean and may have skipped them; the visitor traverses them too.
+             */
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new TermQuery(new Term("color", "red")), BooleanClause.Occur.MUST)
+                    .add(new WildcardQuery(new Term("color", "yel*")), BooleanClause.Occur.MUST_NOT)
+                    .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT }
         );
     }
@@ -184,18 +213,20 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
     }
 
     public void testAutoStrategyLimited() throws Exception {
-        Function<Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
+        BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
             between(1, LuceneOperator.NO_LIMIT - 1)
         );
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Query rewritten = searcher.rewrite(query);
-        assertThat(query.toString(), auto.apply(rewritten), equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
+        assertThat(query.toString(), auto.apply(null, rewritten), equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
     }
 
     public void testAutoStrategyUnlimited() throws Exception {
-        Function<Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(LuceneOperator.NO_LIMIT);
+        BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> auto = LuceneSourceOperator.Factory.autoStrategy(
+            LuceneOperator.NO_LIMIT
+        );
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Query rewritten = searcher.rewrite(query);
-        assertThat(query.toString(), auto.apply(rewritten), equalTo(expectedUnlimited));
+        assertThat(query.toString(), auto.apply(null, rewritten), equalTo(expectedUnlimited));
     }
 }

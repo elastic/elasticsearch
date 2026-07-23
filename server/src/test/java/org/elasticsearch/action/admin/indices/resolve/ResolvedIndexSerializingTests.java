@@ -30,7 +30,7 @@ public class ResolvedIndexSerializingTests extends AbstractWireSerializingTestCa
         String[] attributes = instance.getAttributes();
         String dataStream = instance.getDataStream();
         IndexMode mode = instance.getMode();
-        mode = randomValueOtherThan(mode, () -> randomFrom(IndexMode.values()));
+        mode = randomValueOtherThan(mode, () -> randomFrom(IndexMode.availableModes()));
         return new ResolveIndexAction.ResolvedIndex(name, aliases, attributes, dataStream, mode);
     }
 
@@ -58,7 +58,7 @@ public class ResolvedIndexSerializingTests extends AbstractWireSerializingTestCa
 
         final String dataStream = randomBoolean() ? randomAlphaOfLengthBetween(3, 15) : null;
 
-        final IndexMode mode = randomFrom(IndexMode.values());
+        final IndexMode mode = randomFrom(IndexMode.availableModes());
 
         return new ResolveIndexAction.ResolvedIndex(name, aliases, attributes, dataStream, mode);
 

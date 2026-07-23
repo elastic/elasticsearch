@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
@@ -20,9 +21,22 @@ import java.util.Collection;
 import java.util.List;
 
 public abstract class BinaryDVBlockLoaderTestCase extends BlockLoaderTestCase {
-    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference, boolean binaryDocValues) {
+    public record Params(
+        IndexMode indexMode,
+        SourceFieldMapper.Mode sourceMode,
+        MappedFieldType.FieldExtractPreference preference,
+        boolean binaryDocValues
+    ) {
         public BlockLoaderTestCase.Params blTestCaseParams() {
-            return new BlockLoaderTestCase.Params(syntheticSource, preference);
+            return new BlockLoaderTestCase.Params(indexMode, sourceMode, preference);
+        }
+
+        public boolean syntheticSource() {
+            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
         }
     }
 
@@ -40,12 +54,15 @@ public abstract class BinaryDVBlockLoaderTestCase extends BlockLoaderTestCase {
 
     @ParametersFactory(argumentFormatting = "params=%s")
     public static List<Object[]> args() {
+        List<Object[]> parentArgs = BlockLoaderTestCase.args();
         List<Object[]> args = new ArrayList<>();
-        for (var preference : PREFERENCES) {
-            for (boolean syntheticSource : new boolean[] { false, true }) {
-                for (boolean useBinaryDocValues : new boolean[] { false, true }) {
-                    args.add(new Object[] { new Params(syntheticSource, preference, useBinaryDocValues) });
-                }
+        for (Object[] parentArg : parentArgs) {
+            for (boolean useBinaryDocValues : new boolean[] { false, true }) {
+                BlockLoaderTestCase.Params parentParams = (BlockLoaderTestCase.Params) parentArg[0];
+                args.add(
+                    new Object[] {
+                        new Params(parentParams.indexMode(), parentParams.sourceMode(), parentParams.preference(), useBinaryDocValues) }
+                );
             }
         }
         return args;
@@ -53,13 +70,8 @@ public abstract class BinaryDVBlockLoaderTestCase extends BlockLoaderTestCase {
 
     @Override
     protected Settings.Builder getSettingsForParams() {
-        var builder = Settings.builder();
-        if (params.syntheticSource()) {
-            builder.put("index.mapping.source.mode", "synthetic");
-            if (params.binaryDocValues()) {
-                builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
-            }
-        }
+        var builder = super.getSettingsForParams();
+        builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), params.binaryDocValues());
         return builder;
     }
 }

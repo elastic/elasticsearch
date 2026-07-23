@@ -212,19 +212,13 @@ public class MetadataDataStreamsService {
             submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final var project = modifyDataStream(
-                        currentState.metadata().getProject(projectId),
-                        request.getActions(),
-                        indexMetadata -> {
-                            try {
-                                return indicesService.createIndexMapperServiceForValidation(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
-                            }
-                        },
-                        clusterService.getSettings()
-                    );
-                    return ClusterState.builder(currentState).putProjectMetadata(project).build();
+                    return modifyDataStream(currentState.projectState(projectId), request.getActions(), indexMetadata -> {
+                        try {
+                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    }, clusterService.getSettings());
                 }
             });
         }
@@ -327,22 +321,25 @@ public class MetadataDataStreamsService {
     /**
      * Computes the resulting cluster state after applying all requested data stream modifications in order.
      *
-     * @param currentProject current project metadata
+     * @param projectState current project state
      * @param actions ordered list of modifications to perform
+     * @param mapperSupplier supplies mapper services for indices on demand
+     * @param nodeSettings settings from the cluster service
      * @return resulting cluster state after all modifications have been performed
      */
-    static ProjectMetadata modifyDataStream(
-        ProjectMetadata currentProject,
+    static ClusterState modifyDataStream(
+        ProjectState projectState,
         Iterable<DataStreamAction> actions,
         Function<IndexMetadata, MapperService> mapperSupplier,
         Settings nodeSettings
     ) {
-        var updatedProject = currentProject;
+        var updatedProjectMetadata = projectState.metadata();
+        Set<Index> indicesToRemove = new HashSet<>();
         for (var action : actions) {
-            ProjectMetadata.Builder builder = ProjectMetadata.builder(updatedProject);
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(updatedProjectMetadata);
             if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
                 addBackingIndex(
-                    updatedProject,
+                    updatedProjectMetadata,
                     builder,
                     mapperSupplier,
                     action.getDataStream(),
@@ -351,14 +348,22 @@ public class MetadataDataStreamsService {
                     nodeSettings
                 );
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
-                removeBackingIndex(updatedProject, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
+                removeBackingIndex(updatedProjectMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
+            } else if (action.getType() == DataStreamAction.Type.DELETE_BACKING_INDEX) {
+                indicesToRemove.add(
+                    deleteBackingIndex(updatedProjectMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore())
+                );
             } else {
-                throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
+                throw new IllegalStateException("unsupported data stream action type [" + action.getType() + "]");
             }
-            updatedProject = builder.build();
+            updatedProjectMetadata = builder.build();
         }
-
-        return updatedProject;
+        projectState = projectState.updateProject(updatedProjectMetadata);
+        if (indicesToRemove.isEmpty() == false) {
+            return MetadataDeleteIndexService.deleteIndices(projectState, indicesToRemove, nodeSettings);
+        } else {
+            return projectState.cluster();
+        }
     }
 
     /**
@@ -716,7 +721,7 @@ public class MetadataDataStreamsService {
         }
 
         if (indexNotRemoved) {
-            throw new IllegalArgumentException("index [" + indexName + "] not found");
+            throw new IllegalArgumentException("index [" + indexName + "] not found in data stream [" + dataStreamName + "]");
         }
 
         // un-hide index
@@ -728,6 +733,28 @@ public class MetadataDataStreamsService {
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1)
             );
         }
+    }
+
+    private static Index deleteBackingIndex(
+        ProjectMetadata project,
+        ProjectMetadata.Builder builder,
+        String dataStreamName,
+        String indexName,
+        boolean failureStore
+    ) {
+        DataStream dataStream = validateDataStream(project, dataStreamName);
+        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
+        for (Index backingIndex : targetIndices) {
+            if (backingIndex.getName().equals(indexName)) {
+                if (failureStore) {
+                    builder.put(dataStream.removeFailureStoreIndex(backingIndex));
+                } else {
+                    builder.put(dataStream.removeBackingIndex(backingIndex));
+                }
+                return backingIndex;
+            }
+        }
+        throw new IllegalArgumentException("index [" + indexName + "] not found in data stream [" + dataStreamName + "]");
     }
 
     private static DataStream validateDataStream(ProjectMetadata project, String dataStreamName) {

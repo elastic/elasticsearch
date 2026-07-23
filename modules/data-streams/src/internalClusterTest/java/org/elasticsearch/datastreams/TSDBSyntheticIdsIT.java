@@ -152,7 +152,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,
@@ -1977,7 +1977,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var replicaShard = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
         assertThat(replicaShard, notNullValue());
         long expectedMaxSeqNo = totalDocs - 1 + nbGaps;
-        assertThat(replicaShard.withEngine(engine -> engine.getSeqNoStats(-1).getMaxSeqNo()), equalTo(expectedMaxSeqNo));
+        assertThat(replicaShard.withEngine(engine -> engine.getMaxSeqNo()), equalTo(expectedMaxSeqNo));
 
         // Stop the primary node: this triggers failover to the replica which will fill gaps in sequence numbers with NoOp tombstone
         // operations in IndexShard.updateShardState

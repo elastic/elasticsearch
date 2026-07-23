@@ -17,6 +17,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -44,6 +46,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -82,6 +86,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     private static final String DATE_FIELD = "date";
@@ -928,6 +933,64 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
             }
         );
+    }
+
+    public void testGlobalAggInsideQueryWithRangeFilter() throws IOException {
+        runGlobalAutoDateHistogramTest(LongPoint.newRangeQuery(DATE_FIELD, asUtcMillis(2018, 1, 1), Long.MAX_VALUE));
+    }
+
+    public void testGlobalAggInsideBoolMustQuery() throws IOException {
+        BooleanQuery bool = new BooleanQuery.Builder().add(
+            LongPoint.newRangeQuery(DATE_FIELD, asUtcMillis(2018, 1, 1), Long.MAX_VALUE),
+            BooleanClause.Occur.MUST
+        ).build();
+        runGlobalAutoDateHistogramTest(bool);
+    }
+
+    private static long asUtcMillis(int year, int month, int day) {
+        return ZonedDateTime.of(year, month, day, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    /**
+     * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > auto_date_histogram} aggregation,
+     * then asserts that no doc was lost and that the bucket keys span the full indexed date range.
+     *
+     * @param query The query to run the test with. It's expected to not affect the sub-aggregation, as the parent is a "global" agg
+     */
+    private void runGlobalAutoDateHistogramTest(Query query) throws IOException {
+        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+
+        final List<Long> dataset = new ArrayList<>();
+        for (int year = 2010; year <= 2020; year++) {
+            for (int month = 1; month <= 12; month++) {
+                dataset.add(asUtcMillis(year, month, 1));
+            }
+        }
+        final long earliestMillis = dataset.get(0);
+        final long latestMillis = dataset.get(dataset.size() - 1);
+
+        final GlobalAggregationBuilder builder = new GlobalAggregationBuilder("global").subAggregation(
+            new AutoDateHistogramAggregationBuilder("dh").field(DATE_FIELD).setNumBuckets(10)
+        );
+
+        testCase(iw -> {
+            for (long instant : dataset) {
+                final Document document = new Document();
+                document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+                document.add(new LongPoint(DATE_FIELD, instant));
+                iw.addDocument(document);
+            }
+        }, (Consumer<InternalGlobal>) global -> {
+            assertEquals(dataset.size(), global.getDocCount());
+            InternalAutoDateHistogram dh = global.getAggregations().get("dh");
+            long total = dh.getBuckets().stream().mapToLong(Histogram.Bucket::getDocCount).sum();
+            assertEquals(dataset.size(), total);
+            long firstKey = ((ZonedDateTime) dh.getBuckets().get(0).getKey()).toInstant().toEpochMilli();
+            long lastKey = ((ZonedDateTime) dh.getBuckets().get(dh.getBuckets().size() - 1).getKey()).toInstant().toEpochMilli();
+            // The auto-bucketing decides which buckets to create, so we shallowly check the expected values are within the buckets
+            assertThat("first bucket key must be at or before the earliest doc", firstKey, lessThanOrEqualTo(earliestMillis));
+            assertThat("last bucket key must be at or before the latest doc", lastKey, lessThanOrEqualTo(latestMillis));
+        }, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 
     public void testSubNumericRange() throws IOException {

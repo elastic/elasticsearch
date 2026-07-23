@@ -303,6 +303,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 kqlWithCaseInsensitiveOption
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: kql_function
 required_capability: kql_function_options
 
@@ -434,6 +435,7 @@ from books
 ;
 
 kqlWithMultipleOptions
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: kql_function
 required_capability: kql_function_options
 // tag::kql-with-options[]

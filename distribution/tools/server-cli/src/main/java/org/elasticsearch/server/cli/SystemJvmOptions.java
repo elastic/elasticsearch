@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,7 +29,6 @@ final class SystemJvmOptions {
         String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
 
-        boolean useEntitlements = true;
         return Stream.of(
             Stream.of(
                 /*
@@ -76,12 +76,12 @@ final class SystemJvmOptions {
                 "-Des.distribution.type=" + distroType,
                 "-Des.java.type=" + javaType
             ),
-            maybeEnableNativeAccess(useEntitlements),
+            enableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAttachEntitlementAgent(esHome, useEntitlements)
+            attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
 
@@ -130,16 +130,18 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+    private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
-        if (Runtime.version().feature() >= 21) {
-            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
-            if (useEntitlements) {
-                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
-                if (Runtime.version().feature() >= 24) {
-                    enableNativeAccessOptions.add("--illegal-native-access=deny");
-                }
-            }
+        enableNativeAccessOptions.add(
+            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core,"
+                + "org.elasticsearch.simdvec"
+        );
+        enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This will always be true when min JDK version = 25
+        boolean hasNativeAccessCheck = Runtime.version().feature() >= 24;
+        if (hasNativeAccessCheck) {
+            enableNativeAccessOptions.add("--illegal-native-access=deny");
         }
         return enableNativeAccessOptions.stream();
     }
@@ -147,6 +149,7 @@ final class SystemJvmOptions {
     /*
      * Only affects 22 and 22.0.1, see https://bugs.openjdk.org/browse/JDK-8329528
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This could be removed when min JDK version = 25
     private static Stream<String> maybeWorkaroundG1Bug() {
         Runtime.Version v = Runtime.version();
         if (v.feature() == 22 && v.update() <= 1) {
@@ -155,11 +158,7 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
-        if (useEntitlements == false) {
-            return Stream.empty();
-        }
-
+    private static Stream<String> attachEntitlementAgent(Path esHome) {
         Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
@@ -177,7 +176,8 @@ final class SystemJvmOptions {
 
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
+        String modulesContainingEntitlementInstrumentation =
+            "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs,jdk.management.agent";
         return Stream.of(
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",

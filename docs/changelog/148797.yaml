@@ -1,0 +1,5 @@
+pr: 148797
+summary: Yield producer-loop when streaming-parallel iterator not ready
+area: ES|QL
+type: bug
+issues: []

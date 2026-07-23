@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
@@ -191,6 +193,15 @@ public interface RuntimeField extends ToXContentFragment {
                 }
                 if (parserContext.getNamespaceValidator() != null) {
                     parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
+                }
+                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName)) {
+                    throw new MapperParsingException(
+                        "["
+                            + SliceIndexing.PARAM_NAME
+                            + "] is a reserved field name and cannot be used when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
                 }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");

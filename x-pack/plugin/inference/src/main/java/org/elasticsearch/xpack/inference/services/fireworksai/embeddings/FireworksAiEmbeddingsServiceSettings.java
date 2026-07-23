@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -75,13 +74,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         );
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            FireworksAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         // Handle dimensionsSetByUser based on context
         boolean dimensionsSetByUser = switch (context) {
@@ -155,7 +148,6 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            FireworksAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

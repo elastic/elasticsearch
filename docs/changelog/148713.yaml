@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148713
+summary: Add `range_intersects` and `range_contains` functions
+type: enhancement

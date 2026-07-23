@@ -14,6 +14,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -21,26 +24,30 @@ import java.lang.foreign.ValueLayout;
 
 public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorerSupplier {
 
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
+
     final int dims;
     final int vectorByteSize;
-    final int maxOrd;
     final IndexInput input;
     final FloatVectorValues values;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.maxOrd = values.size();
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -53,7 +60,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
         return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch::getScratch, query -> {
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
             }
@@ -64,6 +71,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
@@ -133,12 +141,12 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceDBF16QBF16(a, b, dims));
+            return VectorUtil.normalizeDistanceToUnitInterval(DISTANCE_FUNCS.squareDistanceDBF16QBF16(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.squareDistanceDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.squareDistanceDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -164,12 +172,12 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeToUnitInterval(Similarities.dotProductDBF16QBF16(a, b, dims));
+            return VectorUtil.normalizeToUnitInterval(DISTANCE_FUNCS.dotProductDBF16QBF16(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -195,12 +203,12 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductDBF16QBF16(a, b, dims));
+            return VectorUtil.scaleMaxInnerProductScore(DISTANCE_FUNCS.dotProductDBF16QBF16(a, b, dims));
         }
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {

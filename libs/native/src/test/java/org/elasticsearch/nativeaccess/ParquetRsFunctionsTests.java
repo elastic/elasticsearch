@@ -42,7 +42,6 @@ public class ParquetRsFunctionsTests extends ESTestCase {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("test");
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

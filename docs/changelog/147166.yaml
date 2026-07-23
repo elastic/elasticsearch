@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147166
+summary: Fix Sparkline generating extra bucket bug
+type: bug

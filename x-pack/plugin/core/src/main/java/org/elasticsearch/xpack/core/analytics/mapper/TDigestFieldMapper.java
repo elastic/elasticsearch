@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -296,6 +297,11 @@ public class TDigestFieldMapper extends FieldMapper {
                                         value.reset(values.binaryValue());
                                         return value;
                                     }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
+                                    }
                                 };
                             } catch (IOException e) {
                                 throw new IOException("Cannot load doc values", e);
@@ -327,6 +333,11 @@ public class TDigestFieldMapper extends FieldMapper {
                                     public Object nextValue() throws IOException {
                                         value.reset(values.binaryValue());
                                         return value;
+                                    }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
                                     }
                                 };
                             } catch (IOException e) {

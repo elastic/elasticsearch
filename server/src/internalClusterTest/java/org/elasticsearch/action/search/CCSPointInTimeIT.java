@@ -23,13 +23,16 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.ccs.CrossClusterSearchIT;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportService;
 import org.hamcrest.MatcherAssert;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -289,6 +292,128 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testOpenPITWithUnavailableRemoteCluster() throws Exception {
+        final Client localClient = client(LOCAL_CLUSTER);
+        int localNumDocs = randomIntBetween(5, 20);
+        assertAcked(
+            localClient.admin().indices().prepareCreate("local_test").setSettings(Settings.builder().put("index.number_of_shards", 1))
+        );
+        indexDocs(localClient, "local_test", localNumDocs);
+
+        // Intercept SearchShardsAction on all remote nodes to simulate the remote being unreachable.
+        // skip_unavailable=true (the default), so the PIT open should succeed with the remote marked SKIPPED.
+        for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+            ((MockTransportService) ts).addRequestHandlingBehavior(
+                TransportSearchShardsAction.NAME,
+                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("simulated remote cluster unavailable"))
+            );
+        }
+        try {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("local_test", REMOTE_CLUSTER + ":*");
+            request.keepAlive(TimeValue.timeValueMinutes(1));
+            final OpenPointInTimeResponse response = localClient.execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+            try {
+                SearchResponse.Clusters clusters = response.getClusters();
+                assertTrue(clusters.hasRemoteClusters());
+                assertThat(clusters.getTotal(), equalTo(2));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                assertNotNull(localCluster);
+                assertThat(localCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertThat(localCluster.getTotalShards(), equalTo(1));
+                assertThat(localCluster.getSuccessfulShards(), equalTo(1));
+                assertThat(localCluster.getFailedShards(), equalTo(0));
+                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+
+                SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                assertNotNull(remoteCluster);
+                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+            } finally {
+                closePointInTime(response.getPointInTimeId());
+            }
+        } finally {
+            for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    public void testOpenPITWithPartialShardFailures() {
+        final Client localClient = client(LOCAL_CLUSTER);
+        final Client remoteClient = client(REMOTE_CLUSTER);
+        int remoteNumShards = 2;
+        assertAcked(
+            localClient.admin().indices().prepareCreate("local_test").setSettings(Settings.builder().put("index.number_of_shards", 1))
+        );
+        indexDocs(localClient, "local_test", randomIntBetween(5, 20));
+
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate("remote_test")
+                .setSettings(Settings.builder().put("index.number_of_shards", remoteNumShards).put("index.number_of_replicas", 0))
+        );
+        indexDocs(remoteClient, "remote_test", randomIntBetween(5, 20));
+
+        // Fail exactly one remote shard during PIT open. Remote shard requests travel over the transport
+        // layer (unlike local-cluster requests which may use sendLocalRequest), so addRequestHandlingBehavior
+        // reliably intercepts them.
+        AtomicBoolean failed = new AtomicBoolean(false);
+        for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+            ((MockTransportService) ts).addRequestHandlingBehavior(
+                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+                (handler, request, channel, task) -> {
+                    if (failed.compareAndSet(false, true)) {
+                        channel.sendResponse(new RuntimeException("simulated shard failure"));
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
+                }
+            );
+        }
+        try {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("local_test", REMOTE_CLUSTER + ":remote_test");
+            request.keepAlive(TimeValue.timeValueMinutes(1));
+            request.allowPartialSearchResults(true);
+            final OpenPointInTimeResponse response = localClient.execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+            try {
+                SearchResponse.Clusters clusters = response.getClusters();
+                assertTrue(clusters.hasRemoteClusters());
+                assertThat(clusters.getTotal(), equalTo(2));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+
+                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                assertNotNull(localCluster);
+                assertThat(localCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertThat(localCluster.getTotalShards(), equalTo(1));
+                assertThat(localCluster.getSuccessfulShards(), equalTo(1));
+                assertThat(localCluster.getFailedShards(), equalTo(0));
+                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+
+                SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                assertNotNull(remoteCluster);
+                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+                assertThat(remoteCluster.getTotalShards(), equalTo(remoteNumShards));
+                assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards - 1));
+                assertThat(remoteCluster.getFailedShards(), equalTo(1));
+                assertThat(remoteCluster.getFailures().size(), equalTo(1));
+                assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            } finally {
+                closePointInTime(response.getPointInTimeId());
+            }
+        } finally {
+            for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
     private static void assertOneFailedShard(SearchResponse.Cluster cluster, int totalShards) {
         assertThat(cluster.getSuccessfulShards(), equalTo(totalShards - 1));
         assertThat(cluster.getFailedShards(), equalTo(1));
@@ -308,6 +433,39 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
         assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
         assertFalse(cluster.isTimedOut());
+    }
+
+    /**
+     * Verifies that per-cluster statuses are finalized to SUCCESSFUL when the remote cluster
+     * returns zero matching shards ({@code getNumShards() == 0}).
+     * <p>
+     * In this scenario {@link AbstractSearchAsyncAction#start()} short-circuits and calls
+     * {@code sendSearchResponse} directly, bypassing {@code getNextPhase()}. The
+     * {@code sendSearchResponse} override in {@code OpenPointInTimePhase} must still drive
+     * {@code finalizeClusterStatuses} so that the remote cluster object transitions from
+     * RUNNING to SUCCESSFUL.
+     */
+    public void testOpenPITClustersStatusWithZeroMatchingRemoteShards() {
+        // Target only the remote cluster with a wildcard that matches no existing indices.
+        // The remote cluster responds to TransportSearchShardsAction with 0 shards, so
+        // getNumShards() == 0 and AbstractSearchAsyncAction.start() takes the early-exit path.
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(REMOTE_CLUSTER + ":nonexistent_*");
+        request.keepAlive(TimeValue.timeValueMinutes(1));
+
+        final OpenPointInTimeResponse response = client(LOCAL_CLUSTER).execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        try {
+            SearchResponse.Clusters clusters = response.getClusters();
+            assertTrue(clusters.hasRemoteClusters());
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+
+            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteCluster);
+            assertAllSuccessfulShards(remoteCluster, 0, 0);
+        } finally {
+            closePointInTime(response.getPointInTimeId());
+        }
     }
 
     private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {

@@ -84,7 +84,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -578,8 +582,12 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                         return percolateShardContext.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
                     });
 
-                    queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
-                    return queryBuilder.toQuery(percolateShardContext);
+                    try {
+                        queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
+                        return queryBuilder.toQuery(percolateShardContext);
+                    } finally {
+                        percolateShardContext.releaseQueryConstructionMemory();
+                    }
                 } else {
                     return null;
                 }
@@ -642,6 +650,8 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
         var wrapped = new SearchExecutionContext(source) {
 
+            private final ConcurrentMap<String, AtomicLong> perIterationCharges = new ConcurrentHashMap<>();
+
             @Override
             public IndexReader getIndexReader() {
                 // The reader that matters in this context is not the reader of the shard but
@@ -678,6 +688,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                         source.getIndexSettings(),
                         source::lookup,
                         this::sourcePath,
+                        () -> false,
                         fielddataOperation
                     )
                 );
@@ -703,6 +714,13 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             @Override
             public void addCircuitBreakerMemory(long bytes, String label) {
                 source.addCircuitBreakerMemory(bytes, label);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+                source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes - heldBreakerBytes);
             }
 
             @Override
@@ -712,7 +730,13 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
 
             @Override
             public void releaseQueryConstructionMemory() {
-                source.releaseQueryConstructionMemory();
+                for (Map.Entry<String, AtomicLong> entry : perIterationCharges.entrySet()) {
+                    long bytes = entry.getValue().getAndSet(0);
+                    if (bytes > 0) {
+                        source.releaseQueryConstructionMemory(bytes, entry.getKey());
+                    }
+                }
+                perIterationCharges.clear();
             }
         };
 

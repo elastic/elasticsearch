@@ -27,7 +27,9 @@ public record SearchParameters(
     float filterSelectivity,
     boolean filterCached,
     boolean earlyTermination,
-    long seed
+    long seed,
+    boolean exact,
+    boolean exactQuantized
 ) {
 
     static final ObjectParser<SearchParameters.Builder, Void> PARSER = new ObjectParser<>(
@@ -47,6 +49,8 @@ public record SearchParameters(
         PARSER.declareBoolean(Builder::setFilterCached, TestConfiguration.FILTER_CACHED);
         PARSER.declareFloat(Builder::setFilterSelectivity, TestConfiguration.FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, TestConfiguration.SEED_FIELD);
+        PARSER.declareBoolean(Builder::setExact, TestConfiguration.EXACT_FIELD);
+        PARSER.declareBoolean(Builder::setExactQuantized, TestConfiguration.EXACT_QUANTIZED_FIELD);
     }
 
     static SearchParameters.Builder fromXContent(XContentParser parser) {
@@ -68,6 +72,8 @@ public record SearchParameters(
         private Boolean filterCached;
         private Boolean earlyTermination;
         private Long seed;
+        private Boolean exact;
+        private Boolean exactQuantized;
 
         public Builder setNumCandidates(int numCandidates) {
             this.numCandidates = numCandidates;
@@ -119,6 +125,16 @@ public record SearchParameters(
             return this;
         }
 
+        public Builder setExact(boolean exact) {
+            this.exact = exact;
+            return this;
+        }
+
+        public Builder setExactQuantized(boolean exactQuantized) {
+            this.exactQuantized = exactQuantized;
+            return this;
+        }
+
         private Builder setNullValues(SearchParameters params) {
             // Only set the null members, don't overwrite the set values
             this.numCandidates = Optional.ofNullable(numCandidates).orElse(params.numCandidates());
@@ -131,6 +147,8 @@ public record SearchParameters(
             this.filterSelectivity = Optional.ofNullable(filterSelectivity).orElse(params.filterSelectivity());
             this.earlyTermination = Optional.ofNullable(earlyTermination).orElse(params.earlyTermination());
             this.seed = Optional.ofNullable(seed).orElse(params.seed());
+            this.exact = Optional.ofNullable(exact).orElse(params.exact());
+            this.exactQuantized = Optional.ofNullable(exactQuantized).orElse(params.exactQuantized());
             return this;
         }
 
@@ -158,7 +176,9 @@ public record SearchParameters(
                 filterSelectivity,
                 filterCached,
                 earlyTermination,
-                seed
+                seed,
+                exact,
+                exactQuantized
             );
         }
 
@@ -194,6 +214,12 @@ public record SearchParameters(
             }
             if (seed != null) {
                 builder.field(TestConfiguration.SEED_FIELD.getPreferredName(), seed);
+            }
+            if (exact != null) {
+                builder.field(TestConfiguration.EXACT_FIELD.getPreferredName(), exact);
+            }
+            if (exactQuantized != null) {
+                builder.field(TestConfiguration.EXACT_QUANTIZED_FIELD.getPreferredName(), exactQuantized);
             }
             return builder.endObject();
         }

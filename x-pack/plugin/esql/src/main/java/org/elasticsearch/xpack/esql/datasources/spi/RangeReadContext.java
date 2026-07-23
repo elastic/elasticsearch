@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Context for a single {@link RangeAwareFormatReader#readRange} call. Bundles the per-split
@@ -24,6 +25,9 @@ public final class RangeReadContext {
     private final long rangeEnd;
     private final List<Attribute> resolvedAttributes;
     private final ErrorPolicy errorPolicy;
+    /** See {@link #informationalWarningSink()}. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
     /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
      */
@@ -38,12 +42,30 @@ public final class RangeReadContext {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) {
+        this(projectedColumns, batchSize, rangeStart, rangeEnd, resolvedAttributes, errorPolicy, null);
+    }
+
+    /**
+     * As the above, plus {@code informationalWarningSink} — see {@link #informationalWarningSink()}.
+     * Kept as a separate constructor so the many existing callers (tests, benchmarks) that don't
+     * care about relaying warnings off this thread are unaffected.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink
+    ) {
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
         this.rangeStart = rangeStart;
         this.rangeEnd = rangeEnd;
         this.resolvedAttributes = resolvedAttributes;
         this.errorPolicy = errorPolicy;
+        this.informationalWarningSink = informationalWarningSink;
     }
 
     public List<String> projectedColumns() {
@@ -68,6 +90,20 @@ public final class RangeReadContext {
 
     public ErrorPolicy errorPolicy() {
         return errorPolicy;
+    }
+
+    /**
+     * Optional relay for client-visible lenient-policy warnings (see {@code SkipWarnings}) raised
+     * while reading this range. {@code null} means the reader should fall back to emitting warnings
+     * directly via {@link org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
+     * the read runs on the request/driver thread. Callers that dispatch {@code readRange} to a
+     * background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set this to a sink so
+     * the warning is relayed back and re-emitted on the correct thread instead of being silently
+     * dropped. See {@link FormatReadContext#informationalWarningSink()} for the non-range-read counterpart.
+     */
+    @Nullable
+    public Consumer<String> informationalWarningSink() {
+        return informationalWarningSink;
     }
 
     @Nullable

@@ -15,24 +15,30 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests verifying per-plugin lazy loading behavior in DataSourceModule.
@@ -45,10 +51,10 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     private static final AtomicBoolean SPY_STORAGE_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean SPY_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean OTHER_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         SPY_STORAGE_FACTORY_CALLED.set(false);
         SPY_FORMAT_FACTORY_CALLED.set(false);
@@ -59,7 +65,15 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         List<DataSourcePlugin> plugins = List.of(new SpyStoragePlugin(), new SpyFormatPlugin(), new OtherFormatPlugin());
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
 
-        new DataSourceModule(plugins, capabilities, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
 
         assertFalse("Storage factory should not be called at construction", SPY_STORAGE_FACTORY_CALLED.get());
         assertFalse("Spy format factory should not be called at construction", SPY_FORMAT_FACTORY_CALLED.get());
@@ -75,7 +89,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         module.formatReaderRegistry().byName("spy");
@@ -93,7 +109,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         module.formatReaderRegistry().byExtension("data.spy");
@@ -111,7 +129,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertFalse("Storage factory should not be called yet", SPY_STORAGE_FACTORY_CALLED.get());
@@ -130,7 +150,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         DataSourceCapabilities caps = module.capabilities();
@@ -154,7 +176,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertFalse("ftp scheme should not be supported", module.capabilities().supportsScheme("ftp"));
@@ -173,7 +197,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         // Storage-only plugin should NOT produce a LazyConnectorFactory entry
@@ -236,7 +262,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertTrue("Should have fmt1 format", module.formatReaderRegistry().hasFormat("fmt1"));
@@ -256,7 +284,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
             SPY_STORAGE_FACTORY_CALLED.set(true);
-            return Map.of("spy", s -> new StubStorageProvider());
+            return Map.of("spy", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
         }
     }
 
@@ -323,7 +351,12 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final String name;
         private final List<String> extensions;
 

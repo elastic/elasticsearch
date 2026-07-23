@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
  * {@link ExpressionEvaluator} implementation for {@link StBuffer}.
@@ -32,15 +33,19 @@ public final class StBufferNonFoldableCartesianPointDocValuesAndFoldableDistance
 
   private final double distance;
 
+  private final BufferParameters bufferParameters;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StBufferNonFoldableCartesianPointDocValuesAndFoldableDistanceEvaluator(Source source,
-      ExpressionEvaluator left, double distance, DriverContext driverContext) {
+      ExpressionEvaluator left, double distance, BufferParameters bufferParameters,
+      DriverContext driverContext) {
     this.source = source;
     this.left = left;
     this.distance = distance;
+    this.bufferParameters = bufferParameters;
     this.driverContext = driverContext;
   }
 
@@ -70,7 +75,7 @@ public final class StBufferNonFoldableCartesianPointDocValuesAndFoldableDistance
           continue position;
         }
         try {
-          StBuffer.processCartesianPointDocValuesAndConstantDistance(result, p, leftBlock, this.distance);
+          StBuffer.processCartesianPointDocValuesAndConstantDistance(result, p, leftBlock, this.distance, this.bufferParameters);
         } catch (IllegalArgumentException | IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,16 +109,20 @@ public final class StBufferNonFoldableCartesianPointDocValuesAndFoldableDistance
 
     private final double distance;
 
-    public Factory(Source source, ExpressionEvaluator.Factory left, double distance) {
+    private final BufferParameters bufferParameters;
+
+    public Factory(Source source, ExpressionEvaluator.Factory left, double distance,
+        BufferParameters bufferParameters) {
       this.source = source;
       this.left = left;
       this.distance = distance;
+      this.bufferParameters = bufferParameters;
     }
 
     @Override
     public StBufferNonFoldableCartesianPointDocValuesAndFoldableDistanceEvaluator get(
         DriverContext context) {
-      return new StBufferNonFoldableCartesianPointDocValuesAndFoldableDistanceEvaluator(source, left.get(context), distance, context);
+      return new StBufferNonFoldableCartesianPointDocValuesAndFoldableDistanceEvaluator(source, left.get(context), distance, bufferParameters, context);
     }
 
     @Override

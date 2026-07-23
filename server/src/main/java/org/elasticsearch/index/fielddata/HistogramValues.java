@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.core.Nullable;
+
 import java.io.IOException;
 
 /**
@@ -17,15 +20,27 @@ import java.io.IOException;
 public abstract class HistogramValues {
 
     /**
-     * Advance this instance to the given document id
-     * @return true if there is a value for this document
-     */
-    public abstract boolean advanceExact(int doc) throws IOException;
-
-    /**
      * Get the {@link HistogramValue} associated with the current document.
      * The returned {@link HistogramValue} might be reused across calls.
      */
     public abstract HistogramValue histogram() throws IOException;
 
+    /** Advance the iterator to exactly {@code target} and return whether
+     *  {@code target} has a value.
+     *  {@code target} must be greater than or equal to the current
+     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  &lt; {@code maxDoc}.*/
+    public abstract boolean advanceExact(int target) throws IOException;
+
+    public int docValueCount() {
+        return 1;
+    }
+
+    /**
+     * @return a doc id iterator over the doc values when available, otherwise null.
+     */
+    @Nullable
+    public DocIdSetIterator docIdIterator() {
+        return null;
+    }
 }

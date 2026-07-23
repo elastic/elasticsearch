@@ -15,6 +15,12 @@ package org.elasticsearch.telemetry.metric;
 public interface DoubleGauge extends Instrument, AutoCloseable {
 
     /**
+     * Closing this instrument stops it from recording measurements and removes it from the {@link MeterRegistry}.
+     */
+    @Override
+    void close();
+
+    /**
      * Noop gauge for tests
      */
     DoubleGauge NOOP = new DoubleGauge() {

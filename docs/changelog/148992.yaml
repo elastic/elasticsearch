@@ -1,0 +1,6 @@
+area: Engine
+issues: []
+pr: 148992
+summary: Avoid storing in `BlobTranslogFile` `totalOps` for active shards when it
+  is equal to zero
+type: enhancement

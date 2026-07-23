@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 147063
-summary: "[Inference API] Fix inference initialization thread exhaustion"
-type: bug

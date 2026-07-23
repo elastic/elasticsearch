@@ -64,6 +64,10 @@ public class ComputeListenerTests extends ESTestCase {
         return new DriverCompletionInfo(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomList(
                 0,
                 2,
@@ -91,7 +95,9 @@ public class ComputeListenerTests extends ESTestCase {
                     randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
                     randomPlanTimeProfile()
                 )
-            )
+            ),
+            java.util.Map.of(),
+            randomBoolean()
         );
     }
 
@@ -112,6 +118,7 @@ public class ComputeListenerTests extends ESTestCase {
         PlainActionFuture<DriverCompletionInfo> future = new PlainActionFuture<>();
         long documentsFound = 0;
         long valuesLoaded = 0;
+        boolean partial = false;
         List<DriverProfile> allProfiles = new ArrayList<>();
         AtomicInteger onFailure = new AtomicInteger();
         try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
@@ -128,6 +135,7 @@ public class ComputeListenerTests extends ESTestCase {
                     var info = randomCompletionInfo();
                     documentsFound += info.documentsFound();
                     valuesLoaded += info.valuesLoaded();
+                    partial |= info.partial();
                     allProfiles.addAll(info.driverProfiles());
                     ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
@@ -141,6 +149,7 @@ public class ComputeListenerTests extends ESTestCase {
         DriverCompletionInfo actual = future.actionGet(10, TimeUnit.SECONDS);
         assertThat(actual.documentsFound(), equalTo(documentsFound));
         assertThat(actual.valuesLoaded(), equalTo(valuesLoaded));
+        assertThat(actual.partial(), equalTo(partial));
         assertThat(
             actual.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))

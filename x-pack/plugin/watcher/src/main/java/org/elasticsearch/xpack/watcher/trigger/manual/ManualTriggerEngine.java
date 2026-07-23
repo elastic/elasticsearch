@@ -43,7 +43,9 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
     public void register(Consumer<Iterable<TriggerEvent>> consumer) {}
 
     @Override
-    public void add(Watch job) {}
+    public boolean add(Watch job) {
+        return true;
+    }
 
     @Override
     public void pauseExecution() {}

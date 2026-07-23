@@ -9,13 +9,10 @@
 
 package org.elasticsearch.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,8 +49,6 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     implements
         Writeable {
 
-    private static final Logger logger = LogManager.getLogger(ResolvedIndexExpression.class);
-
     public ResolvedIndexExpression(StreamInput in) throws IOException {
         this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));
     }
@@ -62,6 +57,12 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(original);
         localExpressions.writeTo(out);
+        out.writeStringCollection(remoteExpressions);
+    }
+
+    void writeToLegacy(StreamOutput out, ElasticsearchException legacyException) throws IOException {
+        out.writeString(original);
+        localExpressions.writeToLegacy(out, legacyException);
         out.writeStringCollection(remoteExpressions);
     }
 
@@ -98,22 +99,15 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     public static final class LocalExpressions implements Writeable {
         private final Set<String> indices;
         private final LocalIndexResolutionResult localIndexResolutionResult;
-        @Nullable
-        private ElasticsearchException exception;
+        // for BwC with transport versions before RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE
+        private transient ElasticsearchException legacyException;
 
         /**
          * @param indices represents the resolved concrete indices backing the expression
          */
-        public LocalExpressions(
-            Set<String> indices,
-            LocalIndexResolutionResult localIndexResolutionResult,
-            @Nullable ElasticsearchException exception
-        ) {
-            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
-                : "If the local resolution result is SUCCESS, exception must be null";
+        public LocalExpressions(Set<String> indices, LocalIndexResolutionResult localIndexResolutionResult) {
             this.indices = indices;
             this.localIndexResolutionResult = localIndexResolutionResult;
-            this.exception = exception;
         }
 
         public Set<String> indices() {
@@ -124,24 +118,8 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             return localIndexResolutionResult;
         }
 
-        @Nullable
-        public ElasticsearchException exception() {
-            return exception;
-        }
-
-        public void setExceptionIfUnset(ElasticsearchException exception) {
-            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS
-                : "If the local resolution result is SUCCESS, exception must be null";
-            Objects.requireNonNull(exception);
-
-            if (this.exception == null) {
-                this.exception = exception;
-            } else if (Objects.equals(this.exception.getMessage(), exception.getMessage()) == false) {
-                // see https://github.com/elastic/elasticsearch/issues/135799
-                var message = "Exception is already set: " + exception.getMessage();
-                logger.debug(message);
-                assert false : message;
-            }
+        ElasticsearchException legacyException() {
+            return legacyException;
         }
 
         @Override
@@ -150,45 +128,43 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             if (obj == null || obj.getClass() != this.getClass()) return false;
             var that = (LocalExpressions) obj;
             return Objects.equals(this.indices, that.indices)
-                && Objects.equals(this.localIndexResolutionResult, that.localIndexResolutionResult)
-                && Objects.equals(this.exception, that.exception);
+                && Objects.equals(this.localIndexResolutionResult, that.localIndexResolutionResult);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, localIndexResolutionResult, exception);
+            return Objects.hash(indices, localIndexResolutionResult);
         }
 
         @Override
         public String toString() {
-            return "LocalExpressions["
-                + "indices="
-                + indices
-                + ", "
-                + "localIndexResolutionResult="
-                + localIndexResolutionResult
-                + ", "
-                + "exception="
-                + exception
-                + ']';
+            return "LocalExpressions[" + "indices=" + indices + ", " + "localIndexResolutionResult=" + localIndexResolutionResult + ']';
         }
 
         // Singleton for the case where all expressions in a ResolvedIndexExpression instance are remote
-        public static final LocalExpressions NONE = new LocalExpressions(Set.of(), LocalIndexResolutionResult.NONE, null);
+        public static final LocalExpressions NONE = new LocalExpressions(Set.of(), LocalIndexResolutionResult.NONE);
 
         public LocalExpressions(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsImmutableSet(StreamInput::readString),
-                in.readEnum(LocalIndexResolutionResult.class),
-                ElasticsearchException.readException(in)
-            );
+            this.indices = in.readCollectionAsImmutableSet(StreamInput::readString);
+            this.localIndexResolutionResult = in.readEnum(LocalIndexResolutionResult.class);
+            if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE) == false) {
+                this.legacyException = ElasticsearchException.readException(in);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(indices);
             out.writeEnum(localIndexResolutionResult);
-            ElasticsearchException.writeException(exception, out);
+            if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE) == false) {
+                ElasticsearchException.writeException(legacyException, out);
+            }
+        }
+
+        private void writeToLegacy(StreamOutput out, ElasticsearchException legacyException) throws IOException {
+            out.writeStringCollection(indices);
+            out.writeEnum(localIndexResolutionResult);
+            ElasticsearchException.writeException(legacyException, out);
         }
     }
 }

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 151337
+summary: "Painless: `script_aware` Stream.collect(Collector) and primitive `forEachRemaining`"
+type: enhancement

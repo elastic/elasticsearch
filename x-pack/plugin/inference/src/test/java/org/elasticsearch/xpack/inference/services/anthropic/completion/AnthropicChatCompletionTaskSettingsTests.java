@@ -106,7 +106,7 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
     public void testFromMap_WithoutMaxTokens_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AnthropicChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST)
+            () -> AnthropicChatCompletionTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
         );
 
         assertThat(

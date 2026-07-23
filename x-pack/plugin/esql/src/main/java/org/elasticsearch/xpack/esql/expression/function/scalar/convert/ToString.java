@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,10 +22,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -44,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -59,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
@@ -73,6 +79,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
         .unaryConfig(ToString::new)
+        .capabilities("flattened")
         .name("to_string", "to_str");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
@@ -84,6 +91,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (source, fieldEval) -> fieldEval),
+        Map.entry(FLATTENED, (source, fieldEval) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
@@ -108,7 +116,9 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     private final Configuration configuration;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
+        briefSummary = "Converts a value to a string.",
         description = "Converts an input value into a string.",
         examples = {
             @Example(file = "string", tag = "to_string"),
@@ -141,7 +151,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "unsigned_long",
                 "version",
                 "date_range",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "flattened" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
         Configuration configuration
@@ -161,6 +172,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     }
 
     @Override
+    public String functionName() {
+        return "TO_STRING";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
             Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);
@@ -171,7 +187,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDatetimeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -179,7 +195,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -187,7 +203,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateRangeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     )
                 )
@@ -295,6 +311,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromHistogram(BytesRef histogram) {
         return new BytesRef(EsqlDataTypeConverter.histogramToString(histogram));
+    }
+
+    @ConvertEvaluator(extraName = "FromDateRange")
+    static BytesRef fromDateRange(LongRangeBlockBuilder.LongRange range, @Fixed DateFormatter formatter) {
+        return new BytesRef(dateRangeToString(range.from(), range.to(), formatter));
     }
 
     @Override

@@ -609,7 +609,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         @Nullable String user,
         @Nullable InputType inputType
     ) {
-        var expectedSize = 1;
+        var expectedSize = 2;
         if (user != null) {
             expectedSize += 1;
         }
@@ -619,6 +619,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
         assertThat(requestMap.size(), is(expectedSize));
         assertThat(requestMap.get("input"), is(input));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
 
         if (user != null) {
             assertThat(requestMap.get("user"), is(user));

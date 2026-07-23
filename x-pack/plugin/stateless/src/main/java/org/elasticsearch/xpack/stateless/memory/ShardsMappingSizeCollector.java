@@ -47,6 +47,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.SizingDataTransmissionLogging.getExceptionLogLevel;
 
+/**
+ * Runs on index nodes. Reads each local shard's raw, measured field stats ({@link IndexShard#getShardFieldStats()}: segment count,
+ * field count, postings bytes, live-doc bytes) and publishes them as a {@link ShardMappingSize} per shard; it does no estimation of its
+ * own.
+ * <p>
+ * Publication is triggered by mapping changes and shard-mapping-version bumps ({@link #clusterChanged}), shard starts
+ * ({@link #afterIndexShardStarted}), and a periodic safety net ({@link #PUBLISHING_FREQUENCY_SETTING}). Each of these calls
+ * {@link #publishMetricsForIndicesAndShards}, which calls {@link #publishHeapUsage}, which hands off to
+ * {@link HeapMemoryUsagePublisher#publishIndicesMappingSize} to send the data to the master over transport.
+ * <p>
+ * For what happens to this data once it reaches the master, see {@link StatelessMemoryMetricsService}. {@code ShardsMappingSizeCollector}
+ * (this class) is the actual collector; don't confuse it with {@link StatelessHeapUsageReader}, which runs on the master and does no
+ * collecting of its own but only reads state this class already delivered.
+ */
 public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEventListener {
 
     public static final Setting<TimeValue> PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
@@ -326,6 +340,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
                 shardFieldStats.totalFields(),
                 shardFieldStats.postingsInMemoryBytes(),
                 shardFieldStats.liveDocsBytes(),
+                shardFieldStats.pointsInMemoryBytes(),
                 shardMemoryOverheadBytes,
                 nodeId
             );

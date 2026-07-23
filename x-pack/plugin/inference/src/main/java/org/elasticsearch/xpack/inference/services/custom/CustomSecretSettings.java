@@ -48,7 +48,17 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+        var validationException = new ValidationException();
+
+        var requestSecretParamsMap = extractOptionalMapRemoveNulls(newSecrets, SECRET_PARAMETERS, validationException);
+        var updatedSecretParameters = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        if (secretParameters.equals(updatedSecretParameters) || updatedSecretParameters.isEmpty()) {
+            return this;
+        }
+        return new CustomSecretSettings(updatedSecretParameters);
     }
 
     public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {

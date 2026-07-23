@@ -68,6 +68,16 @@ public abstract class FieldScript extends DocBasedScript {
         params = null;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public abstract Object execute();
 
     /** Return the parameters for this script. */

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,6 +57,10 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
         "get_inference_fields_action_as_indices_action"
     );
 
+    public static final TransportVersion GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV = TransportVersion.fromName(
+        "get_inference_fields_embedding_input"
+    );
+
     public static final String NAME = "indices:admin/inference/fields/get";
 
     public GetInferenceFieldsInternalAction() {
@@ -67,7 +72,8 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
         private final Map<String, Float> fields;
         private final boolean resolveWildcards;
         private final boolean useDefaultFields;
-        private final String query;
+        @Nullable
+        private final InferenceStringGroup input;
         private final IndicesOptions indicesOptions;
 
         /**
@@ -101,7 +107,7 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
          * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
          *                         returned.
          * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
-         * @param query The query to generate inference results for.
+         * @param query The text query to generate inference results for.
          * @param indicesOptions The {@link IndicesOptions} to use when resolving indices.
          */
         public Request(
@@ -112,11 +118,42 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             @Nullable String query,
             @Nullable IndicesOptions indicesOptions
         ) {
+            this(
+                indices,
+                fields,
+                resolveWildcards,
+                useDefaultFields,
+                query != null ? new InferenceStringGroup(query) : null,
+                indicesOptions
+            );
+        }
+
+        /**
+         * <p>
+         * Constructs a request to get inference fields with a rich input that may include non-text data (e.g. images).
+         * </p>
+         *
+         * @param indices The indices to get inference fields for.
+         * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
+         * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+         *                         returned.
+         * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
+         * @param input The input to generate inference results for. May contain non-text data such as images.
+         * @param indicesOptions The {@link IndicesOptions} to use when resolving indices.
+         */
+        public Request(
+            String[] indices,
+            Map<String, Float> fields,
+            boolean resolveWildcards,
+            boolean useDefaultFields,
+            @Nullable InferenceStringGroup input,
+            @Nullable IndicesOptions indicesOptions
+        ) {
             this.indices = indices;
             this.fields = fields;
             this.resolveWildcards = resolveWildcards;
             this.useDefaultFields = useDefaultFields;
-            this.query = query;
+            this.input = input;
             this.indicesOptions = indicesOptions == null ? IndicesOptions.DEFAULT : indicesOptions;
         }
 
@@ -126,7 +163,12 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             this.fields = in.readMap(StreamInput::readFloat);
             this.resolveWildcards = in.readBoolean();
             this.useDefaultFields = in.readBoolean();
-            this.query = in.readOptionalString();
+            if (in.getTransportVersion().supports(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV)) {
+                this.input = in.readOptionalWriteable(InferenceStringGroup::new);
+            } else {
+                String query = in.readOptionalString();
+                this.input = query != null ? new InferenceStringGroup(query) : null;
+            }
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
@@ -137,7 +179,18 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             out.writeMap(fields, StreamOutput::writeFloat);
             out.writeBoolean(resolveWildcards);
             out.writeBoolean(useDefaultFields);
-            out.writeOptionalString(query);
+            if (out.getTransportVersion().supports(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV)) {
+                out.writeOptionalWriteable(input);
+            } else {
+                if (input != null && (input.containsNonTextEntry() || input.containsMultipleInferenceStrings())) {
+                    throw new IllegalArgumentException(
+                        "Cannot send non-text or multiple inputs to a node that does not support it. "
+                            + "Please update the node to at least "
+                            + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
+                    );
+                }
+                out.writeOptionalString(input != null ? input.textValue() : null);
+            }
             indicesOptions.writeIndicesOptions(out);
         }
 
@@ -187,8 +240,9 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             return useDefaultFields;
         }
 
-        public String query() {
-            return query;
+        @Nullable
+        public InferenceStringGroup input() {
+            return input;
         }
 
         @Override
@@ -210,13 +264,13 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
                 && Objects.equals(fields, request.fields)
                 && resolveWildcards == request.resolveWildcards
                 && useDefaultFields == request.useDefaultFields
-                && Objects.equals(query, request.query)
+                && Objects.equals(input, request.input)
                 && Objects.equals(indicesOptions, request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), fields, resolveWildcards, useDefaultFields, query, indicesOptions);
+            return Objects.hash(Arrays.hashCode(indices), fields, resolveWildcards, useDefaultFields, input, indicesOptions);
         }
     }
 

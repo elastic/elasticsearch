@@ -28,6 +28,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +42,16 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BIT));
+        return TestUtil.alwaysKnnVectorsFormat(
+            new ES93HnswVectorsFormat(
+                DEFAULT_MAX_CONN,
+                DEFAULT_BEAM_WIDTH,
+                DenseVectorFieldMapper.ElementType.BIT,
+                DEFAULT_NUM_MERGE_WORKER,
+                null,
+                random().nextInt(1, 20)
+            )
+        );
     }
 
     @Before
@@ -58,7 +70,14 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
     public void testSimpleOffHeapSize() throws IOException {
         byte[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BIT, 1, null, 0);
+        var format = new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.BIT,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            0
+        );
         var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
             Document doc = new Document();

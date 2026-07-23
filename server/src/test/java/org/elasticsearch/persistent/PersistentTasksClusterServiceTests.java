@@ -105,8 +105,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterService() throws Exception {
         clusterService = createClusterService(threadPool);
         scope = randomFrom(PersistentTasksExecutor.Scope.values());
     }
@@ -117,8 +116,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

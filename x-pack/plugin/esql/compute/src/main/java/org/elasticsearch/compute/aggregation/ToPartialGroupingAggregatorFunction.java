@@ -67,21 +67,24 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         final CompositeBlock inputBlock = page.getBlock(channels.get(0));
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-        final CompositeBlock inputBlock = page.getBlock(channels.get(0));
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
-        final CompositeBlock inputBlock = page.getBlock(channels.get(0));
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override

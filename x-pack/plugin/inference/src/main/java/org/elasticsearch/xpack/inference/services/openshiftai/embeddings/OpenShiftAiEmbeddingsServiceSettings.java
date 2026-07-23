@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -176,7 +175,6 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            OpenShiftAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

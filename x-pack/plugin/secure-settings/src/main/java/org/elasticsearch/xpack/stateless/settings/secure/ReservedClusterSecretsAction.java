@@ -38,16 +38,23 @@ public class ReservedClusterSecretsAction implements ReservedClusterStateHandler
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         builder.putCustom(ClusterSecrets.TYPE, newSecrets);
 
+        // Actively remove legacy metadata from cluster state if present.
+        builder.removeCustom(ClusterStateSecretsMetadata.TYPE);
+
         return new TransformState(builder.build(), newSecrets.getSettings().getSettingNames());
     }
 
     @Override
     public ClusterState remove(TransformState prevState) {
         ClusterState clusterState = prevState.state();
-        if (clusterState.custom(ClusterSecrets.TYPE) == null) {
+        if (clusterState.custom(ClusterSecrets.TYPE) == null && clusterState.custom(ClusterStateSecretsMetadata.TYPE) == null) {
             return clusterState;
         }
-        return ClusterState.builder(clusterState).removeCustom(ClusterSecrets.TYPE).build();
+        return ClusterState.builder(clusterState)
+            .removeCustom(ClusterSecrets.TYPE)
+            // Actively remove legacy metadata from cluster state if present.
+            .removeCustom(ClusterStateSecretsMetadata.TYPE)
+            .build();
     }
 
     @Override

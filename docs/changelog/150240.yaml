@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 150240
+summary: Enforce datasource record caps
+type: enhancement

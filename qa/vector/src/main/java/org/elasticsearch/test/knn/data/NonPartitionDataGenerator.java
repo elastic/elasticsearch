@@ -44,13 +44,13 @@ public final class NonPartitionDataGenerator extends DataGenerator {
             case BYTE -> {
                 byteQueries = new byte[searcher.numQueryVectors()][];
                 for (int i = 0; i < searcher.numQueryVectors(); i++) {
-                    byteQueries[i] = targetReader.nextByteVector();
+                    byteQueries[i] = targetReader.nextByteVector().vector();
                 }
             }
             case FLOAT32 -> {
                 floatQueries = new float[searcher.numQueryVectors()][];
                 for (int i = 0; i < searcher.numQueryVectors(); i++) {
-                    floatQueries[i] = targetReader.nextFloatVector();
+                    floatQueries[i] = targetReader.nextFloatVector().vector();
                 }
             }
         }

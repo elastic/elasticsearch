@@ -28,11 +28,11 @@ public class ModelValidatorBuilder {
         if (taskType == null) {
             throw new IllegalArgumentException("Task type can't be null");
         }
-
-        ServiceIntegrationValidator validatorFromService = null;
-        if (service != null) {
-            validatorFromService = service.getServiceIntegrationValidator(taskType);
+        if (service == null) {
+            throw new IllegalArgumentException("Service can't be null");
         }
+
+        ServiceIntegrationValidator validatorFromService = service.getServiceIntegrationValidator(taskType);
 
         switch (taskType) {
             case TEXT_EMBEDDING -> {
@@ -50,7 +50,10 @@ public class ModelValidatorBuilder {
                     Objects.requireNonNullElse(validatorFromService, new SimpleChatCompletionServiceIntegrationValidator())
                 );
             }
-            case SPARSE_EMBEDDING, RERANK, ANY -> {
+            case RERANK -> {
+                return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new RerankServiceIntegrationValidator()));
+            }
+            case SPARSE_EMBEDDING, ANY -> {
                 return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator()));
             }
             case EMBEDDING -> {

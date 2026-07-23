@@ -27,9 +27,9 @@ import java.util.function.Function;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
-    private final AtomicReference<T> delegate = new AtomicReference<>();
+    protected final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
-    private final Function<Meter, T> instrumentBuilder;
+    protected final Function<Meter, T> instrumentBuilder;
 
     public AbstractInstrument(Meter meter, Builder<T> builder) {
         this.name = builder.getName();
@@ -47,15 +47,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
     }
 
     void setProvider(@Nullable Meter meter) {
-        var oldInstrument = delegate.getAndSet(instrumentBuilder.apply(Objects.requireNonNull(meter)));
-        if (oldInstrument instanceof AutoCloseable closeableOldInstrument) {
-            try {
-                closeableOldInstrument.close();
-            } catch (Exception e) {
-                assert true : "OTel metrics must not throw on close()";
-                throw new IllegalStateException("OTel metrics must not throw on close()", e);
-            }
-        }
+        delegate.set(instrumentBuilder.apply(Objects.requireNonNull(meter)));
     }
 
     protected abstract static class Builder<T> {

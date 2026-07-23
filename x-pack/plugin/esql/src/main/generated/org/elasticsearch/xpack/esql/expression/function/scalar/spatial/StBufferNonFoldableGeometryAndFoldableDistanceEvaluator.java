@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
  * {@link ExpressionEvaluator} implementation for {@link StBuffer}.
@@ -30,15 +31,19 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
   private final double distance;
 
+  private final BufferParameters bufferParameters;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(Source source,
-      ExpressionEvaluator geometry, double distance, DriverContext driverContext) {
+      ExpressionEvaluator geometry, double distance, BufferParameters bufferParameters,
+      DriverContext driverContext) {
     this.source = source;
     this.geometry = geometry;
     this.distance = distance;
+    this.bufferParameters = bufferParameters;
     this.driverContext = driverContext;
   }
 
@@ -68,7 +73,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
           continue position;
         }
         try {
-          StBuffer.processNonFoldableGeometryAndConstantDistance(result, p, geometryBlock, this.distance);
+          StBuffer.processNonFoldableGeometryAndConstantDistance(result, p, geometryBlock, this.distance, this.bufferParameters);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -102,15 +107,19 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
     private final double distance;
 
-    public Factory(Source source, ExpressionEvaluator.Factory geometry, double distance) {
+    private final BufferParameters bufferParameters;
+
+    public Factory(Source source, ExpressionEvaluator.Factory geometry, double distance,
+        BufferParameters bufferParameters) {
       this.source = source;
       this.geometry = geometry;
       this.distance = distance;
+      this.bufferParameters = bufferParameters;
     }
 
     @Override
     public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator get(DriverContext context) {
-      return new StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(source, geometry.get(context), distance, context);
+      return new StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(source, geometry.get(context), distance, bufferParameters, context);
     }
 
     @Override

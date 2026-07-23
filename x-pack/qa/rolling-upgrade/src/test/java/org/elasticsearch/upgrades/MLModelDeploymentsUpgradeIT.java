@@ -90,11 +90,20 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "INFO",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": null,
                 "logger.org.elasticsearch.xpack.ml.process": "INFO",
                 "logger.org.elasticsearch.xpack.ml.action": "INFO"
               }
             }
             """);
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (warning.equals(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build());
         client().performRequest(request);
     }
 
@@ -107,10 +116,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 waitForDeploymentStarted(modelId);
                 // attempt inference on new and old nodes multiple times
                 for (int i = 0; i < 10; i++) {
@@ -118,10 +124,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
@@ -140,17 +143,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 stopDeployment(modelId);
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

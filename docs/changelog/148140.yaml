@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 148140
+summary: "[Inference API] Add product use case and origin to telemetry"
+type: enhancement

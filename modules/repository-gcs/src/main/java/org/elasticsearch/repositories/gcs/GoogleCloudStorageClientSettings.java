@@ -33,7 +33,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 
+import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
@@ -139,6 +141,24 @@ public class GoogleCloudStorageClientSettings {
         (key) -> Setting.longSetting(key, ByteSizeValue.ofGb(5).getMb(), 1L, Setting.Property.NodeScope)
     );
 
+    /** Tenacious retries for transient blob store errors. */
+    static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "tenacious_retries.enabled",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
+
+    /**
+     * Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of data buffered in memory before each
+     * HTTP PUT request. When not set, the SDK default of 16 MiB is used. GCS requires this value to be a multiple of 256 KiB; values
+     * that are not will be rounded up automatically.
+     */
+    static final Setting.AffixSetting<ByteSizeValue> RESUMABLE_WRITE_BUFFER_SIZE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "resumable_write_buffer_size",
+        key -> byteSizeSetting(key, ByteSizeValue.ofMb(16), ByteSizeValue.ofKb(256), ByteSizeValue.ofMb(100), Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -168,6 +188,12 @@ public class GoogleCloudStorageClientSettings {
     /** The maximum number of megabytes to copy for each copy RPC call. */
     private final long megabytesCopiedPerChunk;
 
+    /** Tenacious retries for transient blob store errors. */
+    private final boolean tenaciousRetriesEnabled;
+
+    /** The write buffer size for resumable uploads, or empty to use the SDK default. */
+    private final OptionalInt resumableWriteBufferSize;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -178,7 +204,9 @@ public class GoogleCloudStorageClientSettings {
         final URI tokenUri,
         final Proxy proxy,
         final int maxRetries,
-        final long megabytesCopiedPerChunk
+        final long megabytesCopiedPerChunk,
+        final boolean tenaciousRetriesEnabled,
+        final OptionalInt resumableWriteBufferSize
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -190,6 +218,8 @@ public class GoogleCloudStorageClientSettings {
         this.proxy = proxy;
         this.maxRetries = maxRetries;
         this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
+        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
+        this.resumableWriteBufferSize = resumableWriteBufferSize;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -233,6 +263,14 @@ public class GoogleCloudStorageClientSettings {
         return megabytesCopiedPerChunk;
     }
 
+    public boolean getTenaciousRetriesEnabled() {
+        return tenaciousRetriesEnabled;
+    }
+
+    public OptionalInt getResumableWriteBufferSize() {
+        return resumableWriteBufferSize;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -246,7 +284,9 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(tokenUri, that.tokenUri)
             && Objects.equals(proxy, that.proxy)
             && maxRetries == that.maxRetries
-            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk;
+            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
+            && Objects.equals(resumableWriteBufferSize, that.resumableWriteBufferSize);
     }
 
     @Override
@@ -261,7 +301,9 @@ public class GoogleCloudStorageClientSettings {
             tokenUri,
             proxy,
             maxRetries,
-            megabytesCopiedPerChunk
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled,
+            resumableWriteBufferSize
         );
     }
 
@@ -290,6 +332,11 @@ public class GoogleCloudStorageClientSettings {
         } catch (UnknownHostException e) {
             throw new SettingsException("GCS proxy host is unknown.", e);
         }
+        final Setting<ByteSizeValue> concreteResumableWriteBufferSizeSetting = RESUMABLE_WRITE_BUFFER_SIZE_SETTING
+            .getConcreteSettingForNamespace(clientName);
+        final OptionalInt resumableWriteBufferSize = concreteResumableWriteBufferSizeSetting.exists(settings)
+            ? OptionalInt.of(Math.toIntExact(concreteResumableWriteBufferSizeSetting.get(settings).getBytes()))
+            : OptionalInt.empty();
         return new GoogleCloudStorageClientSettings(
             loadCredential(settings, clientName, proxy),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
@@ -300,7 +347,9 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             proxy,
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING)
+            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
+            getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING),
+            resumableWriteBufferSize
         );
     }
 

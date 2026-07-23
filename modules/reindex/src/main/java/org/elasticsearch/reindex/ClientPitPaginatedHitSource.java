@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -115,6 +116,10 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             currentKeepAlive.set(effectiveKeepAlive);
         }
         SearchSourceBuilder source = firstSearchRequest.source().shallowCopy().searchAfter(searchAfter).pointInTimeBuilder(extended);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        if (getCachedTotalHits().isPresent()) {
+            source.trackTotalHits(false);
+        }
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
         client.search(nextRequest, wrapListener(searchListener));
     }
@@ -143,7 +148,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                 if (keepAlive != null) {
                     keepaliveDeadline.recordSuccessfulExtension(keepAlive);
                 }
-                searchListener.onResponse(wrapSearchResponse(searchResponse));
+                searchListener.onResponse(wrapSearchResponse(searchResponse, getCachedTotalHits()));
             }
 
             @Override
@@ -162,7 +167,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         onCompletion.run();
     }
 
-    private static Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response, OptionalLong cachedTotal) {
         List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
@@ -183,7 +188,15 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value();
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        long total;
+        if (cachedTotal.isPresent()) {
+            total = cachedTotal.getAsLong();
+        } else {
+            var totalHits = response.getHits().getTotalHits();
+            assert totalHits != null;
+            total = totalHits.value();
+        }
         Object[] searchAfterValues = null;
         if (hits.isEmpty() == false) {
             Hit lastHit = hits.getLast();

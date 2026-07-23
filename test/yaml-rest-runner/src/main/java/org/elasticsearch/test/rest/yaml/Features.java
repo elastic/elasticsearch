@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.test.rest.yaml.section.MatchesInAnyOrderAssertion;
+
 import java.util.List;
 
 /**
@@ -34,6 +36,7 @@ public final class Features {
         "warnings_regex",
         "yaml",
         "contains",
+        MatchesInAnyOrderAssertion.NAME,
         "transform_and_set",
         "arbitrary_key",
         "allowed_warnings",

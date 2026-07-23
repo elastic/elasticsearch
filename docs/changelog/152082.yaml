@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 152082
+summary: "PromQL: Add support for sum aggregation on exponential histograms"
+type: enhancement

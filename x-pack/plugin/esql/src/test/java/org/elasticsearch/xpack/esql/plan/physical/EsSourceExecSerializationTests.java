@@ -21,7 +21,7 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
         return new EsSourceExec(
             randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             randomFieldAttributes(1, 10, false),
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5))
         );
@@ -40,7 +40,7 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
         QueryBuilder query = instance.query();
         switch (between(0, 3)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
-            case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
+            case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.availableModes()));
             case 2 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(1, 10, false));
             case 3 -> query = randomValueOtherThan(query, () -> new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5)));
             default -> throw new IllegalStateException();

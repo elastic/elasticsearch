@@ -30,26 +30,24 @@ public class VectorScorerFloat32OperationBenchmarkTests extends BenchmarkTest {
     }
 
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerFloat32OperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.init();
-            try {
-                float expected = switch (function) {
-                    case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
-                    case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.luceneWithCopy(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-                }
-            } finally {
-                bench.teardown();
+        var bench = new VectorScorerFloat32OperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.init();
+        try {
+            float expected = switch (function) {
+                case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
+                case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.luceneWithCopy(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 

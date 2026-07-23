@@ -1003,6 +1003,13 @@ public final class ServiceUtils {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
+        return new ElasticsearchStatusException(
+            Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
         return Strings.format(
             "Inference entity [%s] does not support task type [%s] for inference, the task type must be one of %s.",

@@ -11,7 +11,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
@@ -75,7 +76,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testStringToDatetimeUtc() {
-        Configuration utcConfig = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration utcConfig = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
         assertEquals(
             Instant.parse("2023-01-01T00:00:00.000Z").toEpochMilli(),
             EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000", DATETIME, utcConfig)
@@ -87,7 +88,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testStringToDatetimeCetCest() {
-        Configuration cetCestConfig = randomConfigurationBuilder().zoneId(ZoneId.of("Europe/Rome")).build();
+        Configuration cetCestConfig = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Rome")).build();
         assertEquals(
             Instant.parse("2023-01-01T00:00:00.000Z").toEpochMilli(),
             EsqlDataTypeConverter.convert("2023-01-01T01:00:00.000", DATETIME, cetCestConfig)
@@ -99,7 +100,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testStringToDateNanosUtc() {
-        Configuration utcConfig = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration utcConfig = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
         assertEquals(
             DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
             EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000000000", DATE_NANOS, utcConfig)
@@ -111,7 +112,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testStringToDateNanosCetCest() {
-        Configuration cetCestConfig = randomConfigurationBuilder().zoneId(ZoneId.of("Europe/Rome")).build();
+        Configuration cetCestConfig = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Rome")).build();
         assertEquals(
             DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
             EsqlDataTypeConverter.convert("2023-01-01T01:00:00.000000000", DATE_NANOS, cetCestConfig)
@@ -128,7 +129,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             () -> parseDateRange("2024-12-31T00:00:00.000Z..2024-01-01T00:00:00.000Z", ZoneOffset.UTC)
         );
         assertThat(e.getMessage(), containsString("'from'"));
-        assertThat(e.getMessage(), containsString("must be less than or equal to 'to'"));
+        assertThat(e.getMessage(), containsString("must be less than 'to'"));
     }
 
     public void testCommonTypeNull() {
@@ -249,7 +250,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
 
     public void testConfigurationConvertersAreConfigurationAware() {
         var configuration = randomConfiguration();
-        var field = FieldAttributeTests.createFieldAttribute(0, false);
+        var field = createFieldAttribute(0, false);
 
         for (var converterFactory : EsqlDataTypeConverter.TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.values()) {
             var converter = converterFactory.apply(TEST_SOURCE, field, configuration);

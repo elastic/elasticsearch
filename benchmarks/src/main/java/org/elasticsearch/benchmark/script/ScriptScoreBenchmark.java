@@ -103,6 +103,8 @@ public class ScriptScoreBenchmark {
                 false,
                 null,
                 null,
+                false,
+                false,
                 false
             )
         )

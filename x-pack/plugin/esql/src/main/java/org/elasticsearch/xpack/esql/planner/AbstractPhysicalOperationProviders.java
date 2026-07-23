@@ -31,15 +31,22 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -55,7 +62,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
+public abstract class AbstractPhysicalOperationProviders {
 
     private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
@@ -65,7 +72,18 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         this.analysisRegistry = analysisRegistry;
     }
 
-    @Override
+    public abstract PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
+
+    public abstract PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    );
+
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
+    }
+
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
@@ -104,9 +122,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             // Look once for a transient Top-N grouping hint pushed onto an ExternalSourceExec by
-            // PushTopNIntoExternalSource. The rule only fires when there is a single grouping key, so we only
-            // forward the hint in that case.
-            BlockHash.TopNDef pushedTopN = aggregateExec.groupings().size() == 1 ? extractPushedTopN(aggregateExec.child()) : null;
+            // PushTopNIntoExternalSource. The hint may cover one or more grouping keys.
+            BlockHash.TopNDef pushedTopN = extractPushedTopN(aggregateExec.child());
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
@@ -191,7 +208,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                operatorFactory = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                var builder = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
                     .mode(aggregatorMode)
                     .aggregators(aggregatorFactories)
                     .partialEmit(
@@ -200,8 +217,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
-                    .analysisRegistry(analysisRegistry)
-                    .build();
+                    .analysisRegistry(analysisRegistry);
+                HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
+                if (topAggregation != null) {
+                    builder.topAggregation(topAggregation);
+                }
+                operatorFactory = builder.build();
             }
         }
         if (operatorFactory != null) {
@@ -323,12 +344,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         }
                     }
 
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
-
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
+                    AggregatorFunctionSupplier aggSupplier;
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
                         ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
@@ -336,7 +356,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             layout,
                             context.shardContexts()
                         );
-                        aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
+                        // A filtered ToPartial must filter the rows folded into its intermediate state, i.e. wrap the
+                        // inner aggregate's supplier rather than ToPartial itself (ToPartial drives the aggregator only
+                        // through the mode-aware *Factory methods, which the plain filter wrapper does not implement).
+                        aggSupplier = aggregateFunction instanceof ToPartial toPartial
+                            ? toPartial.supplierWithInnerFilter(evalFactory)
+                            : new FilteredAggregatorFunctionSupplier(supplier(aggregateFunction), evalFactory);
+                    } else {
+                        aggSupplier = supplier(aggregateFunction);
                     }
                     // apply the grouping window in the final phase
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
@@ -392,6 +419,65 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
         ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
         return ext == null ? null : ext.pushedTopN();
+    }
+
+    /**
+     * Extract the TopN that follows the aggregation, for example: {@code FROM .. | STATS c=COUNT(*), AVG(f) BY k | SORT c | LIMIT 10}.
+     * It's hard for the current optimization rules to keep these two nodes, {@link TopNExec} and {@link AggregateExec}, in sync as they
+     * can be rewritten independently; hence we detect the relation here instead, at the last step, when creating operators.
+     */
+    private static HashAggregationOperator.TopAggregation extractTopAggregation(
+        AggregateExec aggregateExec,
+        LocalExecutionPlannerContext context
+    ) {
+        if (aggregateExec.getMode().isOutputPartial()) {
+            return null;
+        }
+        TopNExec topN = context.lastVisitedTopN().get();
+        if (topN == null || topN.order().size() != 1) {
+            return null;
+        }
+        PhysicalPlan child = topN.child();
+        while (child != aggregateExec) {
+            if (child instanceof EvalExec eval) {
+                child = eval.child();
+            } else if (child instanceof ProjectExec project) {
+                child = project.child();
+            } else {
+                return null;
+            }
+        }
+        int limit = -1;
+        if (topN.limit().fold(context.foldCtx()) instanceof Number number) {
+            try {
+                limit = Math.toIntExact(number.longValue());
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        if (limit < 0) {
+            return null;
+        }
+        Order order = topN.order().getFirst();
+        if (topN.limit().foldable() == false) {
+            return null;
+        }
+        Attribute sortAttribute = Expressions.attribute(order.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        int aggregatorIndex = 0;
+        for (NamedExpression aggregate : aggregateExec.aggregates()) {
+            Expression unwrapped = Alias.unwrap(aggregate);
+            if (unwrapped instanceof AggregateFunction == false) {
+                continue;
+            }
+            if (aggregate.toAttribute().semanticEquals(sortAttribute)) {
+                return new HashAggregationOperator.TopAggregation(aggregatorIndex, order.direction() == Order.OrderDirection.ASC, limit);
+            }
+            aggregatorIndex++;
+        }
+        return null;
     }
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(

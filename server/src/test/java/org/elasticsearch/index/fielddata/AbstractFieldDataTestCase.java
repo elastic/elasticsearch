@@ -96,9 +96,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
-                    .build(context)
-                    .fieldType();
+                fieldType = new TextFieldMapper.Builder(fieldName, defaultIndexSettings(), createDefaultIndexAnalyzers(), false).fielddata(
+                    true
+                ).build(context).fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -185,10 +185,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         return readerContexts;
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanupFieldData() throws Exception {
         if (topLevelReader != null) {
             topLevelReader.close();
         }

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
@@ -170,7 +169,6 @@ public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
             serviceSettings,
             this.rateLimitSettings(),
             validationException,
-            VoyageAIService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

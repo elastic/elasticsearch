@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class TransformUpdaterTests extends ESTestCase {
 
@@ -87,6 +88,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private TestThreadPool threadPool;
     private MyMockClient client;
     private TransformAuditor auditor;
+    private TransformCloudCredentialManager cloudCredentialManager;
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
     private final Settings destIndexSettings = new DefaultTransformExtension().getTransformDestinationIndexSettings();
 
@@ -163,6 +165,7 @@ public class TransformUpdaterTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new MyMockClient(threadPool);
         auditor = MockTransformAuditor.createMockAuditor();
+        cloudCredentialManager = mock(TransformCloudCredentialManager.class);
     }
 
     @After
@@ -202,6 +205,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -239,6 +245,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -312,6 +321,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -380,6 +392,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -428,6 +443,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -471,6 +489,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -507,6 +528,9 @@ public class TransformUpdaterTests extends ESTestCase {
             false,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             destIndexSettings,
+            cloudCredentialManager,
+            false, // mintCloudCredential
+            null, // callerCredential
             ActionListener.wrap(
                 r -> fail("Should fail due to missing privileges"),
                 e -> assertThat(e.getMessage(), is(equalTo("missing privileges")))
@@ -575,6 +599,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {
@@ -651,6 +678,9 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential
+                null, // callerCredential
                 listener
             ),
             updateResult -> {

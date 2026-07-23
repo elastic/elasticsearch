@@ -27,8 +27,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
     /**
      * The throttle to apply to all matching requests in sub-requests per second. 0 means set no throttle. Throttling is done between
-     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
-     * that we might wait.
+     * batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to make sure that it
+     * contains any time that we might wait.
      */
     private Float requestsPerSecond;
 
@@ -58,8 +58,8 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
 
     /**
      * Set the throttle to apply to all matching requests in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle.
-     * Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure
-     * that it contains any time that we might wait.
+     * Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public RethrottleRequest setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {

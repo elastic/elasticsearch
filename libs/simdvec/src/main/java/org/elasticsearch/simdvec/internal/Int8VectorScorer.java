@@ -16,29 +16,30 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
-
 public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
     final IndexInput input;
     final MemorySegment query;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
         if (input == null) {
@@ -88,7 +89,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
         if (numNodes == 0) {
             return false;
         }
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorByteSize;
         }
@@ -97,6 +98,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             offsets,
             vectorByteSize,
             numNodes,
+            addrsScratch::get,
             a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
         );
     }
@@ -121,13 +123,13 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> normalize(dotProductI8(query, seg, dimensions))
+                seg -> normalize(DISTANCE_FUNCS.dotProductI8(query, seg, dimensions))
             );
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI8BulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = normalize(scores[i]);
@@ -155,14 +157,14 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
-                float cos = cosineI8(query, seg, dimensions);
+                float cos = DISTANCE_FUNCS.cosineI8(query, seg, dimensions);
                 return normalize(cos);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::cosineI8BulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::cosineI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = normalize(scores[i]);
@@ -186,14 +188,14 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
-                float sqDist = squareDistanceI8(query, seg, dimensions);
+                float sqDist = DISTANCE_FUNCS.squareDistanceI8(query, seg, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::squareDistanceI8BulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::squareDistanceI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
@@ -217,14 +219,14 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
-                float dp = dotProductI8(query, seg, dimensions);
+                float dp = DISTANCE_FUNCS.dotProductI8(query, seg, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI8BulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);

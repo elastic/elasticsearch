@@ -18,6 +18,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -119,8 +120,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), context.getCircuitBreaker());
         Query query = toQuery(context, visitor);
+        if (query != null) {
+            context.addCircuitBreakerMemory(visitor.getEstimatedBytes(), ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        }
         assert query == null || assertBooleanClauses(query, visitor.getNumClauses()) : "inconsistent count of boolean clauses";
         return query;
     }

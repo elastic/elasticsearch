@@ -267,8 +267,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels())),
             randomPageSize(),
-            null,
-            false
+            null
         );
 
     }

@@ -13,11 +13,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 
 /**
- * A VectorLibrary is just an adaptation of the factory for a NativeLibrary.
- * It is needed so the NativeLibraryProvider can be the single point of construction
- * for native implementations.
+ * Provides access to simdvec native functions.
  */
-public non-sealed interface VectorLibrary extends NativeLibrary {
+public interface VectorLibrary {
     @Nullable
     VectorSimilarityFunctions getVectorSimilarityFunctions();
 }

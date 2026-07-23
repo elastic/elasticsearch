@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 139672
+pr: 146378
+summary: Wait for shard readiness before executing search on data node
+type: enhancement

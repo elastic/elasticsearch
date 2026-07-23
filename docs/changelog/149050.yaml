@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149050
+summary: Rebuild `IsNotNull` list when nullified by the JVM workaround
+type: bug

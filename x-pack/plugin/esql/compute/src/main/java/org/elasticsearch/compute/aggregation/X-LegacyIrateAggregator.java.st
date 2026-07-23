@@ -42,9 +42,6 @@ import org.elasticsearch.core.Releasables;
 )
 public class LegacyIrate$Type$Aggregator {
 
-    public static final String DELTA_UNSUPPORTED_WARNING = "Some nodes in your cluster don't support delta temporality for counters yet."
-        + " The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.";
-
     public static $Type$IrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
         return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
@@ -67,7 +64,7 @@ public class LegacyIrate$Type$Aggregator {
                 current.ensureCapacity(groupId);
                 current.append(groupId, timestamp, value);
             } else {
-                current.warnings.registerException(IllegalArgumentException.class, DELTA_UNSUPPORTED_WARNING);
+                throw new IllegalArgumentException("Delta temporality is not supported for counters in irate calculations on all nodes.");
             }
         } catch (InvalidTemporalityException e) {
             // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the

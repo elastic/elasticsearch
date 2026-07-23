@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149491
+summary: Tighten async external source coverage
+type: enhancement

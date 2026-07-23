@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -952,5 +955,74 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         assertThat(((LongBlock) page.getBlock(1)).getLong(0), is(0L));
         assertThat(page.getBlock(2), instanceOf(BooleanBlock.class));
         assertThat(((BooleanBlock) page.getBlock(2)).getBoolean(0), is(false));
+    }
+
+    /**
+     * Makes sure we run the {@code null} replacement on the results of SPARKLINE's substitution.
+     * Specifically, this one looks from {@code SPARKLINE, COUNT_DISTINCT(null)}. That's different
+     * from {@code VALUES} because {@code COUNT_DISTINCT} always emits a {@code long}.
+     */
+    public void testSparklineWithCountDistinctNull() {
+        LogicalPlan plan = plan("""
+            ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+            | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+                   cd = COUNT_DISTINCT(y)
+            """);
+
+        // The plan must contain a SparklineGenerateEmptyBuckets node for the sparkline
+        boolean[] hasSparkline = { false };
+        plan.forEachDown(SparklineGenerateEmptyBuckets.class, n -> hasSparkline[0] = true);
+        assertTrue("plan must contain SparklineGenerateEmptyBuckets", hasSparkline[0]);
+
+        // COUNT_DISTINCT(y) where y is null-typed must be replaced with 0L
+        // Find the Eval node that holds the replacement for cd
+        Holder<Alias> cdAlias = findFoldableAlias(plan, "cd");
+        assertNotNull("plan must contain a foldable alias for 'cd'", cdAlias.get());
+        assertThat(cdAlias.get().child().fold(FoldContext.small()), is(0L));
+        assertThat(cdAlias.get().child().dataType(), is(LONG));
+    }
+
+    /**
+     * Makes sure we run the {@code null} replacement on the results of SPARKLINE's substitution.
+     * Specifically, this one looks from {@code SPARKLINE, VALUES(null)}. That's different from
+     * {@code COUNT_DISTINCT} because {@code VALUES} inherits the {@code null} input type.
+     */
+    public void testSparklineWithValuesNull() {
+        LogicalPlan plan = plan("""
+            ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+            | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+                    v = VALUES(y)
+            """);
+
+        // The plan must contain a SparklineGenerateEmptyBuckets node for the sparkline
+        boolean[] hasSparkline = { false };
+        plan.forEachDown(SparklineGenerateEmptyBuckets.class, n -> hasSparkline[0] = true);
+        assertTrue("plan must contain SparklineGenerateEmptyBuckets", hasSparkline[0]);
+
+        // VALUES(y) where y is null-typed must be replaced with null
+        Holder<Alias> vAlias = findFoldableAlias(plan, "v");
+        assertNotNull("plan must contain a foldable alias for 'v'", vAlias.get());
+        assertThat(vAlias.get().child().fold(FoldContext.small()), nullValue());
+    }
+
+    /**
+     * Searches the plan tree depth-first for an {@link Eval} node containing a foldable
+     * {@link Alias} whose name equals {@code name}. Returns a {@link Holder} containing the
+     * first such alias found, or a {@link Holder} containing {@code null} if none exists.
+     */
+    private static Holder<Alias> findFoldableAlias(LogicalPlan plan, String name) {
+        Holder<Alias> result = new Holder<>();
+        plan.forEachDown(Eval.class, eval -> {
+            if (result.get() != null) {
+                return;
+            }
+            for (Alias alias : eval.fields()) {
+                if (alias.name().equals(name) && alias.child().foldable()) {
+                    result.set(alias);
+                    return;
+                }
+            }
+        });
+        return result;
     }
 }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148360
+summary: Pre-warm dictionary/bloom for predicate columns
+type: enhancement

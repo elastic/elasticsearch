@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -25,15 +26,20 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.InvalidSelectorException;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -44,6 +50,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -55,6 +62,7 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -160,6 +168,7 @@ public class AuthorizationService {
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
+    private final ProjectRoutingResolver projectRoutingResolver;
 
     public AuthorizationService(
         Settings settings,
@@ -186,12 +195,12 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
+        this.projectRoutingResolver = projectRoutingResolver;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider,
-            projectRoutingResolver
+            crossProjectModeDecider
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -511,15 +520,17 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             assert projectMetadata != null;
+            final boolean resolvesCrossProject = indicesAndAliasesResolver.resolvesCrossProject(request);
             final SubscribableListener<TargetProjects> targetProjectListener;
-            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            if (resolvesCrossProject) {
                 targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
                 targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
-            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+            targetProjectListener.addListener(ActionListener.wrap(authorizedProjects -> {
+                final TargetProjects targetProjects = maybeSetResolvedTargetProjects(request, authorizedProjects, projectMetadata);
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
                     targetProjects,
                     requestInfo,
@@ -578,6 +589,7 @@ public class AuthorizationService {
                 var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
                 return SubscribableListener.newSucceeded(resolvedIndices);
             }
+
             final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
@@ -597,6 +609,46 @@ public class AuthorizationService {
                 return resolvedIndicesListener;
             }
         });
+    }
+
+    private TargetProjects maybeSetResolvedTargetProjects(
+        TransportRequest request,
+        TargetProjects authorizedProjects,
+        ProjectMetadata projectMetadata
+    ) {
+        if (request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
+            && indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            final TargetProjects existing = crossProjectCandidate.getResolvedTargetProjects();
+            if (existing != null) {
+                // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
+                if (Assertions.ENABLED) {
+                    final TargetProjects reResolved = projectRoutingResolver.resolve(
+                        crossProjectCandidate.getProjectRouting(),
+                        projectMetadata,
+                        authorizedProjects
+                    );
+                    assert existing.equals(reResolved)
+                        : "previously-recorded resolvedTargetProjects ["
+                            + existing
+                            + "] does not match re-resolved value ["
+                            + reResolved
+                            + "] for ["
+                            + crossProjectCandidate.getClass().getName()
+                            + "]";
+                }
+                return existing;
+            }
+            final TargetProjects targetProjects = projectRoutingResolver.resolve(
+                crossProjectCandidate.getProjectRouting(),
+                projectMetadata,
+                authorizedProjects
+            );
+            crossProjectCandidate.setResolvedTargetProjects(targetProjects);
+            return targetProjects;
+        }
+        assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+            : "expected LOCAL_ONLY_FOR_CPS_DISABLED when CPS does not apply but got [" + authorizedProjects + "]";
+        return authorizedProjects;
     }
 
     private void onAuthorizedResourceLoadFailure(
@@ -648,7 +700,6 @@ public class AuthorizationService {
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
-        final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);
@@ -658,46 +709,19 @@ public class AuthorizationService {
 
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert (request instanceof CreateIndexRequest)
-                || (request instanceof MigrateToDataStreamAction.Request)
-                || (request instanceof CreateDataStreamAction.Request);
-            if (request instanceof CreateDataStreamAction.Request
-                || (request instanceof MigrateToDataStreamAction.Request)
-                || ((CreateIndexRequest) request).aliases().isEmpty()) {
-                runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
-            } else {
-                Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-                final RequestInfo aliasesRequestInfo = new RequestInfo(
-                    authentication,
-                    request,
-                    TransportIndicesAliasesAction.NAME,
-                    authzContext
-                );
-                authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, () -> {
-                    SubscribableListener<ResolvedIndices> ril = new SubscribableListener<>();
-                    resolvedIndicesAsyncSupplier.getAsync().addListener(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
-                        List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
-                        for (Alias alias : aliases) {
-                            aliasesAndIndices.add(alias.name());
-                        }
-                        ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
-                        l.onResponse(withAliases);
-                    }));
-                    return ril;
-                }, projectMetadata)
-                    .addListener(
-                        wrapPreservingContext(
-                            new AuthorizationResultListener<>(
-                                authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
-                                listener::onFailure,
-                                aliasesRequestInfo,
-                                requestId,
-                                authzInfo
-                            ),
-                            threadContext
-                        )
-                    );
-            }
+            authorizeCreateIndexAliases(
+                requestInfo,
+                requestId,
+                authzInfo,
+                authzEngine,
+                authzContext,
+                resolvedIndicesAsyncSupplier,
+                projectMetadata,
+                listener
+            );
+        } else if (action.equals(ModifyDataStreamsAction.NAME)) {
+            authorizeModifyDataStreams(requestInfo, requestId, authzInfo, authzEngine, projectMetadata, listener);
+
         } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
@@ -719,6 +743,126 @@ public class AuthorizationService {
         }
     }
 
+    /**
+     * When creating an index, also authorize any aliases defined in the request.
+     * Uses a second authorization pass with {@code indices:admin/aliases} action on the combined set of indices and alias names.
+     */
+    private void authorizeCreateIndexAliases(
+        final RequestInfo requestInfo,
+        final String requestId,
+        final AuthorizationInfo authzInfo,
+        final AuthorizationEngine authzEngine,
+        final AuthorizationContext authzContext,
+        final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
+        final ProjectMetadata projectMetadata,
+        final ActionListener<Void> listener
+    ) {
+        final TransportRequest request = requestInfo.getRequest();
+        assert (request instanceof CreateIndexRequest)
+            || (request instanceof MigrateToDataStreamAction.Request)
+            || (request instanceof CreateDataStreamAction.Request)
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request);
+        if (request instanceof CreateDataStreamAction.Request
+            || (request instanceof MigrateToDataStreamAction.Request)
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request)
+            // Casting to CreateIndexRequest is safe only because it's the last possible option; always keep it last!
+            || ((CreateIndexRequest) request).aliases().isEmpty()) {
+            runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
+            return;
+        }
+        Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
+        final RequestInfo aliasesRequestInfo = new RequestInfo(
+            requestInfo.getAuthentication(),
+            request,
+            TransportIndicesAliasesAction.NAME,
+            authzContext
+        );
+        authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, () -> {
+            SubscribableListener<ResolvedIndices> ril = new SubscribableListener<>();
+            resolvedIndicesAsyncSupplier.getAsync().addListener(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
+                List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
+                for (Alias alias : aliases) {
+                    aliasesAndIndices.add(alias.name());
+                }
+                l.onResponse(new ResolvedIndices(aliasesAndIndices, Collections.emptyList()));
+            }));
+            return ril;
+        }, projectMetadata)
+            .addListener(
+                wrapPreservingContext(
+                    new AuthorizationResultListener<>(
+                        authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
+                        listener::onFailure,
+                        aliasesRequestInfo,
+                        requestId,
+                        authzInfo
+                    ),
+                    threadContext
+                )
+            );
+    }
+
+    /**
+     * ModifyDataStreamsAction operates on both backing indices and data streams.
+     * The first authorization pass (driven by {@link ModifyDataStreamsAction.Request#indices()}) checks backing index privileges.
+     * This method performs a second independent pass to verify the user also has privileges on the data streams being modified.
+     */
+    private void authorizeModifyDataStreams(
+        final RequestInfo requestInfo,
+        final String requestId,
+        final AuthorizationInfo authzInfo,
+        final AuthorizationEngine authzEngine,
+        final ProjectMetadata projectMetadata,
+        final ActionListener<Void> listener
+    ) {
+        final TransportRequest request = requestInfo.getRequest();
+        assert request instanceof ModifyDataStreamsAction.Request
+            : "Action " + requestInfo.getAction() + " requires " + ModifyDataStreamsAction.Request.class + " but was " + request.getClass();
+        final ModifyDataStreamsAction.Request modifyRequest = (ModifyDataStreamsAction.Request) request;
+        final List<DataStreamAction> actions = modifyRequest.getActions();
+        if (actions.isEmpty()) {
+            runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
+            return;
+        }
+        // The modify data stream API uses a boolean failure_store flag rather than selector syntax (::failures)
+        // to indicate failure store operations. We bridge this to the RBAC model by appending the FAILURES
+        // selector so that privileges like manage_failure_store (which require the FAILURES selector predicate)
+        // are evaluated correctly.
+        final List<String> dataStreamNames = actions.stream().map(a -> {
+            if (IndexNameExpressionResolver.hasSelectorSuffix(a.getDataStream())) {
+                throw new IllegalArgumentException("data stream name must not contain selectors: " + a.getDataStream());
+            }
+            return IndexNameExpressionResolver.combineSelector(
+                a.getDataStream(),
+                a.isFailureStore() ? IndexComponentSelector.FAILURES : null
+            );
+        }).toList();
+        final RequestInfo dsRequestInfo = new RequestInfo(
+            requestInfo.getAuthentication(),
+            new DataStreamAuthorizationRequest(modifyRequest, dataStreamNames.toArray(String[]::new)),
+            requestInfo.getAction(),
+            null // passing null for originatingContext so this runs as an independent authorization check
+        );
+        authzEngine.authorizeIndexAction(
+            dsRequestInfo,
+            authzInfo,
+            () -> SubscribableListener.newSucceeded(new ResolvedIndices(dataStreamNames, Collections.emptyList())),
+            projectMetadata
+        )
+            .addListener(
+                wrapPreservingContext(
+                    new AuthorizationResultListener<>(
+                        authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
+                        listener::onFailure,
+                        dsRequestInfo,
+                        requestId,
+                        authzInfo
+                    ),
+                    threadContext
+                )
+            );
+    }
+
     private void setIndexResolutionException(
         AuthorizationInfo authzInfo,
         TransportRequest request,
@@ -727,25 +871,25 @@ public class AuthorizationService {
     ) {
         if (request instanceof IndicesRequest.Replaceable replaceable) {
             var indexExpressions = replaceable.getResolvedIndexExpressions();
-            if (indexExpressions != null) {
-                indexExpressions.expressions().forEach(resolved -> {
-                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                        resolved.localExpressions()
-                            .setExceptionIfUnset(
-                                actionDenied(
-                                    authentication,
-                                    authzInfo,
-                                    action,
-                                    request,
-                                    IndexAuthorizationResult.getFailureDescription(
-                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
-                                        restrictedIndices
-                                    ),
-                                    null
-                                )
-                            );
-                    }
-                });
+            if (indexExpressions != null
+                && indexExpressions.expressions()
+                    .stream()
+                    .anyMatch(expression -> expression.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED)) {
+                replaceable.setResolvedIndexExpressions(
+                    new ResolvedIndexExpressions(
+                        indexExpressions.expressions(),
+                        authorizationDenialMessages.actionDenied(
+                            authentication,
+                            authzInfo,
+                            action,
+                            request,
+                            IndexAuthorizationResult.getFailureDescription(
+                                List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                restrictedIndices
+                            )
+                        )
+                    )
+                );
             }
         }
     }
@@ -1213,6 +1357,36 @@ public class AuthorizationService {
                 }
             }
             return valueFuture;
+        }
+    }
+
+    /**
+     * Thin wrapper so that authorization denial messages reference data stream names
+     * instead of the indices being added or removed returned by {@link ModifyDataStreamsAction.Request#indices()}.
+     */
+    private static class DataStreamAuthorizationRequest extends AbstractTransportRequest implements IndicesRequest {
+
+        private final ModifyDataStreamsAction.Request delegate;
+        private final String[] dataStreamNames;
+
+        DataStreamAuthorizationRequest(ModifyDataStreamsAction.Request delegate, String[] dataStreamNames) {
+            this.delegate = delegate;
+            this.dataStreamNames = dataStreamNames;
+        }
+
+        @Override
+        public String[] indices() {
+            return dataStreamNames;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return delegate.indicesOptions();
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
     }
 

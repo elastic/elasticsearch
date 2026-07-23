@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -47,6 +48,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.ClusterServiceUtils.addTemporaryStateListener;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -150,6 +152,87 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             )
         );
 
+    }
+
+    public void testShardsFromSameIndexAreNeverCoLocatedWhenIndexBalanceDeciderEnabled() {
+        setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes();
+
+        // Weight function should push shards to a single index/search node
+        lightWeightedNodes.add(randomFrom(testHarness.firstIndexNode, testHarness.secondIndexNode, testHarness.thirdIndexNode).getId());
+        lightWeightedNodes.add(randomFrom(testHarness.firstSearchNode, testHarness.secondSearchNode, testHarness.thirdSearchNode).getId());
+
+        // When the decider is disabled, we should allocate the 3 shards to the same node. We check this to ensure that it's
+        // the decider that's causing the spread, and the test is still valid
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
+        createIndexAndEnsureAllocationMatches(allocatedPrimaries -> {
+            final long distinctNodes = allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count();
+            // Either no shards are allocated, or they're all allocated to a single node
+            return distinctNodes == 0 || distinctNodes == 1;
+        });
+
+        // When the decider is enabled, we should allocate the 3 shards to different nodes
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true));
+        createIndexAndEnsureAllocationMatches(
+            allocatedPrimaries -> allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count() == allocatedPrimaries
+                .size()
+        );
+    }
+
+    /**
+     * Create a 3-shard index and ensure that in every cluster state, a predicate is met for the allocated shards. Returns
+     * when the 3 shards are all allocated.
+     *
+     * @param allocatedShardsPredicate A predicate used to check the state of the allocation, applied to primaries and replicas separately
+     */
+    private void createIndexAndEnsureAllocationMatches(Predicate<List<ShardRouting>> allocatedShardsPredicate) {
+        final String indexName = randomIndexName();
+        final var desiredStateListener = addTemporaryStateListener(
+            clusterService(),
+            state -> assertRoutingMatchesPredicate(state, indexName, allocatedShardsPredicate, true)
+                && assertRoutingMatchesPredicate(state, indexName, allocatedShardsPredicate, false),
+            TimeValue.THIRTY_SECONDS
+        );
+
+        createIndex(indexName, 3, 1);
+        safeAwait(desiredStateListener, TimeValue.THIRTY_SECONDS);
+    }
+
+    /**
+     * Assert that the current shard allocation matches the predicate
+     *
+     * @param state The cluster state
+     * @param indexName The index to check
+     * @param allocatedShardsPredicate The predicate to check the shard allocation
+     * @param primary Whether to check the primary or replica shard allocation
+     * @return True if the predicate is met and all shards are allocated, false otherwise
+     */
+    private boolean assertRoutingMatchesPredicate(
+        ClusterState state,
+        String indexName,
+        Predicate<List<ShardRouting>> allocatedShardsPredicate,
+        boolean primary
+    ) {
+        final var indexRoutingTables = state.globalRoutingTable().routingTable(ProjectId.DEFAULT);
+        final var optionalIndexRoutingTable = indexRoutingTables.indicesRouting()
+            .values()
+            .stream()
+            .filter(ir -> ir.getIndex().getName().equals(indexName))
+            .findFirst();
+        return optionalIndexRoutingTable.map(indexRoutingTable -> {
+            // Index was created, assert there are 3 primaries and they are never co-located
+            final var allocatedShards = indexRoutingTable.allShards()
+                .map(
+                    indexShardRoutingTable -> primary
+                        ? indexShardRoutingTable.primaryShard()
+                        : indexShardRoutingTable.replicaShards().getFirst()
+                )
+                .filter(ShardRouting::assignedToNode)
+                .toList();
+            assertTrue("Unexpected shard allocation:\n" + indexRoutingTable.prettyPrint(), allocatedShardsPredicate.test(allocatedShards));
+
+            // All shards are active
+            return indexRoutingTable.allShardsActive();
+        }).orElse(false);
     }
 
     private Predicate<ClusterState> getAllocationStateListener(String indexName, Map<String, Integer> nodesToShards) {

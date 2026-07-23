@@ -26,6 +26,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -177,6 +178,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))
                 .entry("values_loaded", greaterThan(0))
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))
@@ -736,8 +741,18 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
+        initGiantTextField(docs, includeId, fieldSizeInMb, false);
+    }
+
+    void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb, boolean distinct) throws IOException {
         int docsPerBulk = isServerless() ? 3 : 10;
-        logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
+        logger.info(
+            "loading {} documents with one {} {}MB text field - docs per bulk {}",
+            docs,
+            distinct ? "distinct" : "big",
+            fieldSizeInMb,
+            docsPerBulk
+        );
 
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(fieldSizeInMb).getBytes());
 
@@ -765,7 +780,12 @@ public class HeapAttackIT extends HeapAttackTestCase {
             } else {
                 bulk.append("{\"f\":\"");
             }
-            bulk.append(Integer.toString(d % 10).repeat(fieldSize));
+            if (distinct) {
+                String prefix = String.format(Locale.ROOT, "%010d", d);
+                bulk.append(prefix).append("0".repeat(fieldSize - prefix.length()));
+            } else {
+                bulk.append(Integer.toString(d % 10).repeat(fieldSize));
+            }
             bulk.append("\"}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
                 bulk("bigtext", bulk.toString());

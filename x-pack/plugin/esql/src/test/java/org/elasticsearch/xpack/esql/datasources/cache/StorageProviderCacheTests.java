@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -76,16 +78,17 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", config);
 
         AtomicInteger supplierCalls = new AtomicInteger();
-        StorageProvider provider1 = cache.getOrCreate(key, () -> {
+        Configured<StorageProvider> result1 = cache.getOrCreate(key, () -> {
             supplierCalls.incrementAndGet();
-            return new TrackingProvider();
+            return Configured.empty(new TrackingProvider());
         });
-        StorageProvider provider2 = cache.getOrCreate(key, () -> {
+        Configured<StorageProvider> result2 = cache.getOrCreate(key, () -> {
             supplierCalls.incrementAndGet();
-            return new TrackingProvider();
+            return Configured.empty(new TrackingProvider());
         });
 
-        assertThat(provider1, sameInstance(provider2));
+        assertThat(result1, sameInstance(result2));
+        assertThat(result1.value(), sameInstance(result2.value()));
         assertEquals("supplier should only be called once for the same key", 1, supplierCalls.get());
     }
 
@@ -96,10 +99,10 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache.CacheKey keyA = new StorageProviderCache.CacheKey("s3", configA);
         StorageProviderCache.CacheKey keyB = new StorageProviderCache.CacheKey("s3", configB);
 
-        StorageProvider providerA = cache.getOrCreate(keyA, TrackingProvider::new);
-        StorageProvider providerB = cache.getOrCreate(keyB, TrackingProvider::new);
+        Configured<StorageProvider> providerA = cache.getOrCreate(keyA, () -> Configured.empty(new TrackingProvider()));
+        Configured<StorageProvider> providerB = cache.getOrCreate(keyB, () -> Configured.empty(new TrackingProvider()));
 
-        assertNotSame("different configs should yield different providers", providerA, providerB);
+        assertNotSame("different configs should yield different providers", providerA.value(), providerB.value());
     }
 
     public void testDifferentSchemeReturnsDifferentProvider() throws Exception {
@@ -108,10 +111,10 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache.CacheKey keyS3 = new StorageProviderCache.CacheKey("s3", config);
         StorageProviderCache.CacheKey keyGcs = new StorageProviderCache.CacheKey("gs", config);
 
-        StorageProvider s3Provider = cache.getOrCreate(keyS3, TrackingProvider::new);
-        StorageProvider gcsProvider = cache.getOrCreate(keyGcs, TrackingProvider::new);
+        Configured<StorageProvider> s3Provider = cache.getOrCreate(keyS3, () -> Configured.empty(new TrackingProvider()));
+        Configured<StorageProvider> gcsProvider = cache.getOrCreate(keyGcs, () -> Configured.empty(new TrackingProvider()));
 
-        assertNotSame("different schemes should yield different providers", s3Provider, gcsProvider);
+        assertNotSame("different schemes should yield different providers", s3Provider.value(), gcsProvider.value());
     }
 
     public void testInvalidateAllClosesProviders() throws Exception {
@@ -119,7 +122,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("a", "b"));
 
         TrackingProvider provider = new TrackingProvider();
-        cache.getOrCreate(key, () -> provider);
+        cache.getOrCreate(key, () -> Configured.empty(provider));
 
         assertEquals("provider should not be closed before invalidation", 0, provider.closeCalls.get());
         cache.invalidateAll();
@@ -131,7 +134,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("region", "us-east-1"));
 
         TrackingProvider provider = new TrackingProvider();
-        cache.getOrCreate(key, () -> provider);
+        cache.getOrCreate(key, () -> Configured.empty(provider));
 
         cache.close();
         assertEquals("provider should be closed when cache is closed", 1, provider.closeCalls.get());
@@ -145,5 +148,19 @@ public class StorageProviderCacheTests extends ESTestCase {
             cache.getOrCreate(key, () -> { throw new IllegalArgumentException("bad credentials"); });
         });
         assertEquals("bad credentials", thrown.getMessage());
+    }
+
+    public void testConsumedKeysCachedAlongsideProvider() throws Exception {
+        StorageProviderCache cache = new StorageProviderCache();
+        StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("access_key", "ak"));
+
+        Configured<StorageProvider> first = cache.getOrCreate(key, () -> new Configured<>(new TrackingProvider(), Set.of("access_key")));
+        Configured<StorageProvider> second = cache.getOrCreate(
+            key,
+            () -> { throw new AssertionError("supplier must not be re-invoked on hit"); }
+        );
+
+        assertThat(second, sameInstance(first));
+        assertEquals(Set.of("access_key"), second.consumedKeys());
     }
 }

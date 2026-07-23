@@ -85,6 +85,8 @@ public abstract class ScoreScript extends DocBasedScript {
 
     private ScriptTermStats termStats = null;
 
+    private Runnable cancellationCheck = null;
+
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
         // for expressions. Expressions should eventually be transitioned to using DocReader.
@@ -205,6 +207,14 @@ public abstract class ScoreScript extends DocBasedScript {
     public ScriptTermStats get_termStats() {
         assert termStats != null : "termStats is not available";
         return termStats;
+    }
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
     }
 
     /** A factory to construct {@link ScoreScript} instances. */

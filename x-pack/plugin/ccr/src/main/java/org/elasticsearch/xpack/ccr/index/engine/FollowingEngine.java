@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -121,7 +122,7 @@ public class FollowingEngine extends InternalEngine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() >= 0 : "ops should have an assigned seq no. but was: " + operation.seqNo();
-        markSeqNoAsSeen(operation.seqNo()); // even though we're not generating a sequence number, we mark it as seen
+        advanceMaxSeqNo(operation.seqNo()); // even though we're not generating a sequence number, we advance max_seq_no
         return operation.seqNo();
     }
 
@@ -179,7 +180,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         // CCR following engine has special versioning semantics that are not compatible with
         // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
         List<IndexResult> results = new ArrayList<>(operations.size());

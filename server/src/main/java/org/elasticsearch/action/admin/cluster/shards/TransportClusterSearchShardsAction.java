@@ -25,6 +25,9 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -33,6 +36,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -95,9 +99,10 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         ClusterState clusterState = clusterService.state();
         ProjectState project = projectResolver.getProjectState(clusterState);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project.metadata(), request);
+        String resolvedRouting = validateAndResolveSliceRouting(request, project.metadata(), concreteIndices);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
             project.metadata(),
-            request.routing(),
+            resolvedRouting,
             request.indices()
         );
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
@@ -135,6 +140,34 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         }
         listener.onResponse(
             new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters, request.getResolvedIndexExpressions())
+        );
+    }
+
+    static String validateAndResolveSliceRouting(
+        ClusterSearchShardsRequest request,
+        ProjectMetadata projectMetadata,
+        String[] concreteIndices
+    ) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return request.routing();
+        }
+        final boolean fromSlice = request.isRoutingFromSlice();
+        final String requestedSlice = fromSlice ? request.searchSlice() : null;
+        final boolean anySliceEnabled = Arrays.stream(concreteIndices)
+            .map(projectMetadata::index)
+            .filter(indexMetadata -> indexMetadata != null)
+            .anyMatch(indexMetadata -> IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings()));
+        final String target = request.indices().length == 0
+            ? Strings.arrayToCommaDelimitedString(concreteIndices)
+            : Strings.arrayToCommaDelimitedString(request.indices());
+        return SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            request.routing(),
+            requestedSlice,
+            "search shards request",
+            target,
+            false
         );
     }
 }

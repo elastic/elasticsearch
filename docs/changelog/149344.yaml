@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 144608
+pr: 149344
+summary: "DiskBBQ: switches from striped dibit to packed"
+type: enhancement

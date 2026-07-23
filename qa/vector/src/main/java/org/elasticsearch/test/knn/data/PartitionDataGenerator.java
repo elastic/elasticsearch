@@ -84,12 +84,12 @@ public final class PartitionDataGenerator extends DataGenerator {
         if (searcher.vectorEncoding().equals(VectorEncoding.BYTE)) {
             byteQueries = new byte[numQueries()][];
             for (int i = 0; i < numQueries(); i++) {
-                byteQueries[i] = targetReader.nextByteVector();
+                byteQueries[i] = targetReader.nextByteVector().vector();
             }
         } else {
             floatQueries = new float[numQueries()][];
             for (int i = 0; i < numQueries(); i++) {
-                floatQueries[i] = targetReader.nextFloatVector();
+                floatQueries[i] = targetReader.nextFloatVector().vector();
             }
         }
 

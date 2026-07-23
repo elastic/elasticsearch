@@ -78,14 +78,19 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
+            File preemptionMarker = new File(projectDir, "build/.preemption-marker.json");
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
                 spec.getParameters().getBuildScan().set(extension);
                 spec.getParameters().getUploadFile().set(targetFile);
                 spec.getParameters().getProjectDir().set(projectDir);
                 spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+                    if (preemptionMarker.exists()) {
+                        System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
+                        return List.<File>of();
+                    }
                     System.out.println("Build Finished Action: Collecting archive files...");
                     List<File> files = new ArrayList<>();
-                    files.addAll(resolveProjectLogs(projectDir));
+                    files.addAll(resolveProjectLogs(projectDir, preemptionMarker));
                     if (files.isEmpty() == false) {
                         files.addAll(resolveDaemonLogs(daemonsLogDir));
                         files.addAll(getFileOperations().fileTree(gradleWorkersDir).getFiles());
@@ -106,7 +111,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         return uploadFile;
     }
 
-    private List<File> resolveProjectLogs(File projectDir) {
+    private List<File> resolveProjectLogs(File projectDir, File preemptionMarker) {
         // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
         // Here we remove them before collecting logs to upload. We could instead build our own path matcher
         // but that seemed more complex than just deleting the irrelevant files.
@@ -114,6 +119,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (preemptionMarker.exists()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     try {
                         if (Files.isSymbolicLink(file)) {
                             Files.delete(file);
@@ -126,6 +134,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+
+        if (preemptionMarker.exists()) {
+            System.out.println("Build Finished Action: Aborting file collection (preemption detected during walk)");
+            return List.of();
         }
 
         var projectDirFiles = getFileOperations().fileTree(projectDir);
@@ -181,6 +194,12 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         public void execute(BuildFinishedFlowAction.Parameters parameters) throws FileNotFoundException {
             List<File> filesToArchive = parameters.getFilteredFiles().get();
             if (filesToArchive.isEmpty()) {
+                return;
+            }
+            File projectDir = parameters.getProjectDir().get();
+            File preemptionMarker = new File(projectDir, "build/.preemption-marker.json");
+            if (preemptionMarker.exists()) {
+                System.out.println("Build Finished Action: Skipping archive/upload (build was preempted)");
                 return;
             }
             File uploadFile = parameters.getUploadFile().get();
@@ -318,9 +337,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             long fileSizeBytes = file.length();
             long fileSizeMB = fileSizeBytes / (1024 * 1024);
 
-            // Allocate 4 seconds per MB (assumes ~250 KB/s upload speed)
+            // Allocate 8 seconds per MB (assumes ~125 KB/s upload speed)
             // with min 10 seconds and max 30 minutes
-            return Math.max(10, Math.min(1800, fileSizeMB * 4));
+            return Math.max(10, Math.min(1800, fileSizeMB * 8));
         }
     }
 }

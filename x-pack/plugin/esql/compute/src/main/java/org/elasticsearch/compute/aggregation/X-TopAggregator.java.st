@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -51,14 +50,17 @@ class Top$Name$$OutputFieldName$Aggregator {
     public static void combineIntermediate(SingleState state, $Type$Block values$if(hasOutputField)$, $OutputFieldType$Block outputValues$endif$) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
+$if(hasOutputField && OutputFieldBytesRef)$
+        var outputScratch = new BytesRef();
+$endif$
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i, scratch)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, values.get$Type$(i, scratch)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, values.get$Type$(i)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $endif$
     }
@@ -75,17 +77,27 @@ $endif$
         state.add(groupId, v$if(hasOutputField)$, outputValue$endif$);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, $if(hasOutputField)$$OutputFieldType$Block outputValues, $endif$int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        $Type$Block values,
+        $if(hasOutputField)$$OutputFieldType$Block outputValues,$endif$
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
+$if(hasOutputField && OutputFieldBytesRef)$
+        var outputScratch = new BytesRef();
+$endif$
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i, scratch)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, groupId, values.get$Type$(i, scratch)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, groupId, values.get$Type$(i)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $endif$
     }
@@ -98,13 +110,7 @@ $endif$
         private final $Name$$OutputFieldName$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-$if(BytesRef)$
-            // TODO pass the breaker in from the DriverContext
-            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-            this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
-$else$
             this.sort = new $Name$$OutputFieldName$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
-$endif$
         }
 
         public void add(int groupId, $type$ value$if(hasOutputField)$, $OutputFieldtype$ outputValue$endif$) {

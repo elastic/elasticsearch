@@ -85,11 +85,11 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     }
 
     private void refreshIndices(ActionListener<BroadcastResponse> listener) {
-        RefreshRequest refreshRequest = new RefreshRequest(
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            MlStatsIndex.indexPattern(),
-            config.getDest().getIndex()
-        );
+        String[] statePatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
+        String[] indices = Arrays.copyOf(statePatterns, statePatterns.length + 2);
+        indices[statePatterns.length] = MlStatsIndex.indexPattern();
+        indices[statePatterns.length + 1] = config.getDest().getIndex();
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
 
         LOGGER.debug(() -> format("[%s] Refreshing indices %s", config.getId(), Arrays.toString(refreshRequest.indices())));

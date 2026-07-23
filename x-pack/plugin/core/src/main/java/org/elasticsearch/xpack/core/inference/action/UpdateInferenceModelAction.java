@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -24,32 +24,30 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.CHUNKING_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
+import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelAction.Response> {
 
     public static final UpdateInferenceModelAction INSTANCE = new UpdateInferenceModelAction();
     public static final String NAME = "cluster:admin/xpack/inference/update";
 
+    private static final TransportVersion INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED = TransportVersion.fromName(
+        "inference_update_endpoint_timeout_added"
+    );
+
     public UpdateInferenceModelAction() {
         super(NAME);
     }
-
-    public record Settings(
-        @Nullable Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> taskSettings,
-        @Nullable TaskType taskType
-    ) {}
 
     public static class Request extends AcknowledgedRequest<Request> {
 
@@ -57,14 +55,29 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         private final BytesReference content;
         private final XContentType contentType;
         private final TaskType taskType;
-        private Settings settings;
+        private final TimeValue timeout;
+        /**
+         * Encapsulates the lazy, validated parse of {@link #content} so the three body sections
+         * (service_settings, task_settings, task_type) share a single XContent pass.
+         */
+        private final CachedParsedSettings cachedParsedSettings;
 
-        public Request(String inferenceEntityId, BytesReference content, XContentType contentType, TaskType taskType, TimeValue timeout) {
-            super(timeout, DEFAULT_ACK_TIMEOUT);
+        public Request(
+            String inferenceEntityId,
+            BytesReference content,
+            XContentType contentType,
+            TaskType taskType,
+            @Nullable TimeValue timeout,
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout
+        ) {
+            super(masterNodeTimeout, ackTimeout);
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
             this.taskType = taskType;
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
+            this.cachedParsedSettings = new CachedParsedSettings();
         }
 
         public Request(StreamInput in) throws IOException {
@@ -73,6 +86,12 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
+            if (in.getTransportVersion().supports(INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED)) {
+                this.timeout = in.readTimeValue();
+            } else {
+                this.timeout = TIMEOUT_NOT_DETERMINED;
+            }
+            this.cachedParsedSettings = new CachedParsedSettings();
         }
 
         public String getInferenceEntityId() {
@@ -83,11 +102,14 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             return taskType;
         }
 
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
         /**
          * The body of the request.
          * For in-cluster models, this is expected to contain some of the following:
          * "number_of_allocations": `an integer`
-         *
          * For third-party services, this is expected to contain:
          *  "service_settings": {
          *      "api_key": `a string` // service settings can only contain an api key
@@ -100,95 +122,45 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         }
 
         /**
-         * The body of the request as a map.
-         * The map is validated such that only allowed fields are present.
-         * If any fields in the body are not on the allow list, this function will throw an exception.
+         * Returns the {@code service_settings} block from the request body as a fresh, modifiable
+         * deep copy of the parsed content (or {@code null} if the body did not include any).
+         *
+         * <p>Each invocation returns a new map instance so callers (notably the
+         * {@code *Settings.update*} parsers in the inference services) may freely call
+         * {@code remove(...)} at any depth without risking corruption of the cached state or
+         * interference between consumers reading the same body.
          */
-        public Settings getContentAsSettings() {
-            if (settings == null) { // settings is deterministic on content, so we only need to compute it once
-                Map<String, Object> unvalidatedMap = XContentHelper.convertToMap(content, false, contentType).v2();
-                Map<String, Object> serviceSettings = new HashMap<>();
-                Map<String, Object> taskSettings = new HashMap<>();
-                TaskType taskType = null;
+        @Nullable
+        public Map<String, Object> getServiceSettings() {
+            return cachedParsedSettings.getServiceSettings();
+        }
 
-                if (unvalidatedMap.isEmpty()) {
-                    throw new ElasticsearchStatusException("Request body is empty", RestStatus.BAD_REQUEST);
-                }
+        /**
+         * Returns the {@code task_settings} block from the request body as a fresh, modifiable
+         * deep copy of the parsed content (or {@code null} if the body did not include any).
+         */
+        @Nullable
+        public Map<String, Object> getTaskSettings() {
+            return cachedParsedSettings.getTaskSettings();
+        }
 
-                if (unvalidatedMap.containsKey("task_type")) {
-                    if (unvalidatedMap.get("task_type") instanceof String taskTypeString) {
-                        taskType = TaskType.fromStringOrStatusException(taskTypeString);
-                    } else {
-                        throw new ElasticsearchStatusException(
-                            "Failed to parse [task_type] in update request [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            unvalidatedMap.toString()
-                        );
-                    }
-                    unvalidatedMap.remove("task_type");
-                }
+        /**
+         * Returns the {@code chunking_settings} block from the request body as a fresh, modifiable
+         * deep copy of the parsed content (or {@code null} if the body did not include any).
+         */
+        @Nullable
+        public Map<String, Object> getChunkingSettings() {
+            return cachedParsedSettings.getChunkingSettings();
+        }
 
-                if (unvalidatedMap.containsKey(SERVICE_SETTINGS)) {
-                    if (unvalidatedMap.get(SERVICE_SETTINGS) instanceof Map<?, ?> tempMap) {
-                        for (Map.Entry<?, ?> entry : (tempMap).entrySet()) {
-                            if (entry.getKey() instanceof String key) {
-                                serviceSettings.put(key, entry.getValue());
-                            } else {
-                                throw new ElasticsearchStatusException(
-                                    "Failed to parse update request [{}]",
-                                    RestStatus.INTERNAL_SERVER_ERROR,
-                                    unvalidatedMap.toString()
-                                );
-                            }
-                        }
-                        unvalidatedMap.remove(SERVICE_SETTINGS);
-                    } else {
-                        throw new ElasticsearchStatusException(
-                            "Unable to parse service settings in the request [{}]",
-                            RestStatus.BAD_REQUEST,
-                            unvalidatedMap.toString()
-                        );
-                    }
-                }
-
-                if (unvalidatedMap.containsKey(TASK_SETTINGS)) {
-                    if (unvalidatedMap.get(TASK_SETTINGS) instanceof Map<?, ?> tempMap) {
-                        for (Map.Entry<?, ?> entry : (tempMap).entrySet()) {
-                            if (entry.getKey() instanceof String key) {
-                                taskSettings.put(key, entry.getValue());
-                            } else {
-                                throw new ElasticsearchStatusException(
-                                    "Failed to parse update request [{}]",
-                                    RestStatus.INTERNAL_SERVER_ERROR,
-                                    unvalidatedMap.toString()
-                                );
-                            }
-                        }
-                        unvalidatedMap.remove(TASK_SETTINGS);
-                    } else {
-                        throw new ElasticsearchStatusException(
-                            "Unable to parse task settings in the request [{}]",
-                            RestStatus.BAD_REQUEST,
-                            unvalidatedMap.toString()
-                        );
-                    }
-                }
-
-                if (unvalidatedMap.isEmpty() == false) {
-                    throw new ElasticsearchStatusException(
-                        "Request contained fields which cannot be updated, remove these fields and try again [{}]",
-                        RestStatus.BAD_REQUEST,
-                        unvalidatedMap.toString()
-                    );
-                }
-
-                this.settings = new Settings(
-                    serviceSettings.isEmpty() == false ? Collections.unmodifiableMap(serviceSettings) : null,
-                    taskSettings.isEmpty() == false ? Collections.unmodifiableMap(taskSettings) : null,
-                    taskType
-                );
-            }
-            return this.settings;
+        /**
+         * Returns the {@code task_type} declared in the request body, or {@code null} if it was
+         * not present. Distinct from {@link #getTaskType()}, which returns the task type taken
+         * from the request URL.
+         */
+        @Nullable
+        public TaskType getBodyTaskType() {
+            return cachedParsedSettings.getBodyTaskType();
         }
 
         public XContentType getContentType() {
@@ -202,19 +174,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (MlStrings.isValidId(this.inferenceEntityId) == false) {
-                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "inference_id", this.inferenceEntityId));
-            }
-
-            if (validationException.validationErrors().isEmpty() == false) {
-                return validationException;
-            } else {
-                return null;
+            if (out.getTransportVersion().supports(INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED)) {
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -226,12 +187,142 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             return Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
                 && contentType == request.contentType
-                && taskType == request.taskType;
+                && taskType == request.taskType
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, content, contentType, taskType);
+            return Objects.hash(inferenceEntityId, content, contentType, taskType, timeout);
+        }
+
+        /**
+         * Lazy holder for the parsed and validated body of the request. Kept as a non-static
+         * inner class so it can read {@link Request#content} / {@link Request#contentType}
+         * directly from the enclosing instance without duplicating those fields.
+         *
+         * <p>{@link XContentHelper#convertToMap} is non-trivial, so all three body sections share
+         * one parse pass. The cached maps are kept private; each accessor returns a fresh deep
+         * copy so consumers may freely call {@code remove(...)} at any depth without risking
+         * corruption of the cache or interference between consumers reading the same body.
+         */
+        private final class CachedParsedSettings {
+
+            private boolean parsed = false;
+            @Nullable
+            private Map<String, Object> serviceSettings;
+            @Nullable
+            private Map<String, Object> taskSettings;
+            @Nullable
+            private Map<String, Object> chunkingSettings;
+            @Nullable
+            private TaskType bodyTaskType;
+
+            @Nullable
+            Map<String, Object> getServiceSettings() {
+                parseContentIfNeeded();
+                return serviceSettings != null ? deepCopyMap(serviceSettings) : null;
+            }
+
+            @Nullable
+            Map<String, Object> getTaskSettings() {
+                parseContentIfNeeded();
+                return taskSettings != null ? deepCopyMap(taskSettings) : null;
+            }
+
+            @Nullable
+            Map<String, Object> getChunkingSettings() {
+                parseContentIfNeeded();
+                return chunkingSettings != null ? deepCopyMap(chunkingSettings) : null;
+            }
+
+            @Nullable
+            TaskType getBodyTaskType() {
+                parseContentIfNeeded();
+                return bodyTaskType;
+            }
+
+            private void parseContentIfNeeded() {
+                if (parsed) {
+                    return;
+                }
+                Map<String, Object> unvalidatedMap = XContentHelper.convertToMap(content, false, contentType).v2();
+
+                if (unvalidatedMap.isEmpty()) {
+                    throw new ElasticsearchStatusException("Request body is empty", RestStatus.BAD_REQUEST);
+                }
+
+                TaskType parsedBodyTaskType = null;
+                if (unvalidatedMap.containsKey(TaskType.NAME)) {
+                    if (unvalidatedMap.get(TaskType.NAME) instanceof String taskTypeString) {
+                        parsedBodyTaskType = TaskType.fromStringOrStatusException(taskTypeString);
+                    } else {
+                        throw new ElasticsearchStatusException(
+                            "Failed to parse [{}] in update request [{}]",
+                            RestStatus.BAD_REQUEST,
+                            TaskType.NAME,
+                            unvalidatedMap.toString()
+                        );
+                    }
+                    unvalidatedMap.remove(TaskType.NAME);
+                }
+
+                Map<String, Object> parsedServiceSettings = new HashMap<>();
+                moveFieldToMap(unvalidatedMap, parsedServiceSettings, SERVICE_SETTINGS);
+
+                Map<String, Object> parsedTaskSettings = new HashMap<>();
+                moveFieldToMap(unvalidatedMap, parsedTaskSettings, TASK_SETTINGS);
+
+                Map<String, Object> parsedChunkingSettings = new HashMap<>();
+                moveFieldToMap(unvalidatedMap, parsedChunkingSettings, CHUNKING_SETTINGS);
+
+                if (unvalidatedMap.isEmpty() == false) {
+                    throw new ElasticsearchStatusException(
+                        "Request contained fields which cannot be updated, remove these fields and try again [{}]",
+                        RestStatus.BAD_REQUEST,
+                        unvalidatedMap.toString()
+                    );
+                }
+
+                this.serviceSettings = parsedServiceSettings.isEmpty() == false ? parsedServiceSettings : null;
+                this.taskSettings = parsedTaskSettings.isEmpty() == false ? parsedTaskSettings : null;
+                this.chunkingSettings = parsedChunkingSettings.isEmpty() == false ? parsedChunkingSettings : null;
+                this.bodyTaskType = parsedBodyTaskType;
+                this.parsed = true;
+            }
+
+            /**
+             * If {@code sourceMap} contains an entry for {@code fieldName} whose value is itself a
+             * {@code Map<String, ?>}, copies the entries into {@code destinationMap} and removes
+             * the entry from {@code sourceMap}. Throws if the value is present but is not a map,
+             * or if any key inside the inner map is not a {@link String}.
+             */
+            private static void moveFieldToMap(Map<String, Object> sourceMap, Map<String, Object> destinationMap, String fieldName) {
+                if (sourceMap.containsKey(fieldName) == false) {
+                    return;
+                }
+                if (sourceMap.get(fieldName) instanceof Map<?, ?> tempMap) {
+                    for (Map.Entry<?, ?> entry : tempMap.entrySet()) {
+                        if (entry.getKey() instanceof String key) {
+                            destinationMap.put(key, entry.getValue());
+                        } else {
+                            throw new ElasticsearchStatusException(
+                                "Failed to parse update request [{}]",
+                                RestStatus.BAD_REQUEST,
+                                sourceMap.toString()
+                            );
+                        }
+                    }
+                    sourceMap.remove(fieldName);
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Unable to parse [{}] in the request [{}]",
+                        RestStatus.BAD_REQUEST,
+                        fieldName,
+                        sourceMap.toString()
+                    );
+                }
+            }
         }
     }
 

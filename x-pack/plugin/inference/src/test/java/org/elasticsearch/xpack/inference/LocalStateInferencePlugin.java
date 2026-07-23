@@ -71,6 +71,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return inferencePlugin.getQueryVectorBuilders();
+    }
+
+    @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return inferencePlugin.getMappers();
     }

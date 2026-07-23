@@ -159,8 +159,7 @@ public class MasterHistoryService {
                                         logger.warn("Exception in master history request to master node", e);
                                         remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                                     }
-                                }, () -> Releasables.close(releasable)),
-                                () -> { /* TODO cancel the remote task? */}
+                                }, () -> Releasables.close(releasable))
                             ),
                             MasterHistoryAction.Response::new,
                             TransportResponseHandler.TRANSPORT_WORKER

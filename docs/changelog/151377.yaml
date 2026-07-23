@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151377
+summary: Surface external read failures with typed exceptions
+type: enhancement

@@ -1,0 +1,76 @@
+// Data-correctness tests for aggregates pushed through the leaf UnionAll a multi-source FROM <dataset> produces
+// (see PushAggregateThroughUnionAll). The plan shape is validated by
+// HeterogeneousFromPushdownGoldenTests; these tests validate the merged *results*.
+//
+// Each test selects two datasets (emp_a, emp_b) that both point at the same {{employees_no_mv}} fixture, so the
+// union is the employees data duplicated. That makes the merge math easy to assert exactly: COUNT(*) doubles,
+// SUM doubles, AVG is unchanged, and COUNT_DISTINCT de-duplicates back to the single-dataset distinct count
+// (proving the per-branch HLL sketches are unioned, not summed). These specs declare two dataset: sources, so they
+// run on dataset-capable backends (FROM <dataset>) and are skipped on the EXTERNAL-rebuild backends (EXTERNAL is
+// single-source).
+
+heavyAggregatesMergedAcrossDatasets
+required_capability: external_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| STATS distinct_emp = COUNT_DISTINCT(emp_no), total = COUNT(*), sum_salary = SUM(salary), avg_salary = AVG(salary);
+
+distinct_emp:long | total:long | sum_salary:long | avg_salary:double
+100               | 200        | 9649710         | 48248.55
+;
+
+heavyAggregatesGroupedMergedAcrossDatasets
+required_capability: external_command
+required_capability: external_csv_empty_string_not_null
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| STATS distinct_emp = COUNT_DISTINCT(emp_no), c = COUNT(*) BY gender
+| SORT gender;
+
+distinct_emp:long | c:long | gender:keyword
+10                | 20     |
+33                | 66     | "F"
+57                | 114    | "M"
+;
+
+// Per-aggregate filter on a heavy aggregate mixed with an unfiltered one. Because not every aggregate is filtered,
+// ExtractAggregateCommonFilter cannot hoist a common WHERE, so distinct_f's filter stays per-aggregate and rides the
+// per-branch ToPartial: each branch folds only the matching rows into its HLL sketch before the sketches are unioned.
+// The 33 female employees are identical in both datasets, so the unioned distinct count is 33 (not 66), while the
+// unfiltered COUNT(*) doubles to 200. Proves the filter is applied per branch, before the merge.
+heavyAggregatesFilteredMergedAcrossDatasets
+required_capability: external_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| STATS distinct_f = COUNT_DISTINCT(emp_no) WHERE gender == "F", total = COUNT(*);
+
+distinct_f:long | total:long
+33              | 200
+;
+
+// Grouped + selective per-aggregate filter on a heavy aggregate. Grouped stats are never hoisted by
+// ExtractAggregateCommonFilter, so the filter rides the per-branch ToPartial and is applied per group. Only the M
+// group has rows matching gender == "M", so its unioned distinct count is 57; the F and null groups still appear (the
+// grouping is over all rows) but their filtered input is empty, so COUNT_DISTINCT is 0. Proves the per-group filter
+// actually selects rows and the grouped + filtered merge is correct.
+heavyAggregatesFilteredGroupedMergedAcrossDatasets
+required_capability: external_command
+required_capability: external_csv_empty_string_not_null
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| STATS distinct_emp = COUNT_DISTINCT(emp_no) WHERE gender == "M" BY gender
+| SORT gender;
+
+distinct_emp:long | gender:keyword
+0                 |
+0                 | "F"
+57                | "M"
+;

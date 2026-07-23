@@ -35,10 +35,8 @@ import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -110,17 +108,13 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
-    // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
-    private transient boolean isRemote = false;
+    // Where this join executes — relevant only on the coordinating node, thus transient.
+    private final transient ExecuteLocation mode;
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        this(source, left, right, config, false);
-    }
-
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, ExecuteLocation mode) {
         super(source, left, right);
         this.config = config;
-        this.isRemote = isRemote;
+        this.mode = mode;
     }
 
     public Join(
@@ -130,15 +124,16 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        ExecuteLocation mode
     ) {
-        super(source, left, right);
-        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), mode);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
+        this.mode = ExecuteLocation.ANY;
     }
 
     @Override
@@ -183,7 +178,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.leftFields(),
             config.rightFields(),
-            config.joinOnConditions()
+            config.joinOnConditions(),
+            mode
         );
     }
 
@@ -294,17 +290,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config, isRemote);
+        return new Join(source(), left(), right(), config, mode);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config, isRemote);
+        return new Join(source(), left, right, config, mode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right(), isRemote);
+        return Objects.hash(config, left(), right(), mode);
     }
 
     @Override
@@ -320,7 +316,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return config.equals(other.config)
             && Objects.equals(left(), other.left())
             && Objects.equals(right(), other.right())
-            && isRemote == other.isRemote;
+            && mode == other.mode;
     }
 
     @Override
@@ -365,21 +361,14 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return leftType.noText() == rightType.noText();
     }
 
-    public boolean isRemote() {
-        return isRemote;
-    }
-
     @Override
     public ExecuteLocation executesOn() {
-        return isRemote ? ExecuteLocation.REMOTE : ExecuteLocation.ANY;
+        return mode;
     }
 
     private void checkRemoteJoin(Failures failures) {
-        Set<Source> fails = new HashSet<>();
-
-        var myself = this;
         this.forEachUp(LogicalPlan.class, u -> {
-            if (u == myself) {
+            if (u == Join.this) {
                 return; // skip myself
             }
             if (u instanceof Limit) {
@@ -388,19 +377,16 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 return;
             }
             if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
-
-        fails.forEach(
-            f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
-        );
-
     }
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (isRemote()) {
+        if (executesOn() == ExecuteLocation.REMOTE) {
             checkRemoteJoin(failures);
         }
     }

@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestResponseUtils;
@@ -124,7 +124,7 @@ public class RestReindexRethrottleActionTests extends RestActionTestCase {
             nodeId,
             ReindexPlugin.RETHROTTLE_ACTION.name(),
             "doing a reindex",
-            new BulkByScrollTask.Status(
+            new BulkByPaginatedSearchTask.Status(
                 0,
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 100),

@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -65,5 +68,36 @@ public class NumberParserTests extends ESTestCase {
         var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.extractLong(map, VERSION, ROOT));
         assertThat(e.getMessage(), containsString(pathToKey(ROOT, VERSION)));
         assertThat(e.getMessage(), containsString(NOT_A_NUMBER));
+    }
+
+    public void testValidatePositiveInteger_NullValue_DoesNotThrow() {
+        NumberParser.validatePositiveInteger(null, DIMENSIONS);
+    }
+
+    public void testValidatePositiveInteger_PositiveValue_DoesNotThrow() {
+        NumberParser.validatePositiveInteger(randomIntBetween(1, 1000), DIMENSIONS);
+    }
+
+    public void testValidatePositiveInteger_ZeroValue_ThrowsException() {
+        assertValidatePositiveInteger_InvalidValue_ThrowsException(0);
+    }
+
+    public void testValidatePositiveInteger_NegativeValue_ThrowsException() {
+        assertValidatePositiveInteger_InvalidValue_ThrowsException(randomNegativeInt());
+    }
+
+    private static void assertValidatePositiveInteger_InvalidValue_ThrowsException(int invalidValue) {
+        var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.validatePositiveInteger(invalidValue, DIMENSIONS));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    invalidValue,
+                    DIMENSIONS
+                )
+            )
+        );
     }
 }

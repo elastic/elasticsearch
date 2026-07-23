@@ -22,7 +22,6 @@ import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
@@ -32,7 +31,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -196,13 +194,14 @@ public class HotThreadsIT extends ESIntegTestCase {
     @TestLogging(reason = "testing logging at various levels", value = "org.elasticsearch.action.admin.HotThreadsIT:TRACE")
     public void testLogLocalHotThreads() {
         final var level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final var docs = randomFrom(ReferenceDocs.values());
         assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 logger,
                 level,
                 getTestName(),
-                ReferenceDocs.LOGGING,
-                () -> HotThreads.logLocalHotThreads(logger, level, getTestName(), ReferenceDocs.LOGGING)
+                docs,
+                () -> HotThreads.logLocalHotThreads(logger, level, getTestName(), docs)
             ).utf8ToString(),
             allOf(
                 containsString("Hot threads at"),
@@ -215,22 +214,24 @@ public class HotThreadsIT extends ESIntegTestCase {
     }
 
     @TestLogging(reason = "testing logging at various levels", value = "org.elasticsearch.action.admin.HotThreadsIT:TRACE")
-    public void testLogLocalCurrentThreadsInPlainText() {
+    public void testLogLocalCurrentThreads() {
         final var level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        assertThatLogger(
-            () -> HotThreads.logLocalCurrentThreads(logger, level, getTestName()),
-            HotThreadsIT.class,
-            new MockLog.SeenEventExpectation(
-                "Should log hot threads header in plain text",
-                HotThreadsIT.class.getCanonicalName(),
+        final var docs = randomFrom(ReferenceDocs.values());
+        assertThat(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
+                logger,
                 level,
-                "testLogLocalCurrentThreadsInPlainText: Hot threads at"
-            ),
-            new MockLog.SeenEventExpectation(
-                "Should log hot threads cpu usage in plain text",
-                HotThreadsIT.class.getCanonicalName(),
-                level,
-                "cpu usage by thread"
+                getTestName(),
+                docs,
+                () -> HotThreads.logLocalCurrentThreads(logger, level, getTestName(), docs)
+            ).utf8ToString(),
+            allOf(
+                containsString("Hot threads at"),
+                containsString("interval=500ms"),
+                containsString("busiestThreads=500"),
+                containsString("ignoreIdleThreads=true"),
+                containsString("cpu usage by thread"),
+                containsString("unique snapshot")
             )
         );
     }

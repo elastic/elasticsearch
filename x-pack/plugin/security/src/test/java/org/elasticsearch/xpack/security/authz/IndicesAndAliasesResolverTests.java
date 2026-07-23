@@ -66,7 +66,6 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -442,8 +441,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
             indexNameExpressionResolver,
-            crossProjectModeDecider,
-            ProjectRoutingResolver.NOOP
+            crossProjectModeDecider
         );
     }
 
@@ -921,7 +919,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .collect(Collectors.toSet());
             assert matchedIndices.isEmpty() == false;
             return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
-        }).toList());
+        }).toList(), null);
 
         final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
 
@@ -3903,7 +3901,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             remoteExpressions
         );
     }

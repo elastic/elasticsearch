@@ -229,7 +229,7 @@ class ShardSyncState {
             referencedTranslogFileOffsets = new int[translogFiles.size()];
             int i = 0;
             for (TranslogReplicator.BlobTranslogFile referencedFile : translogFiles.values()) {
-                estimatedOps += referencedFile.operations().get(shardId).totalOps();
+                estimatedOps += referencedFile.getTotalOps(shardId);
                 referencedTranslogFileOffsets[i] = Math.toIntExact(generation - referencedFile.generation());
                 assert referencedTranslogFileOffsets[i] > 0 : generation + " " + referencedFile.generation();
                 ++i;

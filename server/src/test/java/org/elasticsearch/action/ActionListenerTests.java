@@ -365,21 +365,12 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
-    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() {
         assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
-        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
-            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
-        }));
-        // Nullify reference so it becomes unreachable
-        listenerRef = null;
-        assertBusy(() -> {
-            System.gc();
-            assertLeakDetected();
-        });
-        // The GC-based mechanism fired above. Drain the intentional leak from the synchronous collector
-        // so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report it.
-        LeakTracker.clearTestLeakCollector();
-        LeakTracker.installTestLeakCollector();
+        var window = LeakTracker.newWindow();
+        ActionListener.assertAtLeastOnce(ActionListener.running(() -> {})); // never invoked
+        expectThrows(AssertionError.class, window::assertNoLeaks);
+        // window.assertNoLeaks() drained the resource from activeTrackers; @After will not double-report.
     }
 
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
@@ -749,8 +740,7 @@ public class ActionListenerTests extends ESTestCase {
                         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), lessThan(timeout.millis()));
                     }
                 }
-            },
-            () -> fail("should not clean up")
+            }
         );
         final Runnable completer = expectException
             ? () -> listenerDoesNotTimeOut.onFailure(expectedOutcome)
@@ -766,7 +756,6 @@ public class ActionListenerTests extends ESTestCase {
         }
 
         final var listenerTimesOutComplete = new AtomicBoolean();
-        final var listenerTimesOutCleansUp = new AtomicBoolean();
         final var listenerTimesOut = ActionListener.addTimeout(
             timeout,
             threadpool,
@@ -783,8 +772,7 @@ public class ActionListenerTests extends ESTestCase {
                     assertTrue(listenerTimesOutComplete.compareAndSet(false, true));
                     assertEquals(timeout.millis(), deterministicTaskQueue.getCurrentTimeMillis());
                 }
-            },
-            () -> assertTrue(listenerTimesOutCleansUp.compareAndSet(false, true))
+            }
         );
 
         if (randomBoolean()) {
@@ -797,6 +785,5 @@ public class ActionListenerTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(listenerDoesNotTimeOutComplete.get());
         assertTrue(listenerTimesOutComplete.get());
-        assertTrue(listenerTimesOutCleansUp.get());
     }
 }

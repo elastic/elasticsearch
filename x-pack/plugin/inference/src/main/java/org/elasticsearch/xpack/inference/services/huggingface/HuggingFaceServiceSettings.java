@@ -54,13 +54,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            HuggingFaceService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
         return new HuggingFaceServiceSettings(uri, similarityMeasure, dimensions, maxInputTokens, rateLimitSettings);
@@ -80,7 +74,6 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            HuggingFaceService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

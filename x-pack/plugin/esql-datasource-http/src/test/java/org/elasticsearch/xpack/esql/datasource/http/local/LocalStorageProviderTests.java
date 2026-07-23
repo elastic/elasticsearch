@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -24,6 +31,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -31,6 +41,15 @@ import static org.hamcrest.Matchers.containsString;
  * Tests for LocalStorageProvider and LocalStorageObject.
  */
 public class LocalStorageProviderTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -230,6 +249,33 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertEquals("56789", new String(result, StandardCharsets.UTF_8));
     }
 
+    public void testReadBytesAsyncReturnsDirectBuffer() throws Exception {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+
+        object.readBytesAsync(5, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> { throw new AssertionError("unexpected failure", e); }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(result.get());
+        try (DirectReadBuffer drb = result.get()) {
+            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            byte[] actual = new byte[drb.buffer().remaining()];
+            drb.buffer().get(actual);
+            assertEquals("56789", new String(actual, StandardCharsets.UTF_8));
+        }
+    }
+
     public void testReadBytesAtEndOfFile() throws IOException {
         Path tempFile = createTempFile("test", ".txt");
         String content = "short";
@@ -361,6 +407,22 @@ public class LocalStorageProviderTests extends ESTestCase {
         // Non-recursive should find zero files since all files are in subdirs
         List<StorageEntry> flatEntries = collectAll(provider.listObjects(prefix, false));
         assertEquals(0, flatEntries.size());
+    }
+
+    // -- glob guard --
+
+    public void testNewObjectRejectsGlobPattern() {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv.zst");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(globPath));
+        assertThat(e.getMessage(), containsString("glob pattern"));
+        assertThat(e.getMessage(), containsString("*.csv.zst"));
+    }
+
+    public void testExistsRejectsGlobPattern() throws IOException {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv");
+        expectThrows(IllegalArgumentException.class, () -> provider.exists(globPath));
     }
 
     // -- helpers --

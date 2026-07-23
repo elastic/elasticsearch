@@ -115,9 +115,15 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
     }
 
     private void copyFromVector(FloatVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendFloat(vector.getFloat(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**

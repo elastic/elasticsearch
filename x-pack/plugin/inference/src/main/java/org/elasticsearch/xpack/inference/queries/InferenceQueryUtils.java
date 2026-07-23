@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryRewriteAsyncAction;
@@ -59,6 +60,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
 
 public final class InferenceQueryUtils {
     /**
@@ -149,11 +151,6 @@ public final class InferenceQueryUtils {
      * {@code false}. This can be determined using only the connection(s) to the remote cluster(s), so no roundtrip is
      * necessary.
      * </p>
-     * <p>
-     * NOTE: Non-text inputs (e.g. images) in {@link InferenceInfoRequest#input()} are only supported for local inference.
-     * Remote clusters are queried using a plain text string extracted from the input; non-text inputs are not forwarded
-     * to remote clusters.
-     * </p>
      *
      * @param queryRewriteContext The query rewrite context
      * @param inferenceInfoRequest The inference info request args
@@ -239,21 +236,32 @@ public final class InferenceQueryUtils {
         InferenceInfoRequest inferenceInfoRequest,
         ActionListener<InferenceInfo> localInferenceInfoListener
     ) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         InferenceStringGroup input = inferenceInfoRequest.input();
         var inferenceResultsMap = inferenceInfoRequest.inferenceResultsMap();
+        int indexCount = resolvedIndices.getConcreteLocalIndicesMetadata().size();
 
-        Map<String, Set<InferenceFieldMetadata>> localInferenceFields = getLocalInferenceFields(
-            queryRewriteContext.getResolvedIndices(),
+        if (Boolean.FALSE.equals(queryRewriteContext.getHasAnyLocalInferenceFields())) {
+            localInferenceInfoListener.onResponse(
+                new InferenceInfo(
+                    0,
+                    indexCount,
+                    inferenceResultsMap != null ? inferenceResultsMap : Map.of(),
+                    queryRewriteContext.getMinTransportVersion()
+                )
+            );
+            return;
+        }
+
+        LocalInferenceFieldsInfo localInferenceFieldsInfo = getLocalInferenceFields(
+            queryRewriteContext,
+            resolvedIndices,
             inferenceInfoRequest.fields(),
             inferenceInfoRequest.resolveWildcards(),
             inferenceInfoRequest.useDefaultFields()
         );
-
-        int indexCount = localInferenceFields.size();
-        int inferenceFieldCount = 0;
-        for (var inferenceFieldMetadataSet : localInferenceFields.values()) {
-            inferenceFieldCount += inferenceFieldMetadataSet.size();
-        }
+        assert indexCount == localInferenceFieldsInfo.indexCount();
+        int inferenceFieldCount = localInferenceFieldsInfo.inferenceFieldCount();
 
         if (inferenceFieldCount == 0 || input == null) {
             // Skip local inference result generation if:
@@ -271,7 +279,7 @@ public final class InferenceQueryUtils {
         }
 
         final Set<FullyQualifiedInferenceId> localInferenceIds = getLocalInferenceIds(
-            localInferenceFields,
+            localInferenceFieldsInfo.inferenceFieldMap(),
             queryRewriteContext.getLocalClusterAlias()
         );
         final int finalInferenceFieldCount = inferenceFieldCount;
@@ -302,19 +310,6 @@ public final class InferenceQueryUtils {
             createRemoteInferenceInfoGroupedActionListener(remoteIndices.size(), remoteInferenceInfoListener);
 
         InferenceStringGroup input = inferenceInfoRequest.input();
-        String remoteQuery = null;
-        if (input != null) {
-            if (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()) {
-                // Remote clusters accept only a plain text string; extract it when the input is a single text entry.
-                gal.onFailure(
-                    new IllegalArgumentException(
-                        "Remote inference info requests do not support non-text or multiple inputs. Input must be a single text entry."
-                    )
-                );
-                return;
-            }
-            remoteQuery = input.textValue();
-        }
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -325,7 +320,7 @@ public final class InferenceQueryUtils {
                 inferenceInfoRequest.fields(),
                 inferenceInfoRequest.resolveWildcards(),
                 inferenceInfoRequest.useDefaultFields(),
-                remoteQuery,
+                input,
                 originalIndices.indicesOptions()
             );
 
@@ -382,27 +377,44 @@ public final class InferenceQueryUtils {
         return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);
     }
 
-    private static Map<String, Set<InferenceFieldMetadata>> getLocalInferenceFields(
+    private record LocalInferenceFieldsInfo(
+        Map<String, Set<InferenceFieldMetadata>> inferenceFieldMap,
+        int inferenceFieldCount,
+        int indexCount
+    ) {}
+
+    private static LocalInferenceFieldsInfo getLocalInferenceFields(
+        QueryRewriteContext queryRewriteContext,
         ResolvedIndices resolvedIndices,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
         Map<String, Set<InferenceFieldMetadata>> inferenceFieldMap = new HashMap<>();
+        int inferenceFieldCount = 0;
+        boolean hasAnyLocalInferenceFields = false;
 
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            final String indexName = indexMetadata.getIndex().getName();
+            if (indexMetadata.getInferenceFields().isEmpty()) {
+                continue;
+            }
+            hasAnyLocalInferenceFields = true;
             final Map<InferenceFieldMetadata, Float> matchingInferenceFieldMap = indexMetadata.getMatchingInferenceFields(
                 fields,
                 resolveWildcards,
                 useDefaultFields
             );
 
-            inferenceFieldMap.put(indexName, matchingInferenceFieldMap.keySet());
+            Set<InferenceFieldMetadata> inferenceFieldMetadataSet = matchingInferenceFieldMap.keySet();
+            if (inferenceFieldMetadataSet.isEmpty() == false) {
+                inferenceFieldMap.put(indexMetadata.getIndex().getName(), inferenceFieldMetadataSet);
+                inferenceFieldCount += inferenceFieldMetadataSet.size();
+            }
         }
+        queryRewriteContext.setHasAnyLocalInferenceFields(hasAnyLocalInferenceFields);
 
-        return inferenceFieldMap;
+        return new LocalInferenceFieldsInfo(inferenceFieldMap, inferenceFieldCount, indexMetadataCollection.size());
     }
 
     private static Set<FullyQualifiedInferenceId> getLocalInferenceIds(
@@ -528,6 +540,78 @@ public final class InferenceQueryUtils {
         return inferenceResults;
     }
 
+    /**
+     * Dispatches an inference request for a single query input based on task type.
+     * Validates input constraints and builds the appropriate action request.
+     */
+    public static void executeInferenceForTaskType(
+        Client client,
+        InferenceStringGroup input,
+        String inferenceId,
+        TaskType taskType,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        switch (taskType) {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                if (input.containsNonTextEntry()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Non-text input is not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                if (input.containsMultipleInferenceStrings()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Multiple text inputs are not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    new InferenceAction.Request(
+                        taskType,
+                        inferenceId,
+                        List.of(input.textValue()),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        timeout,
+                        false
+                    ),
+                    listener
+                );
+            }
+            case EMBEDDING -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                EmbeddingAction.INSTANCE,
+                new EmbeddingAction.Request(
+                    inferenceId,
+                    taskType,
+                    new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
+                    timeout
+                ),
+                listener
+            );
+            default -> listener.onFailure(
+                new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
+            );
+        }
+    }
+
     private static final class LocalInferenceAsyncAction extends QueryRewriteAsyncAction<
         Map<FullyQualifiedInferenceId, InferenceResults>,
         LocalInferenceAsyncAction> {
@@ -603,66 +687,7 @@ public final class InferenceQueryUtils {
                 l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
             });
 
-            switch (taskType) {
-                case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
-                    if (input.containsNonTextEntry()) {
-                        gal.onFailure(
-                            new IllegalArgumentException(
-                                "Non-text input is not supported for ["
-                                    + taskType
-                                    + "] inference endpoints for inference_id ["
-                                    + inferenceId
-                                    + "]"
-                            )
-                        );
-                        return;
-                    } else if (input.containsMultipleInferenceStrings()) {
-                        gal.onFailure(
-                            new IllegalArgumentException(
-                                "Multiple text inputs are not supported for ["
-                                    + taskType
-                                    + "] inference endpoints for inference_id ["
-                                    + inferenceId
-                                    + "]"
-                            )
-                        );
-                        return;
-                    }
-                    executeAsyncWithOrigin(
-                        client,
-                        ML_ORIGIN,
-                        InferenceAction.INSTANCE,
-                        new InferenceAction.Request(
-                            taskType,
-                            inferenceId,
-                            null,
-                            null,
-                            null,
-                            List.of(input.textValue()),
-                            Map.of(),
-                            InputType.INTERNAL_SEARCH,
-                            TIMEOUT_NOT_DETERMINED,
-                            false
-                        ),
-                        responseListener
-                    );
-                }
-                case EMBEDDING -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    EmbeddingAction.INSTANCE,
-                    new EmbeddingAction.Request(
-                        inferenceId,
-                        taskType,
-                        new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
-                        TIMEOUT_NOT_DETERMINED
-                    ),
-                    responseListener
-                );
-                default -> gal.onFailure(
-                    new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
-                );
-            }
+            executeInferenceForTaskType(client, input, inferenceId, taskType, TIMEOUT_NOT_DETERMINED, responseListener);
         }
     }
 
@@ -698,14 +723,28 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
-                    client.execute(
-                        connection,
-                        GetInferenceFieldsInternalAction.REMOTE_TYPE,
-                        request,
-                        l1.delegateFailureAndWrap((l2, resp) -> {
-                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        })
-                    );
+                    InferenceStringGroup input = request.input();
+                    if (transportVersion.supports(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV) == false
+                        && (input != null && (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()))) {
+                        l1.onFailure(
+                            new IllegalArgumentException(
+                                "Cannot send non-text or multiple inputs to remote cluster ["
+                                    + clusterAlias
+                                    + "] that does not support it. "
+                                    + "Please update the remote cluster to at least "
+                                    + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
+                            )
+                        );
+                    } else {
+                        client.execute(
+                            connection,
+                            GetInferenceFieldsInternalAction.REMOTE_TYPE,
+                            request,
+                            l1.delegateFailureAndWrap((l2, resp) -> {
+                                l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                            })
+                        );
+                    }
                 }
             }));
         }

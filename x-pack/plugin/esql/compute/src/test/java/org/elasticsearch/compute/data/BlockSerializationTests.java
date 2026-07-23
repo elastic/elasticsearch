@@ -40,10 +40,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
     }
 
-    public void testConstantLongBlockLong() throws IOException {
-        assertConstantBlockImpl(blockFactory.newConstantLongBlockWith(randomLong(), randomIntBetween(1, 8192)));
-    }
-
     public void testConstantFloatBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
@@ -75,17 +71,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         assertEmptyBlock(blockFactory.newIntVectorBuilder(0).build().asBlock());
         try (IntVector toFilter = blockFactory.newIntVectorBuilder(0).appendInt(randomInt()).build()) {
-            assertEmptyBlock(toFilter.filter(false).asBlock());
-        }
-    }
-
-    public void testEmptyLongBlock() throws IOException {
-        assertEmptyBlock(blockFactory.newLongBlockBuilder(0).build());
-        try (LongBlock toFilter = blockFactory.newLongBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter(false));
-        }
-        assertEmptyBlock(blockFactory.newLongVectorBuilder(0).build().asBlock());
-        try (LongVector toFilter = blockFactory.newLongVectorBuilder(0).appendLong(randomLong()).build()) {
             assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
@@ -148,21 +133,6 @@ public class BlockSerializationTests extends SerializationTestCase {
             assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
         try (IntVector toFilter = blockFactory.newIntVectorBuilder(1).appendInt(randomInt()).appendInt(randomInt()).build()) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-    }
-
-    public void testFilterLongBlock() throws IOException {
-        try (LongBlock toFilter = blockFactory.newLongBlockBuilder(0).appendLong(1).appendLong(2).build()) {
-            assertFilterBlock(toFilter.filter(false, 1));
-        }
-        try (LongBlock toFilter = blockFactory.newLongBlockBuilder(1).appendLong(randomLong()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(false, 0));
-        }
-        try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).build()) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-        try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
             assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }

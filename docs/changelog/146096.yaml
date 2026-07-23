@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 146096
+summary: "ES-14041: Port trace/span export from APM agent to OTel SDK"
+type: enhancement

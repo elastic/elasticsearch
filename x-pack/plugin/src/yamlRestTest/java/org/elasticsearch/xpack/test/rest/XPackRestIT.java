@@ -53,7 +53,6 @@ public class XPackRestIT extends AbstractXPackRestTest {
             final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
             return Objects.requireNonNullElse(enabled, "");
         })
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

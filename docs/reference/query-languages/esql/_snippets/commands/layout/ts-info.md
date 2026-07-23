@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: ga
-stack: preview 9.4.0
+stack: ga 9.4.0
 ```
 
 The `TS_INFO` [processing command](/reference/query-languages/esql/commands/processing-commands.md) retrieves

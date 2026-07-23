@@ -17,15 +17,18 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-
-import static org.elasticsearch.core.Strings.format;
 
 public final class Utils {
 
     public static String getUrl(MockWebServer webServer) {
-        return format("http://%s", webServer.getHttpAddress());
+        try {
+            return webServer.getUri(null).toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     public static Map<String, Object> entityAsMap(String body) throws IOException {

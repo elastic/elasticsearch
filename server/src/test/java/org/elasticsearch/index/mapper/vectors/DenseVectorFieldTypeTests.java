@@ -24,10 +24,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
@@ -48,6 +50,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Elem
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -140,7 +143,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 IndexVersion.current(),
                 randomBoolean(),
                 randomFrom(1, 2, 4),
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         );
 
@@ -237,11 +241,25 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         DenseVectorFieldType fft = createFloatFieldType();
-        FieldDataContext fdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        FieldDataContext fdc = new FieldDataContext(
+            "test",
+            null,
+            () -> null,
+            Set::of,
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
         assertNotNull(fft.fielddataBuilder(fdc));
 
         DenseVectorFieldType bft = createByteFieldType();
-        FieldDataContext bdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        FieldDataContext bdc = new FieldDataContext(
+            "test",
+            null,
+            () -> null,
+            Set::of,
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
         assertNotNull(bft.fielddataBuilder(bdc));
     }
 
@@ -344,8 +362,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(
-                    query instanceof DiversifyingChildrenFloatKnnVectorQuery || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery
+                assertThat(
+                    query,
+                    anyOf(
+                        instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class),
+                        instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class)
+                    )
                 );
             }
         }
@@ -383,7 +405,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
+                assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
 
             vectorData = VectorData.fromFloats(floatQueryVector);
@@ -402,7 +424,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
+                assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
         }
     }
@@ -428,8 +450,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Floats);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null);
+            assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         }
         {
             DenseVectorFieldType field = new DenseVectorFieldType(
@@ -447,9 +469,64 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Bytes);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromBytes(queryVector), null);
+            assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
         }
+    }
+
+    public void testExactKnnQueryOnNonIndexedField() {
+        // rounded down to a multiple of Byte.SIZE so it can double as bitDims below
+        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048) & ~(Byte.SIZE - 1);
+        // A non-indexed field has no configured similarity, mirroring real mappings (similarity cannot be set
+        // when index:false).
+        DenseVectorFieldType field = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            dims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        float[] queryVector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVector[i] = randomFloat();
+        }
+
+        // A non-indexed field has no mapped similarity; without an override it defaults to cosine and produces a
+        // doc-values-backed query (no codec/KNN values for a non-indexed field).
+        Query defaulted = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false);
+        assertThat(defaulted, instanceOf(DenseVectorQuery.DocValuesFloats.class));
+
+        // An explicit similarity_function override is also honored.
+        Query overridden = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
+        assertThat(overridden, instanceOf(DenseVectorQuery.DocValuesFloats.class));
+
+        // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
+        IllegalArgumentException requiresIndexed = expectThrows(
+            IllegalArgumentException.class,
+            () -> field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null)
+        );
+        assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
+
+        // A non-indexed bit field is scored by Hamming distance from doc values (it defaults to l2_norm).
+        DenseVectorFieldType bitField = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BIT,
+            dims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        byte[] bitQuery = new byte[dims / Byte.SIZE];
+        random().nextBytes(bitQuery);
+        Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
+        assertThat(bitQueryResult, instanceOf(DenseVectorQuery.DocValuesBytes.class));
     }
 
     public void testFloatCreateKnnQuery() {
@@ -577,7 +654,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                assertTrue(query instanceof KnnFloatVectorQuery || query instanceof IVFKnnFloatVectorQuery);
+                assertThat(query, anyOf(instanceOf(KnnFloatVectorQuery.class), instanceOf(IVFKnnFloatVectorQuery.class)));
             }
         }
 
@@ -613,7 +690,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
             } else {
-                assertTrue(query instanceof ESKnnByteVectorQuery);
+                assertThat(query, instanceOf(ESKnnByteVectorQuery.class));
             }
         }
     }
@@ -788,7 +865,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         if (fieldType.getIndexOptions().isFlat()) {
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         } else {
-            assertTrue(query instanceof ESKnnFloatVectorQuery);
+            assertThat(query, instanceOf(ESKnnFloatVectorQuery.class));
         }
 
         // verify we can override a `0` to a positive number
@@ -815,7 +892,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean()
         );
-        assertTrue(query instanceof RescoreKnnVectorQuery);
+        assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         RescoreKnnVectorQuery rescoreKnnVectorQuery = (RescoreKnnVectorQuery) query;
         assertThat(rescoreKnnVectorQuery.k(), equalTo(10));
         Query innerQuery = rescoreKnnVectorQuery.innerQuery();
@@ -859,7 +936,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             );
             KnnSearchStrategy strategy = tuple.v2().apply(query);
             if (strategy != null) {
-                assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
+                assertThat(strategy, instanceOf(KnnSearchStrategy.Hnsw.class));
                 assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(0));
 
                 query = fieldType.createKnnQuery(
@@ -911,5 +988,197 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
         assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
         assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
+    }
+
+    public void testBBQIVFUsesSlicedQueryForSingleSliceRouting() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            "s1"
+        );
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatSlicedVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
+        }
+        assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
+    }
+
+    public void testBBQIVFUsesSlicedQueryForAllSliceRouting() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            true,
+            null
+        );
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatSlicedVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
+        }
+        assertThat(query.toString("ignored"), containsString("_routing=[]"));
+    }
+
+    public void testBBQIVFFallsBackWhenSliceRoutingMissingAndSliceDisabled() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            false,
+            null
+        );
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class));
+        }
+    }
+
+    public void testBBQIVFRejectsBlankSliceForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldType.createKnnQuery(
+                VectorData.fromFloats(testQueryVector(64)),
+                5,
+                10,
+                10f,
+                null,
+                null,
+                null,
+                parentFilter,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean(),
+                "   "
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] cannot be blank for KNN queries"));
+    }
+
+    public void testBBQIVFRejectsSliceAllForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldType.createKnnQuery(
+                VectorData.fromFloats(testQueryVector(64)),
+                5,
+                10,
+                10f,
+                null,
+                null,
+                null,
+                parentFilter,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean(),
+                "_all"
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] value [_all] is not supported for KNN"));
+    }
+
+    public void testBBQIVFUsesSlicedQueryForMultiSliceRouting() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            "s1,s2"
+        );
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
+        }
+        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+    }
+
+    public void testBBQIVFDeduplicatesMultiSliceRoutingForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            "s1,s1,s2"
+        );
+        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+    }
+
+    private static DenseVectorFieldType createBBQIVFFloatFieldType() {
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = new DenseVectorFieldMapper.BBQIVFIndexOptions(
+            MIN_VECTORS_PER_CLUSTER,
+            -1,
+            10.0d,
+            false,
+            null,
+            IndexVersion.current(),
+            false,
+            1,
+            true,
+            false
+        );
+        return new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            64,
+            true,
+            VectorSimilarity.COSINE,
+            indexOptions,
+            Collections.emptyMap(),
+            false
+        );
+    }
+
+    private static float[] testQueryVector(int dims) {
+        float[] vector = new float[dims];
+        vector[0] = 1.0f;
+        return vector;
     }
 }

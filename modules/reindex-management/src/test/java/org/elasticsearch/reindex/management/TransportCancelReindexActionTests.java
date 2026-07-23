@@ -35,6 +35,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.reindex.management.TransportCancelReindexAction.notFoundException;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -87,6 +88,39 @@ public class TransportCancelReindexActionTests extends ESTestCase {
 
         assertThat(response.getCompletedReindexResponse().isPresent(), is(false));
         verify(client, never()).execute(eq(TransportGetReindexAction.TYPE), any(), any());
+    }
+
+    public void testCancelSynchronouslyPreservesOriginalTaskIdentityWhenRelocated() {
+        TaskId originalTaskId = new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+        TaskId currentTaskId = randomValueOtherThan(originalTaskId, () -> new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+        long originalStart = between(0, 1_000);
+        long currentStart = originalStart + randomLongBetween(1, 1_000);
+        TaskInfo info = new TaskInfo(
+            currentTaskId,
+            randomAlphaOfLength(10),
+            currentTaskId.getNodeId(),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            null,
+            currentStart,
+            randomNonNegativeLong(),
+            true,
+            randomBoolean(),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            originalTaskId,
+            originalStart
+        );
+        mockCancelTasks(new ListTasksResponse(List.of(info), List.of(), List.of()));
+        mockGetReindex(new GetReindexResponse(new TaskResult(true, info)));
+
+        final CancelReindexResponse response = safeAwait(l -> action.doExecute(mock(), new CancelReindexRequest(currentTaskId, true), l));
+
+        TaskInfo embedded = response.getCompletedReindexResponse().orElseThrow().getTaskResult().getTask();
+        assertTrue(embedded.cancelled());
+        assertEquals(originalTaskId, embedded.originalTaskId());
+        assertEquals(originalStart, embedded.originalStartTimeMillis());
+        assertEquals(currentTaskId, embedded.taskId());
     }
 
     public void testCancelSynchronouslyEmbedsGetReindexResponseWithCancelledTrue() {

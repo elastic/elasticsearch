@@ -1,0 +1,6 @@
+area: ILM
+issues:
+ - 153643
+pr: 153774
+summary: "ILM & DLM create snapshots with `partial: true` to prevent blocking cluster recovery actions"
+type: enhancement

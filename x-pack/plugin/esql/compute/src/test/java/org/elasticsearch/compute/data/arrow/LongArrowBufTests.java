@@ -527,7 +527,7 @@ public class LongArrowBufTests extends ESTestCase {
     }
 
     private LongArrowBufBlock blockFromListVector(ListVector listVector) {
-        return LongArrowBufBlock.of(listVector, blockFactory);
+        return (LongArrowBufBlock) LongArrowBufBlock.of(listVector, blockFactory);
     }
 
     public void testMultiValuedBlockBasics() {

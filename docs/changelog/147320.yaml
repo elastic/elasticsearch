@@ -1,0 +1,6 @@
+pr: 147320
+summary: Log cancelled snapshot fetch failure at DEBUG
+area: Snapshot/Restore
+type: bug
+issues:
+ - 142785

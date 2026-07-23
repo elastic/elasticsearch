@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
@@ -87,6 +88,19 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(MULTIVALUE_MODE_FIELD.getPreferredName(), multiValueMode);
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (super.equals(obj) == false) return false;
+        MatrixStatsAggregationBuilder other = (MatrixStatsAggregationBuilder) obj;
+        return multiValueMode == other.multiValueMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), multiValueMode);
     }
 
     @Override

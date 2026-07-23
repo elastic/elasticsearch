@@ -32,9 +32,7 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(
-            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types, histogram, or date_range")
-        );
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types or histogram"));
     }
 
     @Override

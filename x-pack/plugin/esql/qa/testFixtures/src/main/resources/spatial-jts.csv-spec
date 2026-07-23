@@ -573,3 +573,759 @@ ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 0)")
 geom_type:keyword | npoints:integer
 ST_Polygon        | 35
 ;
+
+stBufferFlatEndCap
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// tag::st_buffer_flat_endcap[]
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat"})
+| KEEP buffered
+// end::st_buffer_flat_endcap[]
+;
+
+// tag::st_buffer_flat_endcap-result[]
+buffered:cartesian_shape
+POLYGON ((10.0 2.0, 10.0 -2.0, 0.0 -2.0, 0.0 2.0, 10.0 2.0))
+// end::st_buffer_flat_endcap-result[]
+;
+
+stBufferSquareEndCap
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "square"})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((10.0 2.0, 12.0 2.0, 12.0 -2.0, 0.0 -2.0, -2.0 -2.0, -2.0 2.0, 10.0 2.0))
+;
+
+stBufferQuadSegsDiamond
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// quad_segs=1 produces a diamond around a point (one segment per quadrant)
+ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")
+| EVAL buffered = ST_BUFFER(geom, 1, {"quad_segs": 1})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((1.0 0.0, 0.0 -1.0, -1.0 0.0, 0.0 1.0, 1.0 0.0))
+;
+
+stBufferMitreJoin
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0, 10 10)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat", "join": "mitre"})
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 7
+;
+
+stBufferMitreFlatJoin
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// tag::st_buffer_mitre_flat[]
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0, 10 10)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat", "join": "mitre"})
+| KEEP buffered
+// end::st_buffer_mitre_flat[]
+;
+
+// tag::st_buffer_mitre_flat-result[]
+buffered:cartesian_shape
+POLYGON ((8.0 2.0, 8.0 10.0, 12.0 10.0, 12.0 -2.0, 0.0 -2.0, 0.0 2.0, 8.0 2.0))
+// end::st_buffer_mitre_flat-result[]
+;
+
+stBufferAllOptions
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// All four buffer options at once: expanding a square produces a square because mitre joins keep corners sharp
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "mitre", "mitre_limit": 5.0})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 -2.0, -2.0 12.0, 12.0 12.0, 12.0 -2.0, -2.0 -2.0))
+;
+
+stBufferJoinMitreLimit
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "mitre", "mitre_limit": 1.0})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 -0.82842712474619, -2.0 10.828427124746192, -0.8284271247461914 12.0, 10.828427124746192 12.0, 12.0 10.828427124746192, 12.0 -0.8284271247461914, 10.828427124746192 -2.0, -0.8284271247461904 -2.0, -2.0 -0.82842712474619))
+;
+
+stBufferJoinBevel
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "bevel"})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 0.0, -2.0 10.0, 0.0 12.0, 10.0 12.0, 12.0 10.0, 12.0 0.0, 10.0 -2.0, 0.0 -2.0, -2.0 0.0))
+;
+
+stBufferOptionsPreserveDefaults
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+required_capability: st_buffer_options
+
+// An empty options map should behave the same as no options at all
+ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")
+| EVAL with_empty = ST_BUFFER(geom, 1, {})
+| EVAL without = ST_BUFFER(geom, 1)
+| EVAL t1 = ST_GEOMETRYTYPE(with_empty), t2 = ST_GEOMETRYTYPE(without), n1 = ST_NPOINTS(with_empty), n2 = ST_NPOINTS(without)
+| KEEP t1, t2, n1, n2
+;
+
+t1:keyword | t2:keyword | n1:integer | n2:integer
+ST_Polygon | ST_Polygon | 33         | 33
+;
+
+// Buffer a real airport's geo_point location pulled from an index. quad_segs=2 gives a
+// deterministic 8-segment polygon (2 segments per quadrant + closing point = 9 points).
+stBufferFromAirports
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL buffered = ST_BUFFER(location, 0.1, {"quad_segs": 2})
+| EVAL gtype = ST_GEOMETRYTYPE(buffered), pts = ST_NPOINTS(buffered)
+| KEEP abbrev, gtype, pts
+;
+
+abbrev:keyword | gtype:keyword | pts:integer
+CPH            | ST_Polygon    | 9
+;
+
+// Buffer a real geo_shape pulled from an index with mitre joins. We assert only the geometry
+// type since the exact vertex count depends on the shape of the city boundary.
+stBufferFromAirportCityBoundaries
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+required_capability: fn_st_geometrytype
+
+FROM airport_city_boundaries
+| WHERE city == "Copenhagen"
+| EVAL buffered = ST_BUFFER(city_boundary, 0.001, {"join": "mitre", "mitre_limit": 2.0})
+| EVAL gtype = ST_GEOMETRYTYPE(buffered), original_pts = ST_NPOINTS(city_boundary), buffered_pts = ST_NPOINTS(buffered)
+| KEEP city, gtype, original_pts, buffered_pts
+;
+
+city:keyword | gtype:keyword | original_pts:integer | buffered_pts:integer
+Copenhagen   | ST_Polygon    | 15                   | 16
+;
+
+###############################################
+# Tests for ST_UNION
+###############################################
+
+stUnionAdjacentPolygons
+required_capability: fn_st_union
+
+// tag::st_union[]
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((2 0, 4 0, 4 2, 2 2, 2 0))")
+| EVAL unioned = ST_UNION(a, b)
+| KEEP unioned
+// end::st_union[]
+;
+
+// tag::st_union-result[]
+unioned:geo_shape
+POLYGON ((2.0 0.0, 0.0 0.0, 0.0 2.0, 2.0 2.0, 4.0 2.0, 4.0 0.0, 2.0 0.0))
+// end::st_union-result[]
+;
+
+stUnionOverlappingPolygons
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 4.0, 4.0 4.0, 4.0 1.0, 3.0 1.0))
+;
+
+stUnionDisjointPolygons
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((4 4, 7 4, 7 7, 4 7, 4 4))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+MULTIPOLYGON (((0 0, 0 3, 3 3, 3 0, 0 0)),((4 4, 4 7, 7 7, 7 4, 4 4)))
+;
+
+stUnionFoldable
+required_capability: fn_st_union
+
+ROW result = ST_UNION(
+    TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    TO_GEOSHAPE("POLYGON ((2 0, 4 0, 4 2, 2 2, 2 0))")
+)
+;
+
+result:geo_shape
+POLYGON ((2.0 0.0, 0.0 0.0, 0.0 2.0, 2.0 2.0, 4.0 2.0, 4.0 0.0, 2.0 0.0))
+;
+
+stUnionNull
+required_capability: fn_st_union
+
+ROW a = NULL, b = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stUnionCartesian
+required_capability: fn_st_union
+
+ROW a = TO_CARTESIANSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_CARTESIANSHAPE("POLYGON ((2 0, 4 0, 4 2, 2 2, 2 0))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((2.0 0.0, 0.0 0.0, 0.0 2.0, 2.0 2.0, 4.0 2.0, 4.0 0.0, 2.0 0.0))
+;
+
+stUnionPointAndPolygon
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POINT (1 1)"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+;
+
+stUnionPointNotInPolygon
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POINT (3 3)"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+GEOMETRYCOLLECTION (POINT (3 3),POLYGON ((0 0, 0 2, 2 2, 2 0, 0 0)))
+;
+
+stUnionPolygonWithItself
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_UNION(a, a)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((2 0, 0 0, 0 2, 2 2, 2 0))
+;
+
+stUnionNonEmptyWithEmpty
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))
+;
+
+stUnionOverlappingPolygonsCreatesHole
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 4 0, 4 4, 3 4, 3 1, 1 1, 1 4, 0 4, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((0 3, 4 3, 4 5, 0 5, 0 3))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((4 3, 4 0, 0 0, 0 3, 0 4, 0 5, 4 5, 4 4, 4 3), (1 3, 1 1, 3 1, 3 3, 1 3))
+;
+
+stUnionOverlappingPolygonsRemovesHole
+required_capability: fn_st_union
+
+ROW a = TO_GEOSHAPE("POLYGON ((4 5, 4 0, 0 0, 0 5, 4 5), (1 3, 1 1, 3 1, 3 3, 1 3))"),
+    b = TO_GEOSHAPE("POLYGON((1 1, 3 1, 3 3, 1 3, 1 1))")
+| EVAL result = ST_UNION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((4 5, 4 0, 0 0, 0 5, 4 5))
+;
+
+###############################################
+# Tests for ST_INTERSECTION
+###############################################
+
+stIntersectionOverlappingPolygons
+required_capability: fn_st_intersection
+
+// tag::st_intersection[]
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL intersected = ST_INTERSECTION(a, b)
+| KEEP intersected
+// end::st_intersection[]
+;
+
+// tag::st_intersection-result[]
+intersected:geo_shape
+POLYGON ((1.0 3.0, 3.0 3.0, 3.0 1.0, 1.0 1.0, 1.0 3.0))
+// end::st_intersection-result[]
+;
+
+stIntersectionDisjointPolygons
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((2 2, 3 2, 3 3, 2 3, 2 2))")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stIntersectionFoldable
+required_capability: fn_st_intersection
+
+ROW result = ST_INTERSECTION(
+    TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+)
+;
+
+result:geo_shape
+POLYGON ((1.0 3.0, 3.0 3.0, 3.0 1.0, 1.0 1.0, 1.0 3.0))
+;
+
+stIntersectionNull
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"), b = NULL
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stIntersectionCartesian
+required_capability: fn_st_intersection
+
+ROW a = TO_CARTESIANSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_CARTESIANSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((1.0 3.0, 3.0 3.0, 3.0 1.0, 1.0 1.0, 1.0 3.0))
+;
+
+stIntersectionPointInsidePolygon
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POINT (1 1)"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POINT (1.0 1.0)
+;
+
+stIntersectionPointOutsidePolygon
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POINT (3 3)"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+GEOMETRYCOLLECTION EMPTY
+;
+
+stIntersectionPolygonsTouchingAtPoint
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((2 2, 4 2, 4 4, 2 4, 2 2))")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POINT (2.0 2.0)
+;
+
+stIntersectionTwoPoints
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POINT (1 1)"),
+    b = TO_GEOSHAPE("POINT (1 1)")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POINT (1.0 1.0)
+;
+
+stIntersectionPolygonWithItself
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_INTERSECTION(a, a)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((2.0 0.0, 0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0))
+;
+
+stIntersectionNonEmptyWithEmpty
+required_capability: fn_st_intersection
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_INTERSECTION(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+###############################################
+# Tests for ST_DIFFERENCE
+###############################################
+
+stDifferencePolygons
+required_capability: fn_st_difference
+
+// tag::st_difference[]
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL diff = ST_DIFFERENCE(a, b)
+| KEEP diff
+// end::st_difference[]
+;
+
+// tag::st_difference-result[]
+diff:geo_shape
+POLYGON ((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0))
+// end::st_difference-result[]
+;
+
+stDifferenceFullyContained
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))")
+| EVAL result = ST_DIFFERENCE(b, a)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stDifferenceFoldable
+required_capability: fn_st_difference
+
+ROW result = ST_DIFFERENCE(
+    TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+)
+;
+
+result:geo_shape
+POLYGON ((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0))
+;
+
+stDifferenceNull
+required_capability: fn_st_difference
+
+ROW a = NULL, b = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stDifferenceCartesian
+required_capability: fn_st_difference
+
+ROW a = TO_CARTESIANSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_CARTESIANSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0))
+;
+
+stDifferencePolygonMinusEmpty
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stDifferenceEmptyMinusPolygon
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON EMPTY"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stDifferencePolygonWithItself
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_DIFFERENCE(a, a)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stDifferenceDisjointPolygons
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((3 3, 5 3, 5 5, 3 5, 3 3))")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+;
+
+stDifferencePolygonMinusContainedPoint
+required_capability: fn_st_difference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POINT (1 1)")
+| EVAL result = ST_DIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+;
+
+###############################################
+# Tests for ST_SYMDIFFERENCE
+###############################################
+
+stSymDifferencePolygons
+required_capability: fn_st_symdifference
+
+// tag::st_symdifference[]
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL symdiff = ST_SYMDIFFERENCE(a, b)
+| KEEP symdiff
+// end::st_symdifference[]
+;
+
+// tag::st_symdifference-result[]
+symdiff:geo_shape
+MULTIPOLYGON (((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0)), ((3.0 1.0, 3.0 3.0, 1.0 3.0, 1.0 4.0, 4.0 4.0, 4.0 1.0, 3.0 1.0)))
+// end::st_symdifference-result[]
+;
+
+stSymDifferenceDisjoint
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON ((2 2, 3 2, 3 3, 2 3, 2 2))")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| EVAL npoints = ST_NPOINTS(result)
+| KEEP npoints
+;
+
+npoints:integer
+10
+;
+
+stSymDifferenceFoldable
+required_capability: fn_st_symdifference
+
+ROW result = ST_SYMDIFFERENCE(
+    TO_GEOSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    TO_GEOSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+)
+;
+
+result:geo_shape
+MULTIPOLYGON (((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0)), ((3.0 1.0, 3.0 3.0, 1.0 3.0, 1.0 4.0, 4.0 4.0, 4.0 1.0, 3.0 1.0)))
+;
+
+stSymDifferenceNull
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"), b = NULL
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stSymDifferenceCartesian
+required_capability: fn_st_symdifference
+
+ROW a = TO_CARTESIANSHAPE("POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))"),
+    b = TO_CARTESIANSHAPE("POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:cartesian_shape
+MULTIPOLYGON (((3.0 1.0, 3.0 0.0, 0.0 0.0, 0.0 3.0, 1.0 3.0, 1.0 1.0, 3.0 1.0)), ((3.0 1.0, 3.0 3.0, 1.0 3.0, 1.0 4.0, 4.0 4.0, 4.0 1.0, 3.0 1.0)))
+;
+
+stSymDifferenceIdentical
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_SYMDIFFERENCE(a, a)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stSymDifferencePolygonAndEmpty
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stSymDifferenceEmptyAndPolygon
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON EMPTY"),
+    b = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stSymDifferencePolygonAndContainedPoint
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POINT (1 1)")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+;
+
+stSymDifferencePolygonAndExternalPoint
+required_capability: fn_st_symdifference
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))"),
+    b = TO_GEOSHAPE("POINT (3 3)")
+| EVAL result = ST_SYMDIFFERENCE(a, b)
+| KEEP result
+;
+
+result:geo_shape
+GEOMETRYCOLLECTION (POINT (3.0 3.0),POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0)))
+;

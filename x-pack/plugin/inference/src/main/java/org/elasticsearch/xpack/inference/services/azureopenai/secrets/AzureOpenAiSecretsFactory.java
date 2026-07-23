@@ -7,37 +7,32 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.secrets.HeaderApplier;
+import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
+import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.clientSecretRequiredError;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
 
 /**
- * Factory for creating {@link AzureOpenAiSecretsApplier}s based on the provided {@link AzureOpenAiSecretSettings}.
+ * Factory for creating {@link SecretsApplier}s for the Azure OpenAI service based on the provided {@link AzureOpenAiSecretSettings}.
  */
 public final class AzureOpenAiSecretsFactory {
 
-    private static final class NoopSecretsApplier implements AzureOpenAiSecretsApplier {
-        @Override
-        public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
-            listener.onResponse(request);
-        }
-    }
-
-    static final NoopSecretsApplier NOOP_SECRETS_APPLIER = new NoopSecretsApplier();
+    public static final String USE_CLIENT_SECRET_ERROR = clientSecretRequiredError(REQUIRED_FIELDS);
 
     private AzureOpenAiSecretsFactory() {}
 
-    public static AzureOpenAiSecretsApplier createSecretsApplier(
+    public static SecretsApplier createSecretsApplier(
         String inferenceId,
         ThreadPool threadPool,
         AzureOpenAiSecretSettings secretSettings,
@@ -45,17 +40,17 @@ public final class AzureOpenAiSecretsFactory {
     ) {
         return switch (secretSettings) {
             // This will be called with null if the model is being retrieved without the secrets (e.g. for a GET request)
-            // The NOOP_SECRETS_APPLIER shouldn't actually be called but returning a non-null applier just in case
-            case null -> NOOP_SECRETS_APPLIER;
+            // The NoopSecretsApplier shouldn't actually be called but returning a non-null applier just in case
+            case null -> NoopSecretsApplier.INSTANCE;
             case AzureOpenAiEntraIdApiKeySecrets apiKeySecretSettings -> {
                 if (serviceSettings.oAuth2Settings() != null) {
                     throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);
                 }
 
                 if (isDefined(apiKeySecretSettings.apiKey())) {
-                    yield new AzureOpenAiHeaderApplier(() -> new BasicHeader(API_KEY_HEADER, apiKeySecretSettings.apiKey().toString()));
+                    yield new HeaderApplier(() -> new BasicHeader(API_KEY_HEADER, apiKeySecretSettings.apiKey().toString()));
                 } else if (isDefined(apiKeySecretSettings.entraId())) {
-                    yield new AzureOpenAiHeaderApplier(() -> createAuthBearerHeader(apiKeySecretSettings.entraId()));
+                    yield new HeaderApplier(() -> createAuthBearerHeader(apiKeySecretSettings.entraId()));
                 }
 
                 throw new IllegalArgumentException(EXACTLY_ONE_SECRETS_FIELD_ERROR);

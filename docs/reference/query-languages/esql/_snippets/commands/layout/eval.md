@@ -30,13 +30,17 @@ The `EVAL` processing command enables you to append new columns with calculated
 values. `EVAL` supports various functions for calculating values. Refer to
 [Functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) for more information.
 
+::::{note}
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping, but does not support defining new runtime fields at search time. Use `EVAL` to create computed columns at query time instead.
+::::
+
 ## Examples
 
 The following examples show common `EVAL` patterns.
 
 ### Append a calculated column
 
-:::{include} ../examples/eval.csv-spec/eval.md
+:::{include} ../../generated/x-pack-esql/commands/examples/eval.csv-spec/eval.md
 :::
 
 ### Overwrite an existing column
@@ -44,7 +48,7 @@ The following examples show common `EVAL` patterns.
 If the specified column already exists, the existing column will be dropped, and
 the new column will be appended to the table:
 
-:::{include} ../examples/eval.csv-spec/evalReplace.md
+:::{include} ../../generated/x-pack-esql/commands/examples/eval.csv-spec/evalReplace.md
 :::
 
 ### Use an expression as the column name
@@ -53,7 +57,7 @@ Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query adds a column named
 `height*3.281`:
 
-:::{include} ../examples/eval.csv-spec/evalUnnamedColumn.md
+:::{include} ../../generated/x-pack-esql/commands/examples/eval.csv-spec/evalUnnamedColumn.md
 :::
 
 ### Reference an auto-named column in a subsequent command
@@ -62,5 +66,5 @@ Because this name contains special characters,
 [it needs to be quoted](/reference/query-languages/esql/esql-syntax.md#esql-identifiers)
 with backticks (```) when using it in subsequent commands:
 
-:::{include} ../examples/eval.csv-spec/evalUnnamedColumnStats.md
+:::{include} ../../generated/x-pack-esql/commands/examples/eval.csv-spec/evalUnnamedColumnStats.md
 :::

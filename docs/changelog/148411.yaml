@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 148411
+summary: Closing async instrument removes it from registry
+type: bug

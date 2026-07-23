@@ -29,10 +29,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -58,7 +61,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testCacheOnce() throws Exception {
         var dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }
@@ -89,7 +94,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
@@ -131,7 +136,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         blockedOnFirstRange.countDown();
         thread1.join(10_000);
         thread2.join(10_000);
-        assertThat(visited.get(), equalTo(200));
+        // The cache wrapper iterates the full leaf once to build the cached DocIdSet.
+        assertThat(visited.get(), equalTo(numDocs));
         reader.close();
         dir.close();
         QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
@@ -256,7 +262,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testNullBulkScorerAfterCaching() throws Exception {
         var dir = newDirectory();
         var writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }
@@ -282,15 +290,35 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(shardContext)),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             1,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
         );
         assertThat("requires at least two slices", queue.totalSlices(), greaterThanOrEqualTo(2));
         var shardContexts = new IndexedByShardIdFromSingleton<>(shardContext);
-        var op1 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
-        var op2 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
+        var op1 = new LuceneSourceOperator(
+            shardContexts,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        var op2 = new LuceneSourceOperator(
+            shardContexts,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
         try {
             Thread thread1 = new Thread(() -> {
                 Page output = op1.getOutput();

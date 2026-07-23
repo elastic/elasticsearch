@@ -1,0 +1,24 @@
+name: check-esql-generated-headers
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'docs/reference/query-languages/esql/_snippets/**'
+      - '.ci/scripts/check-esql-generated-headers.sh'
+      - '.github/workflows/check-esql-generated-headers.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/reference/query-languages/esql/_snippets/**'
+      - '.ci/scripts/check-esql-generated-headers.sh'
+      - '.github/workflows/check-esql-generated-headers.yml'
+  merge_group: ~
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify generated-doc headers
+        run: .ci/scripts/check-esql-generated-headers.sh

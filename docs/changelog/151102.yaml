@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151102
+summary: Enforce read authorization on `FROM <dataset>`
+type: bug

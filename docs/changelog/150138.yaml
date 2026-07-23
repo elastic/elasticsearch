@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 150138
+summary: Optimize sorted numeric field data loading for dense fields
+type: enhancement

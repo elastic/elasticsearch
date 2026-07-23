@@ -108,8 +108,9 @@ public class SoftDeletesRetentionIT extends AbstractStatelessPluginIntegTestCase
             assertTrue(leases.stream().anyMatch(l -> l.id().equals(retentionLeaseId) && l.retainingSequenceNumber() == 0L));
         });
 
-        // Update random docs to create soft-deleted versions of the originals
-        var randomDocs = randomNonEmptySubsetOf(docsIds);
+        // Update random docs to create soft-deleted versions of the originals.
+        // We leave at least one doc behind, so the merge still has a target to hit.
+        var randomDocs = randomSubsetOf(randomIntBetween(1, docsIds.size() - 1), docsIds);
         var bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (var randomDoc : randomDocs) {
             bulk.add(prepareIndex(indexName).setId(randomDoc).setSource("field", "updated-" + randomDoc));

@@ -112,12 +112,44 @@ public interface GroupingAggregatorFunction extends Releasable {
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
+     *  Returns {@code null} to opt out of the callback loop for this page entirely,
+     *  e.g. when the values block is all-null and contributes nothing to the aggregation.
      */
+    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+
     /**
+     * Prepare to process a single page of intermediate input.
+     * This should load the input {@link Block}s and check their types and
+     * select an optimal path and return that path as an {@link AddInput}.
+     *
      * Returns {@code null} to opt out of the callback loop for this page entirely,
      * e.g. when the values block is all-null and contributes nothing to the aggregation.
      */
-    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+    default AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return new IntermediateAddInput(this, seenGroupIds, page);
+    }
+
+    record IntermediateAddInput(GroupingAggregatorFunction fn, SeenGroupIds seenGroupIds, Page page) implements AddInput {
+        @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
 
     /**
      * Call this to signal to the aggregation that the {@code selected}
@@ -178,6 +210,21 @@ public interface GroupingAggregatorFunction extends Releasable {
      *    intermediate blocks.</p>
      */
     PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx);
+
+    /**
+     * Selects the top-N groups from {@code selected}, ranked by this aggregation's values.
+     * This method is optional and a grouping aggregation function can freely return the input {@code selected}.
+     * The caller needs to release the returned selected in either case.
+     *
+     * @param selected the groupIds that have been selected to be included in the results
+     * @param limit    the N top values
+     * @param asc      sorted ascending or descending?
+     * @return a subset of {@code selected}
+     */
+    default IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        selected.incRef();
+        return selected;
+    }
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

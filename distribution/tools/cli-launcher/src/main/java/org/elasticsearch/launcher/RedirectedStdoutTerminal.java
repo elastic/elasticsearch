@@ -15,8 +15,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A terminal used when the process is run with ES_REDIRECT_STDOUT_TO_STDERR
@@ -31,15 +33,30 @@ import java.nio.charset.Charset;
 class RedirectedStdoutTerminal extends Terminal {
 
     private final OutputStream stdoutForBinary;
+    private final PrintStream outStream;
+    private final PrintStream errStream;
 
     @SuppressForbidden(reason = "System.out and System.err are mux channels installed by CliToolLauncher")
-    RedirectedStdoutTerminal(OutputStream stdoutForBinary) {
+    static Terminal create() {
+        PrintStream sysOut = System.out;
+        PrintStream sysErr = System.err;
+        OutputStreamMux mux = new OutputStreamMux(sysErr);
+        return new RedirectedStdoutTerminal(
+            new PrintStream(mux.channel(OutputStreamMux.STDOUT_MODE), true),
+            new PrintStream(mux.channel(OutputStreamMux.STDERR_MODE), true),
+            sysOut
+        );
+    }
+
+    RedirectedStdoutTerminal(PrintStream outStream, PrintStream errStream, OutputStream stdoutForBinary) {
         super(
             new InputStreamReader(System.in, Charset.defaultCharset()),
-            new PrintWriter(System.out, true),
-            new PrintWriter(System.err, true)
+            new PrintWriter(outStream, true, StandardCharsets.UTF_8),
+            new PrintWriter(errStream, true, StandardCharsets.UTF_8)
         );
         this.stdoutForBinary = stdoutForBinary;
+        this.outStream = outStream;
+        this.errStream = errStream;
     }
 
     @Override
@@ -51,5 +68,13 @@ class RedirectedStdoutTerminal extends Terminal {
     @Override
     public OutputStream getOutputStream() {
         return stdoutForBinary;
+    }
+
+    @Override
+    public SystemStreams installSystemStreams() {
+        SystemStreams originalStreams = super.installSystemStreams();
+        System.setOut(outStream);
+        System.setErr(errStream);
+        return originalStreams;
     }
 }

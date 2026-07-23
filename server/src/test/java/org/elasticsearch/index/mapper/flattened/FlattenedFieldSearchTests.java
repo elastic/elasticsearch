@@ -699,6 +699,46 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);
     }
 
+    /**
+     * End-to-end {@code _search} coverage for {@code KeyedFlattenedFieldType.rangeQuery} on an
+     * unmapped sub-key of a {@code flattened} root. The unit tests in
+     * {@code KeyedFlattenedFieldTypeTests} pin the {@code TermRangeQuery} the field type produces,
+     * but this is the only place that confirms a real {@code _search} request flowing through
+     * {@code RangeQueryBuilder} actually hits the keyed code path and returns the right hits for
+     * closed and one-sided ranges. The one-sided cases are the ones the range query implementation
+     * recently opened up by substituting a {@code <key>\0}/{@code <key>\1} sentinel for the
+     * missing bound; before that, an open-bound range over a keyed sub-field threw at parse time.
+     */
+    public void testKeyedSubFieldRangeQuery() throws Exception {
+        BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        bulk.add(client().prepareIndex().setId("error").setSource("""
+            {"labels": {"severity": "error", "region": "ap-south"}}""", XContentType.JSON));
+        bulk.add(client().prepareIndex().setId("info").setSource("""
+            {"labels": {"severity": "info", "region": "eu-west"}}""", XContentType.JSON));
+        bulk.add(client().prepareIndex().setId("warn").setSource("""
+            {"labels": {"severity": "warn", "region": "us-east"}}""", XContentType.JSON));
+        assertNoFailures(bulk.get());
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("a").lte("g")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("a").lte("z")), 3L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gt("info").lt("zzz")), 1L);
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lte("h")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lt("info")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lte("info")), 2L);
+
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("info")), 2L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gt("info")), 1L);
+
+        // The {@code <key>\1} upper-bound sentinel keeps the open-upper range strictly inside
+        // the {@code severity} key's term slice. If it ever leaked past the next key boundary,
+        // the {@code region} values ("ap-south", "eu-west", "us-east") would be matched here.
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("warn")), 1L);
+        // Symmetric guard for the lower-bound sentinel: an open-lower range under {@code "a"}
+        // must not pick up terms from a sibling key with a lexicographically smaller name.
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").lt("a")), 0L);
+    }
+
     public void testMappedPropertyExistsQuery() throws Exception {
         createIndex("exists_test", indicesAdmin().prepareCreate("exists_test").setMapping("""
             {

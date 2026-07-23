@@ -1,0 +1,57 @@
+// Tests for `_timeseries` against a TSDB index that uses `index.mapping.source.mode: stored`.
+//
+// The synthetic-source variant in k8s-timeseries.csv-spec already covers richer time series functions; the
+// purpose of this fixture is to make sure the `_timeseries` keyword column is emitted as JSON regardless of
+// how `_source` is encoded on disk. With stored source the index keeps the original `_source` bytes (the
+// Prometheus remote-write endpoint produces CBOR), so the block loader must normalize them to JSON before
+// emitting them as a keyword.
+//
+// Stored source preserves the original `_source` field order (cluster, region, pod — see k8s.csv), unlike
+// synthetic source which reconstructs in alphabetical/mapping order. This is why the `_timeseries` values
+// here differ from those in k8s-timeseries.csv-spec.
+
+storedSourceTimeseriesGroupByAllImplicitly
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+TS k8s_stored_source
+| STATS avg = avg_over_time(network.cost)
+| SORT avg DESC
+;
+ignoreOrder:true
+
+avg:double         | _timeseries:keyword
+8.375              | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""three""}"
+7.262931034482759  | "{""cluster"":""qa"",""pod"":""one""}"
+6.870689655172414  | "{""cluster"":""qa"",""pod"":""two""}"
+6.635416666666667  | "{""cluster"":""qa"",""pod"":""three""}"
+6.46875            | "{""cluster"":""staging"",""region"":""us"",""pod"":""two""}"
+5.869791666666667  | "{""cluster"":""staging"",""region"":""us"",""pod"":""three""}"
+5.586956521739131  | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""one""}"
+5.1826923076923075 | "{""cluster"":""staging"",""region"":""us"",""pod"":""one""}"
+4.0703125          | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""two""}"
+;
+
+storedSourceTimeseriesCountOverTime
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+TS k8s_stored_source
+| STATS count = count_over_time(network.cost)
+| SORT count ASC
+;
+ignoreOrder:true
+
+count:long | _timeseries:keyword
+13         | "{""cluster"":""staging"",""region"":""us"",""pod"":""one""}"
+16         | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""two""}"
+20         | "{""cluster"":""staging"",""region"":""us"",""pod"":""two""}"
+22         | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""three""}"
+23         | "{""cluster"":""prod"",""region"":[""eu"",""us""],""pod"":""one""}"
+24         | "{""cluster"":""staging"",""region"":""us"",""pod"":""three""}"
+24         | "{""cluster"":""qa"",""pod"":""three""}"
+29         | "{""cluster"":""qa"",""pod"":""one""}"
+29         | "{""cluster"":""qa"",""pod"":""two""}"
+;

@@ -138,8 +138,9 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
-    private static final QueryPragmas ALL_PRAGMAS = new QueryPragmas(Settings.EMPTY);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
+
+    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load");
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -265,7 +266,7 @@ public class CsvIT extends ESTestCase {
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         Collections.shuffle(specs);
-        Collections.sort(specs, Comparator.comparing(spec -> usesViews((String) spec[1])));
+        Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }
 
@@ -513,16 +514,9 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static boolean usesViews(String groupName) {
-        return switch (groupName) {
-            case "views", "approximation", "unmapped-load" -> true;
-            default -> false;
-        };
-    }
-
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if (usesViews(currentGroupName)) {
+        if (GROUPS_WITH_VIEWS.contains(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
                 if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
                     views.maybeLoad(name, view);

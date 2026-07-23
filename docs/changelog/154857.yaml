@@ -1,0 +1,5 @@
+pr: 154857
+summary: Bound in-flight cache-fill memory on search nodes
+area: Distributed
+type: enhancement
+issues: []

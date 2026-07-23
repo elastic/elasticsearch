@@ -28,6 +28,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -188,6 +189,43 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
 
         granted.get(0).close();
         assertThat(failure.get(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(queuedGrants, hasSize(1));
+        assertThat(pressure.getCurrentBytes(), equalTo(40L));
+        queuedGrants.forEach(Releasable::close);
+        assertThat(pressure.getCurrentBytes(), equalTo(0L));
+        assertThat(pressure.getWaiterCount(), equalTo(0));
+    }
+
+    public void testThrowingOnFailureDoesNotStrandSubsequentWaiters() {
+        var pressure = pressureWithLimit(100);
+        List<Releasable> granted = new ArrayList<>();
+        pressure.acquire(100, INLINE_GRANTS, collectTo(granted));
+
+        // first queued waiter: executor rejects, then its onFailure throws directly.
+        // uses a raw ActionListener (not ActionListener.wrap) so the RuntimeException surfaces at the pressure's
+        // fanout boundary rather than being converted to AssertionError by ActionListenerImplementations.expectNoException.
+        pressure.acquire(30, r -> { throw new EsRejectedExecutionException("simulated rejection", true); }, new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable r) {
+                fail("must not be granted, the executor rejected the grant");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException("simulated onFailure failure");
+            }
+        });
+        // second queued waiter: normal — must still be granted with the budget the first returned
+        List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
+        pressure.acquire(40, INLINE_GRANTS, collectTo(queuedGrants));
+        assertThat(pressure.getWaiterCount(), equalTo(2));
+
+        // matches ES's ActionListener.onFailure(Iterable, Exception): the loop finishes all remaining waiters first,
+        // then rethrows the collected listener failure as a RuntimeException. The second waiter must be granted before
+        // the exception surfaces.
+        var thrown = expectThrows(RuntimeException.class, () -> granted.get(0).close());
+        assertThat(thrown.getMessage(), containsString("simulated onFailure failure"));
+
         assertThat(queuedGrants, hasSize(1));
         assertThat(pressure.getCurrentBytes(), equalTo(40L));
         queuedGrants.forEach(Releasable::close);

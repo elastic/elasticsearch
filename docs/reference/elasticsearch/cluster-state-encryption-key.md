@@ -46,6 +46,38 @@ Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/
 `cluster.state.encryption.required`
 :   Whether a password is required before {{es}} will store secrets using the cluster state encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
 
+## Rotate the encryption password [cluster-state-encryption-password-rotation]
+
+You can rotate the password without restarting {{es}}. The old password must remain available until every node has loaded the new password and {{es}} has rewrapped the cluster state encryption key.
+
+1. On every node, add the new password to the local {{es}} keystore. For example, to use the password ID `v2`:
+
+   ```sh
+   bin/elasticsearch-keystore add cluster.state.encryption.password.v2
+   ```
+
+2. On every node, set `cluster.state.encryption.active_password_id` to `v2`:
+
+   ```sh
+   bin/elasticsearch-keystore add -f cluster.state.encryption.active_password_id
+   ```
+
+3. Reload the secure settings:
+
+   ```console
+   POST /_nodes/reload_secure_settings
+   ```
+
+4. Send the following request directly to every node's HTTP endpoint:
+
+   ```console
+   GET /_health_report/cluster_state_encryption
+   ```
+
+   Before proceeding, verify that every node reports a green status and that both `active_password_id` and `metadata_password_id` are `v2`. There is currently no single API call that verifies the password rotation across every node.
+
+5. Remove the old password from every node's keystore, then reload the secure settings again.
+
 ## Automatic key rotation [cluster-state-encryption-key-rotation]
 
 {{es}} rotates the cluster state encryption key (not the password in the keystore) automatically. You can control the schedule with:

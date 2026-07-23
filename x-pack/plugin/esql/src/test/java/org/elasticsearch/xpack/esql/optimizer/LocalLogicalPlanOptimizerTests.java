@@ -15,8 +15,6 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
-import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -40,8 +38,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -74,7 +70,6 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -95,7 +90,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -604,58 +598,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
-    }
-
-    public void testPotentiallyUnmappedFieldReplacedWhenIndexedOnDataNode() {
-        assertLoadModeFieldReplacedWithPushableKeyword(new TestConfigurableSearchStats());
-    }
-
-    public void testPotentiallyUnmappedFieldReplacedWhenOnlyDocValuesOnDataNode() {
-        assertLoadModeFieldReplacedWithPushableKeyword(new TestConfigurableSearchStats().exclude(Config.INDEXED, "does_not_exist"));
-    }
-
-    private void assertLoadModeFieldReplacedWithPushableKeyword(TestConfigurableSearchStats localShardStats) {
-        var plan = planWithLoad("""
-              FROM test
-            | WHERE does_not_exist == "x"
-            | KEEP does_not_exist
-            """);
-
-        // The coordinator can't know the field is mapped on any given data node, so it stays potentially unmapped there.
-        var coordinatorFields = fieldAttributes(plan, "does_not_exist");
-        assertThat(coordinatorFields, not(empty()));
-        for (FieldAttribute f : coordinatorFields) {
-            assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
-        }
-
-        var pushdown = LucenePushdownPredicates.from(localShardStats, new EsqlFlags(true));
-        var localFields = fieldAttributes(localPlan(plan, localShardStats), "does_not_exist");
-        assertThat(localFields, not(empty()));
-        for (FieldAttribute f : localFields) {
-            assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
-            assertThat(f.dataType(), equalTo(KEYWORD));
-            assertTrue(pushdown.isPushableFieldAttribute(f));
-        }
-    }
-
-    public void testPotentiallyUnmappedFieldRetainedWhenOnlyInSourceOnDataNode() {
-        var plan = planWithLoad("""
-              FROM test
-            | WHERE does_not_exist == "x"
-            | KEEP does_not_exist
-            """);
-
-        var fieldOnlyInSourceOnLocalShards = new TestConfigurableSearchStats().exclude(Config.INDEXED, "does_not_exist")
-            .exclude(Config.DOC_VALUES, "does_not_exist");
-
-        var pushdown = LucenePushdownPredicates.from(fieldOnlyInSourceOnLocalShards, new EsqlFlags(true));
-        var localFields = fieldAttributes(localPlan(plan, fieldOnlyInSourceOnLocalShards), "does_not_exist");
-        assertThat(localFields, not(empty()));
-        for (FieldAttribute f : localFields) {
-            assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
-            // Neither indexed nor doc-valued here, so it can't be read as a mapped field and stays loaded from _source (also unpushable).
-            assertFalse(pushdown.isPushableFieldAttribute(f));
-        }
     }
 
     public void testSparseDocument() throws Exception {
@@ -1830,21 +1772,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     private LogicalPlan planWithNullify(String query) {
         return optimize(analyzerWithNullifyMode().analyze(TEST_PARSER.parseQuery(query)));
-    }
-
-    private LogicalPlan planWithLoad(String query) {
-        Analyzer analyzer = analyzer().unmappedResolution(UnmappedResolution.LOAD).addIndex("test", "mapping-basic.json").buildAnalyzer();
-        return optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
-    }
-
-    private static List<FieldAttribute> fieldAttributes(LogicalPlan plan, String name) {
-        List<FieldAttribute> matches = new ArrayList<>();
-        plan.forEachExpressionDown(FieldAttribute.class, f -> {
-            if (f.name().equals(name)) {
-                matches.add(f);
-            }
-        });
-        return matches;
     }
 
     // Tests for project metadata field optimization (ReplaceFieldWithConstantOrNull)

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -38,13 +39,18 @@ public class ReplacePotentiallyUnmappedFieldWithMappedField extends Parameterize
                 // isIndexed and hasDocValues are AND-ed across shards (see SearchContextStats), so either being true proves the field is
                 // mapped everywhere here. We deliberately do not use exists(), which is OR-ed across shards.
                 if (searchStats.isIndexed(fieldName) || hasDocValues) {
+                    // The marker's normalized flag is always false; read the real value from the mapped type so that exact-match
+                    // pushdown, which is unsafe on a normalized keyword, stays disabled when a normalizer is present.
+                    boolean normalized = searchStats.fieldType(fieldName) instanceof KeywordFieldType keywordFieldType
+                        ? keywordFieldType.hasNormalizer()
+                        : potentiallyUnmapped.getNormalized();
                     return fieldAttribute.withField(
                         new KeywordEsField(
                             potentiallyUnmapped.getName(),
                             potentiallyUnmapped.getProperties(),
                             hasDocValues,
                             potentiallyUnmapped.getPrecision(),
-                            potentiallyUnmapped.getNormalized(),
+                            normalized,
                             potentiallyUnmapped.isAlias(),
                             potentiallyUnmapped.getTimeSeriesFieldType()
                         )

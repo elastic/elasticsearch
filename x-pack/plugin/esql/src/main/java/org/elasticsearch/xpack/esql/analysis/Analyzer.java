@@ -2327,7 +2327,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // remove a data column without silently stripping previously-kept virtual columns.
             // Wildcard / default-output filtering is handled in keepResolver and
             // planWithoutSyntheticAttributes, not here.
-            List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
+            //
+            // A LinkedHashSet keeps output order while giving O(1) removal, so dropping many columns
+            // is O(childOutput + removals) instead of a removeIf-per-removal O(removals × childOutput).
+            // childOutput attributes are unique by name id (same assumption keepResolver relies on when
+            // it keys `priorities` by attribute), so seeding the set does not collapse distinct columns.
+            // Only exact-name removals use the name index, built lazily on the first UnresolvedAttribute
+            // (for wide outputs); wildcard removals still scan, as they can match many attributes at once.
+            LinkedHashSet<NamedExpression> resolvedProjections = new LinkedHashSet<>(childOutput);
+            boolean useIndex = childOutput.size() > NAME_INDEX_THRESHOLD;
+            Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
 
             for (NamedExpression ne : removals) {
                 List<? extends NamedExpression> resolved;
@@ -2339,7 +2348,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         continue;
                     }
                 } else if (ne instanceof UnresolvedAttribute ua) {
-                    resolved = resolveAgainstList(ua, childOutput);
+                    if (useIndex) {
+                        if (nameIndex.get() == null) {
+                            nameIndex.set(buildNameIndex(childOutput));
+                        }
+                        resolved = resolveAgainstList(ua, nameIndex.get(), childOutput);
+                    } else {
+                        resolved = resolveAgainstList(ua, childOutput);
+                    }
                 } else {
                     resolved = singletonList(ne);
                 }
@@ -2348,8 +2364,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
-                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
-                resolvedProjections.removeIf(resolvedSet::contains);
+                resolvedProjections.removeAll(resolved);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {
@@ -2358,7 +2373,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             }
 
-            return resolvedProjections;
+            return new ArrayList<>(resolvedProjections);
         }
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {

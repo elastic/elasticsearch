@@ -177,6 +177,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -4667,8 +4668,9 @@ public class AnalyzerTests extends ESTestCase {
 
     /**
      * Wide child output (> NAME_INDEX_THRESHOLD) so reference resolution takes the exact-name index path in
-     * {@code ResolveRefs} (WHERE/SORT via {@code resolveExpressions}, explicit KEEP via {@code keepResolver})
-     * rather than the per-reference linear scan. Results must match the scan path.
+     * {@code ResolveRefs} (WHERE/SORT via {@code resolveExpressions}, explicit KEEP via {@code keepResolver},
+     * explicit DROP via {@code dropResolver}) rather than the per-reference linear scan. Results must match
+     * the scan path.
      */
     public void testWideOutputResolvesThroughNameIndex() {
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
@@ -4693,13 +4695,26 @@ public class AnalyzerTests extends ESTestCase {
             assertTrue(a + " should be resolved", a.resolved());
         }
 
-        // Unknown column at the same scale still errors through the shared no-match path.
+        // Explicit DROP at the same scale resolves the removals through dropResolver's index path; the
+        // four named columns are removed and every remaining column stays resolved.
+        String dropQuery = "FROM wide | DROP f0, f5, f10, f199";
+        LogicalPlan dropPlan = analyzer().addIndex(resolution).query(dropQuery);
+        var dropOutput = dropPlan.output();
+        assertThat(dropOutput, hasSize(196));
+        assertThat(Expressions.names(dropOutput), not(hasItems("f0", "f5", "f10", "f199")));
+        for (Attribute a : dropOutput) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Unknown column at the same scale still errors through the shared no-match path, for both KEEP and DROP.
         String unknown = "FROM wide | KEEP does_not_exist";
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer().addIndex(resolution).query(unknown)
-        );
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer().addIndex(resolution).query(unknown));
         assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+        VerificationException dropError = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(resolution).query("FROM wide | DROP does_not_exist")
+        );
+        assertThat(dropError.getMessage(), containsString("Unknown column [does_not_exist]"));
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

@@ -65,27 +65,38 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
  * </p>
  *
  * <p>
- *     The {@code keep_many} and {@code sort_many} shapes exercise exact-name resolution of
- *     {@link #WIDE_REFERENCES} explicit references against a wide output — the path
- *     {@code ResolveRefs} now serves from a per-node name index instead of a per-reference linear
- *     scan ({@code keep_many} via {@code keepResolver}, {@code sort_many} via the
- *     {@code resolveExpressions} default branch). The scan baseline was reproduced by setting the
- *     analyzer's {@code NAME_INDEX_THRESHOLD} to {@code Integer.MAX_VALUE} so every lookup rescans
- *     the output. Measured with {@link #analysis} (parse + analyze) using CLI overrides
- *     {@code -wi 5 -i 10 -f 1} (not the class defaults), ms/op with 99.9% CI:
+ *     The {@code keep_many} / {@code sort_many} / {@code where_many} / {@code drop_many} shapes
+ *     exercise exact-name resolution of {@link #WIDE_REFERENCES} explicit references against a wide
+ *     output — the path {@code ResolveRefs} now serves from a per-node name index instead of a
+ *     per-reference linear scan ({@code keep_many} via {@code keepResolver}, {@code sort_many} /
+ *     {@code where_many} via the {@code resolveExpressions} default branch, {@code drop_many} via
+ *     {@code dropResolver}). Measured with {@link #analysis} (parse + analyze) using CLI overrides
+ *     {@code -wi 5 -i 10 -f 1} (not the class defaults), ms/op with 99.9% CI, index / scan:
  * </p>
  * <pre>
- *    fields   keep_many: index / scan            sort_many: index / scan
- *    10 000    5.8±0.3 /   55.4±1.8   (~10x)     30.6±0.2 /   85.7±2.3   (~3x)
- *   100 000   67.0±1.5 / 2506±392     (~37x)     95.4±2.3 / 2568±38      (~27x)
+ *    shape         10 000: index / scan  (ratio)      100 000: index / scan  (ratio)
+ *    keep_many      5.8±0.3 /   55.4±1.8  (~10x)        67.0±1.5 /  2506±392   (~37x)
+ *    sort_many     30.6±0.2 /   85.7±2.3  (~3x)         95.4±2.3 /  2568±38    (~27x)
+ *    where_many    29.1±0.3 /   87.4±0.8  (~3x)         90.5±4.3 /  2462±262   (~27x)
+ *    drop_many      9.5±0.6 / 1042±8      (~110x)      130.1±22.4 / 16273±882  (~125x)
  * </pre>
  * <p>
- *     {@code keep_many} is the cleanest attribution — its output narrows to the kept columns —
- *     while {@code sort_many} carries the full wide output downstream, so its optimized floor is
- *     higher and its ratio smaller; both baselines hit the same resolution cliff at 100k. Absolute
- *     numbers are hardware/JVM specific; the ratio growing with field count is the signal that the
- *     quadratic term is gone. The index does not touch wildcard {@code DROP}/{@code KEEP} (e.g.
- *     {@code drop_sort}), which still scan patterns.
+ *     The scan baseline was reproduced by setting the analyzer's {@code NAME_INDEX_THRESHOLD} to
+ *     {@code Integer.MAX_VALUE} so every lookup rescans the output. For {@code drop_many} the
+ *     baseline additionally reverts {@code dropResolver} to its original per-removal
+ *     {@code removeIf} form, because the {@code LinkedHashSet}/{@code removeAll} restructure is not
+ *     threshold-gated; that restructure is why {@code drop_many}'s win is the largest — the old
+ *     path was doubly {@code O(references × fields)} (a per-reference scan <em>and</em> a
+ *     per-removal filter over the shrinking projection list).
+ * </p>
+ * <p>
+ *     {@code keep_many} and {@code drop_many} are the cleanest attributions — their output narrows
+ *     to the kept/remaining columns — while {@code sort_many} and {@code where_many} carry the full
+ *     wide output downstream, so their optimized floor is higher and their ratio smaller; every
+ *     baseline hits the same resolution cliff at 100k. Absolute numbers are hardware/JVM specific;
+ *     the ratio growing with field count is the signal that the quadratic term is gone. The index
+ *     does not touch wildcard {@code DROP}/{@code KEEP} (e.g. {@code drop_sort}), which still scan
+ *     patterns.
  * </p>
  */
 @Fork(1)
@@ -107,16 +118,17 @@ public class AnalysisBenchmark {
     public int fieldCount;
 
     /**
-     * Which query shape to benchmark. {@code keep_many} / {@code sort_many} reference
-     * {@link #WIDE_REFERENCES} explicit fields to stress exact-name resolution.
+     * Which query shape to benchmark. {@code keep_many} / {@code sort_many} / {@code where_many} /
+     * {@code drop_many} reference {@link #WIDE_REFERENCES} explicit fields to stress exact-name
+     * resolution.
      */
-    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many" })
+    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many", "where_many", "drop_many" })
     public String query;
 
     /**
-     * Number of explicit field references in the {@code keep_many} / {@code sort_many}
-     * shapes. These resolve one-by-one against the whole {@code fieldCount}-wide output,
-     * so the pre-index analyzer was O(references × fields) here.
+     * Number of explicit field references in the {@code keep_many} / {@code sort_many} /
+     * {@code where_many} / {@code drop_many} shapes. These resolve one-by-one against the whole
+     * {@code fieldCount}-wide output, so the pre-index analyzer was O(references × fields) here.
      */
     private static final int WIDE_REFERENCES = 1000;
 
@@ -155,6 +167,13 @@ public class AnalysisBenchmark {
         queries.put("keep_many", fieldListQuery("FROM test | KEEP ", "", WIDE_REFERENCES));
         // SORT <N explicit keys>: resolved in the ResolveRefs default branch (resolveExpressions).
         queries.put("sort_many", fieldListQuery("FROM test | SORT ", " | LIMIT 1", WIDE_REFERENCES));
+        // WHERE COALESCE(<N flat refs>): one Filter condition referencing every field, resolved in
+        // the ResolveRefs default branch (resolveExpressions). A flat variadic call keeps the
+        // expression breadth (not depth) high without nesting.
+        queries.put("where_many", fieldListQuery("FROM test | WHERE COALESCE(", ") IS NOT NULL | LIMIT 1", WIDE_REFERENCES));
+        // DROP <N explicit fields>: resolved in dropResolver, one lookup per removal, then a single
+        // projection-filtering pass.
+        queries.put("drop_many", fieldListQuery("FROM test | DROP ", "", WIDE_REFERENCES));
         return Map.copyOf(queries);
     }
 
@@ -250,9 +269,10 @@ public class AnalysisBenchmark {
             mapping.put(name, new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        // Flat, dot-free fields referenced explicitly by the keep_many / sort_many shapes. These are
-        // present for every shape (one shared index per fieldCount), so they also slightly widen the
-        // from/sort/drop_sort outputs; that does not change those shapes' referenced columns.
+        // Flat, dot-free fields referenced explicitly by the keep_many / sort_many / where_many /
+        // drop_many shapes. These are present for every shape (one shared index per fieldCount), so they
+        // also slightly widen the from/sort/drop_sort outputs; that does not change those shapes'
+        // referenced columns.
         for (int i = 0; i < WIDE_REFERENCES; i++) {
             String name = "attr_" + i;
             mapping.put(name, new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));

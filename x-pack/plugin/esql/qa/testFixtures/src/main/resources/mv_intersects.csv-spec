@@ -129,7 +129,7 @@ set2 = [43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 
@@ -143,7 +143,7 @@ element = 4200000000
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 mvIntersects_long
@@ -159,7 +159,7 @@ set2 = [4100000001,4100000002,4100000003,4100000004,4100000005,4100000006,410000
 ;
 
 set_intersects_element:boolean 
-true         
+true
 ;
 
 mvIntersectsKeywordFields
@@ -173,4 +173,307 @@ FROM employees
 
 emp_no:integer | intersects:boolean
 10001          | false
+;
+
+withBoolean
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(boolean, [true])
+| SORT id
+| KEEP id, boolean
+;
+
+id:long | boolean:boolean
+2       | [false, true]
+3       | [false, true]
+4       | [false, true]
+5       | [false, true]
+;
+
+withByte
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(byte, [3, 4])
+| SORT id
+| KEEP id, byte
+;
+
+id:long | byte:byte
+3       | ["1", "2", "3"]
+4       | ["1", "2", "3", "4"]
+5       | ["1", "2", "3", "4", "5"]
+;
+
+withConstantKeyword
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(`constant_keyword-foo`, ["foo"])
+| SORT id
+| KEEP id, `constant_keyword-foo`
+;
+
+id:long | constant_keyword-foo:keyword
+0       | foo
+1       | foo
+2       | foo
+3       | foo
+4       | foo
+5       | foo
+;
+
+withDate
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(date, ["2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z"]::date)
+| SORT id
+| KEEP id, date
+;
+
+id:long | date:date
+3       | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z"]
+4       | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z"]
+5       | ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z", "2024-01-03T00:00:00.000Z", "2024-01-04T00:00:00.000Z", "2024-01-05T00:00:00.000Z"]
+;
+
+withDateNanos
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(date_nanos, ["2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z"]::date_nanos)
+| SORT id
+| KEEP id, date_nanos
+;
+
+id:long | date_nanos:date_nanos
+3       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z"]
+4       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z"]
+5       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z", "2024-01-05T00:00:00.000000005Z"]
+;
+
+withDouble
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(double, [3.3, 4.4]::double)
+| SORT id
+| KEEP id, double
+;
+
+id:long | double:double
+3       | [1.1, 2.2, 3.3]
+4       | [1.1, 2.2, 3.3, 4.4]
+5       | [1.1, 2.2, 3.3, 4.4, 5.5]
+;
+
+withFloat
+required_capability: fn_mv_intersects
+required_capability: fn_mv_intersects_lucene_pushdown
+
+FROM all_types_mv
+| WHERE mv_intersects(float, [3.3, 4.4])
+| SORT id
+| KEEP id
+;
+
+id:long
+3
+4
+5
+;
+
+withHalfFloat
+required_capability: fn_mv_intersects
+required_capability: fn_mv_intersects_lucene_pushdown
+
+FROM all_types_mv
+| WHERE mv_intersects(half_float, [3.3, 4.4])
+| SORT id
+| KEEP id
+;
+
+id:long
+3
+4
+5
+;
+
+withScaledFloat
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(scaled_float, [3.3, 4.4])
+| SORT id
+| KEEP id, scaled_float
+;
+
+id:long | scaled_float:double
+3       | [1.1, 2.2, 3.3]
+4       | [1.1, 2.2, 3.3, 4.4]
+5       | [1.1, 2.2, 3.3, 4.4, 5.5]
+;
+
+withInteger
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(integer, [3, 4])
+| SORT id
+| KEEP id, integer
+;
+
+id:long | integer:integer
+3       | [1, 2, 3]
+4       | [1, 2, 3, 4]
+5       | [1, 2, 3, 4, 5]
+;
+
+withIp
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(ip, ["127.0.0.3", "127.0.0.4"]::ip)
+| SORT id
+| KEEP id, ip
+;
+
+id:long | ip:ip
+3       | ["127.0.0.1", "127.0.0.2", "127.0.0.3"]
+4       | ["127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"]
+5       | ["127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"]
+;
+
+withKeyword
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(keyword, ["key3", "key4"])
+| SORT id
+| KEEP id, keyword
+;
+
+id:long | keyword:keyword
+3       | ["key1", "key2", "key3"]
+4       | ["key1", "key2", "key3", "key4"]
+5       | ["key1", "key2", "key3", "key4", "key5"]
+;
+
+withLong
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(long, [300, 400]::long)
+| SORT id
+| KEEP id, long
+;
+
+id:long | long:long
+3       | [100, 200, 300]
+4       | [100, 200, 300, 400]
+5       | [100, 200, 300, 400, 500]
+;
+
+withUnsignedLong
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(unsigned_long, [300, 400]::unsigned_long)
+| SORT id
+| KEEP id, unsigned_long
+;
+
+id:long | unsigned_long:unsigned_long
+3       | [100, 200, 300]
+4       | [100, 200, 300, 400]
+5       | [100, 200, 300, 400, 500]
+;
+
+withShort
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(short, [30, 40]::integer)
+| SORT id
+| KEEP id, short
+;
+
+id:long | short:integer
+3       | [10, 20, 30]
+4       | [10, 20, 30, 40]
+5       | [10, 20, 30, 40, 50]
+;
+
+withText
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(text, ["text3", "text4"])
+| SORT id
+| KEEP id, text
+;
+
+id:long | text:text
+3       | ["text1", "text2", "text3"]
+4       | ["text1", "text2", "text3", "text4"]
+5       | ["text1", "text2", "text3", "text4", "text5"]
+;
+
+withVersion
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(version, ["3.0.0", "4.0.0"]::version)
+| SORT id
+| KEEP id, version
+;
+
+id:long | version:version
+3       | ["1.0.0", "2.0.0", "3.0.0"]
+4       | ["1.0.0", "2.0.0", "3.0.0", "4.0.0"]
+5       | ["1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0"]
+;
+
+withWildcard
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(wildcard, ["wild3", "wild4"])
+| SORT id
+| KEEP id, wildcard
+;
+
+id:long | wildcard:keyword
+3       | ["wild1", "wild2", "wild3"]
+4       | ["wild1", "wild2", "wild3", "wild4"]
+5       | ["wild1", "wild2", "wild3", "wild4", "wild5"]
+;
+
+withFoldableLeftArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(["key3", "key4"], keyword)
+| SORT id
+| KEEP id, keyword
+;
+
+id:long | keyword:keyword
+3       | ["key1", "key2", "key3"]
+4       | ["key1", "key2", "key3", "key4"]
+5       | ["key1", "key2", "key3", "key4", "key5"]
+;
+
+withFoldableEmptyRightArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(keyword, mv_intersection(["foo", "bar"], ["foobar", "abc"]))
+| SORT id
+| KEEP id, keyword
+;
+
+id: long | keyword: keyword
 ;

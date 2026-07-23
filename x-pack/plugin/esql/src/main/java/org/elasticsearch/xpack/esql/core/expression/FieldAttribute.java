@@ -186,7 +186,11 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                punk.writeTo(out, fieldName().string());
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);

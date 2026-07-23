@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -73,8 +74,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateReshardSplitTargetPrimaryCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -87,6 +86,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -97,6 +97,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
@@ -111,6 +112,7 @@ import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -127,6 +129,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.hamcrest.Matcher;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -1034,7 +1037,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var deferredNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
         final var blockNotification = new AtomicBoolean(false);
         final var notificationBlocked = new CountDownLatch(1);
-        final var notificationsProcessed = new AtomicBoolean(false);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 if (blockNotification.get()) {
@@ -1060,7 +1062,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         notificationBlocked.countDown();
                     }
                     assert splitStateRequest.getNewTargetShardState() != IndexReshardingState.Split.TargetShardState.DONE
-                        || notificationsProcessed.get() : "all commit notifications should have been processed first";
+                        || deferredNotifications.isEmpty() : "all commit notifications should have been processed first";
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -1080,7 +1082,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 while (deferredNotifications.isEmpty() == false) {
                     deferredNotifications.take().run();
                 }
-                notificationsProcessed.set(true);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -4864,41 +4865,61 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    public void testRecoveryFromTargetShardEmptyPrimaryAllocation() {
+    public void testMergesAreSkippedDuringHandoffPreparation() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);
 
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).build());
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ensureGreen(indexName);
-        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var sourceShard = findIndexShard(index, 0, indexNode);
 
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        // Take a permit to block handoff flush
+        final var nodeThreadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        final var permitFuture = new PlainActionFuture<Releasable>();
+        sourceShard.acquirePrimaryOperationPermit(permitFuture, nodeThreadPool.generic());
+        var permit = safeGet(permitFuture);
 
-        awaitClusterState(state -> {
-            if (state.projectState().metadata().index(indexName).getReshardingMetadata() == null) {
-                return false;
-            }
-            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
-            return targetShardRouting.unassigned()
-                && targetShardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource;
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+
+        assertFalse(splitSourceService.isPreparingForHandoff(shardId));
+
+        final var preflushFinished = new CountDownLatch(1);
+
+        splitSourceService.setPreHandoffHook(() -> {
+            // assert that at the first flush after entering prehandoff merge cancellation is signalled
+            sourceShard.withEngine(engine -> {
+                final var currentLocation = engine.getTranslogLastWriteLocation();
+                final var nextLocation = new Translog.Location(currentLocation.generation() + 1, 0, 0);
+                // create something to flush
+                indexDocs(indexName, randomIntBetween(10, 100));
+                logger.info("waiting for preflush: {}, {}", currentLocation, nextLocation);
+                engine.addFlushListener(nextLocation, ActionListener.wrap(response -> {
+                    assertTrue(splitSourceService.isPreparingForHandoff(shardId));
+                    preflushFinished.countDown();
+                }, Assert::assertNull));
+                return null;
+            });
         });
 
-        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(indexName, 1, indexNode, true));
+        safeGet(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)));
+        safeAwait(preflushFinished);
+        logger.info("preflush finished");
 
-        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
+        // unblock handoff
+        permit.close();
+        awaitClusterState(
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+        // and assert that after handoff merges are allowed again
+        assertFalse(splitSourceService.isPreparingForHandoff(shardId));
 
-        // Wait until the allocation tries to allocate the shard and fails (replicate the real world scenario).
-        awaitClusterState(state -> {
-            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
-            return targetShardRouting.unassigned() && targetShardRouting.unassignedInfo().failedAllocations() == 5;
-        });
-
-        ClusterRerouteUtils.reroute(client(), new AllocateReshardSplitTargetPrimaryCommand(indexName, 1, indexNode, true));
-
-        // Target shard successfully performs recovery with correct recovery source and resharding eventually completes.
         waitForReshardCompletion(indexName);
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
@@ -21,21 +23,16 @@ import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluat
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -48,17 +45,19 @@ import static java.util.stream.Collectors.joining;
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     /**
-     * Default target rows per output page when chunking partial/intermediate output, i.e. the default of the
-     * {@code esql.time_series.target_chunk_rows} setting. In partial/intermediate mode the operator slices its single
-     * emitted result into pages of about this many rows, bounding the size of each page sent to the coordinator. A
-     * {@code _tsid} may straddle a page boundary; the coordinator re-merges groups by key.
+     * Default target rows per output page when chunking the operator's output, i.e. the default of the
+     * {@code esql.time_series.target_chunk_rows} setting. The operator slices its single emitted result into pages of
+     * about this many rows, bounding the size of each page. The same target applies to both partial/intermediate output
+     * (bounding pages sent to the coordinator) and final output (bounding the coordinator's peak memory during final
+     * evaluation and the page sizes handed to downstream operators). A {@code _tsid} may straddle a page boundary; the
+     * coordinator re-merges groups by key.
      */
     public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
 
     /**
-     * @param targetChunkRows target number of rows per output page when chunking partial/intermediate output. The
-     *        operator slices its emitted result into pages of about this many rows. Only takes effect in
-     *        partial/intermediate mode; final output is not chunked here.
+     * @param targetChunkRows target number of rows per output page when chunking output. The operator slices its emitted
+     *        result into pages of about this many rows. The same target applies to both partial/intermediate and final
+     *        output.
      */
     public record Factory(
         Rounding.Prepared timeBucket,
@@ -96,9 +95,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            final boolean outputPartial = aggregatorMode.isOutputPartial();
-            final boolean outputFinal = outputPartial == false;
-            final int effectiveTargetChunkRows = outputPartial ? targetChunkRows : Integer.MAX_VALUE;
+            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -119,7 +116,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
-                effectiveTargetChunkRows,
+                targetChunkRows,
                 driverContext
             );
         }
@@ -162,87 +159,30 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         super.finish();
     }
 
+    /**
+     * On the output-filtered (sub-bucketed) final/SINGLE path, emit only the groups whose timestamp aligns to an output
+     * bucket boundary, and stash the full group set on the evaluation context so window aggregators can still reach every
+     * internal group through {@link TimeSeriesGroupingAggregatorEvaluationContext#allGroupIds()}. The base operator then
+     * slices this reduced selection into pages, so the sub-bucketed path is chunked the same way as the non-filtered path.
+     */
     @Override
-    protected void emit() {
-        if (rowsAddedInCurrentBatch == 0) {
-            return;
-        }
+    protected IntVector selectedKeysForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
         if (needsOutputFiltering() == false) {
-            super.emit();
-            return;
+            return super.selectedKeysForEmit(ctx, allKeys);
         }
         TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
         int[] outputPositions = computeOutputAlignedPositions(tsBlockHash);
         if (outputPositions == null) {
-            super.emit();
-            return;
+            return super.selectedKeysForEmit(ctx, allKeys);
         }
-        Block[] blocks = null;
-        Block[] outputKeys = null;
-        IntVector allSelected = null;
-        IntVector outputSelected = null;
-        long startInNanos = System.nanoTime();
-        boolean success = false;
-        boolean keysFiltered = false;
-        try {
-            allSelected = blockHash.nonEmpty();
-
-            Block[] fullKeys = blockHash.getKeys(allSelected);
-            outputKeys = new Block[fullKeys.length];
-            try {
-                for (int b = 0; b < fullKeys.length; b++) {
-                    outputKeys[b] = fullKeys[b].filter(false, outputPositions);
-                }
-                keysFiltered = true;
-            } finally {
-                Releasables.close(fullKeys);
-                if (keysFiltered == false) {
-                    Releasables.closeExpectNoException(outputKeys);
-                }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
+            tsCtx.setAllGroupIds(allKeys);
+        }
+        try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
+            for (int i = 0; i < outputPositions.length; i++) {
+                builder.appendInt(i, outputPositions[i]);
             }
-
-            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
-                for (int i = 0; i < outputPositions.length; i++) {
-                    builder.appendInt(i, outputPositions[i]);
-                }
-                outputSelected = builder.build();
-            }
-
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            int keyBlockCount = outputKeys.length;
-            blocks = new Block[keyBlockCount + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(outputKeys, 0, blocks, 0, outputKeys.length);
-            outputKeys = null;
-            int offset = keyBlockCount;
-
-            try (var ctx = evaluationContext(blockHash)) {
-                if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
-                    tsCtx.setAllGroupIds(allSelected);
-                }
-                for (int i = 0; i < aggregators.size(); i++) {
-                    try (
-                        var customizeSelected = customizeSelected(aggregators.get(i), outputSelected);
-                        var prepared = aggregators.get(i).prepareForEvaluate(customizeSelected, ctx)
-                    ) {
-                        prepared.evaluate(blocks, offset, customizeSelected);
-                    }
-                    offset += aggBlockCounts[i];
-                }
-                output = ReleasableIterator.single(new Page(blocks));
-                success = true;
-            }
-        } finally {
-            rowsAddedInCurrentBatch = 0;
-            Releasables.close(allSelected, outputSelected);
-            if (success == false) {
-                if (blocks != null) {
-                    Releasables.closeExpectNoException(blocks);
-                } else if (keysFiltered) {
-                    Releasables.closeExpectNoException(outputKeys);
-                }
-            }
-            emitNanos += System.nanoTime() - startInNanos;
-            emitCount++;
+            return builder.build();
         }
     }
 
@@ -368,23 +308,28 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return;
         }
         Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-        long maxBound = tsBlockHash.maxTimestamp();
+        // The hash keys are in the time resolution of the timestamp field (nanoseconds for date_nanos), while the
+        // roundings operate on milliseconds. Iterate the buckets in the millisecond domain and convert the resulting
+        // labels back to the hash resolution when creating groups.
+        long maxBoundMillis = timeResolution.roundDownToMillis(tsBlockHash.maxTimestamp());
         if (outputTimeBucket != null) {
-            maxBound = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(maxBound);
+            maxBoundMillis = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(
+                maxBoundMillis
+            );
         }
         this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
-            long startTimestamp = tsBlockHash.timestampForGroup(groupId);
-            long effectiveEnd = Math.min(startTimestamp + timeResolution.convert(windowMillis), maxBound + 1);
-            long bucket = optimizedTimeBucket.nextRoundingValue(startTimestamp);
+            long startMillis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
+            long effectiveEndMillis = Math.min(startMillis + windowMillis, maxBoundMillis + 1);
+            long bucketMillis = optimizedTimeBucket.nextRoundingValue(startMillis);
             // Fill the missing buckets between (timestamp - window, timestamp).
-            while (bucket < effectiveEnd) {
-                if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
+            while (bucketMillis < effectiveEndMillis) {
+                if (tsBlockHash.addExtraGroup(tsid, timeResolution.convert(bucketMillis)) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
-                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
+                bucketMillis = optimizedTimeBucket.nextRoundingValue(bucketMillis);
             }
         }
     }
@@ -512,7 +457,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 var iterator = fastRounding.iterator(Math.max(rangeStartMillis, minMillis), rangeEndMillis);
                 while (iterator.next()) {
                     if (iterator.getRoundedFloor() >= rangeStartMillis) {
-                        long groupId = tsBlockHash.getGroupId(tsid, iterator.getRounded());
+                        // the hash keys are in the resolution of the timestamp field, the iterator yields milliseconds
+                        long groupId = tsBlockHash.getGroupId(tsid, timeResolution.convert(iterator.getRounded()));
                         if (groupId != -1 && groupId != startingGroupId) {
                             action.accept(Math.toIntExact(groupId));
                         }
@@ -540,11 +486,20 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
+                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
+                    long nextBucketTs;
+                    if (cacheIndex >= 0) {
+                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
+                    } else {
+                        // both the map and the hash keys are in the resolution of the timestamp field, the rounding
+                        // operates on milliseconds
+                        nextBucketTs = timeResolution.convert(fastRounding.nextRoundingValue(timeResolution.roundDownToMillis(bucketTs)));
+                        nextTimestamps.put(bucketTs, nextBucketTs);
+                    }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
                         // https://github.com/elastic/elasticsearch/issues/152758

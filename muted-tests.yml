@@ -241,9 +241,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecTopNIT
   method: test {csv-spec:topN.topNLongRangeWildcardSort}
   issue: https://github.com/elastic/elasticsearch/issues/150874
-- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
-  method: testInferenceFailure
-  issue: https://github.com/elastic/elasticsearch/issues/150976
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnionTypesIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982
@@ -508,9 +505,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
   issue: https://github.com/elastic/elasticsearch/issues/154341
-- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
-  method: testIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/154360
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
@@ -556,9 +550,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
-  issue: https://github.com/elastic/elasticsearch/issues/154462
 - class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
   method: testMountPartialCopyAndRecoversCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/154614
@@ -583,9 +574,6 @@ tests:
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testTokensStayInvalidatedInUpgradedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154627
-- class: org.elasticsearch.index.codec.vectors.HnswUtilsTests
-  method: testNeighborhoodGraphSearchFindsSelf
-  issue: https://github.com/elastic/elasticsearch/issues/154633
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/154655
@@ -604,3 +592,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
+- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
+  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
+  issue: https://github.com/elastic/elasticsearch/issues/154775
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicedIndexOneVectorPerSlice
+  issue: https://github.com/elastic/elasticsearch/issues/154792
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
+  method: testCommaSeparatedResourceFirstFileWinsRoundTrips
+  issue: https://github.com/elastic/elasticsearch/issues/154662

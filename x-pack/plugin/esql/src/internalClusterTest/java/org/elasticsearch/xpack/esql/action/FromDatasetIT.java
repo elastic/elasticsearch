@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -348,6 +349,202 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The out-of-band request {@code filter} (Query DSL) is applied to a dataset: a {@code term} filter on emp_no=2
+     * returns only Bob. Before the rewrite, the filter was dropped and all three rows came back.
+     */
+    public void testRequestFilterOnDatasetTerm() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var request = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        request.filter(QueryBuilders.termQuery("emp_no", 2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+    }
+
+    /**
+     * Leniency on a dataset, end to end. A filter over a field the dataset does not have never errors:
+     * under {@code must} it matches nothing (zero rows); under {@code must_not} it matches everything (all rows) —
+     * the sharp rule-4 edge, falling out of the two-valued predicate family with no special code.
+     */
+    public void testRequestFilterOnDatasetMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.termQuery("nonexistent", "x"));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nonexistent", "x")));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * A {@code range} request filter on a dataset: emp_no &gt;= 2 returns Bob and Carol. Covers the common
+     * time-range-style filter (single-valued numeric/date field).
+     */
+    public void testRequestFilterOnDatasetRange() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var openLower = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        openLower.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(openLower, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+
+        // A closed range routes through the mv_in_range intrinsic; emp_no in [2,3] -> Bob and Carol.
+        var closed = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        closed.filter(QueryBuilders.rangeQuery("emp_no").gte(2).lte(3));
+        try (var response = run(closed, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * A closed {@code range} over a field the dataset does not have obeys the same leniency as {@code term}: mv_in_range
+     * is two-valued (false on a missing field, never null), so under {@code must} it matches nothing and under
+     * {@code must_not} it matches everything. This is the leniency that only holds because the range leaf folds a missing
+     * field to false rather than throwing.
+     */
+    public void testRequestFilterOnDatasetClosedRangeMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.rangeQuery("nonexistent").gte(2).lte(3));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nonexistent").gte(2).lte(3)));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * A {@code terms} request filter on a dataset maps to {@code mv_intersects} (any-of set membership):
+     * {@code emp_no in [1,3]} returns Alice and Carol. Missing-field leniency holds in both directions.
+     */
+    public void testRequestFilterOnDatasetTerms() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var present = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        present.filter(QueryBuilders.termsQuery("emp_no", List.of(1, 3)));
+        try (var response = run(present, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.termsQuery("nonexistent", List.of(1, 3)));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery("nonexistent", List.of(1, 3))));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * An {@code exists} request filter on a dataset maps to {@code IS NOT NULL}: a present field keeps all rows,
+     * an absent field (bound to NULL, two-valued false) keeps none under {@code must}.
+     */
+    public void testRequestFilterOnDatasetExists() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var presentField = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        presentField.filter(QueryBuilders.existsQuery("emp_no"));
+        try (var response = run(presentField, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+
+        var missingField = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        missingField.filter(QueryBuilders.existsQuery("nonexistent"));
+        try (var response = run(missingField, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+    }
+
+    /**
+     * Bool composition on a dataset: {@code must} clauses conjoin (a {@code term} and an {@code exists} together
+     * select Bob), and a {@code should}-only bool becomes an {@code OR} (emp_no 1 or 3 → Alice and Carol).
+     */
+    public void testRequestFilterOnDatasetBoolComposition() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var conjunction = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        conjunction.filter(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("emp_no", 2)).must(QueryBuilders.existsQuery("first_name"))
+        );
+        try (var response = run(conjunction, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+
+        var disjunction = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        disjunction.filter(
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("emp_no", 1)).should(QueryBuilders.termQuery("emp_no", 3))
+        );
+        try (var response = run(disjunction, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * A one-sided {@code range} over a missing field obeys the same leniency as the other leaves: the comparison over
+     * {@code mv_max}/{@code mv_min} is wrapped so a missing field folds to {@code false} (two-valued), giving zero rows
+     * under {@code must} and all rows under {@code must_not}. Without the two-valued wrap, {@code NOT null} would drop
+     * every row under {@code must_not}.
+     */
+    public void testRequestFilterOnDatasetOneSidedRangeMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.rangeQuery("nonexistent").gte(2));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nonexistent").gte(2)));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
         }
     }
 

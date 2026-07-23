@@ -9,9 +9,9 @@
 
 package org.elasticsearch.inference.completion;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -30,9 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents the cache configuration for a chat completion request.
  */
-public final class CacheControl implements ToXContentObject, NamedWriteable {
-
-    public static final String NAME = "cache_control";
+public final class CacheControl implements ToXContentObject, Writeable {
 
     /**
      * Strict parser that rejects unknown fields. Use this for user-facing request parsing (e.g. the
@@ -92,11 +90,6 @@ public final class CacheControl implements ToXContentObject, NamedWriteable {
     @Nullable
     public TimeValue ttl() {
         return ttl;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override

@@ -206,8 +206,7 @@ public record UnifiedCompletionRequest(
                 ReasoningDetail.class,
                 ReasoningDetail.TextReasoningDetail.NAME,
                 ReasoningDetail.TextReasoningDetail::new
-            ),
-            new NamedWriteableRegistry.Entry(CacheControl.class, CacheControl.NAME, CacheControl::new)
+            )
         );
     }
 

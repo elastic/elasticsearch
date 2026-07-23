@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -100,7 +101,7 @@ public class TransportInternalDeleteEndpointsActionTests extends ESTestCase {
     public void testMasterOperation_PropagatesFailure() {
         var ids = Set.of("id-1");
         doAnswer(invocation -> {
-            invocation.<org.elasticsearch.action.ActionListener<Boolean>>getArgument(1).onFailure(new RuntimeException("delete failed"));
+            invocation.<ActionListener<Boolean>>getArgument(1).onFailure(new RuntimeException("delete failed"));
             return Void.TYPE;
         }).when(mockModelRegistry).deleteModels(eq(ids), any());
 

@@ -2278,6 +2278,18 @@ wkt:keyword               |pt:cartesian_point
 // end::to_cartesianpoint-str-result[]
 ;
 
+convertCartesianPointFromKeywordField
+required_capability: spatial_points_from_source
+
+FROM conv_from_keyword
+| EVAL pt = TO_CARTESIANPOINT(cartesian_point_wkt)
+| KEEP cartesian_point_wkt, pt
+;
+
+cartesian_point_wkt:keyword     | pt:cartesian_point
+POINT(4297.11 -1475.53)         | POINT(4297.11 -1475.53)
+;
+
 convertCartesianFromStringArray
 required_capability: spatial_points_from_source
 
@@ -2630,6 +2642,18 @@ prefix:keyword | count:long | extent:cartesian_shape
 A              | 17         | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
 B              | 18         | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
 C              | 19         | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+convertCartesianShapeFromKeywordField
+required_capability: st_intersects
+
+FROM conv_from_keyword
+| EVAL shape = TO_CARTESIANSHAPE(cartesian_shape_wkt)
+| KEEP cartesian_shape_wkt, shape
+;
+
+cartesian_shape_wkt:keyword                | shape:cartesian_shape
+POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))         | POLYGON((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))
 ;
 
 ###############################################

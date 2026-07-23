@@ -193,6 +193,9 @@ tasks.named("internalClusterTest").configure {
   // Local file:// access is on by default in snapshot builds; in release builds the local flag is off unless
   // explicitly enabled here, so External*IT and FromDatasetIT actually run (not just skip) in release testing.
   systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
+  // Same reason: applying the request filter to datasets is off in release builds, so the conformance and
+  // heterogeneous request-filter ITs would assert against an unfiltered dataset during release testing.
+  systemProperty 'es.esql_request_filter_on_dataset_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
   systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"

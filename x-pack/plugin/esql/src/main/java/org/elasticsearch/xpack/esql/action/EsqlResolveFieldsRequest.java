@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -22,7 +25,7 @@ import java.util.Map;
  * Transport request for {@link EsqlResolveFieldsAction}, wrapping {@link FieldCapabilitiesRequest}
  * with ES|QL-specific parameters without modifying the original field-caps request type.
  */
-public class EsqlResolveFieldsRequest extends ActionRequest {
+public class EsqlResolveFieldsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private final FieldCapabilitiesRequest fieldCapsRequest;
     private final boolean failOnRemoteViewsOrDatasets;
@@ -42,15 +45,22 @@ public class EsqlResolveFieldsRequest extends ActionRequest {
     public EsqlResolveFieldsRequest(StreamInput in) throws IOException {
         this.fieldCapsRequest = new FieldCapabilitiesRequest(in);
         setParentTask(fieldCapsRequest.getParentTask());
-        this.failOnRemoteViewsOrDatasets = in.readBoolean();
-        this.includeResolvedIndexAbstractions = in.readBoolean();
+        if (in.getTransportVersion().supports(EsqlResolveFieldsResponse.RESOLVED_INDEX_ABSTRACTIONS)) {
+            this.failOnRemoteViewsOrDatasets = in.readBoolean();
+            this.includeResolvedIndexAbstractions = in.readBoolean();
+        } else {
+            this.failOnRemoteViewsOrDatasets = true;
+            this.includeResolvedIndexAbstractions = false;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fieldCapsRequest.writeTo(out);
-        out.writeBoolean(failOnRemoteViewsOrDatasets);
-        out.writeBoolean(includeResolvedIndexAbstractions);
+        if (out.getTransportVersion().supports(EsqlResolveFieldsResponse.RESOLVED_INDEX_ABSTRACTIONS)) {
+            out.writeBoolean(failOnRemoteViewsOrDatasets);
+            out.writeBoolean(includeResolvedIndexAbstractions);
+        }
     }
 
     public FieldCapabilitiesRequest fieldCapsRequest() {
@@ -63,6 +73,42 @@ public class EsqlResolveFieldsRequest extends ActionRequest {
 
     public boolean includeResolvedIndexAbstractions() {
         return includeResolvedIndexAbstractions;
+    }
+
+    @Override
+    public String[] indices() {
+        return fieldCapsRequest.indices();
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        fieldCapsRequest.indices(indices);
+        return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return fieldCapsRequest.indicesOptions();
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return fieldCapsRequest.includeDataStreams();
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return fieldCapsRequest.allowsRemoteIndices();
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        fieldCapsRequest.setResolvedIndexExpressions(expressions);
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return fieldCapsRequest.getResolvedIndexExpressions();
     }
 
     @Override

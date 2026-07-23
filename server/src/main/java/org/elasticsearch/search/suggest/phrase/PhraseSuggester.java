@@ -18,6 +18,7 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -41,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
+
+    private static final String COLLECTOR_MEMORY_LABEL = "phrase-suggest-collector";
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
 
@@ -68,6 +71,19 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator> generators = suggestion.generators();
         final int numGenerators = generators.size();
+
+        final SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
+        // CandidateScorer builds a Lucene PriorityQueue sized to shard_size and each DirectCandidateGenerator builds
+        // a Lucene SuggestWordQueue sized to its generator size. Both pre-allocate a heap array of length size + 1,
+        // which is the dominant cost, so we reserve them on the request circuit breaker around the correction lookup.
+        // This way an oversized shard_size (or direct generator size) trips the breaker instead of causing an
+        // OutOfMemoryError that could take the shard (or node) down.
+        long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
+        for (PhraseSuggestionContext.DirectCandidateGenerator generator : generators) {
+            collectorBytes += priorityQueueRamBytesUsed(generator.size());
+        }
+        searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+
         final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
@@ -111,6 +127,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     suggestion.confidence(),
                     suggestion.gramSize()
                 );
+            } finally {
+                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
@@ -128,7 +146,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (
                         XContentParser parser = XContentFactory.xContent(querySource)
@@ -162,6 +179,16 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));
         }
         return response;
+    }
+
+    /**
+     * Estimates the heap used by a Lucene {@link org.apache.lucene.util.PriorityQueue} (or {@code SuggestWordQueue})
+     * of the given size, which pre-allocates an {@code Object[size + 1]} backing array.
+     */
+    private static long priorityQueueRamBytesUsed(int size) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
     }
 
     private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {

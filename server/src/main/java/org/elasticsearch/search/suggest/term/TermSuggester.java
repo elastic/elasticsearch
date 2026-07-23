@@ -16,6 +16,8 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
@@ -28,6 +30,8 @@ import java.util.List;
 
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
+    private static final String COLLECTOR_MEMORY_LABEL = "term-suggest-collector";
+
     public static final TermSuggester INSTANCE = new TermSuggester();
 
     private TermSuggester() {}
@@ -39,25 +43,46 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         final IndexReader indexReader = searcher.getIndexReader();
         TermSuggestion response = new TermSuggestion(name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort());
         List<Token> tokens = queryTerms(suggestion, spare);
-        for (Token token : tokens) {
-            // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
-            SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
-                token.term,
-                suggestion.getShardSize(),
-                indexReader,
-                suggestion.getDirectSpellCheckerSettings().suggestMode()
-            );
-            var termBytes = token.term.bytes();
-            var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
-            Text key = new Text(termEncoded);
-            TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
-            for (SuggestWord suggestWord : suggestedWords) {
-                Text word = new Text(suggestWord.string);
-                resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
+        final SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
+        // DirectSpellChecker#suggestSimilar builds a Lucene SuggestWordQueue (a PriorityQueue) sized to shard_size,
+        // pre-allocating an Object[shard_size + 1] backing array per token. This is the dominant cost, so we reserve it
+        // on the request circuit breaker first. This way an oversized shard_size trips the breaker instead of causing an
+        // OutOfMemoryError that could take the shard (or node) down.
+        final long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
+        searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+        try {
+            for (Token token : tokens) {
+                // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
+                SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
+                    token.term,
+                    suggestion.getShardSize(),
+                    indexReader,
+                    suggestion.getDirectSpellCheckerSettings().suggestMode()
+                );
+                var termBytes = token.term.bytes();
+                var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
+                Text key = new Text(termEncoded);
+                TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
+                for (SuggestWord suggestWord : suggestedWords) {
+                    Text word = new Text(suggestWord.string);
+                    resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
+                }
+                response.addTerm(resultEntry);
             }
-            response.addTerm(resultEntry);
+            return response;
+        } finally {
+            searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
         }
-        return response;
+    }
+
+    /**
+     * Estimates the heap used by a Lucene {@code SuggestWordQueue} of the given size, which pre-allocates
+     * an {@code Object[size + 1]} backing array.
+     */
+    private static long priorityQueueRamBytesUsed(int size) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
     }
 
     private static List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {

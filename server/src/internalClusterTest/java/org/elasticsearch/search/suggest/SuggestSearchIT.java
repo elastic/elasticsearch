@@ -10,11 +10,13 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -1408,6 +1411,23 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
     }
 
+    /**
+     * A term suggest request with a {@code shard_size} close to {@link Integer#MAX_VALUE} would make
+     * {@code DirectSpellChecker#suggestSimilar} pre-allocate a ~GB-sized Lucene {@code SuggestWordQueue} per token. The
+     * request circuit breaker must trip before that allocation happens instead of the shard hitting an
+     * {@link OutOfMemoryError}.
+     */
+    public void testTermSuggestShardSizeTripsCircuitBreaker() throws IOException {
+        assertAcked(prepareCreate("test").setMapping("body", "type=text"));
+        ensureGreen();
+        indexDoc("test", "1", "body", "the quick brown fox jumps over the lazy dog");
+        refresh();
+        assertCircuitBreaks(
+            "term",
+            termSuggestion("body").text("the quik brown").suggestMode(SuggestMode.ALWAYS).shardSize(Integer.MAX_VALUE - 17)
+        );
+    }
+
     protected Suggest searchSuggest(String name, SuggestionBuilder<?> suggestion) {
         return searchSuggest(null, name, suggestion);
     }
@@ -1434,5 +1454,16 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggest[0] = response.getSuggest();
         });
         return suggest[0];
+    }
+
+    private void assertCircuitBreaks(String name, SuggestionBuilder<?> suggestion) {
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> prepareSearch("test").setAllowPartialSearchResults(false)
+                .setSize(0)
+                .suggest(new SuggestBuilder().addSuggestion(name, suggestion))
+                .get()
+        );
+        assertThat(ExceptionsHelper.unwrap(exception, CircuitBreakingException.class), notNullValue());
     }
 }

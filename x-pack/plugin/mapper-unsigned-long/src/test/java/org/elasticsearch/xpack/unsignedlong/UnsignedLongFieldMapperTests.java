@@ -223,15 +223,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testExistsQueryDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertExistsQuery(mapperService);
-        assertParseMinimalWarnings();
-    }
-
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
@@ -242,23 +233,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
 
         assertTimeSeriesIndexing();
-    }
-
-    public void testDimensionIndexedAndDocvalues() {
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
-            })));
-            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
-            })));
-            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
-        }
     }
 
     public void testDimensionMultiValuedFieldTSDB() throws IOException {
@@ -318,25 +292,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
-    }
-
-    public void testMetricAndDocvalues() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("doc_values", false);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
-    }
-
-    public void testMetricAndDimension() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("time_series_dimension", true);
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
-        );
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {

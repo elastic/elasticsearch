@@ -10,13 +10,16 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.sourcebatch.MappedColumns;
-import org.elasticsearch.sourcebatch.SourceBatch;
-
-import java.util.List;
 
 /**
- * A chunk of the bulk batch-indexing fast path, as handed from {@code ShardBatchIndexer}/
- * {@code ShardBatchMapper} to the engine. Bundles what used to be threaded through the engine as
- * two separate parameters.
+ * A mapped, engine-ready batch produced by {@link org.elasticsearch.index.mapper.ShardBatchMapper}.
+ * Contains the flattened operation record ({@link IndexOperationBatch}) and the assembled Lucene
+ * column data ({@link MappedColumns}) for the columnar write path.
+ *
+ * @param batch   the flattened per-document operation data (uids, sources, seq_no byte arrays, etc.)
+ * @param columns the assembled {@link MappedColumns} whose seqNo/primaryTerm/version byte arrays are
+ *                aliased by reference from {@code batch}, so engine writes via
+ *                {@link MappedColumns#setSeqNo}/{@link MappedColumns#fillPrimaryTerm}/
+ *                {@link MappedColumns#setVersion} are immediately visible to the Lucene columns.
  */
-public record EngineBatch(List<Engine.Index> operations, SourceBatch sourceBatch, MappedColumns columns) {}
+public record EngineBatch(IndexOperationBatch batch, MappedColumns columns) {}

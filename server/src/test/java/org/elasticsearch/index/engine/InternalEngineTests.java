@@ -254,16 +254,26 @@ public class InternalEngineTests extends EngineTestCase {
      */
     private EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
         int n = operations.size();
-        BytesRef[] ids = new BytesRef[n];
+        // Build a flat IndexOperationBatch from the Engine.Index list.
+        // Using fromIndexOps ensures the seqNoBytes/primaryTermBytes/versionBytes arrays are shared
+        // by reference between the IndexOperationBatch and the MappedColumns, so engine stamping via
+        // MappedColumns.setSeqNo is immediately visible via IndexOperationBatch.seqNo().
+        final IndexOperationBatch indexBatch = IndexOperationBatch.fromIndexOps(operations, batch);
+        final org.elasticsearch.index.mapper.MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup()
+            .getSortedMetadataMappers();
+        final BatchMappingContext ctx = new BatchMappingContext(indexBatch, mapperService.mappingLookup(), defaultSettings);
+        for (org.elasticsearch.index.mapper.MetadataFieldMapper mapper : metadataMappers) {
+            mapper.preColumnarParse(ctx);
+        }
+        for (org.elasticsearch.index.mapper.MetadataFieldMapper mapper : metadataMappers) {
+            mapper.postColumnarParse(ctx);
+        }
         BytesRef[] sources = new BytesRef[n];
         for (int d = 0; d < n; d++) {
-            ids[d] = Uid.encodeId(operations.get(d).id());
             sources[d] = operations.get(d).source().originalBytes().toBytesRef();
         }
-        // _id is handled by ProvidedIdFieldMapper.preColumnarParse via the pre-populated uids.
-        BatchMappingContext ctx = ShardBatchMapper.buildMetadataContext(n, defaultSettings, mapperService.mappingLookup(), ids);
         ctx.addColumn(MappedColumns.binaryColumn(sources, SourceFieldMapper.NAME, SourceFieldMapper.Defaults.FIELD_TYPE));
-        return new EngineBatch(operations, batch, ctx.columns());
+        return new EngineBatch(indexBatch, ctx.columns());
     }
 
     private static EscfBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
@@ -278,7 +288,6 @@ public class InternalEngineTests extends EngineTestCase {
             return EscfBatch.parse(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
         }
     }
-
 
     /**
      * When this value is non-null, {@link #relativeTimeInNanos()} reads from it instead of calling System#nanoTime().

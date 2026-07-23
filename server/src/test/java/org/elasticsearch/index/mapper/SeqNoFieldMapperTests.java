@@ -49,7 +49,11 @@ public class SeqNoFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("supportsColumnarParse must be true for _seq_no", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = BatchMappingContext.fromRequests(
+            requests,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings()
+        );
 
         mapper.postColumnarParse(context);
 

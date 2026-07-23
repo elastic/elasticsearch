@@ -20,6 +20,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -29,7 +30,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -173,7 +173,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
+    protected boolean assertPrimaryCanOptimizeAddDocument(final Engine.IndexOpView index) {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
             : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
@@ -181,13 +181,10 @@ public class FollowingEngine extends InternalEngine {
 
     @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
-        // CCR following engine has special versioning semantics that are not compatible with
-        // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
-        List<IndexResult> results = new ArrayList<>(engineBatch.operations().size());
-        for (Index op : engineBatch.operations()) {
-            results.add(index(op));
-        }
-        return results;
+        // CCR following engine has special versioning semantics; delegate to InternalEngine's batch
+        // path which uses planIndexingAsNonPrimary for replica/recovery origins.
+        // TODO: Verify that InternalEngine's planIndexingAsNonPrimary honours CCR versioning.
+        return super.indexBatch(engineBatch);
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {

@@ -88,7 +88,11 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("supportsColumnarParse must be true for _version", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = BatchMappingContext.fromRequests(
+            requests,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings()
+        );
 
         mapper.preColumnarParse(context);
 

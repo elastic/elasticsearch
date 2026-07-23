@@ -120,7 +120,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        final BatchMappingContext ctx = new BatchMappingContext(requests, mappingLookup, mapperService.getIndexSettings());
+        final BatchMappingContext ctx = BatchMappingContext.fromRequests(requests, mappingLookup, mapperService.getIndexSettings());
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.

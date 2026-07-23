@@ -32,7 +32,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly.
@@ -105,7 +104,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 Engine.Operation.Origin.PRIMARY
             );
             assertNotNull("columnar mapping should engage for documents with no field leaves", engineBatch);
-            assertThat(engineBatch.operations(), hasSize(numDocs));
+            assertThat(engineBatch.batch().docCount(), equalTo(numDocs));
             final MappedColumns mappedColumns = engineBatch.columns();
             assertNotNull(mappedColumns);
 

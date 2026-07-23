@@ -10,26 +10,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -165,7 +158,8 @@ public final class ShardBatchMapper {
         BytesRef[] uids
     ) throws IOException {
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        final BatchMappingContext context = new BatchMappingContext(docCount, indexSettings, uids);
+        final IndexOperationBatch metaBatch = IndexOperationBatch.metadataOnly(docCount, uids);
+        final BatchMappingContext context = new BatchMappingContext(metaBatch, indexSettings);
         for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.preColumnarParse(context);
         }
@@ -218,11 +212,16 @@ public final class ShardBatchMapper {
         }
 
         final int docCount = chunkEnd - chunkStart;
-        final IndexRequest[] requests = new IndexRequest[docCount];
-        for (int d = 0; d < docCount; d++) {
-            requests[d] = (IndexRequest) items[chunkStart + d].request();
-        }
-        final BatchMappingContext context = new BatchMappingContext(requests, mappingLookup, indexSettings);
+        final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
+            items,
+            chunkStart,
+            chunkEnd,
+            batch.slice(chunkStart, chunkEnd),
+            origin,
+            shard.getOperationPrimaryTerm(),
+            shard.getRelativeTimeInNanos()
+        );
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, indexSettings);
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
@@ -237,72 +236,6 @@ public final class ShardBatchMapper {
             return null;
         }
 
-        final List<Engine.Index> operations = new ArrayList<>(docCount);
-        // TODO: Remove the IndexRequest object on the columnar pass once the EngineBatch holds all the necessary data.
-        // Placeholder: the real _seq_no/_primary_term/_version values live in the columns the
-        // engine fills post-mapping (see BatchMappingContext#seqNoArray et al.); this LuceneDocument
-        // is otherwise empty this pass since no field mapper has added anything to it.
-        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
-            shard.indexSettings().seqNoIndexOptions()
-        );
-        // Uid-encoded ids were already computed once by the id mapper's preColumnarParse.
-        final BytesRef[] encodedIds = context.uids();
-        for (int d = 0; d < docCount; d++) {
-            final IndexRequest request = requests[d];
-            final XContentType xContentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
-            final ParsedDocument parsedDoc = new ParsedDocument(
-                VersionFieldMapper.versionField(),
-                seqID,
-                request.id(),
-                request.routing(),
-                List.of(new LuceneDocument()),
-                request.source(),
-                xContentType,
-                null,
-                XContentMeteringParserDecorator.UNKNOWN_SIZE
-            );
-
-            final long seqNo;
-            final long primaryTerm;
-            final long version;
-            final VersionType versionType;
-            final long ifSeqNo;
-            final long ifPrimaryTerm;
-            if (origin == Engine.Operation.Origin.REPLICA) {
-                final DocWriteResponse resp = items[chunkStart + d].getPrimaryResponse().getResponse();
-                seqNo = resp.getSeqNo();
-                primaryTerm = resp.getPrimaryTerm();
-                version = resp.getVersion();
-                versionType = null;
-                ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                ifPrimaryTerm = 0;
-            } else {
-                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                primaryTerm = shard.getOperationPrimaryTerm();
-                version = request.version();
-                versionType = request.versionType();
-                ifSeqNo = request.ifSeqNo();
-                ifPrimaryTerm = request.ifPrimaryTerm();
-            }
-
-            operations.add(
-                new Engine.Index(
-                    encodedIds[d],
-                    parsedDoc,
-                    seqNo,
-                    primaryTerm,
-                    version,
-                    versionType,
-                    origin,
-                    shard.getRelativeTimeInNanos(),
-                    request.getAutoGeneratedTimestamp(),
-                    request.isRetry(),
-                    ifSeqNo,
-                    ifPrimaryTerm
-                )
-            );
-        }
-
-        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context.columns());
+        return new EngineBatch(indexBatch, context.columns());
     }
 }

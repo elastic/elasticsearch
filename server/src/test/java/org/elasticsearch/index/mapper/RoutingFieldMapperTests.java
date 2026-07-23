@@ -333,7 +333,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         IndexRequest[] requests = new IndexRequest[] {
             new IndexRequest("index").id("1").routing("route-a"),
             new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = BatchMappingContext.fromRequests(
+            requests,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings()
+        );
 
         mapper.preColumnarParse(context);
 

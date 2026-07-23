@@ -1268,7 +1268,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         IndexRequest[] requests = new IndexRequest[] {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = BatchMappingContext.fromRequests(
+            requests,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings()
+        );
 
         mapper.preColumnarParse(context);
 

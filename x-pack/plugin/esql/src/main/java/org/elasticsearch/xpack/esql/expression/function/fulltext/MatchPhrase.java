@@ -86,14 +86,26 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        briefSummary = "Performs a match_phrase query on the specified field.",
+        briefSummary = "Performs a match_phrase query on the specified field or expression.",
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
-            specified field.
+            specified field or expression.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            `MATCH_PHRASE` can also search expressions that are not backed by an index, such as
+            computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+            On a `keyword` expression the whole query string must equal a value exactly, matching
+            the term query semantics of `match_phrase` on an indexed keyword field.
+            When searching expressions, <<esql-function-named-params,function named parameters>>
+            (match_phrase query options) are not supported.
+            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
@@ -109,12 +121,16 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     )
     public MatchPhrase(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "Field or expression that the query will target."
+        ) Expression field,
         @Param(
             name = "query",
             type = { "keyword" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
-            description = "Value to find in the provided field."
+            description = "Value to find in the provided field or expression."
         ) Expression matchPhraseQuery,
         @MapParam(
             name = "options",

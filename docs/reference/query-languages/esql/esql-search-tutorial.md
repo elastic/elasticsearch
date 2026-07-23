@@ -289,6 +289,18 @@ Because `summary` is not an indexed field, `MATCH` evaluates by scanning
 values row by row. This is useful for searching computed data, but may be
 slower than searching an indexed field on large datasets.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+`MATCH_PHRASE` can search computed values the same way, requiring the query
+terms to appear together in order:
+
+```esql
+FROM cooking_blog
+| EVAL summary = CONCAT(title, " by ", author)
+| WHERE MATCH_PHRASE(summary, "fluffy pancakes")
+| KEEP title, author
+| LIMIT 1000
+```
+
 ### Search for exact phrases
 
 When you need to find documents containing an exact sequence of words, use the `MATCH_PHRASE` function:

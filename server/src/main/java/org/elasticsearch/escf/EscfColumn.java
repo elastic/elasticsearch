@@ -51,13 +51,7 @@ abstract class EscfColumn implements SliceableColumn {
     /** The column kind (see {@link EscfColumnKind}). */
     abstract byte kind();
 
-    /**
-     * Builds the typed column view for {@code col}, dispatching on its kind. The fields are
-     * already in their native (zero-based, full-window) form. Array-backed factors are wrapped
-     * into Refs so slicing can adjust {@code offset}/{@code length} without copying.
-     * The {@code absent} bitset is normalized to {@code null} (no absent documents) or a
-     * {@link FixedBitSet} that covers {@code [0, docCount)}.
-     */
+    /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
         FixedBitSet validity = windowValidity(col.validity(), 0, docCount);

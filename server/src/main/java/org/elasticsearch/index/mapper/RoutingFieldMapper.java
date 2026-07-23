@@ -329,13 +329,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
-    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
-
-    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
-    // inverted index or stored value (matches SortedDocValuesField.indexedField).
-    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
-
     /**
      * Should we require {@code routing} on CRUD operations?
      */
@@ -404,6 +397,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             context.addToFieldNames(fieldType().name());
         }
     }
+
+    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
+    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
+
+    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
+    // inverted index or stored value (matches SortedDocValuesField.indexedField).
+    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {

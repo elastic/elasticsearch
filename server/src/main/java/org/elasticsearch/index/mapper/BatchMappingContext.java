@@ -11,12 +11,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +27,12 @@ import java.util.List;
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
  * {@link ShardBatchMapper}). Deliberately flat: unlike the row-major path's
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
- * here — a columnar mapper is invoked once for the whole batch, reads the per-document
- * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
+ * here — a columnar mapper is invoked once for the whole batch, reads the per-document values it
+ * needs from the typed accessor arrays (e.g. {@link #uids()}, {@link #sources()}), and attaches one
  * {@link LuceneColumn} spanning every document via {@link #addColumn}.
  */
 public final class BatchMappingContext {
 
-    // TODO: Need to remove dependency on the IndexRequest object. We currently need it for source and tsid.
-    private final IndexRequest[] requests;
     private final int docCount;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
@@ -46,20 +46,70 @@ public final class BatchMappingContext {
     private byte[] primaryTerm;
     /** {@code _version}: docCount * 8 bytes, little-endian longs; lazily allocated. */
     private byte[] version;
-    private BytesRef[] uids;
-    private BytesRef[] routings;
+    private final BytesRef[] uids;
+    private final BytesRef[] routings;
+    private final XContentType[] contentTypes;
+    private final BytesReference[] sources;
 
-    private boolean routingsInitialized;
+    private final boolean hasNullUid;
+
     private boolean frozen;
     /** Per-document {@code _field_names} entries; lazily allocated on first write via {@link #fieldNames()}. */
     private BytesRef[] fieldNames;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
-        this.requests = requests;
         this.docCount = requests.length;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
+        this.uids = new BytesRef[docCount];
+        boolean nullUid = false;
+        for (int d = 0; d < docCount; d++) {
+            final String id = requests[d].id();
+            if (id == null) {
+                nullUid = true;
+            } else {
+                this.uids[d] = Uid.encodeId(id);
+            }
+        }
+        this.hasNullUid = nullUid;
+        BytesRef[] routingsArr = null;
+        for (int d = 0; d < docCount; d++) {
+            final String routing = requests[d].routing();
+            if (routing != null) {
+                if (routingsArr == null) {
+                    routingsArr = new BytesRef[docCount];
+                }
+                routingsArr[d] = new BytesRef(routing);
+            }
+        }
+        this.routings = routingsArr;
+        this.contentTypes = new XContentType[docCount];
+        this.sources = new BytesReference[docCount];
+        for (int d = 0; d < docCount; d++) {
+            final XContentType ct = requests[d].getContentType();
+            this.contentTypes[d] = ct != null ? ct : XContentType.JSON;
+            this.sources[d] = requests[d].source();
+        }
+    }
+
+    /**
+     * Metadata-only constructor used by {@link ShardBatchMapper#buildMetadataContext}. The
+     * resulting context has no source data and no mapping lookup; callers must only invoke methods
+     * that do not access those (i.e. the metadata mapper columnar-parse hooks). The {@code uids}
+     * array is pre-populated so that {@link ProvidedIdFieldMapper} can attach its {@code _id}
+     * column.
+     */
+    BatchMappingContext(int docCount, IndexSettings indexSettings, BytesRef[] uids) {
+        this.docCount = docCount;
+        this.mappingLookup = null;
+        this.indexSettings = indexSettings;
+        this.fieldNamesFieldMapper = null;
+        this.uids = uids;
+        this.routings = null;
+        this.hasNullUid = false;
+        this.contentTypes = null;
+        this.sources = null;
     }
 
     public MappingLookup mappingLookup() {
@@ -68,11 +118,6 @@ public final class BatchMappingContext {
 
     public IndexSettings indexSettings() {
         return indexSettings;
-    }
-
-    /** The chunk-local index request for document {@code doc}. */
-    public IndexRequest request(int doc) {
-        return requests[doc];
     }
 
     /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
@@ -134,40 +179,37 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Lazily computes and returns the routing array, or {@code null} if no document in the chunk
-     * has an explicit routing (the common case). When non-null, individual entries may still be
-     * {@code null} for documents without routing.
+     * Returns the routing array, or {@code null} if no document in the chunk has an explicit
+     * routing (the common case). When non-null, individual entries may still be {@code null} for
+     * documents without routing.
      */
     public BytesRef[] routings() {
-        if (routingsInitialized == false) {
-            for (int d = 0; d < docCount; d++) {
-                final String routing = requests[d].routing();
-                if (routing != null) {
-                    if (routings == null) {
-                        routings = new BytesRef[docCount];
-                    }
-                    routings[d] = new BytesRef(routing);
-                }
-            }
-            routingsInitialized = true;
-        }
         return routings;
     }
 
+    /** Returns the per-document content-type array; entries default to {@link XContentType#JSON} when the request had none. */
+    public XContentType[] contentTypes() {
+        return contentTypes;
+    }
+
     /**
-     * Lazily computes and returns the {@code _id} (Uid-encoded) array.
+     * Returns the per-document source array. Individual entries may be {@code null} for documents
+     * that carry no source.
+     */
+    public BytesReference[] sources() {
+        return sources;
+    }
+
+    /**
+     * Returns the {@code _id} (Uid-encoded) array.
+     *
+     * @throws IllegalStateException if any document in the batch has a null {@code _id} (synthetic
+     *     id is not yet supported in the columnar path)
      */
     public BytesRef[] uids() {
-        if (uids == null) {
-            uids = new BytesRef[docCount];
-            for (int d = 0; d < docCount; d++) {
-                final String id = requests[d].id();
-                if (id == null) {
-                    // TODO: We do not support synthetic id yet. This will change once we do.
-                    throw new IllegalStateException("_id should have been set on the coordinating node");
-                }
-                uids[d] = Uid.encodeId(id);
-            }
+        if (hasNullUid) {
+            // TODO: We do not support synthetic id yet. This will change once we do.
+            throw new IllegalStateException("_id should have been set on the coordinating node");
         }
         return uids;
     }

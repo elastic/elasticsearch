@@ -27,6 +27,7 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -142,6 +143,36 @@ public final class ShardBatchMapper {
         }
         final ObjectMapper.Dynamic rootDynamic = lookup.getMapping().getRoot().dynamic();
         return rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+    }
+
+    /**
+     * Creates a {@link BatchMappingContext} pre-populated with the columns that the sorted
+     * metadata mappers produce via their {@code preColumnarParse} and {@code postColumnarParse}
+     * hooks. Field-mapper columns are NOT registered — those require the full ESCF schema and are
+     * a work in progress.
+     *
+     * <p>The returned context is not yet frozen: callers may attach additional columns via
+     * {@link BatchMappingContext#addColumn} before finalising with
+     * {@link BatchMappingContext#columns()}.
+     *
+     * <p>Intended for use in tests that exercise the engine batch path before full field-mapper
+     * columnar support is available.
+     */
+    public static BatchMappingContext buildMetadataContext(
+        int docCount,
+        IndexSettings indexSettings,
+        MappingLookup mappingLookup,
+        BytesRef[] uids
+    ) throws IOException {
+        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
+        final BatchMappingContext context = new BatchMappingContext(docCount, indexSettings, uids);
+        for (MetadataFieldMapper mapper : metadataMappers) {
+            mapper.preColumnarParse(context);
+        }
+        for (MetadataFieldMapper mapper : metadataMappers) {
+            mapper.postColumnarParse(context);
+        }
+        return context;
     }
 
     /**

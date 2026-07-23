@@ -44,5 +44,4 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     EscfColumnData toColumnData() {
         return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
     }
-
 }

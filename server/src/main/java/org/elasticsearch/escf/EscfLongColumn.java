@@ -189,5 +189,4 @@ final class EscfLongColumn extends AbstractFixed64Column {
             }
         }
     }
-
 }

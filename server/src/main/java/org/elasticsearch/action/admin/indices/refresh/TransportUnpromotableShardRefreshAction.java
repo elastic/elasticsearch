@@ -100,9 +100,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     @Override
     protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
         beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> {
-            if (logger.isTraceEnabled()) {
-                logger.trace("dispatching refresh request for unpromotable shard {}", request.shardId());
-            }
+            logger.info("dispatching refresh request for unpromotable shard {}", request.shardId());
             super.doExecute(task, request, l);
         }));
     }
@@ -123,9 +121,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             return;
         }
 
+        logger.info("shard [{}] unpromotable refresh blocked by INDEX_REFRESH_BLOCK, waiting", request.shardId());
+
         clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
+                logger.info("INDEX_REFRESH_BLOCK removed for shard [{}], dispatching unpromotable refresh", request.shardId());
                 listener.onResponse(null);
             }
 
@@ -179,14 +180,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
         ActionListener.run(responseListener, listener -> {
             shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "refreshed unpromotable shard {} for requested primary term {} and segment generation {}",
-                        request.shardId(),
-                        primaryTerm,
-                        segmentGeneration
-                    );
-                }
+                logger.info(
+                    "refreshed unpromotable shard {} for requested primary term {} and segment generation {}",
+                    request.shardId(),
+                    primaryTerm,
+                    segmentGeneration
+                );
                 return ActionResponse.Empty.INSTANCE;
             }));
         });

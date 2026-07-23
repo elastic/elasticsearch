@@ -81,7 +81,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         if (logger.isTraceEnabled()) {
             logger.trace("received new commit notification request [{}]", request);
         } else {
-            logger.debug(
+            logger.info(
                 "received new commit notification request for shard [{}], term [{}], generation [{}]",
                 request.shardId(),
                 request.getTerm(),

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -29,6 +31,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.Executor;
 
 public class PostWriteRefresh {
+
+    private static final Logger logger = LogManager.getLogger(PostWriteRefresh.class);
 
     public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
@@ -114,7 +118,14 @@ public class PostWriteRefresh {
             return;
         }
 
+        logger.debug("shard [{}] WAIT_UNTIL: waiting for flush before dispatching unpromotable refresh", indexShard.shardId());
+
         engineOrNull.addFlushListener(location, listener.delegateFailureAndWrap((l, generation) -> {
+            logger.debug(
+                "shard [{}] WAIT_UNTIL: flush reached generation [{}], sending unpromotable refresh",
+                indexShard.shardId(),
+                generation
+            );
             try (
                 ThreadContext.StoredContext ignore = transportService.getThreadPool()
                     .getThreadContext()

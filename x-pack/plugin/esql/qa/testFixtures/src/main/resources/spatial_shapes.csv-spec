@@ -17,6 +17,18 @@ wkt:keyword                                     | geom:geo_shape
 // end::to_geoshape-str-result[]
 ;
 
+convertGeoShapeFromKeywordField
+required_capability: spatial_shapes
+
+FROM conv_from_keyword
+| EVAL geom = TO_GEOSHAPE(geo_shape_wkt)
+| KEEP geo_shape_wkt, geom
+;
+
+geo_shape_wkt:keyword                       | geom:geo_shape
+POLYGON((10 10, 20 10, 20 20, 10 20, 10 10)) | POLYGON((10.0 10.0, 20.0 10.0, 20.0 20.0, 10.0 20.0, 10.0 10.0))
+;
+
 convertFromStringArray
 required_capability: spatial_shapes
 

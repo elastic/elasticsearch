@@ -77,7 +77,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        if (enabled == false) {
+        if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set";
             List<RestHandler> handlers = new ArrayList<>(3);
             handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));

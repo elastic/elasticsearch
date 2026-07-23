@@ -11,7 +11,6 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporter;
 import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporterBuilder;
-import io.opentelemetry.instrumentation.log4j.appender.v2_17.OpenTelemetryAppender;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
@@ -47,16 +46,17 @@ import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/gRPC, then installs
- * it into the log4j {@link OpenTelemetryAppender} and programmatically attaches that appender
+ * it into the log4j appender ({@link ElasticsearchOtelAppender}) and programmatically attaches that appender
  * to the {@code LoggingAuditTrail} logger so audit events flow out via OTLP. Currently used
  * solely for audit log delivery; the attachment point is not fundamental to this class and
  * could be extended to other loggers.
  *
  * <p>The appender is attached programmatically rather than via {@code log4j2.properties} because
  * log4j2 config files are parsed at JVM startup, before plugin/module classloaders are available;
- * the {@code OpenTelemetryAppender} plugin class is not on the boot classloader, so log4j cannot
+ * the {@code ElasticsearchOtelAppender} plugin class is not on the boot classloader, so log4j cannot
  * resolve it from a config file. Doing it programmatically here means the appender is created
  * after this module's classloader is in scope, sidestepping the discovery issue.
+ * FIXME: verify the above is still true?
  *
  * <p>gRPC (not HTTP) is required by the otel-delivery-gateway: HTTP clients reuse long-lived
  * connections, leading to uneven load distribution behind Kubernetes services.
@@ -74,7 +74,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private final Settings settings;
     private final Path configDir;
     private volatile SdkLoggerProvider loggerProvider;
-    private final List<OpenTelemetryAppender> attachedAppenders = new ArrayList<>();
+    private final List<ElasticsearchOtelAppender> attachedAppenders = new ArrayList<>();
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
 
     public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
@@ -83,8 +83,9 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     /**
-     * Build the {@link SdkLoggerProvider}, install it into {@link OpenTelemetryAppender}, and
-     * attach a freshly-built appender to the audit logger. No-op if the feature is disabled.
+     * Build the {@link SdkLoggerProvider}, for loggers that are enabled:
+     * - install it into {@link ElasticsearchOtelAppender}, and
+     * - attach a freshly-built appender to the logger.
      */
     public synchronized void install() {
         if (loggerProvider != null) {
@@ -111,11 +112,10 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private void installQuerylogAppender(Configuration config) {
         LoggerConfig querylogConfig = config.getLoggerConfig(QueryLogging.QUERY_LOGGER_NAME);
 
-        OpenTelemetryAppender querylogAppender = OpenTelemetryAppender.builder()
-            .setName(OTEL_QUERYLOG_APPENDER_NAME)
-            .setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build())
-            .setCaptureMapMessageAttributes(true)
-            .build();
+        ElasticsearchOtelAppender querylogAppender = new ElasticsearchOtelAppender(
+            OTEL_QUERYLOG_APPENDER_NAME,
+            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build()
+        );
         querylogAppender.start();
         config.addAppender(querylogAppender);
         querylogConfig.addAppender(querylogAppender, null, null);
@@ -123,7 +123,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         closeCallbacks.add(c -> closeQuerylogAppender(c, querylogAppender));
     }
 
-    private static void closeQuerylogAppender(Configuration config, OpenTelemetryAppender appender) {
+    private static void closeQuerylogAppender(Configuration config, ElasticsearchOtelAppender appender) {
         try {
             LoggerConfig querylogConfig = config.getLoggerConfig(QueryLogging.QUERY_LOGGER_NAME);
             if (QueryLogging.QUERY_LOGGER_NAME.equals(querylogConfig.getName())) {
@@ -144,16 +144,12 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             return;
         }
 
-        // Set the OpenTelemetry instance directly on the builder rather than via the static
-        // OpenTelemetryAppender.install(...) — install() iterates registered appenders, which is
-        // brittle when we're constructing one programmatically. setCaptureMapMessageAttributes
-        // makes the StringMapMessage entries that LoggingAuditTrail emits surface as OTLP
+        // setCaptureMapMessageAttributes makes the StringMapMessage entries that LoggingAuditTrail emits surface as OTLP
         // attributes (otherwise only the formatted body is captured).
-        OpenTelemetryAppender appender = OpenTelemetryAppender.builder()
-            .setName(OTEL_AUDIT_APPENDER_NAME)
-            .setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build())
-            .setCaptureMapMessageAttributes(true)
-            .build();
+        ElasticsearchOtelAppender appender = new ElasticsearchOtelAppender(
+            OTEL_AUDIT_APPENDER_NAME,
+            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build()
+        );
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
@@ -161,7 +157,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         closeCallbacks.add(c -> closeAuditAppender(c, appender));
     }
 
-    private static void closeAuditAppender(Configuration config, OpenTelemetryAppender appender) {
+    private static void closeAuditAppender(Configuration config, ElasticsearchOtelAppender appender) {
         try {
             LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
             if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {
@@ -264,7 +260,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
      * Rebuild the OTel logs export with fresh TLS material and swap it into the running appender
      * atomically to avoid dropped records.
      *
-     * <p>{@link OpenTelemetryAppender#setOpenTelemetry} is a volatile write guarded by a
+     * <p>{@link ElasticsearchOtelAppender#setOpenTelemetry} is a volatile write guarded by a
      * {@code ReadWriteLock} inside the appender, so new audit events switch to the new channel
      * without a gap. The old {@link SdkLoggerProvider} is closed after the swap: its
      * {@code BatchLogRecordProcessor} flushes any buffered records through the still-valid old

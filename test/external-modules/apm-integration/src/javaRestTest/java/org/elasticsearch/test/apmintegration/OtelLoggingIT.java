@@ -11,7 +11,9 @@ package org.elasticsearch.test.apmintegration;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import io.opentelemetry.proto.common.v1.ArrayValue;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,10 +25,14 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.util.HexFormat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Verifies that audit events emitted by {@code LoggingAuditTrail} flow out via the OTel SDK as
@@ -37,9 +43,9 @@ import java.util.function.Consumer;
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
 @ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
-public class OtelAuditLogsIT extends AbstractTelemetryIT {
+public class OtelLoggingIT extends AbstractTelemetryIT {
 
-    private static final Logger logger = LogManager.getLogger(OtelAuditLogsIT.class);
+    private static final Logger logger = LogManager.getLogger(OtelLoggingIT.class);
 
     private static final String API_USER = "api_user";
 
@@ -118,14 +124,15 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         ReceivedTelemetry.ReceivedLog log = firstAuditLog.get();
         assertNotNull(log);
         assertNotNull(log.attributes());
-        // PR 1 intentionally asserts on the log4j.map_message. prefix: the OpenTelemetryAppender
-        // captures StringMapMessage entries as prefixed attributes when
-        // setCaptureMapMessageAttributes(true) is set. Stripping the prefix is tracked in #4183.
-        assertNotNull("audit log should carry event.action", log.attributes().get("log4j.map_message.event.action"));
-        assertNotNull("audit log should carry event.type", log.attributes().get("log4j.map_message.event.type"));
+        assertNotNull("audit log should carry event.action", log.attributes().get("event.action"));
+        assertNotNull("audit log should carry event.type", log.attributes().get("event.type"));
         // R6: cluster and node identity fields must not be present on records that ship via OTLP.
         // The four EMIT_*_SETTING gates are off (see cluster setup above), which suppresses the
         // fields at the StringMapMessage source so the OpenTelemetryAppender doesn't capture them.
+        assertNull("cluster.name must not be on OTel records", log.attributes().get("cluster.name"));
+        assertNull("cluster.uuid must not be on OTel records", log.attributes().get("cluster.uuid"));
+        assertNull("node.name must not be on OTel records", log.attributes().get("node.name"));
+        assertNull("node.id must not be on OTel records", log.attributes().get("node.id"));
         assertNull("cluster.name must not be on OTel records", log.attributes().get("log4j.map_message.cluster.name"));
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
@@ -147,7 +154,12 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
             }
         };
         recordingApmServer.addMessageConsumer(consumer);
-        client().performRequest(new Request("GET", "/test_index/_search"));
+        var search = new Request("GET", "/test_index/_search");
+        var randomId = HexFormat.of().formatHex(randomByteArrayOfLength(16));
+        var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
+        search.setOptions(options);
+        client().performRequest(search);
         // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
@@ -156,5 +168,8 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         ReceivedTelemetry.ReceivedLog log = queryLogMessage.get();
         assertNotNull(log);
         assertNotNull(log.attributes());
+        assertThat(log.traceId().get(), equalTo(randomId));
+        var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
+        assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
     }
 }

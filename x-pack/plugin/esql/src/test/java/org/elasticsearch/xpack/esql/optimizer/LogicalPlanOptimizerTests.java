@@ -4583,6 +4583,108 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * mv_like/mv_rlike validate their pattern in postOptimizationVerification (after constant folding), so a pattern
+     * that folds to a constant is accepted — here CONCAT of two literals — even though it is not a literal at analysis.
+     */
+    public void testMvLikePatternFoldsToConstant() {
+        assertNotNull(plan("from test | where mv_like(first_name, concat(\"Ann\", \"*\"))"));
+        assertNotNull(plan("from test | where mv_rlike(first_name, concat(\"Ann\", \".*\"))"));
+        // A constant-propagated EVAL variable is likewise accepted.
+        assertNotNull(plan("from test | eval p = \"Ann*\" | where mv_like(first_name, p)"));
+    }
+
+    public void testMvLikePatternMustBeConstant() {
+        for (String fn : List.of("mv_like", "mv_rlike")) {
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> plan("from test | where " + fn + "(first_name, last_name)")
+            );
+            assertThat(e.getMessage(), containsString("second argument of [" + fn + "(first_name, last_name)] must be a constant"));
+        }
+    }
+
+    public void testMvLikePatternMustNotBeNull() {
+        // A null literal pattern passes analysis (null is type-compatible), but folds to null and is rejected here.
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("from test | where mv_like(first_name, null)"));
+        assertThat(e.getMessage(), containsString("must not be null"));
+        // So does a pattern that only folds to null after optimization.
+        VerificationException c = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, concat(\"a\", null))")
+        );
+        assertThat(c.getMessage(), containsString("must not be null"));
+    }
+
+    public void testMvLikePatternMustBeSingleValued() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, [\"\", \"\"])")
+        );
+        assertThat(e.getMessage(), containsString("must be a single pattern string"));
+        VerificationException r = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_rlike(first_name, [\"\", \"\"])")
+        );
+        assertThat(r.getMessage(), containsString("must be a single pattern string"));
+    }
+
+    public void testMvLikePatternMustBeWellFormed() {
+        VerificationException wildcard = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, \"foo\\\\\")")
+        );
+        assertThat(wildcard.getMessage(), containsString("invalid pattern"));
+        VerificationException regex = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_rlike(first_name, \"(\")")
+        );
+        assertThat(regex.getMessage(), containsString("invalid pattern"));
+        // An over-complex wildcard (determinize work-limit) also fails as an invalid pattern.
+        VerificationException complex = expectThrows(
+            VerificationException.class,
+            () -> plan("from test | where mv_like(first_name, \"" + "*ab".repeat(200) + "\")")
+        );
+        assertThat(complex.getMessage(), containsString("invalid pattern"));
+    }
+
+    /**
+     * A constant field folds the whole predicate (through the evaluator) before the LogicalVerifier runs, so the
+     * pattern checks must guard that fold path too — otherwise a null pattern NPEs and a multivalue pattern silently
+     * folds to false. The field itself may also be a constant null, which folds to constant false <em>before</em> the
+     * pattern is looked at; the pattern must still be validated there, so an author-error pattern fails loudly no matter
+     * what the field is. Each bad pattern must fail — null/multivalue with a shape error, malformed with the verifier's
+     * framed message — and a valid one still folds normally.
+     */
+    public void testMvLikeConstantFieldStillValidatesPattern() {
+        // Null and multivalue patterns: shape errors, over both a constant string field and a constant null field.
+        for (String q : List.of(
+            "row x = mv_like(\"abc\", null)",
+            "row x = mv_like(\"abc\", [\"a*\", \"b*\"])",
+            "row x = mv_rlike(\"abc\", null)",
+            "row x = mv_rlike(\"abc\", [\"a.*\", \"b.*\"])",
+            "row x = mv_like(null, null)",
+            "row x = mv_like(null, [\"a*\", \"b*\"])",
+            "row x = mv_rlike(null, null)",
+            "row x = mv_rlike(null, [\"a.*\", \"b.*\"])"
+        )) {
+            Exception e = expectThrows(Exception.class, () -> plan(q));
+            assertThat(
+                "expected [" + q + "] to fail with a pattern error",
+                e.getMessage(),
+                anyOf(containsString("must not be null"), containsString("must be a single pattern string"))
+            );
+        }
+        // Malformed patterns: the verifier's framed message, on the fold path and with a null field too.
+        for (String q : List.of("row x = mv_rlike(\"abc\", \"(\")", "row x = mv_rlike(null, \"(\")")) {
+            Exception e = expectThrows(Exception.class, () -> plan(q));
+            assertThat("expected [" + q + "] to fail with a framed pattern error", e.getMessage(), containsString("invalid pattern"));
+        }
+        // A valid constant pattern folds normally (to false here) with no error, over a string field and a null field.
+        assertNotNull(plan("row x = mv_like(\"abc\", \"a*\")"));
+        assertNotNull(plan("row x = mv_like(null, \"a*\")"));
+    }
+
+    /**
      * {@snippet lang="text":
      * Project[[bucket(salary, 1000.) + 1{r}#3, bucket(salary, 1000.){r}#5]]
      *  \_Eval[[bucket(salary, 1000.){r}#5 + 1[INTEGER] AS bucket(salary, 1000.) + 1]]

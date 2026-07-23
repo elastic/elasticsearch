@@ -96,8 +96,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-            `MATCH_PHRASE` can also search expressions that are not backed by an index, such as
-            computed columns produced by `EVAL`, `STATS`, or other commands.
+            `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,
+            such as computed columns produced by `EVAL`, `STATS`, or other commands.
             When the target is not an indexed field, the search evaluates by scanning
             values row by row, which may be slower on large datasets.
             On a `keyword` expression the whole query string must equal a value exactly, matching

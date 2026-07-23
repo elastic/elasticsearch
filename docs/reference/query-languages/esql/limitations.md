@@ -174,7 +174,7 @@ When searching expressions:
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
-supports targeting expressions in the same way, with the same limitations.
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
 For example, this query is valid:
 

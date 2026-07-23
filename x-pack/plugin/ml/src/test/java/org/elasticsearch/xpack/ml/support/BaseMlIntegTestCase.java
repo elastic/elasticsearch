@@ -355,6 +355,11 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static DatafeedState getDatafeedState(String datafeedId) {
+        GetDatafeedsStatsAction.Response.DatafeedStats stats = getDatafeedStats(datafeedId);
+        return stats == null ? null : stats.getDatafeedState();
+    }
+
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
         final QueryPage<DatafeedConfig> datafeeds = client.execute(
             GetDatafeedsAction.INSTANCE,

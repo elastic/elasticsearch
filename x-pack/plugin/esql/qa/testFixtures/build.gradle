@@ -1,4 +1,10 @@
 apply plugin: 'elasticsearch.java'
+
+processResources {
+    from(rootProject.file('docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions')) {
+        into('esql-functions')
+    }
+}
 apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 apply plugin: 'elasticsearch.esql-release'
 

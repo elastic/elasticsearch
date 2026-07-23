@@ -140,12 +140,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         }
     }
 
-    // TODO: rename "recovery_type" to "es_recovery_type" to match ES OTel attribute naming convention
     private static Map<String, Object> recoveryTimeMetricLabels(IndexShard indexShard) {
         return Map.of(
-            "primary",
+            "es_is_primary",
             indexShard.routingEntry().primary(),
-            "recovery_type",
+            "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }

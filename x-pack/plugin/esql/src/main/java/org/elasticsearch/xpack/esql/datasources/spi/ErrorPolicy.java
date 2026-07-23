@@ -40,11 +40,9 @@ import java.util.Set;
  * </table>
  *
  * <h2>Usage</h2>
- * {@snippet lang="esql" :
- *   FROM s3://bucket/data.csv WITH {"max_errors": 100}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "skip_row", "max_error_ratio": 0.1}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
- * }
+ * A dataset configures its error policy via the {@code error_mode}, {@code max_errors}, and
+ * {@code max_error_ratio} settings, resolved from the settings described above and applied to
+ * every query that reads the dataset through {@code FROM <dataset>}.
  *
  * <h2>Client-visible warnings</h2>
  * Whenever the non-strict modes ({@link Mode#SKIP_ROW} and {@link Mode#NULL_FIELD}) cause a row to be

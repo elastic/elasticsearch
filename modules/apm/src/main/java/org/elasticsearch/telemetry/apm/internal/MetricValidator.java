@@ -131,8 +131,6 @@ public class MetricValidator {
 
         static final Set<String> REINDEX_ATTRIBUTES = Set.of("reindex_source");
 
-        static final Set<String> RECOVERY_ATTRIBUTES = Set.of("primary", "recovery_type");
-
         static final Set<String> ESQL_ATTRIBUTES = Set.of("feature_name", "success");
 
         static final Set<String> DOWNSAMPLE_ATTRIBUTES = Set.of("status");
@@ -213,14 +211,6 @@ public class MetricValidator {
             Map.entry("es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.projects.linked.connections.error.total", LINKED_PROJECT_ATTRIBUTES),
-            Map.entry("es.recovery.shard.count.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.index.time", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.indexing_node.bytes_read.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.indexing_node.bytes_warmed.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.object_store.bytes_read.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.object_store.bytes_warmed.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.total.time", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.translog.time", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.translog.files.size", TRANSLOG_ATTRIBUTES),
             Map.entry("es.recovery.translog.files.total", TRANSLOG_ATTRIBUTES),
             Map.entry("es.recovery.translog.operations.total", TRANSLOG_ATTRIBUTES),

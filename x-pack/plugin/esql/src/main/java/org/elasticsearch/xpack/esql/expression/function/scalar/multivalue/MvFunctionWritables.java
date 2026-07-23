@@ -22,6 +22,7 @@ public class MvFunctionWritables {
             MvDifference.ENTRY,
             MvDedupe.ENTRY,
             MvFirst.ENTRY,
+            MvInRange.ENTRY,
             MvIntersection.ENTRY,
             MvLast.ENTRY,
             MvMax.ENTRY,

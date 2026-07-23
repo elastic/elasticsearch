@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -220,11 +222,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         switch (elementType()) {
             case FLOAT -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnFloatVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Floats.class),
+                    instanceOf(FilteredDenseVectorQuery.class),
+                    instanceOf(BooleanQuery.class)
+                )
             );
             case BYTE -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnByteVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Bytes.class),
+                    instanceOf(FilteredDenseVectorQuery.class),
+                    instanceOf(BooleanQuery.class)
+                )
             );
         }
 
@@ -268,8 +280,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         };
 
         Query bruteForceVectorQueryBuilt = switch (elementType()) {
-            case BIT, BYTE -> new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD, filterQuery);
-            case FLOAT, BFLOAT16 -> new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD, filterQuery);
+            case BIT, BYTE -> DenseVectorQuery.Bytes.codecScored(resolvedVector.asByteVector(), VECTOR_FIELD).filteredBy(filterQuery);
+            case FLOAT, BFLOAT16 -> DenseVectorQuery.Floats.codecScored(resolvedVector.asFloatVector(), VECTOR_FIELD)
+                .filteredBy(filterQuery);
         };
 
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
@@ -661,6 +674,52 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
             return boolQuery;
         });
+    }
+
+    public void testMatchAllFilterIsDropped() throws IOException {
+        float[] vector = new float[vectorDimensions];
+        Arrays.fill(vector, 1.0f);
+        int k = 3;
+        int numCands = 10;
+        RescoreVectorBuilder rescoreVectorBuilder = isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : null;
+        SearchExecutionContext context = createSearchExecutionContext();
+
+        KnnVectorQueryBuilder withNoFilter = new KnnVectorQueryBuilder(VECTOR_FIELD, vector, k, numCands, null, rescoreVectorBuilder, null);
+
+        // A sole MatchAllQueryBuilder is equivalent to no filter
+        KnnVectorQueryBuilder withMatchAll = new KnnVectorQueryBuilder(VECTOR_FIELD, vector, k, numCands, null, rescoreVectorBuilder, null);
+        withMatchAll.addFilterQuery(new MatchAllQueryBuilder());
+        assertThat(withMatchAll.doToQuery(context), equalTo(withNoFilter.doToQuery(context)));
+
+        // Multiple MatchAllQueryBuilders are all dropped
+        KnnVectorQueryBuilder withMultipleMatchAlls = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            vector,
+            k,
+            numCands,
+            null,
+            rescoreVectorBuilder,
+            null
+        );
+        withMultipleMatchAlls.addFilterQuery(new MatchAllQueryBuilder());
+        withMultipleMatchAlls.addFilterQuery(new MatchAllQueryBuilder());
+        assertThat(withMultipleMatchAlls.doToQuery(context), equalTo(withNoFilter.doToQuery(context)));
+
+        // MatchAllQueryBuilder mixed with a selective filter preserves the selective filter
+        KnnVectorQueryBuilder withMatchAllAndTerm = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            vector,
+            k,
+            numCands,
+            null,
+            rescoreVectorBuilder,
+            null
+        );
+        withMatchAllAndTerm.addFilterQuery(new MatchAllQueryBuilder());
+        withMatchAllAndTerm.addFilterQuery(QueryBuilders.termQuery(KEYWORD_FIELD_NAME, "test"));
+        KnnVectorQueryBuilder withTermOnly = new KnnVectorQueryBuilder(VECTOR_FIELD, vector, k, numCands, null, rescoreVectorBuilder, null);
+        withTermOnly.addFilterQuery(QueryBuilders.termQuery(KEYWORD_FIELD_NAME, "test"));
+        assertThat(withMatchAllAndTerm.doToQuery(context), equalTo(withTermOnly.doToQuery(context)));
     }
 
     protected String encodeToBase64(float[] vector) {

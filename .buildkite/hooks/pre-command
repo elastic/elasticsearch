@@ -86,13 +86,13 @@ export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
-# ── pi-agent ──────────────────────────────────────────────────────────────────
-# Bootstraps the self-contained pi-agent CLI (https://github.com/elastic/rene-bk-experiments)
-# so the elasticsearch-agentic-workflow pipeline can run pi sessions on this agent.
+# ── archimedes ────────────────────────────────────────────────────────────────
+# Bootstraps the self-contained archimedes CLI (https://github.com/elastic/rene-bk-experiments)
+# so the elasticsearch-agentic-workflow pipeline can run agent sessions on this agent.
 #
-# Completely inert unless USE_PI_AGENT=true is set on the step. The required
+# Completely inert unless USE_ARCHIMEDES=true is set on the step. The required
 # secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
-if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   # LiteLLM API key — the bundled models.json resolves it automatically.
   ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
   export ELASTIC_LITELLM_API_KEY
@@ -108,51 +108,50 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
   export DEVELOCITY_API_KEY
 
+  # ES delivery stats for resolving test history AND publishing results
+  ES_DELIVERY_STATS_URL=$(vault_with_retry read -field=es_delivery_stats_url secret/ci/elastic-elasticsearch/agentic-workflows)
+  export ES_DELIVERY_STATS_URL
+
+  ES_DELIVERY_STATS_API_KEY=$(vault_with_retry read -field=es_delivery_stats_api_key secret/ci/elastic-elasticsearch/agentic-workflows)
+  export ES_DELIVERY_STATS_API_KEY
   export PATH="${HOME}/.local/bin:${PATH}"
 
-  # Bootstrap pi-agent if not already cached on this agent.
-  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.2}"
-  PI_AGENT_DIR="${HOME}/.local/pi-agent"
+  # gh_admin_token is SAML-authorized for the elastic org. gh reads GH_TOKEN, so
+  # export it before bootstrapping: the installer uses gh to fetch the release,
+  # and archimedes uses gh at runtime for issue comment/edit.
+  GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export GH_TOKEN="${GH_ADMIN_TOKEN}"
+  unset GH_ADMIN_TOKEN
 
-  if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
-    echo "--- Bootstrapping pi-agent (${PI_AGENT_TAG})"
-
-    # The release repo is private — use the org-level gh_token from Vault.
-    GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
-
-    # Resolve the pinned release's .tgz asset API URL.
-    PI_TARBALL_URL=$(curl -fsSL \
-      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
-      "https://api.github.com/repos/elastic/rene-bk-experiments/releases/tags/${PI_AGENT_TAG}" \
-      | node -e "
-          const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-          const a = r.assets.find(a => a.name.endsWith('.tgz') && !a.name.includes('sha256'));
-          if (!a) { process.stderr.write('No .tgz asset found in release\n'); process.exit(1); }
-          process.stdout.write(a.url);
-        ")
-
-    TMPDIR_DL="$(mktemp -d)"
-    curl -fsSL \
-      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
-      -H "Accept: application/octet-stream" \
-      "${PI_TARBALL_URL}" \
-      -o "${TMPDIR_DL}/pi-agent.tgz"
-
-    rm -rf "${PI_AGENT_DIR}"
-    mkdir -p "${PI_AGENT_DIR}"
-    tar -xzf "${TMPDIR_DL}/pi-agent.tgz" -C "${PI_AGENT_DIR}" --strip-components=1
-
-    # Install the bundled pi SDK dependency.
-    npm install --prefix "${PI_AGENT_DIR}" --omit=dev --no-audit --no-fund --silent
-
-    mkdir -p "${HOME}/.local/bin"
-    ln -sf "${PI_AGENT_DIR}/bin/pi-agent.js" "${HOME}/.local/bin/pi-agent"
-    chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
-    rm -rf "${TMPDIR_DL}"
-    unset GH_ADMIN_TOKEN
+  # Bootstrap archimedes, upgrading if the installed version is behind the
+  # latest release. bootstrap.sh is fetched from the same release tag so the
+  # installer and the binary are always in sync.
+  ARCHIMEDES_REPO="${ARCHIMEDES_REPO:-elastic/elasticsearch-infra}"
+  _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
+  if [ -z "${_archimedes_latest_tag:-}" ] || [ "${_archimedes_latest_tag}" = "null" ]; then
+    _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases" \
+      --jq '[.[] | select(.tag_name | startswith("archimedes-"))] | sort_by(.created_at) | last | .tag_name' 2>/dev/null || echo "")
   fi
+  _archimedes_latest_ver="${_archimedes_latest_tag#archimedes-v}"
+  _archimedes_installed_ver=$(archimedes version 2>/dev/null || echo "none")
+  if [[ "${_archimedes_installed_ver}" != "${_archimedes_latest_ver}" ]]; then
+    echo "--- Bootstrapping archimedes (latest release: ${_archimedes_latest_tag:-unknown}, installed: ${_archimedes_installed_ver})"
+    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${_archimedes_latest_tag}" \
+           -H "Accept: application/vnd.github.raw+json" | bash -s; then
+      echo "archimedes bootstrap failed" >&2
+      exit 1
+    fi
+  else
+    echo "archimedes ${_archimedes_installed_ver} already up to date"
+  fi
+  unset _archimedes_latest_tag _archimedes_latest_ver _archimedes_installed_ver
+
+  # No external nono CLI bootstrap needed: archimedes sandboxes itself in-process
+  # via the bundled nono-ts SDK. The `archimedes ci` entry point applies the
+  # sandbox automatically, replacing the old `nono run` supervised wrapper that
+  # failed under Landlock with exit 127 when re-resolving the script interpreter.
 fi
-# ── end pi-agent ──────────────────────────────────────────────────────────────
+# ── end archimedes ────────────────────────────────────────────────────────────
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

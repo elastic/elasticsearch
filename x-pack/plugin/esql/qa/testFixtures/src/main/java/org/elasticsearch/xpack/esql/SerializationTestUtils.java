@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -127,6 +128,7 @@ public class SerializationTestUtils {
         entries.add(SingleValueQuery.ENTRY);
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.add(RemoteFetchHandleFunction.ENTRY);
+        entries.add(RemoteFetchSource.ENTRY);
         entries.addAll(PlanWritables.getNamedWriteables());
         entries.add(
             new NamedWriteableRegistry.Entry(

@@ -1,0 +1,5 @@
+pr: 150194
+summary: Update `repository-s3` to use the default request signer from AWS SDK for Java.
+area: Snapshot/Restore
+type: bug
+issues: []

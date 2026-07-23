@@ -1775,6 +1775,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testLookupJoinWithRequestFilterMatchingNoDocs() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        // Regression test: a request-level filter that matches no source documents used to cause the
+        // lookup index field-caps request to be sent with an empty index expression. With security
+        // enabled, IndicesAndAliasesResolver then expanded the empty expression to all authorised
+        // indices (lookup-user1 and lookup-user2 for metadata1_read2), making the lookup join fail
+        // with "Lookup Join requires a single lookup mode index; [...] resolves to multiple indices"
+        // instead of returning an empty result set.
+        // https://github.com/elastic/kibana/issues/277613
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity("""
+            {
+                "query": "FROM index-user2 | LOOKUP JOIN lookup-user2 ON value | KEEP value, org | LIMIT 10",
+                "filter": {"match_none": {}}
+            }
+            """);
+        request.setOptions(runAsUserOptions("metadata1_read2", null));
+        request.addParameter("error_trace", "true");
+        Response resp = client().performRequest(request);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("values"), equalTo(List.of()));
+    }
+
     public void testFromLookupIndexForbidden() throws Exception {
         var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));

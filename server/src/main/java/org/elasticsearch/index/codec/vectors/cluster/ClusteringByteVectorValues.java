@@ -22,7 +22,4 @@ public abstract sealed class ClusteringByteVectorValues extends ByteVectorValues
 
     @Override
     public abstract ClusteringByteVectorValues copy() throws IOException;
-
-    @Override
-    public abstract int ordToDoc(int ord);
 }

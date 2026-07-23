@@ -946,4 +946,31 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         }
         safeAwait(startBarrier);
     }
+
+    public void testTokenCountMetricsAreRecorded() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        assertAcked(prepareCreate("test").setMapping("message", "type=text").get());
+
+        // index a document with a text field that will be analyzed
+        var indexResponse = client(dataNode).index(new IndexRequest("test").id("doc_1").source(Map.of("message", "hello world test")))
+            .actionGet();
+        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+
+        // verify token count histogram has recordings
+        var measurements = plugin.getLongHistogramMeasurement("es.indexing.field.token_count.histogram");
+        assertFalse("Expected token count metrics to be recorded after indexing a text field", measurements.isEmpty());
+        // "hello world test" produces 3 tokens with the standard analyzer
+        assertTrue(
+            "Expected at least one measurement with value 3 for the 'message' field",
+            measurements.stream().anyMatch(m -> m.getLong() == 3)
+        );
+    }
 }

@@ -31,6 +31,15 @@ public class RemoteFetchSource extends LeafPlan {
         RemoteFetchSource::readFrom
     );
 
+    /**
+     * Name of the synthetic attribute that carries the input-position mapping through pushdown execution.
+     * <p>
+     * When a pushdown fragment is shipped to the data node, the last attribute of this source's output must be the
+     * position-mapping attribute with this name, matching the trailing position channel that the data-node pipeline
+     * appends to fetched pages.
+     */
+    public static final String POSITION_ATTRIBUTE_NAME = "_remote_fetch_position";
+
     private final List<Attribute> output;
 
     public RemoteFetchSource(Source source, List<Attribute> output) {

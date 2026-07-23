@@ -673,12 +673,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return ("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery;
     }
 
-    protected String fromAllQuery(String restOfQuery) {
+    protected String fromAllQuery(String restOfQuery) throws IOException {
         return fromAllQuery(allIndexPattern(), restOfQuery);
     }
 
-    protected String allIndexPattern() {
-        if (indexMode == IndexMode.LOGSDB) {
+    protected String allIndexPattern() throws IOException {
+        if (indexMode == IndexMode.LOGSDB && minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)) {
             // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
             return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
         }
@@ -1164,16 +1164,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
-                        // Old snapshot nodes (before tech preview) returned inclusive upper bounds
-                        // without the +1 conversion added in DateRangeDocValuesLoader.
-                        yield anyOf(
-                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
-                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
-                        );
-                    }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // On previous versions where DATE_RANGE was still under construction, we don't know
+                    // which exact historical shape an old/mixed-version node will emit: the buggy
+                    // formatted string (inclusive upper bound, no +1 conversion), the correctly
+                    // formatted string, or the raw, unformatted {gte, lte} doc value map (older
+                    // release builds never ran the snapshot-only formatting logic at all). Accept any
+                    // of them rather than guessing which one a given old build should produce.
+                    yield anyOf(
+                        equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                        equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z"),
+                        matchesMap().entry("gte", "1989-01-01T00:00:00.000Z").entry("lte", "2024-12-31T23:59:59.999Z")
+                    );
                 }
                 yield nullValue();
             }
@@ -1385,8 +1390,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("unsupported");
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                // Same dance as for AGGREGATE_METRIC_DOUBLE/DENSE_VECTOR: the coordinator that actually resolves the field type
+                // may be any node in the cluster (e.g. during a rolling upgrade), and IndexResolver's snapshot/release gating
+                // reflects that coordinator's own build, not this test JVM's. We can't tell from here which node coordinated, so
+                // once the type is merely under-construction-supported (not yet release-supported), accept either outcome.
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("date_range");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("date_range"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }

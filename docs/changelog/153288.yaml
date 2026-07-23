@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152843
+pr: 153288
+summary: Materialize dropped field from one FORK branch in other branches under unmapped_fields="load"
+type: bug

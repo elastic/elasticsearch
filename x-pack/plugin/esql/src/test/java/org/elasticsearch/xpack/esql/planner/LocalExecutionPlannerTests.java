@@ -32,6 +32,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -486,20 +487,20 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Guards the {@code virtualColumnNames} union in {@link LocalExecutionPlanner} {@code planExternalSource}: on a
-     * data node the coordinator's {@link FileList} is not serialized ({@code ExternalSourceExec.writeTo} drops it, so
-     * it deserializes to {@code null}), so the Hive partition-column NAMES must instead be recovered from the
-     * serialized {@code _partition.columns} stamp in {@code sourceMetadata} (see
-     * {@code ExternalSourceAggregatePushdown#partitionColumnNames}). Without that union
+     * Guards the partition-column seeding in {@link LocalExecutionPlanner} {@code planExternalSource}: on a data node
+     * the coordinator's {@link FileList} is not serialized ({@code ExternalSourceExec.writeTo} drops it, so it
+     * deserializes to {@code null}), so the Hive partition-column NAMES must instead be recovered from the serialized
+     * {@code _partition.columns} stamp in {@code sourceMetadata} — read through the node-safe
+     * {@code ExternalSourceExec.partitionColumnNames()} accessor. Without it
      * {@link SourceOperatorContext#partitionColumnNames()} is empty on the data node, {@code VirtualColumnIterator}
      * never materialises the partition column, and a distributed partition-column read attaches SQL {@code NULL}.
      * <p>
      * Here {@code fileList} is deliberately left {@code null} (the data-node shape) and the partition name {@code p} is
      * present in NEITHER the output attributes NOR a {@code FileList} — its only possible source is the stamp, so
-     * seeing it in the resolved set pins exactly this union. The end-to-end value-attachment twin is
+     * seeing it in the resolved set pins exactly this read. The end-to-end value-attachment twin is
      * {@code ExternalHivePartitionDistributedValueIT}.
      */
-    public void testExternalSourceUnionsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
+    public void testExternalSourceReadsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
@@ -856,7 +857,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             new IndexedByShardIdFromList<>(shardContexts),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 

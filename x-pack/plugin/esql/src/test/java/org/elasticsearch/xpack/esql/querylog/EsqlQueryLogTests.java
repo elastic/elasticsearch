@@ -210,7 +210,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomIntBetween(0, 1000),
                     randomNonNegativeLong(),
                     randomFrom(UnmappedResolution.values()),
-                    randomIntBetween(0, 100)
+                    randomIntBetween(0, 100),
+                    randomNonNegativeLong()
                 );
             }
         };

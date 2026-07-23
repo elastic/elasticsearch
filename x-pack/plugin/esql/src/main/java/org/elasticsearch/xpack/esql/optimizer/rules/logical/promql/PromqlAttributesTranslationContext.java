@@ -453,6 +453,7 @@ public final class PromqlAttributesTranslationContext {
 
             return new ResolvedAttributes(List.of(timeseries), resolved, missing, excludedDimensions);
         }
+
     }
 
     /**

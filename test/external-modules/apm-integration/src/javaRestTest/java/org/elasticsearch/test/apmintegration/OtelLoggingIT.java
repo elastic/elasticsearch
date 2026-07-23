@@ -9,9 +9,10 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.opentelemetry.proto.common.v1.ArrayValue;
+
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import io.opentelemetry.proto.common.v1.ArrayValue;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.logging.activity.QueryLogging;

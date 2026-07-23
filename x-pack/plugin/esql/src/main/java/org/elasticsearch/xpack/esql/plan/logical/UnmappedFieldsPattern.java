@@ -40,7 +40,6 @@ import java.util.Objects;
  * <p>The pattern for a plan is computed by the analyzer's {@code DetermineUnmappedFieldsToKeep} rule.
  */
 public final class UnmappedFieldsPattern implements NamedWriteable {
-    /** Wildcard pattern matching every field name. */
     private static final String MATCH_ALL = "*";
 
     /** Keep every additional source field (no filtering applied). */
@@ -59,31 +58,27 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     public static final List<String> INCLUDES_ALL = List.of(MATCH_ALL);
 
-    public UnmappedFieldsPattern combine(UnmappedFieldsPattern other) {
-        return new UnmappedFieldsPattern(effectiveIncludes(other), CollectionUtils.combine(excludes, other.excludes));
+    /** Returns the intersection pattern, i.e., a field would match iff it matches both this and the other pattern. */
+    public UnmappedFieldsPattern intersect(UnmappedFieldsPattern other) {
+        return isNone() || other.isNone()
+            ? NONE
+            : new UnmappedFieldsPattern(effectiveIncludes(other), CollectionUtils.combine(excludes, other.excludes));
     }
 
     private List<String> effectiveIncludes(UnmappedFieldsPattern other) {
-        if (includesAllFields()) {
+        if (includes.equals(INCLUDES_ALL)) {
             return other.includes;
         }
-        if (other.includesAllFields()) {
+        if (other.includes.equals(List.of(MATCH_ALL))) {
             return includes;
         }
         return CollectionUtils.combine(includes, other.includes);
     }
 
     /**
-     * True if the includes impose no restriction (the wildcard {@code "*"}, as in {@link #ALL}).
-     */
-    public boolean includesAllFields() {
-        return includes.equals(List.of(MATCH_ALL));
-    }
-
-    /**
      * Whether a candidate additional source field {@code name} survives this pattern: the includes must
      * impose a restriction (be non-empty), {@code name} must match none of the excludes, and it must match
-     * every include (AND semantics, see the class javadoc).
+     * every include.
      */
     public boolean matches(String name) {
         return includes.isEmpty() == false

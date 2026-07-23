@@ -2740,26 +2740,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
             return switch (plan) {
-                case ResolvingProject project -> patternForProject(project);
+                case ResolvingProject project -> project.unmappedFieldsPattern().intersect(computeUnmappedFieldsToKeep(project.child()));
                 case Eval eval -> computeUnmappedFieldsToKeep(eval.child()).withAdditionalExcludes(
                     eval.fields().stream().map(Alias::name).toList()
                 );
                 case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
                 default -> UnmappedFieldsPattern.ALL;
             };
-        }
-
-        /**
-         * Combines a KEEP/DROP/RENAME node's own pattern with its child's: a field must satisfy the
-         * include constraints of both levels (AND semantics) and the excludes of both are merged.
-         */
-        private static UnmappedFieldsPattern patternForProject(ResolvingProject project) {
-            UnmappedFieldsPattern childPattern = computeUnmappedFieldsToKeep(project.child());
-            if (childPattern.isNone()) {
-                return UnmappedFieldsPattern.NONE;
-            }
-            UnmappedFieldsPattern nodePattern = project.unmappedFieldsPattern();
-            return nodePattern.combine(childPattern);
         }
 
         /**

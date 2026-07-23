@@ -359,16 +359,10 @@ public final class BlockUtils {
             }
             case LONG_RANGE -> {
                 LongRangeBlock b = (LongRangeBlock) block;
-                if (b.isNull(offset)) {
-                    yield null;
-                }
                 yield b.getLongRange(offset, new LongRangeBlockBuilder.LongRange());
             }
             case DOUBLE_RANGE -> {
                 DoubleRangeBlock b = (DoubleRangeBlock) block;
-                if (b.isNull(offset)) {
-                    yield null;
-                }
                 yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

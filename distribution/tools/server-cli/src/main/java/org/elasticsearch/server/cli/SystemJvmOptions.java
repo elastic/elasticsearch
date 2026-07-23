@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -132,10 +133,14 @@ final class SystemJvmOptions {
     private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
         enableNativeAccessOptions.add(
-            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core"
+            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core,"
+                + "org.elasticsearch.simdvec"
         );
         enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
-        if (Runtime.version().feature() >= 24) {
+
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This will always be true when min JDK version = 25
+        boolean hasNativeAccessCheck = Runtime.version().feature() >= 24;
+        if (hasNativeAccessCheck) {
             enableNativeAccessOptions.add("--illegal-native-access=deny");
         }
         return enableNativeAccessOptions.stream();
@@ -144,6 +149,7 @@ final class SystemJvmOptions {
     /*
      * Only affects 22 and 22.0.1, see https://bugs.openjdk.org/browse/JDK-8329528
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This could be removed when min JDK version = 25
     private static Stream<String> maybeWorkaroundG1Bug() {
         Runtime.Version v = Runtime.version();
         if (v.feature() == 22 && v.update() <= 1) {

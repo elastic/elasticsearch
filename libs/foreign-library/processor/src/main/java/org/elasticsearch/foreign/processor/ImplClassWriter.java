@@ -196,7 +196,14 @@ class ImplClassWriter {
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
-                    emitMhFieldInit(clinit, generatedDesc, nm, model.symbolResolverClassName(), model.methodHandleResolverClassName(), fieldNames.get(nm));
+                    emitMhFieldInit(
+                        clinit,
+                        generatedDesc,
+                        nm,
+                        model.symbolResolverClassName(),
+                        model.methodHandleResolverClassName(),
+                        fieldNames.get(nm)
+                    );
                 }
                 clinit.return_();
             });

@@ -38,6 +38,94 @@ s:long | dim:keyword | time_bucket:datetime
 590    | b           | 2024-01-01T00:25:00.000Z
 ;
 
+
+increase_window_smaller_than_bucket_2m_window_4m_bucket_exact_half
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: fix_esql_small_windows
+
+TS ts_window
+| STATS s = sum(increase(counter_val, 2m)) BY dim, time_bucket = TBUCKET(4minute)
+| SORT time_bucket, dim
+| LIMIT 14;
+
+s:double | dim:keyword | time_bucket:datetime
+5.0      | a           | 2024-01-01T00:00:00.000Z
+50.0     | b           | 2024-01-01T00:00:00.000Z
+10.0     | a           | 2024-01-01T00:04:00.000Z
+100.0    | b           | 2024-01-01T00:04:00.000Z
+15.0     | a           | 2024-01-01T00:08:00.000Z
+150.0    | b           | 2024-01-01T00:08:00.000Z
+20.0     | a           | 2024-01-01T00:12:00.000Z
+200.0    | b           | 2024-01-01T00:12:00.000Z
+25.0     | a           | 2024-01-01T00:16:00.000Z
+250.0    | b           | 2024-01-01T00:16:00.000Z
+30.0     | a           | 2024-01-01T00:20:00.000Z
+300.0    | b           | 2024-01-01T00:20:00.000Z
+35.0     | a           | 2024-01-01T00:24:00.000Z
+350.0    | b           | 2024-01-01T00:24:00.000Z
+;
+
+rate_window_smaller_than_bucket_2m_window_4m_bucket_exact_half
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: fix_esql_small_windows
+
+TS ts_window
+| STATS r = avg(rate(counter_val, 2m)) BY dim, time_bucket = TBUCKET(4minute)
+| EVAL r = ROUND(r, 6)
+| SORT time_bucket, dim
+| LIMIT 14;
+
+dim:keyword | time_bucket:datetime     | r:double
+a           | 2024-01-01T00:00:00.000Z | 0.041667
+b           | 2024-01-01T00:00:00.000Z | 0.416667
+a           | 2024-01-01T00:04:00.000Z | 0.083333
+b           | 2024-01-01T00:04:00.000Z | 0.833333
+a           | 2024-01-01T00:08:00.000Z | 0.125
+b           | 2024-01-01T00:08:00.000Z | 1.25
+a           | 2024-01-01T00:12:00.000Z | 0.166667
+b           | 2024-01-01T00:12:00.000Z | 1.666667
+a           | 2024-01-01T00:16:00.000Z | 0.208333
+b           | 2024-01-01T00:16:00.000Z | 2.083333
+a           | 2024-01-01T00:20:00.000Z | 0.25
+b           | 2024-01-01T00:20:00.000Z | 2.5
+a           | 2024-01-01T00:24:00.000Z | 0.291667
+b           | 2024-01-01T00:24:00.000Z | 2.916667
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152658
+increase_window_smaller_than_bucket_2m_window_4m_tstep_exact_half-Ignore
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: fix_esql_small_windows
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| STATS s = sum(increase(counter_val, 2m)) BY dim, time_bucket = TSTEP(4minute)
+| SORT time_bucket, dim
+| LIMIT 14;
+
+s:double | dim:keyword | time_bucket:datetime
+5.0      | a           | 2024-01-01T00:04:00.000Z
+50.0     | b           | 2024-01-01T00:04:00.000Z
+10.0     | a           | 2024-01-01T00:08:00.000Z
+100.0    | b           | 2024-01-01T00:08:00.000Z
+15.0     | a           | 2024-01-01T00:12:00.000Z
+150.0    | b           | 2024-01-01T00:12:00.000Z
+20.0     | a           | 2024-01-01T00:16:00.000Z
+200.0    | b           | 2024-01-01T00:16:00.000Z
+25.0     | a           | 2024-01-01T00:20:00.000Z
+250.0    | b           | 2024-01-01T00:20:00.000Z
+30.0     | a           | 2024-01-01T00:24:00.000Z
+300.0    | b           | 2024-01-01T00:24:00.000Z
+;
+
 max_over_time_window_smaller_than_bucket_2m_window_5m_bucket
 required_capability: ts_command_v0
 required_capability: time_series_window_smaller_than_bucket
@@ -61,6 +149,90 @@ mx:long | dim:keyword | time_bucket:datetime
 250    | b           | 2024-01-01T00:20:00.000Z
 30     | a           | 2024-01-01T00:25:00.000Z
 300    | b           | 2024-01-01T00:25:00.000Z
+;
+
+max_over_time_nested_expression_window_smaller_than_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: fix_esql_small_windows
+
+TS ts_window
+| STATS mx = sum(max_over_time(val + 1, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mx:long | dim:keyword | time_bucket:datetime
+6       | a           | 2024-01-01T00:00:00.000Z
+51      | b           | 2024-01-01T00:00:00.000Z
+11      | a           | 2024-01-01T00:05:00.000Z
+101     | b           | 2024-01-01T00:05:00.000Z
+16      | a           | 2024-01-01T00:10:00.000Z
+151     | b           | 2024-01-01T00:10:00.000Z
+21      | a           | 2024-01-01T00:15:00.000Z
+201     | b           | 2024-01-01T00:15:00.000Z
+26      | a           | 2024-01-01T00:20:00.000Z
+251     | b           | 2024-01-01T00:20:00.000Z
+31      | a           | 2024-01-01T00:25:00.000Z
+301     | b           | 2024-01-01T00:25:00.000Z
+;
+
+sum_over_time_window_smaller_than_step_2m_window_5m_tstep
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_esql_small_windows
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 2m)) BY dim, time_bucket = TSTEP(5minute)
+| SORT time_bucket, dim
+| LIMIT 12;
+
+s:long | dim:keyword | time_bucket:datetime
+1      | a           | 2024-01-01T00:00:00.000Z
+10     | b           | 2024-01-01T00:00:00.000Z
+11     | a           | 2024-01-01T00:05:00.000Z
+110    | b           | 2024-01-01T00:05:00.000Z
+21     | a           | 2024-01-01T00:10:00.000Z
+210    | b           | 2024-01-01T00:10:00.000Z
+31     | a           | 2024-01-01T00:15:00.000Z
+310    | b           | 2024-01-01T00:15:00.000Z
+41     | a           | 2024-01-01T00:20:00.000Z
+410    | b           | 2024-01-01T00:20:00.000Z
+51     | a           | 2024-01-01T00:25:00.000Z
+510    | b           | 2024-01-01T00:25:00.000Z
+;
+
+max_over_time_window_smaller_than_step_2m_window_5m_tstep
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_esql_small_windows
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| STATS mx = sum(max_over_time(val, 2m)) BY dim, time_bucket = TSTEP(5minute)
+| SORT time_bucket, dim
+| LIMIT 12;
+
+mx:long | dim:keyword | time_bucket:datetime
+1       | a           | 2024-01-01T00:00:00.000Z
+10      | b           | 2024-01-01T00:00:00.000Z
+6       | a           | 2024-01-01T00:05:00.000Z
+60      | b           | 2024-01-01T00:05:00.000Z
+11      | a           | 2024-01-01T00:10:00.000Z
+110     | b           | 2024-01-01T00:10:00.000Z
+16      | a           | 2024-01-01T00:15:00.000Z
+160     | b           | 2024-01-01T00:15:00.000Z
+21      | a           | 2024-01-01T00:20:00.000Z
+210     | b           | 2024-01-01T00:20:00.000Z
+26      | a           | 2024-01-01T00:25:00.000Z
+260     | b           | 2024-01-01T00:25:00.000Z
 ;
 
 ###############################################

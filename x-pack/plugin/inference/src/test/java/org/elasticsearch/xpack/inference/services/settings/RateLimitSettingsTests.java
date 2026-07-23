@@ -374,6 +374,12 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
     }
 
+    public void testDeclareUnsupportedRateLimitField_RequestContext_NoRateLimitField_DoesNotThrow() throws IOException {
+        var holder = parseWithRejectDeclare("{}", randomFrom(TaskType.values()), ConfigurationParseContext.REQUEST);
+
+        assertThat(holder.rateLimitSettings, nullValue());
+    }
+
     public void testDeclareUnsupportedRateLimitField_PersistentContext_IgnoresRateLimitField() throws IOException {
         var json = Strings.format("""
             {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);

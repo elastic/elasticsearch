@@ -2,7 +2,7 @@
 navigation_title: "Cluster state encryption"
 description: "How Elasticsearch encrypts sensitive values stored in cluster state using a cluster state encryption key, including password requirements, key rotation, and recovery."
 applies_to:
-  stack: preview 9.5
+  stack: ga 9.5
 products:
   - id: elasticsearch
 ---

@@ -595,6 +595,3 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/154775
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testSlicedIndexOneVectorPerSlice
-  issue: https://github.com/elastic/elasticsearch/issues/154792

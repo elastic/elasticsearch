@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -26,6 +27,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 
@@ -50,7 +52,14 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
     private AiIndexTemplateRegistry createRegistry(Settings settings) {
         threadPool = new TestThreadPool(getClass().getName());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        return new AiIndexTemplateRegistry(settings, clusterService, threadPool, new NoOpClient(threadPool), NamedXContentRegistry.EMPTY);
+        return new AiIndexTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            new NoOpClient(threadPool),
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After

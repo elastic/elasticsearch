@@ -122,7 +122,6 @@ import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
@@ -551,7 +550,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
         JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
         JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
-        NodeMetrics.NODE_METRICS_CACHE_TTL_SETTING,
         PageCacheRecycler.LIMIT_HEAP_SETTING,
         PageCacheRecycler.WEIGHT_BYTES_SETTING,
         PageCacheRecycler.WEIGHT_INT_SETTING,

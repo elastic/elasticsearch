@@ -4,8 +4,8 @@
 
 Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the specified field or expression. Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
 
-MatchPhrase can be used on [text](/reference/elasticsearch/mapping-reference/text.md) fields, as well as other field types like keyword, boolean, or date types.
-MatchPhrase is not supported for [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) or numeric types.
+MatchPhrase can be used on [text](/reference/elasticsearch/mapping-reference/text.md) and keyword fields.
+MatchPhrase is not supported for other field types, like [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), boolean, date, or numeric types.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,

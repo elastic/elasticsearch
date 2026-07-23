@@ -92,8 +92,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             specified field or expression.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
-            MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
-            MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
+            MatchPhrase can be used on <<text, text>> and keyword fields.
+            MatchPhrase is not supported for other field types, like <<semantic-text, semantic_text>>, boolean, date, or numeric types.
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,

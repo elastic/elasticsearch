@@ -364,6 +364,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
 
     @Override
     protected IndexVersion getRandomCompatibleIndexVersion() {
+        // TODO: Bias towards IndexVersion.current()
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
     }
 

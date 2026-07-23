@@ -1130,6 +1130,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     @Override
     protected IndexVersion getRandomCompatibleIndexVersion() {
+        // TODO: Bias towards indexVersion.current()
         return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
     }
 
@@ -1757,32 +1758,15 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 ? IndexVersion.current()
                 : SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
 
-            final TaskType taskType = model.getTaskType();
-            final DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-            final Integer dimensions = model.getServiceSettings().dimensions();
-            final SimilarityMeasure similarity = model.getServiceSettings().similarity();
-
             MapperService mapperService = createSemanticMapperServiceWithIndexVersion(
-                semanticMapping(
-                    "field",
-                    "another_inference_id",
-                    new MinimalServiceSettings(null, taskType, dimensions, similarity, elementType)
-                ),
+                semanticMapping("field", "another_inference_id", new MinimalServiceSettings(model)),
                 indexVersion
             );
-
-            boolean experimentalFeatures = DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings());
-            assertSemanticField(
-                mapperService,
-                "field",
-                true,
-                model,
-                null,
-                getExpectedDefaultIndexOptions(taskType, elementType, dimensions, indexVersion, experimentalFeatures)
-            );
+            assertSemanticField(mapperService, "field", true, model, null, null);
         }
     }
 
+    // TODO: Remove
     private SemanticIndexOptions getExpectedDefaultIndexOptions(
         TaskType taskType,
         DenseVectorFieldMapper.ElementType elementType,

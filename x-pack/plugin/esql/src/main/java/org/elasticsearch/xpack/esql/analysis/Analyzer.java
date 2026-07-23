@@ -2164,11 +2164,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
-                    inputAttributes -> keepResolver(keep.projections(), inputAttributes),
+                    inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmappedResolution == UnmappedResolution.LOAD_ALL),
                     patternForKeep(keep.projections(), keep.child().output())
                 );
             }
-            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output());
+            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), false);
             // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
             // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
             // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
@@ -2204,33 +2204,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       column. It never appears in {@code _unmapped_fields} and must not restrict the
          *       include set — it is silently skipped.</li>
          * </ul>
-         * When the resulting include list is empty (e.g. {@code KEEP @timestamp, dim, val} on a
-         * fully-mapped index), it defaults to {@code ["*"]} so all unmapped source fields pass
-         * through.
+         * When the resulting include list is empty — a KEEP that lists only already-mapped columns
+         * (e.g. {@code KEEP @timestamp, dim, val}) — the pattern keeps no unmapped source field.
+         * KEEP is an exhaustive projection, so selecting only mapped columns implies that no
+         * (currently unmapped) source field survives to the output.
          */
         private static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
             Set<String> childOutputNames = childOutput.stream().map(Attribute::name).collect(Collectors.toSet());
-            List<String> includes = new ArrayList<>();
+            return new UnmappedFieldsPattern(includes(projections, childOutputNames), List.of());
+        }
+
+        private static List<String> includes(List<? extends NamedExpression> projections, Set<String> childOutputNames) {
+            ArrayList<String> result = new ArrayList<>();
             for (NamedExpression proj : projections) {
                 switch (proj) {
-                    case UnresolvedStar ignored -> includes.add(UnmappedFieldsPattern.MATCH_ALL);
-                    case UnresolvedNamePattern up -> includes.add(up.pattern());
+                    case UnresolvedStar ignored -> {
+                        return UnmappedFieldsPattern.INCLUDES_ALL;
+                    }
+                    case UnresolvedNamePattern up -> result.add(up.pattern());
                     case UnresolvedAttribute ua -> {
                         // A named field absent from the child's mapped output will be demand-loaded from
                         // _source as an unmapped field, so restrict includes to it. A mapped field already
                         // in the child output is never in _unmapped_fields and must not constrain includes.
                         if (childOutputNames.contains(ua.name()) == false) {
-                            includes.add(ua.name());
+                            result.add(ua.name());
                         }
                     }
-                    default -> throw new IllegalStateException("unexpected KEEP projection [" + proj + "]");
+                    default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
                 }
             }
-            if (includes.isEmpty()) {
-                // All projections were mapped fields — no include restriction needed.
-                includes.add(UnmappedFieldsPattern.MATCH_ALL);
-            }
-            return new UnmappedFieldsPattern(includes, List.of());
+            return result;
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -2247,7 +2250,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return filtered;
         }
 
-        private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
+        private static List<NamedExpression> keepResolver(
+            List<? extends NamedExpression> projections,
+            List<Attribute> childOutput,
+            boolean ignoreUnmatchedPatterns
+        ) {
             List<NamedExpression> resolvedProjections;
             // start with projections
 
@@ -2267,7 +2274,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = excludeExternalMetadata(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
-                        resolved = resolveAgainstList(up, childOutput);
+                        List<Attribute> matched = resolveAgainstList(up, childOutput);
+                        // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
+                        // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
+                        // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
+                        if (ignoreUnmatchedPatterns && matched.size() == 1 && matched.getFirst() instanceof UnresolvedAttribute) {
+                            continue;
+                        }
+                        resolved = matched;
                         priority = 3;
                     } else if (proj instanceof UnsupportedAttribute) {
                         resolved = List.of(proj.toAttribute());
@@ -2311,7 +2325,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> excludes = removals.stream()
                 .map(removal -> removal instanceof UnresolvedNamePattern up ? up.pattern() : removal.name())
                 .toList();
-            return new UnmappedFieldsPattern(List.of(UnmappedFieldsPattern.MATCH_ALL), excludes);
+            return new UnmappedFieldsPattern(UnmappedFieldsPattern.INCLUDES_ALL, excludes);
         }
 
         private static List<NamedExpression> dropResolver(
@@ -2373,7 +2387,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static UnmappedFieldsPattern patternForRename(List<Alias> renamings) {
             // Each alias target name shadows any source field with that name.
             List<String> excludes = renamings.stream().map(Alias::name).toList();
-            return new UnmappedFieldsPattern(List.of(UnmappedFieldsPattern.MATCH_ALL), excludes);
+            return new UnmappedFieldsPattern(UnmappedFieldsPattern.INCLUDES_ALL, excludes);
         }
 
         /**
@@ -2741,30 +2755,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static UnmappedFieldsPattern patternForProject(ResolvingProject project) {
             UnmappedFieldsPattern childPattern = computeUnmappedFieldsToKeep(project.child());
-            if (childPattern.includes().isEmpty()) {
+            if (childPattern.isNone()) {
                 return UnmappedFieldsPattern.NONE;
             }
             UnmappedFieldsPattern nodePattern = project.unmappedFieldsPattern();
-            return new UnmappedFieldsPattern(
-                effectiveIncludes(nodePattern, childPattern),
-                CollectionUtils.combine(nodePattern.excludes(), childPattern.excludes())
-            );
-        }
-
-        /**
-         * Combines the include patterns of a KEEP/DROP/RENAME node with its child's. Whichever side
-         * imposes a constraint wins; when both do, a field must satisfy both (AND semantics).
-         */
-        private static List<String> effectiveIncludes(UnmappedFieldsPattern nodePattern, UnmappedFieldsPattern childPattern) {
-            if (nodePattern.includesAllFields()) {
-                // DROP or RENAME: no new include constraint; inherit the child's.
-                return childPattern.includes();
-            }
-            if (childPattern.includesAllFields()) {
-                // Child is unconstrained (e.g. wraps EsRelation): use this node's explicit patterns.
-                return nodePattern.includes();
-            }
-            return CollectionUtils.combine(nodePattern.includes(), childPattern.includes());
+            return nodePattern.combine(childPattern);
         }
 
         /**

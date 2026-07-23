@@ -7,20 +7,19 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for {@code Analyzer.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
@@ -79,10 +78,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    @Ignore(
-        "Documents intended behaviour: KEEP of only mapped fields should keep no unmapped source field. "
-            + "Currently the pattern falls back to includes=[*], so unmapped fields still pass the filter."
-    )
     public void testKeepExactName() {
         // KEEP of a mapped field ("salary") keeps no unmapped source field.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP salary")));
@@ -90,15 +85,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    @Ignore(
-        "Documents intended behaviour: a mapped exact name in KEEP (\"salary\") should still constrain the includes. "
-            + "Currently it is dropped, leaving includes=[first_name*], so \"first_name_suffix\" passes the filter."
-    )
     public void testKeepMultiplePatterns() {
-        // Includes combine with AND semantics: no field can match both "first_name*" and "salary".
+        // A single KEEP unions its terms: "first_name_suffix" matches the "first_name*" wildcard, so it is kept.
+        // The mapped exact name "salary" can never name an unmapped source field, so it contributes nothing to
+        // unmapped-field selection — the wildcard alone drives which unmapped fields survive.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary")));
+        assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, excl());
-        assertNotKept(pattern, "first_name_suffix", "salary_bonus", "unmapped_extra");
+        assertNotKept(pattern, "salary_bonus", "unmapped_extra");
     }
 
     public void testDrop() {
@@ -155,19 +149,11 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         test().statementError(setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
-    @Ignore(
-        "Documents intended behaviour: explicitly DROPping the synthetic _unmapped_fields column should be rejected. "
-            + "Currently the DROP succeeds silently."
-    )
     public void testDropUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly DROPping it by name must be rejected.
         test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
-    @Ignore(
-        "Documents intended behaviour: explicitly RENAMEing the synthetic _unmapped_fields column should be rejected. "
-            + "Currently the RENAME succeeds silently."
-    )
     public void testRenameUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly RENAMEing it must be rejected.
         test().statementError(setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"), containsString("_unmapped_fields"));
@@ -195,18 +181,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    /** Finds the single non-LOOKUP EsRelation in the plan and returns its unmapped-fields pattern. */
+    /** Returns the unmapped-fields pattern from the plan's {@link EsRelation}. */
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {
-        List<EsRelation> relations = plan.collect(EsRelation.class);
-        assertThat("expected exactly one EsRelation", relations, hasSize(1));
-        UnmappedFieldsAttribute attr = relations.get(0)
-            .output()
-            .stream()
-            .filter(a -> a instanceof UnmappedFieldsAttribute)
-            .map(a -> (UnmappedFieldsAttribute) a)
-            .findFirst()
-            .orElse(null);
-        assertThat(attr, notNullValue());
-        return attr.pattern();
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();
     }
 }

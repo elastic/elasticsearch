@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -87,8 +86,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
-            out.writeStringCollection(pattern.includes());
-            out.writeStringCollection(pattern.excludes());
+            pattern.writeTo(out);
         }
     }
 
@@ -101,9 +99,8 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             Nullability nullability = stream.readEnum(Nullability.class);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
-            List<String> includes = stream.readStringCollectionAsList();
-            List<String> excludes = stream.readStringCollectionAsList();
-            return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, new UnmappedFieldsPattern(includes, excludes));
+            UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);
+            return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, pattern);
         });
     }
 

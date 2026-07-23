@@ -90,4 +90,14 @@ public abstract class CollectionUtils {
         }
         return List.of(result);
     }
+
+    public static <T, E extends T> List<E> collect(Iterable<T> collection, Class<E> clazz) {
+        List<E> result = new ArrayList<>();
+        for (T element : collection) {
+            if (clazz.isInstance(element)) {
+                result.add(clazz.cast(element));
+            }
+        }
+        return result;
+    }
 }

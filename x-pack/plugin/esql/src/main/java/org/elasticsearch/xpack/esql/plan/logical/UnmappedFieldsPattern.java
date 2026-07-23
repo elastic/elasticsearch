@@ -6,11 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Describes which additional (not already in {@link EsRelation}) source fields a
@@ -34,10 +39,9 @@ import java.util.List;
  *
  * <p>The pattern for a plan is computed by the analyzer's {@code DetermineUnmappedFieldsToKeep} rule.
  */
-public record UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
-
+public final class UnmappedFieldsPattern implements NamedWriteable {
     /** Wildcard pattern matching every field name. */
-    public static final String MATCH_ALL = "*";
+    private static final String MATCH_ALL = "*";
 
     /** Keep every additional source field (no filtering applied). */
     public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(List.of(MATCH_ALL), List.of());
@@ -45,12 +49,33 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
     /** Keep no additional source fields. */
     public static final UnmappedFieldsPattern NONE = new UnmappedFieldsPattern(List.of(), List.of());
 
-    public UnmappedFieldsPattern {
-        includes = List.copyOf(includes);
-        excludes = List.copyOf(excludes);
+    private final List<String> includes;
+    private final List<String> excludes;
+
+    public UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
+        this.includes = includes;
+        this.excludes = excludes;
     }
 
-    /** True if the includes impose no restriction (the wildcard {@code "*"}, as in {@link #ALL}). */
+    public static final List<String> INCLUDES_ALL = List.of(MATCH_ALL);
+
+    public UnmappedFieldsPattern combine(UnmappedFieldsPattern other) {
+        return new UnmappedFieldsPattern(effectiveIncludes(other), CollectionUtils.combine(excludes, other.excludes));
+    }
+
+    private List<String> effectiveIncludes(UnmappedFieldsPattern other) {
+        if (includesAllFields()) {
+            return other.includes;
+        }
+        if (other.includesAllFields()) {
+            return includes;
+        }
+        return CollectionUtils.combine(includes, other.includes);
+    }
+
+    /**
+     * True if the includes impose no restriction (the wildcard {@code "*"}, as in {@link #ALL}).
+     */
     public boolean includesAllFields() {
         return includes.equals(List.of(MATCH_ALL));
     }
@@ -66,7 +91,9 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
             && includes.stream().allMatch(include -> Regex.simpleMatch(include, name));
     }
 
-    /** Returns a new pattern with {@code names} appended to the excludes list, deduplicating. */
+    /**
+     * Returns a new pattern with {@code names} appended to the excludes list, deduplicating.
+     */
     public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {
         if (names.isEmpty()) {
             return this;
@@ -75,5 +102,38 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
         merged.addAll(excludes);
         merged.addAll(names);
         return new UnmappedFieldsPattern(includes, new ArrayList<>(merged));
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (UnmappedFieldsPattern) obj;
+        return Objects.equals(this.includes, that.includes) && Objects.equals(this.excludes, that.excludes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(includes, excludes);
+    }
+
+    @Override
+    public String toString() {
+        return "UnmappedFieldsPattern[" + "includes=" + includes + ", " + "excludes=" + excludes + ']';
+    }
+
+    public boolean isNone() {
+        return includes.isEmpty();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "UnmappedFieldsPattern";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeStringCollection(includes);
+        out.writeStringCollection(excludes);
     }
 }

@@ -280,6 +280,29 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a
 ;
 
+// A KEEP wildcard that matches only unmapped source fields is tolerated under LOAD_ALL: the wildcard
+// matches nothing visible at analysis time, but instead of failing with "No matches found" the pattern
+// is captured and applied during _unmapped_fields expansion. Keeps @timestamp plus every unmapped source
+// field matching unmapped_* (unmapped.nested does not match the underscore).
+keepUnmappedWildcardPrefix
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 1756468                         | Disconnected from 10.1.0.1
+;
+
 ############################
 # Gap coverage: known-failing tests documenting intended behaviour
 ############################
@@ -328,27 +351,4 @@ FROM cross_mapping_a, cross_mapping_b METADATA _index
 bar:keyword | foo:keyword | _index:keyword
 b1          | a1          | cross_mapping_a
 b2          | a2          | cross_mapping_b
-;
-
-// (gap): a KEEP wildcard that only matches unmapped source fields throws
-// "No matches found for pattern [unmapped_*]" because unmapped fields are not yet visible to the
-// analyzer as columns (expansion happens after analysis). Intended: keep @timestamp plus every
-// unmapped source field matching unmapped_* (unmapped.nested does not match the underscore).
-keepUnmappedWildcardPrefix
-required_capability: optional_fields_load_all
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data
-| KEEP @timestamp, unmapped_*
-| SORT @timestamp
-;
-
-@timestamp:datetime      | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 1232383                         | 43
-2024-10-23T13:51:54.732Z | 725449                          | Disconnection error
-2024-10-23T13:52:55.015Z | 8268154                         | Disconnection error
-2024-10-23T13:53:55.832Z | 5033756                         | Disconnection error
-2024-10-23T13:55:01.543Z | 1756468                         | Disconnected from 10.1.0.1
 ;

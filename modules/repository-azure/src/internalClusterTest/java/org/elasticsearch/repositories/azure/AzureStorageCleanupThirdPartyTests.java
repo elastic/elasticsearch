@@ -77,6 +77,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * These tests sometimes run against a genuine Azure endpoint with credentials obtained from Vault. These credentials expire periodically
  * and must be manually renewed; the process is in the onboarding/process docs.
+ * Most tests that run against a genuine Azure endpoint can take between 1 and 3 minutes, hence the large suite timeout.
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {

@@ -556,9 +556,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst
-  issue: https://github.com/elastic/elasticsearch/issues/154462
 - class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
   method: testMountPartialCopyAndRecoversCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/154614
@@ -604,3 +601,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
+- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
+  method: testFeatureImportanceValues
+  issue: https://github.com/elastic/elasticsearch/issues/154774
+- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
+  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
+  issue: https://github.com/elastic/elasticsearch/issues/154775

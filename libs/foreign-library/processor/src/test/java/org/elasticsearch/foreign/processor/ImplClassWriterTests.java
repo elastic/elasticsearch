@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -187,12 +188,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("sandboxInit$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
 
         // The generated method must accept String, long, MemorySegment (not MemorySegment, long, MemorySegment)
-        java.lang.reflect.Method method = implClass.getMethod(
-            "sandboxInit",
-            String.class,
-            long.class,
-            java.lang.foreign.MemorySegment.class
-        );
+        java.lang.reflect.Method method = implClass.getMethod("sandboxInit", String.class, long.class, MemorySegment.class);
         assertEquals("sandboxInit must return int", int.class, method.getReturnType());
         assertEquals("first param must be String", String.class, method.getParameterTypes()[0]);
     }
@@ -593,5 +589,230 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         } catch (NoSuchFieldException expected) {
             // expected
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // @VectorSegment / @MatrixSegment — valid usage generates the correct class shape.
+    // Note: these tests confirm compilation succeeds and the generated class/method shape is
+    // correct, not that the emitted checks fire at runtime.
+    // -------------------------------------------------------------------------
+
+    public void testVectorSegmentGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product")
+                int dotProduct(
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment a,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment b,
+                    int length);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+
+        java.lang.reflect.Method method = implClass.getMethod("dotProduct", MemorySegment.class, MemorySegment.class, int.class);
+        assertEquals("dotProduct must still return int", int.class, method.getReturnType());
+    }
+
+    public void testVectorSegmentSubByteElementBitsGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product_i4")
+                int dotProductI4(
+                    @VectorSegment(countParam = "elementCount", elementBits = 4) MemorySegment a,
+                    @VectorSegment(countParam = "elementCount", elementBits = 8) MemorySegment b,
+                    int elementCount);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
+    }
+
+    public void testVectorSegmentAlignedGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product_sparse")
+                int dotProductSparse(
+                    @VectorSegment(countParam = "count", elementBits = 64, aligned = true) MemorySegment addresses,
+                    int count);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+        assertAssertionsDisabledFieldPresent(implClass);
+    }
+
+    public void testMatrixSegmentGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product_bulk")
+                void dotProductBulk(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8) MemorySegment docs,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
+                    int length, int count,
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+
+        java.lang.reflect.Method method = implClass.getMethod(
+            "dotProductBulk",
+            MemorySegment.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            MemorySegment.class
+        );
+        assertEquals("dotProductBulk must still return void", void.class, method.getReturnType());
+    }
+
+    public void testMatrixSegmentSubByteElementBitsGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product_i4_bulk")
+                void dotProductI4Bulk(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 4) MemorySegment docs,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
+                    int length, int count,
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
+    }
+
+    public void testMatrixSegmentPaddingBytesGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("dot_product_bulk_padded")
+                void dotProductBulkPadded(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 8, paddingBytesParam = "padding")
+                    MemorySegment docs,
+                    @VectorSegment(countParam = "length", elementBits = 8) MemorySegment query,
+                    int length, int count, int padding,
+                    @VectorSegment(countParam = "count", elementBits = 32) MemorySegment scores);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertNotNull("Generated MyLib$Impl class not found", result.loadClassNoInit("test.MyLib$Impl"));
+    }
+
+    public void testMatrixSegmentAlignedGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("read_matrix")
+                void readMatrix(
+                    @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = 32, aligned = true) MemorySegment m,
+                    int length, int count);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+        assertAssertionsDisabledFieldPresent(implClass);
+    }
+
+    /**
+     * The {@code $assertionsDisabled} field backing alignment asserts is emitted unconditionally on
+     * every generated class, even when no parameter uses {@code aligned = true} — it's one boolean
+     * field and a few one-time {@code <clinit>} instructions, not worth conditionally emitting.
+     */
+    public void testAssertionsDisabledFieldPresentEvenWithoutAlignedUsage() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(MemorySegment a);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull("Generated MyLib$Impl class not found", implClass);
+        assertAssertionsDisabledFieldPresent(implClass);
+    }
+
+    private void assertAssertionsDisabledFieldPresent(Class<?> implClass) throws Exception {
+        java.lang.reflect.Field field = implClass.getDeclaredField("$assertionsDisabled");
+        assertEquals("$assertionsDisabled must be boolean", boolean.class, field.getType());
+        assertTrue("$assertionsDisabled must be static", java.lang.reflect.Modifier.isStatic(field.getModifiers()));
+        assertTrue("$assertionsDisabled must be private", java.lang.reflect.Modifier.isPrivate(field.getModifiers()));
+        assertTrue("$assertionsDisabled must be final", java.lang.reflect.Modifier.isFinal(field.getModifiers()));
     }
 }

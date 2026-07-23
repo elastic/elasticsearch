@@ -1,0 +1,5 @@
+area: "Performance, Aggregations"
+issues: []
+pr: 154742
+summary: Improve `LongSwissHash` insert throughput
+type: bug

@@ -160,6 +160,7 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
             TimeValue.timeValueSeconds(10)
         );
         return new InferenceWaitForAllocation.WaitingRequest(
+            DEPLOYMENT_ID,
             request,
             InferModelAction.Response.builder(),
             TaskId.EMPTY_TASK_ID,

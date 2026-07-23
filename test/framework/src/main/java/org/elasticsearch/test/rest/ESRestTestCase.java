@@ -131,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -2012,6 +2013,41 @@ public abstract class ESRestTestCase extends ESTestCase {
                 request.addParameter("timeout", timeout);
             }
         });
+    }
+
+    /**
+     * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
+     * {@code retryableStatuses} into an {@link AssertionError}. Call inside {@link #assertBusy} so the
+     * enclosing loop retries transient failures (e.g. a 404 while an index relocates during a rolling
+     * upgrade). Non-retryable ResponseExceptions propagate unchanged.
+     */
+    protected Response performRequestRetryingOnTransientStatus(Request request, RestStatus... retryableStatuses) throws IOException {
+        try {
+            return client().performRequest(request);
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status)) {
+                throw new AssertionError(
+                    "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Read-once convenience: retries {@code request} via {@link #assertBusy} until it succeeds or {@code timeout} elapses.
+     */
+    protected Response performRequestWithRetryOnTransientStatus(Request request, TimeValue timeout, RestStatus... retryableStatuses)
+        throws Exception {
+        var responseHolder = new AtomicReference<Response>();
+        assertBusy(
+            () -> responseHolder.set(performRequestRetryingOnTransientStatus(request, retryableStatuses)),
+            timeout.millis(),
+            TimeUnit.MILLISECONDS
+        );
+        return responseHolder.get();
     }
 
     /**

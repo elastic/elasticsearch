@@ -27,6 +27,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.InternalDeleteInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
@@ -124,10 +125,15 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         }
 
         logger.info("Deleting removed EIS inference endpoints: {}", toDelete);
-        modelRegistry.deleteModels(toDelete, ActionListener.wrap(success -> listener.onResponse(authModel), e -> {
-            logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
-            listener.onResponse(authModel);
-        }));
+        var deleteRequest = new InternalDeleteInferenceEndpointsAction.Request(toDelete, TimeValue.THIRTY_SECONDS);
+        client.execute(
+            InternalDeleteInferenceEndpointsAction.INSTANCE,
+            deleteRequest,
+            ActionListener.wrap(response -> listener.onResponse(authModel), e -> {
+                logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+                listener.onResponse(authModel);
+            })
+        );
     }
 
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {

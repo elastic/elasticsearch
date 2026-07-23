@@ -544,6 +544,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
+        } else if (argClass == Double.class) {
+            return randomDouble();
         } else if (argClass == JoinType.class) {
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
@@ -590,6 +592,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == long.class) {
             return randomLong();
+        }
+        if (argClass == double.class) {
+            return randomDouble();
         }
         if (argClass == String.class) {
             // Nor strings

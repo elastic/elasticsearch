@@ -65,6 +65,11 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
     }
 
     @Override
+    protected ElementType expectedElementType() {
+        return ElementType.LONG;
+    }
+
+    @Override
     protected boolean supportsConstantBlockFactory() {
         return true;
     }

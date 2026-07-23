@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -247,7 +248,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Configuration configuration
     ) {
         if (evalTime instanceof ReferenceAttribute ref && p.timestampColumnName().equals(ref.name())) {
-            var expr = new Add(p.source(), p.timestamp(), Literal.timeDuration(p.source(), p.offset(branch)), configuration);
+            Expression base = p.timestamp();
+            // A date_nanos @timestamp is normalized to datetime (epoch-millis) here, once, so the shared time bucket,
+            // the exposed step column, and the whole time-series windowing pipeline all operate in the millisecond
+            // domain (matching a plain date @timestamp). See PromqlCommand#timestamp(LogicalPlan).
+            if (base.dataType() == DataType.DATE_NANOS) {
+                base = new ToDatetime(base.source(), base, configuration);
+            }
+            var offset = p.offset(branch);
+            var expr = offset.isZero() ? base : new Add(p.source(), base, Literal.timeDuration(p.source(), offset), configuration);
             var time = new Alias(p.source(), p.timestampColumnName(), expr, ref.id());
             return plan.transformUp(node -> node == p.child(), node -> new Eval(p.source(), node, List.of(time)));
         }

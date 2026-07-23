@@ -141,20 +141,36 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * Note that verification failures are reported by throwing {@link IndexShardSnapshotFailedException} rather than
+     * {@link AssertionError}: an Error escapes the snapshot thread pool worker without ever completing the shard snapshot,
+     * which leaves the snapshot in progress forever, whereas an Exception fails the shard snapshot with the failure reason.
+     */
     @Override
     public boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
         if (store.tryIncRef()) {
             try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
                 final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
                 indexInput.readBytes(tmp, 0, tmp.length);
-                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+                if (fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp)) == false) {
+                    throw new IndexShardSnapshotFailedException(
+                        shardId(),
+                        "contents of file [" + fileInfo.physicalName() + "] differ from the hash in its store metadata"
+                    );
+                }
             } catch (IOException e) {
                 if (Lucene.isCorruptionException(e)) {
-                    throw new AssertionError(e);
+                    failStoreIfCorrupted(e);
+                    throw new IndexShardSnapshotFailedException(
+                        shardId(),
+                        "detected corruption while verifying the hash of file [" + fileInfo.physicalName() + "]",
+                        e
+                    );
                 }
-                // A transient I/O failure while re-reading the file to verify its hash does not indicate a mismatch. Rethrowing it
-                // as an AssertionError would escape the snapshot thread pool worker without ever completing the shard snapshot,
-                // leaving the snapshot in progress forever, so skip the verification instead.
+                // A transient I/O failure while re-reading the file to verify its hash does not indicate a mismatch,
+                // so skip the verification
                 logger.warn(
                     () -> format(
                         "[%s] [%s] failed to read [%s] to verify its hash, skipping verification",

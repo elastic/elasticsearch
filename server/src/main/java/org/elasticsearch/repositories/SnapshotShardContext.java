@@ -103,6 +103,14 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
     public abstract Collection<String> fileNames();
 
+    /**
+     * Verifies that the given file's contents match the hash stored in its snapshot metadata. Only invoked when assertions are
+     * enabled, as {@code assert context.assertFileContentsMatchHash(fileInfo)}, and always returns {@code true}: verification
+     * failures must be reported by throwing an {@link Exception} (failing the shard snapshot), never by returning {@code false}
+     * or throwing an {@link AssertionError} — an Error escapes the snapshot thread pool worker without completing the shard
+     * snapshot, leaving the snapshot in progress forever, and a {@code false} return fails the caller's assert statement with
+     * no message, which amounts to the same thing.
+     */
     public abstract boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
 
     public abstract void failStoreIfCorrupted(Exception e);

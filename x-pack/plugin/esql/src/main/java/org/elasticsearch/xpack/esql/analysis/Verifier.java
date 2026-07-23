@@ -35,6 +35,9 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -154,6 +157,7 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
+            checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -327,6 +331,49 @@ public class Verifier {
                 failures.add(f);
             }
         });
+    }
+
+    /**
+     * {@code include_empty_buckets} can only be honored when the bucketing grouping function is a top-level grouping key: the operator
+     * fills gaps by enumerating the bucket boundaries and reading the raw bucket column off the grouping. Nested inside another
+     * expression (e.g. {@code STATS ... BY SIN(BUCKET(..., {"include_empty_buckets": true}))}) that column is not available as a
+     * grouping, and non-injective wrappers make "one row per empty bucket" ambiguous. So it's rejected here.
+     * <p>
+     * This covers both {@code BUCKET} and the not-yet-rewritten {@code TBUCKET} (surrogated to {@code BUCKET} later, in the optimizer):
+     * the Verifier runs at analysis time, so both forms can still carry the option here and must be checked.
+     */
+    private static void checkBucketIncludeEmptyBucketsIsGrouping(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate aggregate) {
+            Set<GroupingFunction> topLevelGroupingFunctions = new HashSet<>();
+            for (Expression grouping : aggregate.groupings()) {
+                if (Alias.unwrap(grouping) instanceof GroupingFunction groupingFunction) {
+                    topLevelGroupingFunctions.add(groupingFunction);
+                }
+            }
+            aggregate.forEachExpression(GroupingFunction.class, groupingFunction -> {
+                if (topLevelGroupingFunctions.contains(groupingFunction)) {
+                    return;
+                }
+                if (groupingFunction instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [BUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+                if (groupingFunction instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [TBUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+            });
+        }
     }
 
     private static void checkBinaryComparison(LogicalPlan p, Failures failures) {

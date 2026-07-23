@@ -3625,6 +3625,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testBucketOptionInsertEmptyBuckets_nestedBucketRejected() {
+        defaultAnalyzer().error("""
+            FROM test | STATS c = COUNT(*) BY b = SIN(BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true}))
+            """, containsString("[include_empty_buckets] is only supported when [BUCKET] is used directly as a grouping key"));
+
+        tsdb().error("""
+            TS test | STATS SUM(RATE(network.bytes_in))
+                      BY b = TO_LONG(TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true}))
+            """, containsString("[include_empty_buckets] is only supported when [TBUCKET] is used directly as a grouping key"));
+    }
+
     public void testFuse() {
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true) | limit 100";
 

@@ -592,3 +592,5 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformMigrationIT
   method: testRcs1SetupAgain
   issue: https://github.com/elastic/elasticsearch/issues/154836
+- class: org.elasticsearch.oldrepos.OldRepositoriesIT
+  issue: https://github.com/elastic/elasticsearch/issues/154229

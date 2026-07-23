@@ -47,18 +47,24 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return true;
         }
+        // Test impl: allocate each slice into a confined arena that lives for the action, write the addresses.
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment[] segments = new MemorySegment[count];
             for (int i = 0; i < count; i++) {
-                segments[i] = arena.allocate(length);
-                MemorySegment.copy(data, (int) offsets[i], segments[i], ValueLayout.JAVA_BYTE, 0L, length);
+                MemorySegment seg = arena.allocate(length);
+                MemorySegment.copy(data, (int) offsets[i], seg, ValueLayout.JAVA_BYTE, 0L, length);
+                addressesScratch.setAtIndex(ValueLayout.JAVA_LONG, i, seg.address());
             }
-            action.accept(segments);
+            action.accept(addressesScratch);
         }
         return true;
     }

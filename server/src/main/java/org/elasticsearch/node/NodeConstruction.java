@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -172,6 +173,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
@@ -1331,6 +1333,7 @@ class NodeConstruction {
             clusterService,
             systemIndices
         );
+        final AnalyzerMetrics analyzerMetrics = new AnalyzerMetrics(telemetryProvider.getMeterRegistry(), analysisRegistry);
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
@@ -1420,6 +1423,14 @@ class NodeConstruction {
                 );
         });
 
+        final RecoveryDirectCancellationService recoveryCancellationService = new RecoveryDirectCancellationService(
+            transportService,
+            clusterService,
+            clusterModule.getAllocationService(),
+            rerouteService
+        );
+        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::computeAndSubmitCancellations);
+
         modules.add(loadPluginComponents(pluginComponents));
 
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
@@ -1460,6 +1471,7 @@ class NodeConstruction {
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
+            b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
@@ -84,5 +85,18 @@ public class StatelessPluginSettingsTests extends ESTestCase {
             statelessNode.additionalSettings().get(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey()),
             equalTo("true")
         );
+    }
+
+    public void testIncrementalBulkRequestTimeoutDefaultForStateless() {
+        var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+                )
+                .build()
+        );
+        assertThat(statelessNode.additionalSettings().get(IncrementalBulkService.REQUEST_TIMEOUT.getKey()), equalTo("260s"));
     }
 }

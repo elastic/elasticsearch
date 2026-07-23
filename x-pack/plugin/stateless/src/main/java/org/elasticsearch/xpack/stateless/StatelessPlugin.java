@@ -15,6 +15,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -731,6 +732,12 @@ public class StatelessPlugin extends Plugin
 
         // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
         settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
+
+        // Should stay below any upstream HTTP timeout (proxy, load balancer) and the client-side request
+        // timeout — if either drops the connection first, cooperative cancellation has no effect. Cooperative:
+        // an in-flight shard write completes before the next chunk sees TaskCancelledException, so the value
+        // includes head start for that. Too high → connection cut externally; too low → healthy requests fail.
+        settings.put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), TimeValue.timeValueSeconds(260));
 
         String nodeMemoryAttrName = "node.attr." + MEMORY_NODE_ATTR;
         if (settings.get(nodeMemoryAttrName) == null) {

@@ -24,12 +24,12 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
-    private static final int EMBEDDING_INFERENCE_DIMENSIONS = 256;
-    private static final int SEMANTIC_REMOTE_DIMS = 384;
-    private static final String VARIABLE_INFERENCE_ID_FIELD = "variable-inference-id-field";
-    private static final String COMMON_SEMANTIC_FIELD = "common-semantic-field";
-    private static final String VARIABLE_SEMANTIC_FIELD = "variable-semantic-field";
+    private static final String SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID = "common-inference-id-field";
+    private static final int LOCAL_INFERENCE_EMBEDDING_DIMENSIONS = 256;
+    private static final int REMOTE_INFERENCE_EMBEDDING_DIMENSIONS = 384;
+    private static final String SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID = "variable-inference-id-field";
+    private static final String SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID = "common-semantic-field";
+    private static final String SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID = "variable-semantic-field";
 
     private final String fieldType;
 
@@ -60,11 +60,11 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     }
 
     private String commonField() {
-        return "semantic".equals(fieldType) ? COMMON_SEMANTIC_FIELD : COMMON_INFERENCE_ID_FIELD;
+        return "semantic".equals(fieldType) ? SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID : SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID;
     }
 
     private String variableField() {
-        return "semantic".equals(fieldType) ? VARIABLE_SEMANTIC_FIELD : VARIABLE_INFERENCE_ID_FIELD;
+        return "semantic".equals(fieldType) ? SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID : SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID;
     }
 
     public void testSemanticQueryWithCcMinimizeRoundTripsTrue() throws Exception {
@@ -177,14 +177,14 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         final String remoteSemanticInferenceId = "remote-semantic-inference-id";
 
         final Map<String, Map<String, Object>> docs = Map.of(
-            getDocId(COMMON_INFERENCE_ID_FIELD),
-            Map.of(COMMON_INFERENCE_ID_FIELD, "value of field with common inference id"),
-            getDocId(VARIABLE_INFERENCE_ID_FIELD),
-            Map.of(VARIABLE_INFERENCE_ID_FIELD, "value of field with different inference id"),
-            getDocId(COMMON_SEMANTIC_FIELD),
-            Map.of(COMMON_SEMANTIC_FIELD, "value of field with common inference id"),
-            getDocId(VARIABLE_SEMANTIC_FIELD),
-            Map.of(VARIABLE_SEMANTIC_FIELD, "value of field with different inference id")
+            getDocId(SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID),
+            Map.of(SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID, "value of field with common inference id"),
+            getDocId(SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID),
+            Map.of(SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID, "value of field with different inference id"),
+            getDocId(SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID),
+            Map.of(SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID, "value of field with common inference id"),
+            getDocId(SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID),
+            Map.of(SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID, "value of field with different inference id")
         );
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
@@ -196,21 +196,21 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
                 sparseEmbeddingServiceSettings(),
                 commonSemanticInferenceId,
                 embeddingServiceSettings(
-                    EMBEDDING_INFERENCE_DIMENSIONS,
+                    LOCAL_INFERENCE_EMBEDDING_DIMENSIONS,
                     SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 ),
                 localSemanticInferenceId,
-                embeddingServiceSettings(EMBEDDING_INFERENCE_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(LOCAL_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
             ),
             Map.of(
-                COMMON_INFERENCE_ID_FIELD,
+                SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticTextMapping(commonInferenceId),
-                VARIABLE_INFERENCE_ID_FIELD,
+                SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID,
                 semanticTextMapping(localInferenceId),
-                COMMON_SEMANTIC_FIELD,
+                SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticFieldMapping(commonSemanticInferenceId),
-                VARIABLE_SEMANTIC_FIELD,
+                SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID,
                 semanticFieldMapping(localSemanticInferenceId)
             ),
             docs
@@ -219,22 +219,22 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             REMOTE_INDEX_NAME,
             Map.of(
                 commonInferenceId,
-                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                textEmbeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 remoteInferenceId,
-                textEmbeddingServiceSettings(SEMANTIC_REMOTE_DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                textEmbeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 commonSemanticInferenceId,
-                embeddingServiceSettings(SEMANTIC_REMOTE_DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                embeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 remoteSemanticInferenceId,
-                embeddingServiceSettings(SEMANTIC_REMOTE_DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(REMOTE_INFERENCE_EMBEDDING_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
             ),
             Map.of(
-                COMMON_INFERENCE_ID_FIELD,
+                SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticTextMapping(commonInferenceId),
-                VARIABLE_INFERENCE_ID_FIELD,
+                SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID,
                 semanticTextMapping(remoteInferenceId),
-                COMMON_SEMANTIC_FIELD,
+                SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticFieldMapping(commonSemanticInferenceId),
-                VARIABLE_SEMANTIC_FIELD,
+                SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID,
                 semanticFieldMapping(remoteSemanticInferenceId)
             ),
             docs

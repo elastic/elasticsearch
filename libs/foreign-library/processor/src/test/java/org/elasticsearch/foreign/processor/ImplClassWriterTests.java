@@ -418,4 +418,180 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             .anyMatch(e -> e instanceof BranchInstruction bi && bi.opcode() == Opcode.IFNONNULL);
         assertTrue("Generated op body must contain IFNONNULL for null-String guard", hasNullCheck);
     }
+
+    /**
+     * Two overloaded Java methods binding to the same C symbol must generate two distinct
+     * {@code MethodHandle} fields using the ordinal-suffix naming strategy:
+     * {@code open$0$mh} and {@code open$1$mh}.
+     */
+    public void testOverloadedMethodsSameCSymbolGetDisambiguatedFields() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.CaptureErrno;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.Variadic;
+            @LibrarySpecification(symbolResolver = OpenLib.FakeResolver.class)
+            public interface OpenLib {
+                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                int open(String pathname, int flags);
+
+                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                int open(String pathname, int flags, int mode);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public MemorySegment resolve(String name, SymbolLookup lookup) {
+                        return MemorySegment.ofAddress(1L);
+                    }
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.OpenLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.OpenLib$Impl");
+        assertNotNull("Generated OpenLib$Impl class not found", implClass);
+
+        // The collision case must use positional suffixes; there must be no plain open$mh field.
+        java.lang.reflect.Field mh0 = implClass.getDeclaredField("open$0$mh");
+        java.lang.reflect.Field mh1 = implClass.getDeclaredField("open$1$mh");
+        assertEquals("open$0$mh must be a MethodHandle", MethodHandle.class, mh0.getType());
+        assertEquals("open$1$mh must be a MethodHandle", MethodHandle.class, mh1.getType());
+
+        try {
+            implClass.getDeclaredField("open$mh");
+            fail("open$mh must not exist when overloads are present");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+    }
+
+    /**
+     * Two overloaded Java methods binding to *different* C symbols must still be disambiguated
+     * by ordinal, since they share the same Java method name.
+     */
+    public void testOverloadedMethodsDifferentCSymbolsGetDisambiguatedFields() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            @LibrarySpecification(name = "testlib")
+            public interface MultiSymbolLib {
+                @Function("foo_v1")
+                int foo(int x);
+
+                @Function("foo_v2")
+                int foo(int x, int y);
+            }
+            """;
+
+        CompilationResult result = compile("test.MultiSymbolLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.MultiSymbolLib$Impl");
+        assertNotNull("Generated MultiSymbolLib$Impl class not found", implClass);
+
+        java.lang.reflect.Field mh0 = implClass.getDeclaredField("foo$0$mh");
+        java.lang.reflect.Field mh1 = implClass.getDeclaredField("foo$1$mh");
+        assertEquals("foo$0$mh must be a MethodHandle", MethodHandle.class, mh0.getType());
+        assertEquals("foo$1$mh must be a MethodHandle", MethodHandle.class, mh1.getType());
+
+        try {
+            implClass.getDeclaredField("foo$mh");
+            fail("foo$mh must not exist when overloads are present");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+    }
+
+    /**
+     * Three overloaded Java methods with the same name must produce {@code name$0$mh},
+     * {@code name$1$mh}, and {@code name$2$mh} in declaration order.
+     */
+    public void testThreeOverloadsGetCorrectOrdinals() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            @LibrarySpecification(name = "testlib")
+            public interface TripleLib {
+                @Function("native_bar")
+                int bar(int a);
+
+                @Function("native_bar")
+                int bar(int a, int b);
+
+                @Function("native_bar")
+                int bar(int a, int b, int c);
+            }
+            """;
+
+        CompilationResult result = compile("test.TripleLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.TripleLib$Impl");
+        assertNotNull("Generated TripleLib$Impl class not found", implClass);
+
+        java.lang.reflect.Field mh0 = implClass.getDeclaredField("bar$0$mh");
+        java.lang.reflect.Field mh1 = implClass.getDeclaredField("bar$1$mh");
+        java.lang.reflect.Field mh2 = implClass.getDeclaredField("bar$2$mh");
+        assertEquals(MethodHandle.class, mh0.getType());
+        assertEquals(MethodHandle.class, mh1.getType());
+        assertEquals(MethodHandle.class, mh2.getType());
+
+        try {
+            implClass.getDeclaredField("bar$mh");
+            fail("bar$mh must not exist when overloads are present");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+    }
+
+    /**
+     * A library with a mix of unique-named methods and overloaded methods must generate the plain
+     * {@code <name>$mh} form for the unique method and ordinal-suffixed fields for the overloads.
+     */
+    public void testMixedUniqueAndOverloadedMethodsGetCorrectFieldNames() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            @LibrarySpecification(name = "testlib")
+            public interface MixedLib {
+                @Function("unique_fn")
+                int baz(int x);
+
+                @Function("multi_fn")
+                int foo(int x);
+
+                @Function("multi_fn")
+                int foo(int x, int y);
+            }
+            """;
+
+        CompilationResult result = compile("test.MixedLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.MixedLib$Impl");
+        assertNotNull("Generated MixedLib$Impl class not found", implClass);
+
+        // Unique method keeps plain $mh suffix.
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("baz$mh").getType());
+
+        // Overloaded methods get ordinal suffixes.
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$0$mh").getType());
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$1$mh").getType());
+
+        try {
+            implClass.getDeclaredField("foo$mh");
+            fail("foo$mh must not exist when overloads are present");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+    }
 }

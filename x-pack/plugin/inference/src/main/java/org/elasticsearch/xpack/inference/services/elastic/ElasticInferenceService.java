@@ -260,7 +260,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                     inputs.getRequest().toolChoice(),
                     inputs.getRequest().tools(),
                     inputs.getRequest().topP(),
-                    mergedReasoning
+                    mergedReasoning,
+                    inputs.getRequest().cacheControl(),
+                    inputs.getRequest().sessionId()
                 ),
                 inputs.stream()
             );

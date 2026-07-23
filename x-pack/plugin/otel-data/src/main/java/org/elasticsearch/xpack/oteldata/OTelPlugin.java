@@ -77,12 +77,15 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        assert indexingPressure.get() != null : "indexing pressure must be set";
-        List<RestHandler> handlers = new ArrayList<>(3);
-        handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        handlers.add(new OTLPTracesRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        handlers.add(new OTLPLogsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
-        return handlers;
+        if (enabled == false) {
+            assert indexingPressure.get() != null : "indexing pressure must be set";
+            List<RestHandler> handlers = new ArrayList<>(3);
+            handlers.add(new OTLPMetricsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPTracesRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            handlers.add(new OTLPLogsRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            return handlers;
+        }
+        return List.of();
     }
 
     @Override

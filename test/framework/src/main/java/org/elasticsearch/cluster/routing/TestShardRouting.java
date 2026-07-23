@@ -258,8 +258,9 @@ public class TestShardRouting {
     public static ShardRouting.RecoveryPriority buildRecoveryPriority(ShardRoutingState state, boolean hasRelocationNodeId) {
         return switch (state) {
             case INITIALIZING -> hasRelocationNodeId ? buildRecoveryPriorityForRelocation() : buildRecoveryPriorityForUnassigned();
+            case UNASSIGNED -> buildRecoveryPriorityForUnassigned();
             case RELOCATING -> buildRecoveryPriorityForRelocation();
-            case UNASSIGNED, STARTED -> null;
+            case STARTED -> null;
         };
     }
 

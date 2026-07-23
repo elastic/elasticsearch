@@ -107,15 +107,18 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     () -> TestShardRouting.buildRecoverySource(instance.primary(), newState)
                 ),
             switch (newState) {
-                case UNASSIGNED, STARTED -> null;
                 // Keep the existing recovery priority iff it is inconsistent with the newState and newHasRelocatingNodeId, else randomize:
                 case INITIALIZING -> (instance.recoveryPriority() != null
                     && instance.recoveryPriority().isRelocation() == newHasRelocatingNodeId)
                         ? instance.recoveryPriority()
                         : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
+                case UNASSIGNED -> (instance.recoveryPriority() != null && !instance.recoveryPriority().isRelocation())
+                    ? instance.recoveryPriority()
+                    : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
                 case RELOCATING -> (instance.recoveryPriority() != null && instance.recoveryPriority().isRelocation())
                     ? instance.recoveryPriority()
                     : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
+                case STARTED -> null;
             },
             newState == ShardRoutingState.STARTED
                 || newState == ShardRoutingState.RELOCATING
@@ -385,8 +388,10 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     }
                     break;
                 case 5:
-                    // change recovery priority (only works when initializing or relocating)
-                    if (otherRouting.initializing() || otherRouting.relocating()) {
+                    // change recovery priority (does not work when starting, when there is no recovery priority)
+                    if (otherRouting.started()) {
+                        unchanged = true;
+                    } else {
                         otherRouting = new ShardRouting(
                             otherRouting.shardId(),
                             otherRouting.currentNodeId(),
@@ -401,8 +406,6 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.getExpectedShardSize(),
                             otherRouting.role()
                         );
-                    } else {
-                        unchanged = true;
                     }
                     break;
                 case 6:

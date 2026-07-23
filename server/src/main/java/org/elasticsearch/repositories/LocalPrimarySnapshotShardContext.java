@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.withSnapshotIndexCommitRef;
 
 /**
@@ -148,7 +149,21 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
                 indexInput.readBytes(tmp, 0, tmp.length);
                 assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
             } catch (IOException e) {
-                throw new AssertionError(e);
+                if (Lucene.isCorruptionException(e)) {
+                    throw new AssertionError(e);
+                }
+                // A transient I/O failure while re-reading the file to verify its hash does not indicate a mismatch. Rethrowing it
+                // as an AssertionError would escape the snapshot thread pool worker without ever completing the shard snapshot,
+                // leaving the snapshot in progress forever, so skip the verification instead.
+                logger.warn(
+                    () -> format(
+                        "[%s] [%s] failed to read [%s] to verify its hash, skipping verification",
+                        shardId(),
+                        snapshotId(),
+                        fileInfo.physicalName()
+                    ),
+                    e
+                );
             } finally {
                 store.decRef();
             }

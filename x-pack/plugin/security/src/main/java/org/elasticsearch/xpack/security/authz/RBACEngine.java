@@ -1129,6 +1129,34 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
+        public Map<String, List<String>> getApplicationPrivileges() {
+            final var application = role.application();
+            final Set<String> applicationNames = application.getApplicationNames();
+            if (applicationNames.isEmpty()) {
+                return Map.of();
+            }
+            final Map<String, List<String>> result = new HashMap<>(applicationNames.size());
+            for (String applicationName : applicationNames) {
+                // Emit one "<resource>|<action>" token per (granted action x resource-it-was-granted-on),
+                // so a DLS template can enforce "user holds this action on this resource" rather than the
+                // two dimensions independently. TreeSet keeps it deterministic for cache-key stability.
+                final Set<String> grants = new TreeSet<>();
+                for (ApplicationPrivilege privilege : application.getPrivileges(applicationName)) {
+                    final Set<String> resources = application.getResourcePatterns(privilege);
+                    for (String action : privilege.getActions()) {
+                        for (String resource : resources) {
+                            grants.add(resource + "|" + action);
+                        }
+                    }
+                }
+                if (grants.isEmpty() == false) {
+                    result.put(applicationName, List.copyOf(grants));
+                }
+            }
+            return result.isEmpty() ? Map.of() : result;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) {
                 return true;

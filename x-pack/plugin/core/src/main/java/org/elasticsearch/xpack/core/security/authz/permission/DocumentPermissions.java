@@ -116,7 +116,9 @@ public final class DocumentPermissions implements CacheKey {
      * @param shardId {@link ShardId}
      * @param searchExecutionContextProvider {@link SearchExecutionContext}
      * @param applicationResources the user's application-privilege resources, exposed to DLS query
-     * templates as {@code _user.applications}
+     * templates as {@code _user.applications} / {@code _user.application_resources}
+     * @param applicationPrivileges the user's resource-scoped application privilege grants, exposed as
+     * {@code _user.application_privileges}
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
@@ -125,10 +127,11 @@ public final class DocumentPermissions implements CacheKey {
         ScriptService scriptService,
         ShardId shardId,
         Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
-        Map<String, List<String>> applicationResources
+        Map<String, List<String>> applicationResources,
+        Map<String, List<String>> applicationPrivileges
     ) throws IOException {
         if (hasDocumentLevelPermissions()) {
-            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService, applicationResources));
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService, applicationResources, applicationPrivileges));
             assert listOfEvaluatedQueries != null : "evaluated queries must not be null";
             assert false == listOfEvaluatedQueries.isEmpty() : "evaluated queries must not be empty";
 

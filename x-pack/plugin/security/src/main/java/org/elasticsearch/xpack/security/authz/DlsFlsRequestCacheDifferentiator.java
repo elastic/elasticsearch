@@ -72,9 +72,17 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
             final Map<String, List<String>> applicationResources = authorizationInfo == null
                 ? Map.of()
                 : authorizationInfo.getApplicationResources();
+            final Map<String, List<String>> applicationPrivileges = authorizationInfo == null
+                ? Map.of()
+                : authorizationInfo.getApplicationPrivileges();
             indexAccessControl.buildCacheKey(
                 out,
-                SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get(), applicationResources)
+                SecurityQueryTemplateEvaluator.wrap(
+                    securityContext.getUser(),
+                    scriptServiceReference.get(),
+                    applicationResources,
+                    applicationPrivileges
+                )
             );
         }
     }

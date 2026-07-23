@@ -299,6 +299,20 @@ public interface AuthorizationEngine {
         default Map<String, List<String>> getApplicationResources() {
             return Map.of();
         }
+
+        /**
+         * Returns the resource-scoped application privileges granted to this user, keyed by application name.
+         * Each value is a list of {@code <resource>|<action>} composite grant tuples (e.g.
+         * {@code "space:marketing|saved_object:dashboard/get"}), i.e. the cross-product of each granted
+         * privilege's actions with the resources it was granted on. Exposed to document-level-security query
+         * templates as {@code _user.application_privileges} so a DLS query can filter by "does the user hold
+         * this action on this resource" — the resource-scoped equivalent of {@link #getApplicationResources()}.
+         * Action strings are opaque to Elasticsearch and may contain wildcard patterns. Empty by default;
+         * only the RBAC implementation populates it, deterministically ordered.
+         */
+        default Map<String, List<String>> getApplicationPrivileges() {
+            return Map.of();
+        }
     }
 
     /**

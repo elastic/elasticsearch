@@ -49,23 +49,27 @@ public final class SecurityQueryTemplateEvaluator {
      * source without any modifications.
      */
     public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
-        return evaluateTemplate(querySource, scriptService, user, Map.of());
+        return evaluateTemplate(querySource, scriptService, user, Map.of(), Map.of());
     }
 
     /**
      * Same as {@link #evaluateTemplate(String, ScriptService, User)}, but also exposes the user's
-     * application-privilege resources to the template as {@code _user.applications}
-     * (applicationName -&gt; resource patterns). Used so a DLS query can filter documents by, for
-     * example, the Kibana spaces the user can access.
+     * application privileges to the template: {@code _user.applications} /
+     * {@code _user.application_resources} (the resource patterns, e.g. the Kibana spaces the user can
+     * access) and {@code _user.application_privileges} (the resource-scoped {@code <resource>|<action>}
+     * grants). Used so a DLS query can filter documents by the resources and/or actions a user holds.
      *
-     * @param applicationResources applicationName -&gt; granted resource patterns; must be
-     * deterministically ordered so the rendered query (and any cache key derived from it) is stable.
+     * @param applicationResources applicationName -&gt; granted resource patterns
+     * @param applicationPrivileges applicationName -&gt; {@code <resource>|<action>} grant tuples
+     * Both must be deterministically ordered so the rendered query (and any cache key derived from it)
+     * is stable across render sites.
      */
     public static String evaluateTemplate(
         final String querySource,
         final ScriptService scriptService,
         final User user,
-        final Map<String, List<String>> applicationResources
+        final Map<String, List<String>> applicationResources,
+        final Map<String, List<String>> applicationPrivileges
     ) {
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(XContentParserConfiguration.EMPTY, querySource)) {
@@ -98,6 +102,14 @@ public final class SecurityQueryTemplateEvaluator {
                     flattenedResources.addAll(resources);
                 }
                 userModel.put("application_resources", List.copyOf(flattenedResources));
+                // Flattened union of resource-scoped "<resource>|<action>" grants, for DLS queries that
+                // need to enforce space AND privilege together (e.g. only KIs whose required action the
+                // user holds in that KI's space).
+                final Set<String> flattenedPrivileges = new TreeSet<>();
+                for (List<String> grants : applicationPrivileges.values()) {
+                    flattenedPrivileges.addAll(grants);
+                }
+                userModel.put("application_privileges", List.copyOf(flattenedPrivileges));
                 Map<String, Object> extraParams = Collections.singletonMap("_user", userModel);
 
                 return MustacheTemplateEvaluator.evaluate(scriptService, parser, extraParams);
@@ -110,11 +122,22 @@ public final class SecurityQueryTemplateEvaluator {
     }
 
     public static DlsQueryEvaluationContext wrap(User user, ScriptService scriptService) {
-        return wrap(user, scriptService, Map.of());
+        return wrap(user, scriptService, Map.of(), Map.of());
     }
 
-    public static DlsQueryEvaluationContext wrap(User user, ScriptService scriptService, Map<String, List<String>> applicationResources) {
-        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user, applicationResources);
+    public static DlsQueryEvaluationContext wrap(
+        User user,
+        ScriptService scriptService,
+        Map<String, List<String>> applicationResources,
+        Map<String, List<String>> applicationPrivileges
+    ) {
+        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(
+            q.utf8ToString(),
+            scriptService,
+            user,
+            applicationResources,
+            applicationPrivileges
+        );
     }
 
     @FunctionalInterface

@@ -65,6 +65,16 @@ public final class ApplicationPrivilege extends Privilege {
     }
 
     /**
+     * The action patterns granted by this privilege (the expanded actions of a named privilege, or the
+     * bespoke action patterns of an inline privilege). Exposed so that a resolved role can surface the
+     * actions a user holds — e.g. to a document-level-security query template. Patterns may contain
+     * wildcards; callers that compare against literal actions must account for that.
+     */
+    public Set<String> getActions() {
+        return Set.of(patterns);
+    }
+
+    /**
      * Validate that the provided application name is valid, and throws an exception otherwise
      *
      * @throws IllegalArgumentException if the name is not valid

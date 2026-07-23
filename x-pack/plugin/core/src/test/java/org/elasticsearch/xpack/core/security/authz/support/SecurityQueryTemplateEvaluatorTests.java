@@ -85,12 +85,17 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         userModel.put("metadata", user.metadata());
         userModel.put("applications", Map.of());
         userModel.put("application_resources", List.of());
+        userModel.put("application_privileges", List.of());
         assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
     }
 
     public void testTemplatingExposesApplicationResources() throws Exception {
         User user = new User("_username", new String[] { "role1" }, "_full_name", "_email", Map.of("key", "value"), true);
         Map<String, List<String>> applicationResources = Map.of("kibana-.kibana", List.of("*", "space:default", "space:marketing"));
+        Map<String, List<String>> applicationPrivileges = Map.of(
+            "kibana-.kibana",
+            List.of("space:marketing|saved_object:dashboard/get")
+        );
 
         TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
             @Override
@@ -109,7 +114,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String querySource = Strings.toString(builder.endObject());
 
-        SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, user, applicationResources);
+        SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, user, applicationResources, applicationPrivileges);
 
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
         verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
@@ -118,6 +123,8 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         assertThat(userModel.get("applications"), equalTo(applicationResources));
         // flattened union across applications, deterministically ordered
         assertThat(userModel.get("application_resources"), equalTo(List.of("*", "space:default", "space:marketing")));
+        // flattened resource-scoped <resource>|<action> grants
+        assertThat(userModel.get("application_privileges"), equalTo(List.of("space:marketing|saved_object:dashboard/get")));
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {

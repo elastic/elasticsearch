@@ -279,7 +279,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-
     /**
      * When this value is non-null, {@link #relativeTimeInNanos()} reads from it instead of calling System#nanoTime().
      */

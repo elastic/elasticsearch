@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154806
+summary: Bump netty version
+type: upgrade

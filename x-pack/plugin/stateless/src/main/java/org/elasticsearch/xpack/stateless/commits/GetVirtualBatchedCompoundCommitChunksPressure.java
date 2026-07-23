@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -94,12 +93,12 @@ public class GetVirtualBatchedCompoundCommitChunksPressure {
             );
         }
         this.metricCurrentChunksBytes.add(bytes);
-        logger.trace(() -> Strings.format("added chunk request with [%d] bytes", bytes));
+        logger.info("markChunkStarted: added chunk request with [{}] bytes, new value {}", bytes, currentChunksBytes);
         // We assert that the releasable is called only once. If the assertion fails, this means the memory is adjusted twice.
         return Releasables.assertOnce(() -> {
-            this.currentChunksBytes.getAndAdd(-bytes);
+            long newValue = this.currentChunksBytes.addAndGet(-bytes);
             this.metricCurrentChunksBytes.add(-bytes);
-            logger.trace(() -> Strings.format("removed chunk request with [%d] bytes", bytes));
+            logger.info("markChunkStarted: removed chunk request with [{}] bytes, new value {}", bytes, newValue);
         });
     }
 

@@ -570,6 +570,7 @@ public class SearchEngine extends Engine {
                     return;
                 }
                 StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
+                logger.info("Starting to process commit notification {}", latestCommit);
                 if (searchDirectory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
@@ -613,6 +614,7 @@ public class SearchEngine extends Engine {
                     try {
                         final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
                         if (commitUpdated) {
+                            logger.info("Updating internal state {}", notificationToApply);
                             updateInternalState(notificationToApply, current);
                         }
                     } finally {
@@ -696,6 +698,11 @@ public class SearchEngine extends Engine {
                 final var engineReadLock = engineConfig.getEngineResetLock().readLock();
                 engineReadLock.lock();
                 try {
+                    logger.info(
+                        "doUpdateInternalState: refreshing reader for commit [term={}, gen={}]",
+                        latestCommit.primaryTerm(),
+                        latestCommit.generation()
+                    );
                     readerManager.maybeRefreshBlocking();
                 } finally {
                     engineReadLock.unlock();

@@ -136,6 +136,14 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         final String preferredNodeId,
         final ActionListener<ReleasableBytesReference> listener
     ) {
+        logger.info(
+            "fetching VBCC chunk from indexing node for shard [{}] term [{}] gen [{}] at offset [{}] length [{}]",
+            shardId,
+            virtualBccTermAndGen.primaryTerm(),
+            virtualBccTermAndGen.generation(),
+            offset,
+            length
+        );
         GetVirtualBatchedCompoundCommitChunkRequest request = new GetVirtualBatchedCompoundCommitChunkRequest(
             shardId,
             virtualBccTermAndGen.primaryTerm(),

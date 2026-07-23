@@ -1294,16 +1294,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 var referencedBlob = referencedFilesForBlob.getKey();
                 var referencedFiles = referencedFilesForBlob.getValue().files();
                 bccHeaderReadExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                    var commitsIterator = getCompoundCommitsIteratorForBlobFile.apply(
+                    long maxBlobOffset = referencedFilesForBlob.getValue().maxBlobOffset();
+                    logger.info(
+                        "readReferencedCompoundCommits: reading blob [{}] for new commit files up to offset [{}]",
                         referencedBlob,
-                        referencedFilesForBlob.getValue().maxBlobOffset()
+                        maxBlobOffset
                     );
+                    var commitsIterator = getCompoundCommitsIteratorForBlobFile.apply(referencedBlob, maxBlobOffset);
                     long offsetInBlob = 0L;
                     // only used for asserts
                     Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
                     while (commitsIterator.hasNext()) {
                         var referencedCompoundCommit = commitsIterator.next();
                         assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
+                        logger.info(
+                            "readReferencedCompoundCommits: CC [term={}, gen={}] starts at blob-offset=[{}], size=[{}] (padded to [{}])",
+                            referencedCompoundCommit.primaryTerm(),
+                            referencedCompoundCommit.generation(),
+                            offsetInBlob,
+                            referencedCompoundCommit.sizeInBytes(),
+                            BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes())
+                        );
                         var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
                         if (commitInternalFiles.isEmpty() == false) {
                             referencedCCsConsumer.accept(

@@ -259,6 +259,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 } catch (AlreadyClosedException e) {
                     throw new ShardNotFoundException(shard.shardId(), "Engine already closed", e);
                 } finally {
+                    logger.info("Releasing requestLength on vbccChunksPressure {}", requestLength);
                     Releasables.close(finalReleasable);
                 }
             } catch (Exception e) {

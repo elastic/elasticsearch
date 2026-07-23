@@ -47,7 +47,8 @@ public class InsertEmptyBucketsAfterAggregate extends AnalyzerRules.AnalyzerRule
         if (plan instanceof InlineStats || plan instanceof InsertEmptyBuckets) {
             return plan;
         }
-        List<LogicalPlan> newChildren = plan.children().stream()
+        List<LogicalPlan> newChildren = plan.children()
+            .stream()
             .map(child -> child instanceof Aggregate aggregate ? maybeWrap(aggregate) : child)
             .toList();
         return newChildren.equals(plan.children()) ? plan : plan.replaceChildren(newChildren);

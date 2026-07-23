@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -49,7 +50,18 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
             ActionListener<InputStream> readListener = new ActionListener<>() {
                 @Override
                 public void onResponse(InputStream inputStream) {
-                    delegatedListener.onResponse(new ReleasingInputStream(inputStream, budget));
+                    // if delegatedListener.onResponse throws, the wrapper was constructed but the caller never took ownership;
+                    // close it here so the budget is released rather than stranded inside an orphaned wrapper stream.
+                    final ReleasingInputStream wrapper = new ReleasingInputStream(inputStream, budget);
+                    boolean handedOff = false;
+                    try {
+                        delegatedListener.onResponse(wrapper);
+                        handedOff = true;
+                    } finally {
+                        if (handedOff == false) {
+                            IOUtils.closeWhileHandlingException(wrapper);
+                        }
+                    }
                 }
 
                 @Override

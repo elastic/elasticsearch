@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -102,27 +103,25 @@ public class FillCacheMemoryPressure {
     public void acquire(long bytes, Executor executor, ActionListener<Releasable> listener) {
         assert bytes > 0 : "acquiring [" + bytes + "] bytes";
         final boolean queued;
-        final boolean scheduleStallCheck;
         synchronized (mutex) {
             // don't overtake a waiter — a large queue head could otherwise starve
             if (waiters.isEmpty() && fits(bytes)) {
                 grant(bytes);
                 queued = false;
-                scheduleStallCheck = false;
             } else {
                 waiters.addLast(new Waiter(bytes, executor, listener, threadPool.relativeTimeInMillis()));
                 waitingBytes += bytes;
                 metricWaitingBytes.add(bytes);
                 logger.trace(() -> Strings.format("queued fill read of [%d] bytes behind [%d] waiters", bytes, waiters.size() - 1));
                 queued = true;
-                scheduleStallCheck = stallCheckScheduled == false;
-                stallCheckScheduled = true;
+                // schedule under mutex so a schedule failure atomically leaves stallCheckScheduled=false;
+                // otherwise a race window between failure and flag-flip could leave the queue silently unmonitored
+                if (stallCheckScheduled == false) {
+                    stallCheckScheduled = tryScheduleStallCheckLocked(stallWarnThreshold);
+                }
             }
         }
         if (queued) {
-            if (scheduleStallCheck) {
-                scheduleStallCheck(stallWarnThreshold);
-            }
             return;
         }
         listener.onResponse(releasableFor(bytes));
@@ -161,25 +160,48 @@ public class FillCacheMemoryPressure {
             }
         }
         // off-mutex + forked: a synchronously-failing read would otherwise recurse into release
+        final List<Exception> listenerFailures = new ArrayList<>();
         for (Waiter waiter : granted) {
             try {
-                waiter.executor().execute(() -> waiter.listener().onResponse(releasableFor(waiter.bytes())));
+                waiter.executor().execute(() -> deliverGrant(waiter));
             } catch (Exception e) {
-                // executor rejected (node shutting down): return budget, fail waiter
+                // executor rejected (node shutting down): return budget, fail waiter — but collect (do not propagate)
+                // any exception from onFailure so subsequent granted waiters are still notified.
+                // Mirrors ActionListener.onFailure(Iterable, Exception) at server/action/ActionListener.java:319.
                 release(waiter.bytes());
-                waiter.listener().onFailure(e);
+                try {
+                    waiter.listener().onFailure(e);
+                } catch (Exception listenerException) {
+                    listenerFailures.add(listenerException);
+                }
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerFailures);
+    }
+
+    // runs on the waiter's executor; hands the Releasable to the listener and releases the budget if the listener throws
+    // before it can take ownership (otherwise the grant would leak — currentBytes stays inflated with no live read).
+    private void deliverGrant(Waiter waiter) {
+        final Releasable budget = releasableFor(waiter.bytes());
+        boolean handedOff = false;
+        try {
+            waiter.listener().onResponse(budget);
+            handedOff = true;
+        } finally {
+            if (handedOff == false) {
+                budget.close();
             }
         }
     }
 
-    private void scheduleStallCheck(TimeValue delay) {
+    // caller must hold mutex
+    private boolean tryScheduleStallCheckLocked(TimeValue delay) {
         try {
             threadPool.schedule(this::checkForStalledHeadWaiter, delay, threadPool.generic());
+            return true;
         } catch (Exception e) {
             // scheduler rejected (node shutting down): stall monitoring ends
-            synchronized (mutex) {
-                stallCheckScheduled = false;
-            }
+            return false;
         }
     }
 
@@ -205,6 +227,7 @@ public class FillCacheMemoryPressure {
             waitingBytesSnapshot = waitingBytes;
             currentBytesSnapshot = currentBytes;
         }
+        final TimeValue nextDelay;
         if (headWaitedMillis >= stallWarnThreshold.millis()) {
             logger.warn(
                 "cache-fill memory budget stalled: no budget released for [{}] while the queue head waits for [{}] bytes; "
@@ -217,9 +240,17 @@ public class FillCacheMemoryPressure {
                 currentBytesSnapshot,
                 fillBytesLimit
             );
-            scheduleStallCheck(stallWarnThreshold);
+            nextDelay = stallWarnThreshold;
         } else {
-            scheduleStallCheck(TimeValue.timeValueMillis(stallWarnThreshold.millis() - headWaitedMillis));
+            nextDelay = TimeValue.timeValueMillis(stallWarnThreshold.millis() - headWaitedMillis);
+        }
+        synchronized (mutex) {
+            // re-check under mutex: the queue may have drained between the snapshot above and here
+            if (waiters.isEmpty()) {
+                stallCheckScheduled = false;
+            } else {
+                stallCheckScheduled = tryScheduleStallCheckLocked(nextDelay);
+            }
         }
     }
 

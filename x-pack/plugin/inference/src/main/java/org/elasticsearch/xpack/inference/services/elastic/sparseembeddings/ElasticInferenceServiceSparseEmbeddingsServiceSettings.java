@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
@@ -99,24 +99,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         ConfigurationParseContext context
     ) {
 
-<<<<<<< HEAD
-        String modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
-        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
-
-        RateLimitSettings.rejectRateLimitFieldForRequestContext(
-            map,
-            SettingsScope.SERVICE_SETTINGS,
-            ElasticInferenceService.NAME,
-            TaskType.SPARSE_EMBEDDING,
-            context,
-            validationException
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
-=======
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
 
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
@@ -132,7 +114,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
->>>>>>> origin/main
     }
 
     private final String modelId;

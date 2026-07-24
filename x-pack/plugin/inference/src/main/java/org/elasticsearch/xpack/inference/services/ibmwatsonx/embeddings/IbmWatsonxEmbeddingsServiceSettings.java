@@ -13,11 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-<<<<<<< HEAD
-import org.elasticsearch.inference.ServiceSettings;
-=======
 import org.elasticsearch.inference.ModelConfigurations;
->>>>>>> origin/main
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,13 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-<<<<<<< HEAD
-import org.elasticsearch.xpack.inference.services.SettingsScope;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-=======
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
->>>>>>> origin/main
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -66,40 +56,11 @@ public class IbmWatsonxEmbeddingsServiceSettings extends IbmWatsonxServiceSettin
      *                            other versions are tolerated).
      * @return the parser
      */
-<<<<<<< HEAD
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
-
-    public static IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        String model = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        String projectId = extractRequiredString(map, PROJECT_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        var url = extractUri(map, URL, validationException);
-        String apiVersion = extractRequiredString(map, API_VERSION, SettingsScope.SERVICE_SETTINGS, validationException);
-
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var similarityMeasure = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxEmbeddingsServiceSettings(
-            model,
-            projectId,
-            url,
-            apiVersion,
-            maxInputTokens,
-            dimensions,
-            similarityMeasure,
-            rateLimitSettings
-=======
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
             ignoreUnknownFields,
             Builder::new
->>>>>>> origin/main
         );
         IbmWatsonxServiceSettings.declareCommonFields(parser);
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -200,42 +161,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends IbmWatsonxServiceSettin
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
-<<<<<<< HEAD
-        rateLimitSettings.writeTo(out);
-    }
-
-    @Override
-    public IbmWatsonxEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedMaxInputTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxEmbeddingsServiceSettings(
-            this.modelId,
-            this.projectId,
-            this.url,
-            this.apiVersion,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            this.dimensions,
-            this.similarity,
-            extractedRateLimitSettings
-        );
-=======
         rateLimitSettings().writeTo(out);
->>>>>>> origin/main
     }
 
     @Override

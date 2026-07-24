@@ -12,20 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-<<<<<<< HEAD
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-=======
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
->>>>>>> origin/main
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -53,24 +44,6 @@ public class IbmWatsonxRerankServiceSettings extends IbmWatsonxServiceSettings {
      *                            other versions are tolerated).
      * @return the parser
      */
-<<<<<<< HEAD
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
-
-    public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var uri = extractUri(map, URL, validationException);
-        var apiVersion = extractRequiredString(map, API_VERSION, SettingsScope.SERVICE_SETTINGS, validationException);
-
-        var modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        var projectId = extractRequiredString(map, PROJECT_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
-=======
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
@@ -79,7 +52,6 @@ public class IbmWatsonxRerankServiceSettings extends IbmWatsonxServiceSettings {
         );
         IbmWatsonxServiceSettings.declareCommonFields(parser);
         return parser;
->>>>>>> origin/main
     }
 
     public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {

@@ -306,8 +306,8 @@ teardown:
 "Test conditional field API can access ingest metadata":
   # While the script processor uses only source fields for field() access, the conditional processor's Fields API
   # implementation uses the full ctx map. So for the conditional processor, field() will return document metadata
-  # as well as actual source fields, and for the _ingest key it will return ingest metadata, rather than a value
-  # from the source.
+  # as well as actual source fields, and for the _ingest key it will return ingest metadata, provided there is no
+  # source field of that name (a source field named _ingest takes precedence over ingest metadata).
   - requires:
       cluster_features: [ "ingest.painless.ingest_metadata" ]
       reason: "Accesses ingest metadata from Painless"
@@ -339,13 +339,12 @@ teardown:
         index: test
         id: "foreach_conditional_field_api"
         pipeline: "my_pipeline"
-        body: { _ingest: { _value: "source" }, values: [ "foo" ] }
+        body: { values: [ "foo" ] }
 
   - do:
       get:
         index: test
         id: "foreach_conditional_field_api"
-  - match: { _source._ingest._value: "source" }
   - match: { _source.values: [ "foo" ] }
   - match: { _source.matched: true }
 

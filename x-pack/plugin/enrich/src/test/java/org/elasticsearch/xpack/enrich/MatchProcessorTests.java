@@ -205,11 +205,11 @@ public class MatchProcessorTests extends ESTestCase {
             );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
-            assertThat(ingestDocument.getSource().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
             IngestDocument[] holder = new IngestDocument[1];
             processor.execute(ingestDocument, (result, e) -> holder[0] = result);
             assertThat(holder[0], notNullValue());
-            assertThat(ingestDocument.getSource().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
         }
         {
             MatchProcessor processor = new MatchProcessor(

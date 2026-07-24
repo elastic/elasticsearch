@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.expression.promql.function;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -25,6 +28,10 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 /**
  * PromQL built-in function definitions that do not correspond to a dedicated ES|QL function class.
@@ -150,6 +157,29 @@ public class PromqlBuiltinFunctionDefinitions {
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("time");
 
+    /**
+     * {@code timestamp(v)} returns each sample's timestamp as seconds since the Unix epoch.
+     * <p>
+     * Instant selectors keep the scrape timestamp of the selected sample (via {@code last_over_time} on the
+     * evaluation timestamp field, restricted to documents that have the metric). Aggregations and range-vector
+     * functions stamp results at the evaluation timestamp, matching Prometheus.
+     */
+    static final PromqlFunctionDefinition TIMESTAMP = PromqlFunctionDefinition.def()
+        .unaryTimeExtraction(
+            (source, target, ctx, extraParams) -> new Div(
+                source,
+                new ToDouble(source, sampleTimestamp(source, target, ctx)),
+                Literal.fromDouble(source, 1000.0)
+            )
+        )
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("""
+            Returns the timestamp of each sample of the given vector as the number of seconds since January 1, 1970 UTC. \
+            It acts on float and histogram samples in the same way.""")
+        .example("timestamp(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("timestamp");
+
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
         .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
@@ -194,6 +224,41 @@ public class PromqlBuiltinFunctionDefinitions {
                 )
             )
             .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED);
+    }
+
+    /**
+     * Resolves the timestamp expression for {@code timestamp(v)}.
+     * Instant-selector {@link LastOverTime} (no window) preserves scrape timestamps; otherwise the evaluation
+     * step/timestamp is used, matching Prometheus sample stamping after aggregations and range functions.
+     */
+    private static Expression sampleTimestamp(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+        LastOverTime instantLast = findInstantSelectorLastOverTime(target);
+        if (instantLast != null) {
+            Expression metricPresent = new IsNotNull(source, instantLast.field());
+            Expression filter = Literal.TRUE.equals(instantLast.filter())
+                ? metricPresent
+                : new And(source, instantLast.filter(), metricPresent);
+            return new LastOverTime(source, instantLast.timestamp(), filter, instantLast.window(), instantLast.timestamp());
+        }
+        if (isDateTime(target.dataType()) || isDateNanos(target.dataType())) {
+            return target;
+        }
+        Expression step = ctx.step();
+        return (step == null || isNull(step.dataType())) ? ctx.timestamp() : step;
+    }
+
+    /** Finds the windowless {@link LastOverTime} produced for an instant selector, possibly under value transforms. */
+    private static LastOverTime findInstantSelectorLastOverTime(Expression expression) {
+        if (expression instanceof LastOverTime lastOverTime && lastOverTime.hasWindow() == false) {
+            return lastOverTime;
+        }
+        for (Expression child : expression.children()) {
+            LastOverTime found = findInstantSelectorLastOverTime(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     private PromqlBuiltinFunctionDefinitions() {}

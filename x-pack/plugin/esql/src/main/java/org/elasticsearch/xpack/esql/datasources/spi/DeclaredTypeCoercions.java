@@ -362,6 +362,20 @@ public final class DeclaredTypeCoercions {
      * propagates and the read fails; with a live sink the caller nulls the cell/position and one
      * capped response {@code Warning} header records the reason. Callers append the null
      * themselves — this method only decides throw-vs-warn.
+     * <p>
+     * As the single decision point it also normalizes the strict failure. The coercers throw heterogeneous
+     * low-level exceptions ({@code NumberFormatException} from {@code Double.parseDouble}, a
+     * {@code DateTimeException} from a date parse, {@code InvalidArgumentException} from the reused {@code ::}
+     * engine), so re-raising them verbatim leaked a bare message (e.g. {@code empty String}) with no column
+     * or declared type on the paths that surface the exception directly (a direct {@link #castBlock}, the ORC
+     * fused arms), and a status only incidentally uniform — a leaked {@code DateTimeException} is not an
+     * {@link IllegalArgumentException} and would surface as a 500 rather than the numeric paths' 400. The
+     * strict branch instead re-raises one {@link InvalidArgumentException} (a client 400 that survives the
+     * data-node hop) naming the column, the declared type and the offending value, with the original chained
+     * as the cause and an {@code error_mode=null_field} pointer; readers that wrap a read failure in their own
+     * exception (the Parquet iterator) carry the enriched message in the cause. {@code columnName} is thus
+     * load-bearing in strict mode too (a {@code null} name degrades to {@code <unknown>}), and strict and
+     * lenient share one detail string so they cannot drift.
      */
     public static void onCoercionFailure(
         @Nullable String columnName,
@@ -370,20 +384,18 @@ public final class DeclaredTypeCoercions {
         RuntimeException e,
         @Nullable SkipWarnings warnings
     ) {
+        String detail = "Column ["
+            + (columnName == null ? "<unknown>" : columnName)
+            + "]: cannot coerce value from ["
+            + from.typeName()
+            + "] to declared type ["
+            + to.typeName()
+            + "]: "
+            + e.getMessage();
         if (warnings == null) {
-            throw e;
+            throw new InvalidArgumentException(e, detail + "; set error_mode=null_field to read failing values as null instead of failing");
         }
-        warnings.add(
-            "Column ["
-                + columnName
-                + "]: cannot coerce value from ["
-                + from.typeName()
-                + "] to declared type ["
-                + to.typeName()
-                + "]: "
-                + e.getMessage()
-                + "; returning null"
-        );
+        warnings.add(detail + "; returning null");
     }
 
     /**

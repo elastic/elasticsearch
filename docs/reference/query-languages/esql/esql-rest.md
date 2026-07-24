@@ -366,7 +366,7 @@ Columns created with `BUCKET` can include bucket interval metadata:
   "_meta": {
     "bucket": {
       "interval": 1,
-      "unit": "d"
+      "unit": "day"
     }
   }
 }

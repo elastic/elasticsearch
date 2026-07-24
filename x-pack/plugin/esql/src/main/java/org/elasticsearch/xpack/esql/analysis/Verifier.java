@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
@@ -131,7 +132,7 @@ public class Verifier {
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan);
+        var planCheckers = planCheckers(plan, context.analysisRegistry());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -291,7 +292,7 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
@@ -305,7 +306,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(failures);
+                        va.postAnalysisVerification(analysisRegistry, failures);
                     }
                 });
             }

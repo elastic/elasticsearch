@@ -23,6 +23,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -46,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -83,7 +86,8 @@ public class DatafeedRunner {
         LongSupplier currentTimeSupplier,
         AnomalyDetectionAuditor auditor,
         AutodetectProcessManager autodetectProcessManager,
-        DatafeedContextProvider datafeedContextProvider
+        DatafeedContextProvider datafeedContextProvider,
+        MeterRegistry meterRegistry
     ) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -93,7 +97,23 @@ public class DatafeedRunner {
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedContextProvider = Objects.requireNonNull(datafeedContextProvider);
+        meterRegistry.registerLongGauge(
+            "es.ml.datafeeds.cps.with_unavailable_projects.current",
+            "Count of datafeeds running on this node whose last search cycle saw at least one skipped or unavailable linked project.",
+            "datafeeds",
+            () -> new LongWithAttributes(countDatafeedsWithUnavailableProjects(), Map.of())
+        );
         clusterService.addListener(taskRunner);
+    }
+
+    long countDatafeedsWithUnavailableProjects() {
+        long count = 0;
+        for (Holder holder : runningDatafeedsOnThisNode.values()) {
+            if (holder.datafeedJob.getCrossClusterSearchStats().hasUnavailableLinkedProjects()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, boolean isReassignment, Consumer<Exception> finishHandler) {

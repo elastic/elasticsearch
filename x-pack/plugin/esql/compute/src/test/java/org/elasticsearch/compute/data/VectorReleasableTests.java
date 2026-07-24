@@ -137,7 +137,7 @@ public class VectorReleasableTests extends ESTestCase {
         assertTrue(closed[0]);
     }
 
-    /** OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted directly — the hook must still fire. */
+    /** OrdinalBytesRefVector extends AbstractBlockRefCounted directly — the hook must still fire. */
     public void testOrdinalBytesRefVector() {
         var closed = new boolean[1];
         IntVector ordinals = blockFactory.newIntArrayVector(new int[] { 0, 0, 1 }, 3);

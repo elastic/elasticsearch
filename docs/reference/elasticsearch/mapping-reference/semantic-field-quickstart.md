@@ -280,7 +280,7 @@ JSON
 
 :::::
 
-This demonstrates binary-to-binary search: the endpoint embeds the binary image query and searches the indexed image embeddings. Because this toy index and query contain the same image, the image matches itself. In an application, encode a different image to find visually or semantically similar images.
+The endpoint embeds the query image and compares it with the indexed image embeddings. This example reuses the indexed image as the query, so the image matches itself.
 
 ::::::
 

@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 
 import java.io.IOException;
@@ -313,7 +313,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         assertNotNull(putModel.toString(), serviceSettings.get(ServiceFields.DIMENSIONS)); // set by validation
 
         var results = infer(inferenceId, List.of("hello"));
-        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+        assertNotNull(results.get(TextEmbeddingFloatResults.TEXT_EMBEDDING));
 
         deleteModel(inferenceId);
         forceStopMlNodeDeployment(inferenceId); // endpoint's deployment id == inference id

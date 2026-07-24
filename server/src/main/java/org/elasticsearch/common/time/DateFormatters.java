@@ -703,15 +703,6 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
-    private static final DateTimeFormatter STRICT_DATE_FORMATTER = new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 1, 9, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withResolverStyle(ResolverStyle.STRICT);
-
     /*
      * Returns a formatter that combines a full date and time, separated by a 'T'
      * (uuuu-MM-dd'T'HH:mm:ss.SSSZZ).

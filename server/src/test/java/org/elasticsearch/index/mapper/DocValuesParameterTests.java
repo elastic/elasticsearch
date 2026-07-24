@@ -762,6 +762,36 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * With {@code ignore_malformed=true}, a malformed integer value must land in {@code ._ignore_malformed} and not in
+     * {@code _ignored_source}. Exercises the parser-position write variant used by {@link NumberFieldMapper},
+     * {@link BooleanFieldMapper}, {@link DateFieldMapper}, and {@link IpFieldMapper}.
+     */
+    public void testIgnoreMalformedWritesToIgnoreMalformedColumn() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
+    /**
+     * {@link GeoPointFieldMapper} uses a pre-built {@code XContentBuilder} when writing malformed values, exercising the
+     * builder-argument overload of {@link FallbackStorageRouter#write}. Verify malformed geo values also land in
+     * {@code ._ignore_malformed}, not {@code _ignored_source}.
+     */
+    public void testIgnoreMalformedGeoPointWritesToIgnoreMalformedColumn() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-geopoint")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
     public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(

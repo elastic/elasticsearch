@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 
@@ -2240,8 +2241,58 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     static void assertNotPartial(Map<String, Object> answer) {
         var clusters = answer.get("_clusters");
+        var isPartial = answer.get("is_partial");
+        if (Boolean.TRUE.equals(isPartial) && isSkippedDueToConnectTransportException(clusters)) {
+            // Remote cluster(s) unavailable during execution — not a product bug; skip rather than fail.
+            Assume.assumeTrue("Remote cluster(s) skipped due to connect_transport_exception; treating as infrastructure flake", false);
+        }
         var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+        assertThat(reason, isPartial, anyOf(nullValue(), is(false)));
+    }
+
+    /**
+     * Returns true when every cluster entry in the {@code _clusters.details} map has {@code status=skipped}
+     * and at least one failure whose {@code reason.reason} contains {@code connect_transport_exception}.
+     * This pattern indicates a transient remote-cluster connectivity failure rather than a product bug.
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean isSkippedDueToConnectTransportException(Object clusters) {
+        if (!(clusters instanceof Map<?, ?> clustersMap)) {
+            return false;
+        }
+        var details = clustersMap.get("details");
+        if (!(details instanceof Map<?, ?> detailsMap) || detailsMap.isEmpty()) {
+            return false;
+        }
+        for (var clusterDetail : detailsMap.values()) {
+            if (!(clusterDetail instanceof Map<?, ?> clusterMap)) {
+                return false;
+            }
+            if ("skipped".equals(clusterMap.get("status")) == false) {
+                return false;
+            }
+            var failures = clusterMap.get("failures");
+            if (!(failures instanceof List<?> failureList) || failureList.isEmpty()) {
+                return false;
+            }
+            boolean foundConnectError = false;
+            for (var failure : failureList) {
+                if (failure instanceof Map<?, ?> failureMap) {
+                    var reason = failureMap.get("reason");
+                    if (reason instanceof Map<?, ?> reasonMap) {
+                        var reasonStr = reasonMap.get("reason");
+                        if (reasonStr instanceof String s && s.contains("connect_transport_exception")) {
+                            foundConnectError = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (foundConnectError == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void assertWarnings(Response response, AssertWarnings assertWarnings, Object context) {

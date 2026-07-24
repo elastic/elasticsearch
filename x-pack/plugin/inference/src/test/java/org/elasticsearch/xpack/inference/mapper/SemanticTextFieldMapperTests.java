@@ -2141,6 +2141,25 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         }
     }
 
+    @Override
+    protected MapperService createSemanticMapperService(XContentBuilder mappings, IndexVersion minIndexVersion) throws IOException {
+        IndexVersion maxIndexVersion = useLegacyFormat()
+            ? IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            : IndexVersion.current();
+        return createSemanticMapperService(mappings, minIndexVersion, maxIndexVersion);
+    }
+
+    @Override
+    protected MapperService createSemanticMapperServiceWithIndexVersion(XContentBuilder mappings, IndexVersion indexVersion)
+        throws IOException {
+        validateIndexVersion(indexVersion, useLegacyFormat());
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
     public static SemanticIndexOptions randomSemanticIndexOptions() {
         TaskType taskType = randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
         return randomSemanticIndexOptions(taskType);
@@ -2247,5 +2266,17 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             cause = cause.getCause();
         }
         return cause;
+    }
+
+    private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
+        if (useLegacyFormat == false
+            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
+            throw new AssertionError("Index version " + indexVersion + " does not support new semantic text format");
+        }
+
+        if (useLegacyFormat && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
+            throw new AssertionError("Index version " + indexVersion + " does not support legacy semantic text format");
+        }
     }
 }

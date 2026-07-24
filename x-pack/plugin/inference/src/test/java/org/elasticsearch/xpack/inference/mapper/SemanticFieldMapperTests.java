@@ -294,25 +294,29 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         return Strings.toString(b);
     }
 
-    public void testSemanticFieldNotSupportedOnOldIndices() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
+    public void testSemanticFieldNotSupportedOnOldIndices() {
+        for (int i = 0; i < 20; i++) {
+            IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
 
-        var ex = expectThrows(
-            MapperParsingException.class,
-            () -> createSemanticMapperServiceWithIndexVersion(semanticMapping("my_field", "test_model"), oldVersion)
-        );
-        assertThat(ex.getMessage(), containsString("[" + SemanticFieldMapper.CONTENT_TYPE + "]"));
-        assertThat(ex.getMessage(), containsString("is not supported on indices created before version"));
-        assertThat(ex.getMessage(), containsString(IndexVersions.SEMANTIC_FIELD_TYPE.toString()));
+            var ex = expectThrows(
+                MapperParsingException.class,
+                () -> createSemanticMapperServiceWithIndexVersion(semanticMapping("my_field", "test_model"), oldVersion)
+            );
+            assertThat(ex.getMessage(), containsString("[" + SemanticFieldMapper.CONTENT_TYPE + "]"));
+            assertThat(ex.getMessage(), containsString("is not supported on indices created before version"));
+            assertThat(ex.getMessage(), containsString(IndexVersions.SEMANTIC_FIELD_TYPE.toString()));
+        }
     }
 
     public void testSemanticFieldSupportedOnNewIndices() throws IOException {
-        IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
+        for (int i = 0; i < 20; i++) {
+            IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
 
-        // Should not throw; model_settings provided to avoid consulting the model registry
-        var mapperService = createSemanticMapperServiceWithIndexVersion(mapping(this::minimalMappingWithModelSettings), newVersion);
-        assertNotNull(mapperService);
-        assertSemanticFieldMapper(mapperService, "my_field");
+            // Should not throw; model_settings provided to avoid consulting the model registry
+            var mapperService = createSemanticMapperServiceWithIndexVersion(mapping(this::minimalMappingWithModelSettings), newVersion);
+            assertNotNull(mapperService);
+            assertSemanticFieldMapper(mapperService, "my_field");
+        }
     }
 
     public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {

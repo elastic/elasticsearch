@@ -20,7 +20,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -424,10 +423,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     protected MapperService createSemanticMapperService(XContentBuilder mappings, IndexVersion minIndexVersion) throws IOException {
-        IndexVersion maxIndexVersion = useLegacyFormat()
-            ? IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
-            : IndexVersion.current();
-        return createSemanticMapperService(mappings, minIndexVersion, maxIndexVersion);
+        return createSemanticMapperService(mappings, minIndexVersion, IndexVersion.current());
     }
 
     protected MapperService createSemanticMapperService(
@@ -441,11 +437,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     protected MapperService createSemanticMapperServiceWithIndexVersion(XContentBuilder mappings, IndexVersion indexVersion)
         throws IOException {
-        validateIndexVersion(indexVersion, useLegacyFormat());
-        var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())
-            .build();
+        var settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build();
         return createMapperService(indexVersion, settings, mappings);
     }
 
@@ -890,17 +882,5 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             builder.append(randomAlphaOfLengthBetween(5, 15));
         }
         return builder.toString();
-    }
-
-    private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
-        if (useLegacyFormat == false
-            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
-            throw new IllegalArgumentException("Index version " + indexVersion + " does not support new semantic text format");
-        }
-
-        if (useLegacyFormat && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
-            throw new IllegalArgumentException("Index version " + indexVersion + " does not support legacy semantic text format");
-        }
     }
 }

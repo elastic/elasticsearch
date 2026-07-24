@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
@@ -170,7 +171,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(choices.getFirst().index(), is(0));
         assertNull(choices.getFirst().delta().toolCalls());
         assertNull(choices.getFirst().delta().content());
-        assertThat(choices.getFirst().finishReason(), is("tool_use"));
+        assertThat(choices.getFirst().finishReason(), is("tool_calls"));
         assertUsage(chatCompletionChunk.usage(), 99, 0, 99);
     }
 
@@ -227,6 +228,40 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(usage.completionTokens(), is(completion));
         assertThat(usage.promptTokens(), is(prompt));
         assertThat(usage.totalTokens(), is(total));
+    }
+
+    public void testStopReasonConvertedToOpenAiFinishReason() {
+        assertFinishReasonForStopReason("end_turn", "stop");
+        assertFinishReasonForStopReason("stop_sequence", "stop");
+        assertFinishReasonForStopReason("pause_turn", "stop");
+        assertFinishReasonForStopReason("max_tokens", "length");
+        assertFinishReasonForStopReason("tool_use", "tool_calls");
+        assertFinishReasonForStopReason("refusal", "content_filter");
+        assertFinishReasonForStopReason("some_unknown_stop_reason", "stop");
+    }
+
+    private static void assertFinishReasonForStopReason(String stopReason, String expectedFinishReason) {
+        var item = events(List.of(Pair.of("message_delta", Strings.format("""
+            {
+                "type": "message_delta",
+                "delta": {
+                    "stop_reason": "%s",
+                    "stop_sequence": null
+                },
+                "usage": {
+                    "output_tokens": 10
+                }
+            }
+            """, stopReason))));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), equalTo(1));
+        var choices = response.chunks().remove().choices();
+        assertThat(choices.size(), is(1));
+        assertThat(choices.getFirst().finishReason(), is(expectedFinishReason));
     }
 
     public void testEmptyResultsRequestsMoreData() throws Exception {

@@ -76,6 +76,20 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static final String TOOL_USE_TYPE = "tool_use";
     private static final String TEXT_TYPE = "text";
 
+    // Anthropic stop reasons
+    private static final String END_TURN_STOP_REASON = "end_turn";
+    private static final String STOP_SEQUENCE_STOP_REASON = "stop_sequence";
+    private static final String PAUSE_TURN_STOP_REASON = "pause_turn";
+    private static final String MAX_TOKENS_STOP_REASON = "max_tokens";
+    private static final String TOOL_USE_STOP_REASON = "tool_use";
+    private static final String REFUSAL_STOP_REASON = "refusal";
+
+    // OpenAI finish reasons
+    private static final String STOP_FINISH_REASON = "stop";
+    private static final String LENGTH_FINISH_REASON = "length";
+    private static final String TOOL_CALLS_FINISH_REASON = "tool_calls";
+    private static final String CONTENT_FILTER_FINISH_REASON = "content_filter";
+
     private final BiFunction<String, Exception, Exception> errorParser;
 
     public AnthropicChatCompletionStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
@@ -173,7 +187,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var model = extractMandatoryString(messageMap, MODEL_FIELD);
         var id = extractMandatoryString(messageMap, ID_FIELD);
         var role = extractMandatoryString(messageMap, ROLE_FIELD);
-        var finishReason = extractOptionalString(messageMap, STOP_REASON_FIELD);
+        var finishReason = convertStopReason(extractOptionalString(messageMap, STOP_REASON_FIELD));
         var usageMap = extractInnerStringObjectMap(messageMap, USAGE_FIELD);
         var promptTokens = extractMandatoryInteger(usageMap, INPUT_TOKENS_FIELD);
         var completionTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
@@ -360,6 +374,28 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             0
         );
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
+    }
+
+    /**
+     * Converts an Anthropic stop reason to the equivalent OpenAI finish reason, so that OpenAI-compatible clients can
+     * rely on the unified vocabulary (e.g. checking for [tool_calls] to decide whether to run tools). A null stop
+     * reason means the message is still in progress and is passed through unchanged.
+     */
+    @Nullable
+    private static String convertStopReason(@Nullable String stopReason) {
+        if (stopReason == null) {
+            return null;
+        }
+        return switch (stopReason) {
+            case END_TURN_STOP_REASON, STOP_SEQUENCE_STOP_REASON, PAUSE_TURN_STOP_REASON -> STOP_FINISH_REASON;
+            case MAX_TOKENS_STOP_REASON -> LENGTH_FINISH_REASON;
+            case TOOL_USE_STOP_REASON -> TOOL_CALLS_FINISH_REASON;
+            case REFUSAL_STOP_REASON -> CONTENT_FILTER_FINISH_REASON;
+            default -> {
+                logger.warn("Unhandled Anthropic stop reason [{}], defaulting to [{}].", stopReason, STOP_FINISH_REASON);
+                yield STOP_FINISH_REASON;
+            }
+        };
     }
 
     private static String extractMandatoryString(Map<String, Object> map, String fieldName) {

@@ -101,6 +101,9 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling the ML NLP features. Defaults to true. */
+    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
+
     /** Setting for enabling or disabling universal profiling. Defaults to true. */
     public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
         "xpack.profiling.enabled",

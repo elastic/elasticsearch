@@ -1,0 +1,6 @@
+pr: 153582
+summary: Fix wildcard queries on keyword fields whose normalizer rewrites wildcard characters
+area: Mapping
+type: bug
+issues:
+ - 150699

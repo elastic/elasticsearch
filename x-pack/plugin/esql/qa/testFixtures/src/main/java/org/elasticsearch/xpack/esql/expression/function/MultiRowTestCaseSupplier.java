@@ -525,6 +525,14 @@ public final class MultiRowTestCaseSupplier {
     }
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        return exponentialHistogramCases(minRows, maxRows, false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows, boolean zeroThresholdIsZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         addSuppliers(
             cases,
@@ -540,7 +548,7 @@ public final class MultiRowTestCaseSupplier {
             maxRows,
             "random exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
-            EsqlTestUtils::randomExponentialHistogram
+            () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero)
         );
         return cases;
     }

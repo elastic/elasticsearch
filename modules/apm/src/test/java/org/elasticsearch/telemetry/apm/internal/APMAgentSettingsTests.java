@@ -195,6 +195,13 @@ public class APMAgentSettingsTests extends ESTestCase {
         assertFalse(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.isDynamic());
     }
 
+    public void testUpdateInstrumentTimingPropagatesToMeterRegistry() {
+        assertTrue(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.isDynamic());
+        Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.getKey(), true).build();
+        triggerUpdateConsumer(Settings.EMPTY, update);
+        verify(apmTelemetryProvider.getMeterService().getMeterRegistry()).setInstrumentTimingEnabled(true);
+    }
+
     private void triggerUpdateConsumer(Settings initial, Settings update) {
         ClusterService clusterService = mock();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -207,6 +214,7 @@ public class APMAgentSettingsTests extends ESTestCase {
                 TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
                 OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
                 OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
+                OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
                 APM_AGENT_SETTINGS
             )
         );

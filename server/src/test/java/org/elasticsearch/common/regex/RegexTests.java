@@ -108,6 +108,45 @@ public class RegexTests extends ESTestCase {
         );
     }
 
+    public void testManyWildcardsStillMatch() {
+        final int wildcards = 500;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        pattern.append('b');
+        str.append('b');
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
+    }
+
+    public void testShallowWideBacktrackingResolvesCorrectly() {
+        // Shape that caused combinatorial backtracking blowup in the old recursive implementation;
+        // the iterative algorithm resolves it in a single pass with no backtracking possible.
+        final int groups = 15;
+        final StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < groups; i++) {
+            pattern.append("*a");
+        }
+        pattern.append('b'); // 'b' never occurs in str, so the correct result is no match
+        final String str = "a".repeat(groups * 2);
+        assertFalse(Regex.simpleMatch(pattern.toString(), str));
+    }
+
+    public void testVeryLongPatternMatchesCorrectly() {
+        // Shape that could exhaust the call stack in the old recursive implementation; the iterative
+        // algorithm has no recursion at all, so pattern length alone is never a problem.
+        final int wildcards = 50_000;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
+    }
+
     public void testSimpleMatch() {
         for (int i = 0; i < 1000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));

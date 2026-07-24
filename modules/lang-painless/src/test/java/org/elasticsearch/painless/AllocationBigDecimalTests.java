@@ -15,7 +15,7 @@ import org.elasticsearch.script.ScriptException;
 import java.math.BigDecimal;
 
 /**
- * End-to-end tests for the {@code BigDecimal} {@code @allocates_dynamic} estimators: results are sized from the operands'
+ * End-to-end tests for the {@code BigDecimal} {@code @allocates} estimators: results are sized from the operands'
  * unscaled digit counts ({@code precision()}) and scales. Covers exact charges for small operations and confirms the scale-
  * blow-up operations ({@code pow}, {@code setScale}, {@code movePointRight}) trip a realistic limit before exhausting the heap.
  */

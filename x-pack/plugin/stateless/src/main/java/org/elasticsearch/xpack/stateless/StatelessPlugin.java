@@ -21,7 +21,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutor;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
@@ -882,6 +882,7 @@ public class StatelessPlugin extends Plugin
             readerHeapMetrics,
             StatelessReaderHeapMetrics.register(services.telemetryProvider().getMeterRegistry(), readerHeapBreaker.get())
         );
+        StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
@@ -973,7 +974,6 @@ public class StatelessPlugin extends Plugin
         );
         components.add(setAndGet(recoveryMetricsCollector, new StatelessRecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
-        skipMerges.set(new ShouldSkipMerges(indicesService));
         if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
             components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
         }
@@ -1011,6 +1011,7 @@ public class StatelessPlugin extends Plugin
             )
         );
         components.add(splitSourceService);
+        skipMerges.set(new ShouldSkipMerges(indicesService, splitSourceService));
         // PIT relocation
         var pitRelocationMetrics = new PitRelocationMetrics(services.telemetryProvider().getMeterRegistry());
         components.add(pitRelocationMetrics);
@@ -1241,6 +1242,7 @@ public class StatelessPlugin extends Plugin
             TranslogReplicator.FLUSH_SIZE_SETTING,
             IndexEngine.MERGE_PREWARM,
             IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+            IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
@@ -1328,8 +1330,8 @@ public class StatelessPlugin extends Plugin
             MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING,
             MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING,
             MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING,
-            ShardStateAction.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY,
-            ShardStateAction.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
+            ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY,
+            ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
@@ -2095,12 +2097,12 @@ public class StatelessPlugin extends Plugin
         return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
     }
 
-    private record ShouldSkipMerges(IndicesService indicesService) implements Predicate<ShardId> {
+    private record ShouldSkipMerges(IndicesService indicesService, SplitSourceService splitSourceService) implements Predicate<ShardId> {
 
         @Override
         public boolean test(ShardId shardId) {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            return indexShard == null || indexShard.routingEntry().relocating();
+            return indexShard == null || indexShard.routingEntry().relocating() || splitSourceService.isPreparingForHandoff(shardId);
         }
     }
 

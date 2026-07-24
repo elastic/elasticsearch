@@ -359,13 +359,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                 listenerInLower.actionGet(),
                 greaterThanOrEqualTo(thresholdInLower)
             );
-            // listenerAtSplit fires at upper.progress (>= splitPoint), caught up via onProgressAtLeast
+            // listenerAtSplit fires at upper.progress (>= splitPoint), reached via the catch-up when lower completes
             assertThat(
                 "listener at split fires when lower completes, at or above splitPoint",
                 listenerAtSplit.actionGet(),
                 greaterThanOrEqualTo(splitPoint)
             );
-            // Both halves now done: listener in upper fires via onProgressAtLeast catch-up or via onResponse(end)
+            // Both halves now done: listener in upper fires via the catch-up or via onResponse(end)
             assertThat(
                 "listener in upper fires at or above its threshold",
                 listenerInUpper.actionGet(),
@@ -402,50 +402,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         future.addListener(listener, upperMid);
         assertFalse("listener must not fire before lower completes", listener.isDone());
 
-        // Complete lower — onProgressAtLeast must catch up to upper.progress (= upperMid), firing the listener
+        // Complete lower — the catch-up must advance to upper.progress (= upperMid), firing the listener
         lower.onResponse(splitPoint);
         assertTrue("listener must fire when lower completes after upper already reached its threshold", listener.isDone());
         assertFalse("outer future must not be done until upper also completes", future.isDone());
 
         upper.onResponse(end);
         assertTrue(future.isDone());
-    }
-
-    public void testOnProgressAtLeastFiresListeners() {
-        final ProgressListenableActionFuture future = randomFuture();
-        assertTrue("randomFuture must produce a range of at least 2", future.end - future.start >= 2);
-
-        final long threshold = randomLongBetween(future.start + 1L, future.end - 1L);
-        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
-        future.addListener(listener, threshold);
-        assertFalse(listener.isDone());
-
-        future.onProgressAtLeast(randomLongBetween(threshold, future.end - 1L));
-        assertTrue("onProgressAtLeast should fire listener once threshold is reached", listener.isDone());
-    }
-
-    public void testOnProgressAtLeastIsNoOpWhenAlreadyAdvanced() {
-        final ProgressListenableActionFuture future = randomFuture();
-        assertTrue("randomFuture must produce a range of at least 3", future.end - future.start >= 3);
-
-        // Advance to some mid-point
-        final long mid = randomLongBetween(future.start + 1L, future.end - 2L);
-        future.onProgress(mid);
-
-        // Add a listener above the current progress — it should NOT fire via onProgressAtLeast below
-        final long aboveThreshold = randomLongBetween(mid + 1L, future.end - 1L);
-        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
-        future.addListener(listener, aboveThreshold);
-        assertFalse(listener.isDone());
-
-        // onProgressAtLeast with a value <= current progress is a no-op
-        future.onProgressAtLeast(randomLongBetween(future.start + 1L, mid));
-        assertFalse("onProgressAtLeast must be a no-op when progress already advanced past the value", listener.isDone());
-
-        future.onProgress(future.end);
-        future.onResponse(future.end);
-
-        assertTrue(listener.isDone());
     }
 
     // Test that a race between lower completing and upper forwarding progress to the parent does not cause assertion errors.

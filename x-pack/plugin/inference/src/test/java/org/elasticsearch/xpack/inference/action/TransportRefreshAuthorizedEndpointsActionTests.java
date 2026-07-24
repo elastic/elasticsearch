@@ -81,6 +81,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     public void init() throws Exception {
         inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(true);
         mockRegistry = mock(ModelRegistry.class);
         mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         mockClient = mock(Client.class);
@@ -103,6 +104,18 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
         when(mockRegistry.isReady()).thenReturn(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
+        var action = createAction();
+
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
+
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterMissingInternalDeleteEndpointsFeature() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(false);
         var action = createAction();
 
         var future = new TestPlainActionFuture<ActionResponse.Empty>();

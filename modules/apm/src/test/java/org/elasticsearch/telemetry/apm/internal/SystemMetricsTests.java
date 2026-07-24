@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.monitor.metrics;
+package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.process.ProcessProbe;

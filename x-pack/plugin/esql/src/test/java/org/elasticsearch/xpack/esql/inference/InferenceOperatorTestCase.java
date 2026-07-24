@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -35,9 +33,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -58,12 +54,12 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     public void setThreadPool() {
         threadPool = createThreadPool(
             new ScalingExecutorBuilder(
-                "inference_response",
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
                 0,
                 10,
                 TimeValue.timeValueMinutes(10),
                 false,
-                "xpack.inference.inference_response_thread_pool"
+                "thread_pool." + EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
             )
         );
     }

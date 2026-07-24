@@ -201,7 +201,7 @@ public enum DataType implements Writeable {
      * cannot be stored or transmitted — this type exists solely to distinguish lambda arguments from
      * ordinary value expressions during Analyzer resolution.
      */
-    LAMBDA(builder().typeName("LAMBDA").estimatedSize(0).supportedOnAllNodes()),
+    LAMBDA(builder().typeName("LAMBDA").estimatedSize(0).underConstruction(DataTypesTransportVersions.ESQL_LAMBDA_DATATYPE)),
     /**
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
@@ -1292,5 +1292,12 @@ public enum DataType implements Writeable {
          * Tech preview transport version for date_range field type support.
          */
         public static final TransportVersion ESQL_DATE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_date_range_tech_preview");
+
+        /**
+         * Development version for the lambda expression type. Lambdas only exist in query plans
+         * during analysis and should never be serialized; marking the type as under construction
+         * makes {@link DataType#writeTo} fail fast if one ever reaches an older node.
+         */
+        public static final TransportVersion ESQL_LAMBDA_DATATYPE = TransportVersion.fromName("esql_lambda_datatype");
     }
 }

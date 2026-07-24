@@ -69,6 +69,38 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 
+// Each WITHOUT applies at its own aggregation boundary. The inner average retains pod identity;
+// the outer sum then removes pod. Collapsing both exclusions into the inner average would return
+// one third of each value for this three-pod fixture.
+nested_without_uses_independent_identities
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: promql_nested_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod) (avg without (region) (network.cost)))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+18.625        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+26.5          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+three_nested_withouts_carry_outer_identity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: promql_nested_without_grouping
+PROMQL index=k8s step=1h result=(sum without (cluster) (sum without (pod) (avg without (region) (network.cost))));
+
+result:double | step:datetime            | _timeseries:keyword
+61.0          | 2024-05-10T01:00:00.000Z | "{}"
+;
+
+
 // Excludes multiple labels.
 sum_without_multiple_labels
 required_capability: promql_command_v0

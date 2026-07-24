@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -84,7 +87,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, metadataFields);
     }
 
     @Override
@@ -111,8 +114,12 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private static final BytesRef EMPTY_OBJECT = new BytesRef("{}");
+        private final SourceFilter sourceFilter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
             super(breaker);
+            sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), Strings.EMPTY_ARRAY);
         }
 
         /**
@@ -147,7 +154,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO: support appending BytesReference directly.
-            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+            BytesRef value = sourceFilter == null ? EMPTY_OBJECT : toJson(storedFields.source().filter(sourceFilter)).toBytesRef();
+            ((BytesRefBuilder) builder).appendBytesRef(value);
         }
 
         @Override

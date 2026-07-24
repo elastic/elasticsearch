@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -292,12 +290,52 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
     }
 
-    public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
+    public void testNestedWithoutOverWithoutLoadsIndependentIdentities() {
+        assumeTrue("Requires nested WITHOUT capability", EsqlCapabilities.Cap.PROMQL_NESTED_WITHOUT_GROUPING.isEnabled());
+        LogicalPlan analyzed = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (region) (avg without (pod) (network.cost)))",
+            false
         );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+        var identities = analyzed.collect(EsRelation.class)
+            .getFirst()
+            .output()
+            .stream()
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(identities, hasSize(2));
+        assertThat(identities.stream().map(Attribute::id).distinct().toList(), hasSize(2));
+        assertThat(
+            identities.stream().map(TimeSeriesMetadataAttribute::excludedFields).toList(),
+            hasItems(Set.of("pod"), Set.of("pod", "region"))
+        );
+        LogicalPlan optimized = logicalOptimizerWithLatestVersion.optimize(analyzed);
+        assertThat(optimized.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "_timeseries")));
+        assertThat(
+            optimized.collect(EsRelation.class).getFirst().output().stream().filter(TimeSeriesMetadataAttribute.class::isInstance).toList(),
+            hasSize(2)
+        );
+    }
+
+    public void testThreeNestedWithoutsLoadAndCarryAllIdentities() {
+        assumeTrue("Requires nested WITHOUT capability", EsqlCapabilities.Cap.PROMQL_NESTED_WITHOUT_GROUPING.isEnabled());
+        LogicalPlan analyzed = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (cluster) (sum without (region) (avg without (pod) (network.cost))))",
+            false
+        );
+        var identities = analyzed.collect(EsRelation.class)
+            .getFirst()
+            .output()
+            .stream()
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(identities, hasSize(3));
+        assertThat(
+            identities.stream().map(TimeSeriesMetadataAttribute::excludedFields).toList(),
+            hasItems(Set.of("pod"), Set.of("pod", "region"), Set.of("cluster", "pod", "region"))
+        );
+        logicalOptimizerWithLatestVersion.optimize(analyzed);
     }
 
     public void testNestedWithoutOverPartialByProducesConcreteOutput() {
@@ -316,14 +354,11 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
     }
 
-    public void testWithoutOverByOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
-            )
+    public void testWithoutOverByOverWithoutProducesConcreteOutput() {
+        var plan = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
         );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testByOverWithoutOverByProducesExactOutput() {

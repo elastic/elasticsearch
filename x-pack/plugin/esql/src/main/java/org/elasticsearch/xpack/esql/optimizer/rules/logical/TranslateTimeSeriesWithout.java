@@ -42,11 +42,12 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
     }
 
     private static EsRelation addLoweredAttributes(EsRelation relation, Iterable<TimeSeriesMetadataAttribute> loweredAttributes) {
-        var existingIds = relation.outputSet();
         List<Attribute> attributes = new ArrayList<>(relation.output());
+        var existingIds = new LinkedHashSet<NameId>();
+        attributes.forEach(attribute -> existingIds.add(attribute.id()));
         boolean changed = false;
         for (TimeSeriesMetadataAttribute loweredAttribute : loweredAttributes) {
-            if (existingIds.contains(loweredAttribute) == false) {
+            if (existingIds.add(loweredAttribute.id())) {
                 attributes.add(loweredAttribute);
                 changed = true;
             }
@@ -95,11 +96,14 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                     lowered = t;
                 } else {
                     String parentName = groupingAttribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
+                    String name = groupingAttribute.name().equalsIgnoreCase(fn.sourceText())
+                        ? MetadataAttribute.TIMESERIES
+                        : groupingAttribute.name();
                     lowered = new TimeSeriesMetadataAttribute(
                         groupingAttribute.source(),
                         parentName,
                         groupingAttribute.qualifier(),
-                        MetadataAttribute.TIMESERIES,
+                        name,
                         timeSeriesField(),
                         groupingAttribute.nullable(),
                         groupingAttribute.id(),

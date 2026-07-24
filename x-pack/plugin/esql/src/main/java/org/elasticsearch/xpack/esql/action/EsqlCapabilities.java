@@ -2456,6 +2456,11 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * Correct nested PromQL {@code without} grouping using independently loaded time-series identities.
+         */
+        PROMQL_NESTED_WITHOUT_GROUPING,
+
+        /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
          * {@code sum without(pod) (sum by(cluster,region,pod) (...))}) projects the child's concrete grouping columns
          * minus the excluded labels, rather than the opaque {@code _timeseries} column. Gates the affected csv-spec

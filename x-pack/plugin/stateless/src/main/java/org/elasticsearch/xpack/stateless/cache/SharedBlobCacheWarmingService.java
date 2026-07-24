@@ -371,6 +371,7 @@ public class SharedBlobCacheWarmingService {
     private final Executor fetchExecutor;
     private final Executor uploadPrewarmFetchExecutor;
     private final PrioritizedThrottledAsyncTaskRunner<AbstractWarmingTask> warmingTaskRunner;
+    private final Executor readCommitsForSearchWarmingExecutor;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
@@ -412,6 +413,23 @@ public class SharedBlobCacheWarmingService {
             "prewarming-cache",
             1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
+        );
+        this.readCommitsForSearchWarmingExecutor = runnable -> warmingTaskRunner.enqueueTask(
+            // We know this is always used with SEARCH type.
+            new AbstractWarmingTask(Type.SEARCH, threadPool.relativeTimeInNanos()) {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        runnable.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Only rejections caused by the shutdown of the thread pool should be possible here.
+                    logger.warn("Failed to submit task to warmingTaskRunner", e);
+                }
+            }
         );
         // We fork cfe prewarming to the generic pool to avoid blocking stateless_fill_vbcc_cache threads,
         // since their completion can also happen on that pool (and it is sized only for copying prefilled buffers to disk).
@@ -792,26 +810,6 @@ public class SharedBlobCacheWarmingService {
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || searchOfflineWarmingEnabled)) {
                     SubscribableListener.<Map<BlobFile, WarmTarget>>newForked(l1 -> {
-                        var executor = new Executor() {
-                            @Override
-                            public void execute(Runnable runnable) {
-                                warmingTaskRunner.enqueueTask(new AbstractWarmingTask(type, threadPool.relativeTimeInNanos()) {
-                                    @Override
-                                    public void onResponse(Releasable releasable) {
-                                        try (releasable) {
-                                            runnable.run();
-                                        }
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        // Only rejections caused by the shutdown of the thread pool should be possible here.
-                                        logger.warn("Failed to submit task to warmingTaskRunner", e);
-                                    }
-                                });
-                            }
-                        };
-
                         if (endTargetsToWarm == null) {
                             Map<BlobFile, WarmTarget> targetsToWarmComputed = ConcurrentCollections.newConcurrentMap();
                             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
@@ -823,7 +821,7 @@ public class SharedBlobCacheWarmingService {
                                 BlobCacheIndexInput.WARMING,
                                 // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
                                 // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
-                                executor,
+                                readCommitsForSearchWarmingExecutor,
                                 referencedCompoundCommit -> {
                                     if (searchOfflineWarmingEnabled) {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();

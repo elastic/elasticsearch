@@ -202,25 +202,25 @@ static inline void dotd1q4_inner_bulk(
             const svuint8_t v2 = svld1_u8(pg, (const uint8_t*)(a2 + r));
             const svuint8_t v3 = svld1_u8(pg, (const uint8_t*)(a3 + r));
 
-            acc0_0 = svadd_u64_x(svptrue_b64(), acc0_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q0))));
-            acc1_0 = svadd_u64_x(svptrue_b64(), acc1_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q1))));
-            acc2_0 = svadd_u64_x(svptrue_b64(), acc2_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q2))));
-            acc3_0 = svadd_u64_x(svptrue_b64(), acc3_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q3))));
+            acc0_0 = svadd_u64_x(svptrue_b64(), acc0_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v0, q0))));
+            acc1_0 = svadd_u64_x(svptrue_b64(), acc1_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v0, q1))));
+            acc2_0 = svadd_u64_x(svptrue_b64(), acc2_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v0, q2))));
+            acc3_0 = svadd_u64_x(svptrue_b64(), acc3_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v0, q3))));
 
-            acc0_1 = svadd_u64_x(svptrue_b64(), acc0_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q0))));
-            acc1_1 = svadd_u64_x(svptrue_b64(), acc1_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q1))));
-            acc2_1 = svadd_u64_x(svptrue_b64(), acc2_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q2))));
-            acc3_1 = svadd_u64_x(svptrue_b64(), acc3_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q3))));
+            acc0_1 = svadd_u64_x(svptrue_b64(), acc0_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v1, q0))));
+            acc1_1 = svadd_u64_x(svptrue_b64(), acc1_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v1, q1))));
+            acc2_1 = svadd_u64_x(svptrue_b64(), acc2_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v1, q2))));
+            acc3_1 = svadd_u64_x(svptrue_b64(), acc3_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v1, q3))));
 
-            acc0_2 = svadd_u64_x(svptrue_b64(), acc0_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q0))));
-            acc1_2 = svadd_u64_x(svptrue_b64(), acc1_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q1))));
-            acc2_2 = svadd_u64_x(svptrue_b64(), acc2_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q2))));
-            acc3_2 = svadd_u64_x(svptrue_b64(), acc3_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q3))));
+            acc0_2 = svadd_u64_x(svptrue_b64(), acc0_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v2, q0))));
+            acc1_2 = svadd_u64_x(svptrue_b64(), acc1_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v2, q1))));
+            acc2_2 = svadd_u64_x(svptrue_b64(), acc2_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v2, q2))));
+            acc3_2 = svadd_u64_x(svptrue_b64(), acc3_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v2, q3))));
 
-            acc0_3 = svadd_u64_x(svptrue_b64(), acc0_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q0))));
-            acc1_3 = svadd_u64_x(svptrue_b64(), acc1_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q1))));
-            acc2_3 = svadd_u64_x(svptrue_b64(), acc2_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q2))));
-            acc3_3 = svadd_u64_x(svptrue_b64(), acc3_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q3))));
+            acc0_3 = svadd_u64_x(svptrue_b64(), acc0_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v3, q0))));
+            acc1_3 = svadd_u64_x(svptrue_b64(), acc1_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v3, q1))));
+            acc2_3 = svadd_u64_x(svptrue_b64(), acc2_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v3, q2))));
+            acc3_3 = svadd_u64_x(svptrue_b64(), acc3_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_x(svptrue_b8(), v3, q3))));
 
             r += svcntb();
         }

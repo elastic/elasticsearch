@@ -101,7 +101,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             if (def == null) {
                 throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
             }
-            return def.functionType().outputType();
+            return def.functionType().outputType;
         }
         if (plan instanceof VectorBinaryOperator binary) {
             PromqlDataType leftType = returnType(binary.left());

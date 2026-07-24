@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -74,9 +75,8 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -6436,6 +6436,543 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The unique fault marker sits at the elided middle for legacy head/tail; with offset
         // anchoring it must survive in the excerpt.
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
+    }
+
+    // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
+
+    /**
+     * A declaration that names every column of the file must read the same values under declared and inferred binding:
+     * `ts` declares `path: "col2"` but sits first, so positional binding would hand it col0 (a WatchID) and the date
+     * parse would fail.
+     */
+    public void testDeclaredPathBindingAgreesWithPositionalWhenDeclarationIsInFileOrder() throws Exception {
+        StorageObject object = createStorageObject("7,alpha\n8,beta\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
+        );
+        for (boolean binding : List.of(false, true)) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+                .withDeclaredPathBinding(binding);
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("binding=" + binding, 2, page.getPositionCount());
+                assertEquals("binding=" + binding, 7L, ((LongBlock) page.getBlock(0)).getLong(0));
+                assertEquals("binding=" + binding, 8L, ((LongBlock) page.getBlock(0)).getLong(1));
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /** A headered declaration binds the column its `path` NAMES, not the one sitting at its declaration position. */
+    public void testStrictHeaderedPathBindsByHeaderName() throws Exception {
+        StorageObject object = createStorageObject("id,junk,ts\n42,x,2013-07-14 20:38:47\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", true, "datetime_format", "yyyy-MM-dd HH:mm:ss")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1373834327000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(42L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A typed header ({@code emp_no:integer}) names its column {@code emp_no} — the annotation is type syntax, not
+     * part of the name. Binding must strip it exactly as inference does, or a declared path could never match a
+     * typed-header file.
+     */
+    public void testStrictHeaderedPathBindsAgainstTypedHeaderName() throws Exception {
+        StorageObject object = createStorageObject("emp_no:integer,first_name:keyword\n1,Alice\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(1L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The names a later chunk binds against come from this reader's own metadata, read from the file's first
+     * chunk. They must be the file's columns in the file's order — not the declared schema's, and not
+     * reordered to match it.
+     * <p>
+     * Nothing else pins this. If metadata ever short-circuited to the configured schema — a plausible
+     * optimisation — every column of every multi-chunk declared headered file would bind to the wrong field,
+     * silently, and no other test would notice.
+     */
+    public void testMetadataReturnsFileOrderNamesForADeclaredConfiguredReader() throws Exception {
+        // File order deliberately differs from the declared order below.
+        StorageObject object = createStorageObject("first_name,emp_no,salary\nAlice,1,100\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true)
+            .withSchema(declared);
+
+        List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
+        assertEquals("metadata must describe the file, not the declaration", List.of("first_name", "emp_no", "salary"), names);
+    }
+
+    /**
+     * A chunk after the first cannot see the file's header, but it can still bind a declared schema by name
+     * when the header columns are handed to it. Without this a declared headered file large enough to be read
+     * in chunks fails every query.
+     */
+    public void testNonFirstChunkBindsDeclaredSchemaFromCarriedHeaderColumns() throws Exception {
+        // A chunk from the middle of the file: data rows only, no header in front of it.
+        StorageObject object = createStorageObject("1,Alice\n2,Bob\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("emp_no", "first_name"))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(1L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals("Bob", ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()).utf8ToString());
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A header cell padded inside its quotes binds the same way on a later chunk as on the first.
+     * <p>
+     * The first chunk derives its header names from the header line and trims them; a later chunk is handed
+     * names the reader's own metadata produced, which did not. A declaration for {@code value} then matched on
+     * the first chunk and silently null-filled on every other one — the same column read two ways in one file.
+     */
+    public void testCarriedHeaderColumnsAreNormalisedLikeTheFirstChunk() throws Exception {
+        StorageObject object = createStorageObject("1\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "value", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of(" value "))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            try {
+                assertFalse("a padded header name must still bind the declared column", page.getBlock(0).isNull(0));
+                assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Binding is by name, not position: a declaration must follow its column even when the file orders the
+     * columns differently. Getting this wrong shifts every value into the wrong column silently.
+     */
+    public void testCarriedHeaderColumnsBindByNameNotPosition() throws Exception {
+        // File order is first_name,emp_no — the reverse of the declaration's order.
+        StorageObject object = createStorageObject("Alice,1\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("first_name", "emp_no"))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()).utf8ToString());
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * With no header columns to bind against there is nothing to fall back on but position, which would shift
+     * every column. Failing loudly is the correct outcome, and stays so.
+     */
+    public void testNonFirstChunkWithoutCarriedHeaderColumnsFailsLoudly() throws Exception {
+        StorageObject object = createStorageObject("1,Alice\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(false).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("without the file's header columns"));
+    }
+
+    /** A narrow declaration may name a column far to the right of a wide file — the classic ClickBench shape. */
+    public void testDeclaredPathBindsColumnBeyondDeclarationWidth() throws Exception {
+        StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col9", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(999L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** A declared name the header does not carry reads null with one warning — the declaration over-claims, it is not an error. */
+    public void testDeclaredNameMissingFromHeaderReadsNullWithWarning() throws Exception {
+        StorageObject object = createStorageObject("id,ts\n42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
+        List<String> warnings = new ArrayList<>();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("absent declared column reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [nope] is not present in some source files")));
+    }
+
+    /** A headerless declared name that is not {@code col<N>} names no physical column, so it reads null with a warning. */
+    public void testHeaderlessDeclaredNameNotAColumnPositionReadsNullWithWarning() throws Exception {
+        StorageObject object = createStorageObject("42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "EventTime", DataType.LONG));
+        List<String> warnings = new ArrayList<>();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("headerless non-col<N> declared column reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in some source files")));
+    }
+
+    /** A non-canonical headerless index ({@code col007} — inference names field 7 exactly {@code col7}) reads null. */
+    public void testHeaderlessNonCanonicalIndexReadsNull() throws Exception {
+        StorageObject object = createStorageObject("a,b,c,d,e,f,g,h\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col007", DataType.KEYWORD));
+        List<String> warnings = new ArrayList<>();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertTrue("col007 is not the canonical name for field 7, so it reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [col007] is not present in some source files")));
+    }
+
+    /** A headerless index beyond the cap ({@code col500000000}) reads null without sizing a huge array or overflowing. */
+    public void testHeaderlessIndexBeyondCapReadsNull() throws Exception {
+        StorageObject object = createStorageObject("42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col500000000", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertTrue("an out-of-cap column index reads null, not a 2GB allocation", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** Duplicate header names make by-name binding ambiguous; a declared read rejects them, as inference does. */
+    public void testDuplicateHeaderNameRejected() {
+        StorageObject object = createStorageObject("id,ts,id\n1,2,3\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), Matchers.containsString("duplicate column name [id]"));
+    }
+
+    /**
+     * The split gate: a headered path-bound read must declare that it needs the file start, or the coordinators would
+     * hand it a chunk with no header and the binding would silently fall back to positional. Headerless stays
+     * splittable — that is the shape throughput-sensitive reads use.
+     */
+    public void testDeclaredNameBindingNeedsFileStartOnlyWhenHeadered() {
+        CsvFormatReader headered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertFalse("no declared path -> nothing to bind by name", headered.declaredNameBindingNeedsFileStart());
+        assertTrue(
+            "headered + declared path binds against the header line",
+            headered.withDeclaredPathBinding(true).declaredNameBindingNeedsFileStart()
+        );
+        assertFalse(
+            "headerless names encode their own positions, so any split can bind",
+            headerless.withDeclaredPathBinding(true).declaredNameBindingNeedsFileStart()
+        );
+    }
+
+    public void testStrictHeaderlessPathBindsByColumnIndex() throws Exception {
+        StorageObject object = createStorageObject("9110818468285196899,x,2013-07-14 20:38:47\n");
+        // Declaration ORDER deliberately differs from the file's column order; `path` is what reconciles them.
+        // Physical names are what the reader receives after PhysicalNames.translateSchema.
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DATETIME),  // declared ts, path: col2
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)       // declared id, path: col0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "datetime_format", "yyyy-MM-dd HH:mm:ss")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(
+                "path:col2 must bind the TIMESTAMP field, not raw field 0",
+                1373834327000L,  // 2013-07-14T20:38:47Z
+                ((LongBlock) page.getBlock(0)).getLong(0)
+            );
+            assertEquals("path:col0 must bind the id field", 9110818468285196899L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    // --- Increment-0 characterization: by-name binding across the CSV walkers ---
+    // The prior path-binding tests exercise only the default quoted direct-to-block walker. These pin that an
+    // out-of-order declaration binds by name identically through the bracket walker, the ALL-stripe harvest path,
+    // and the direct-block walker, so the #1307 reader-consumption increment is a proven equivalence on every
+    // decode path, not just the one the earlier tests happened to hit. Each uses a declaration whose order differs
+    // from the file so positional binding would return a different (and wrong) column.
+
+    /** By-name binding through the bracket multi-value walker: declared out of file order, bound to the right cells. */
+    public void testDeclaredPathBindingThroughBracketWalker() throws Exception {
+        StorageObject object = createStorageObject("100,[a,b]\n200,[c]\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, names raw field 1
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, names raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "brackets")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            // Block 0 is the declared-first KEYWORD (raw field 1), a bracketed multi-value.
+            BytesRefBlock mv = (BytesRefBlock) page.getBlock(0);
+            assertEquals(2, mv.getValueCount(0));
+            assertEquals("a", mv.getBytesRef(mv.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+            // Block 1 is the declared-second LONG (raw field 0).
+            assertEquals(100L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(200L, ((LongBlock) page.getBlock(1)).getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** By-name binding through the ALL-stripe harvest path (statsColumnScope ALL): the harvest reads each raw field. */
+    public void testDeclaredPathBindingThroughAllStripeScope() throws Exception {
+        StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE),  // declared first, raw field 2
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.ALL)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("path:col2 binds the DOUBLE field, not raw field 0", 3.5, ((DoubleBlock) page.getBlock(0)).getDouble(0), 1e-9);
+            assertEquals(7L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * An absent declared column reads null through the ALL-stripe harvest path (statsColumnScope=ALL) — the harvest
+     * reads every raw field via rawFieldIndex, and the -1 sentinel must null-fill there rather than index row[-1] or
+     * poison the per-column stats. col5 is beyond the 3-field file.
+     */
+    public void testAbsentDeclaredColumnThroughAllStripeScope() throws Exception {
+        StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col5", DataType.KEYWORD)   // absent: file has 3 fields
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.ALL)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue("absent col5 reads null through the ALL-stripe harvest", page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(1).isNull(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** By-name binding through the direct-to-block walker (direct-block enabled, projected stats scope). */
+    public void testDeclaredPathBindingThroughDirectBlockWalker() throws Exception {
+        StorageObject object = createStorageObject("11,gamma\n12,delta\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, raw field 1
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(true)
+            .withConfig(Map.of("header_row", false, "multi_value_syntax", "none"))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.PROJECTED)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("gamma", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(11L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
     }
 
     // --- FormatReadContext.readSchema() honor tests ---

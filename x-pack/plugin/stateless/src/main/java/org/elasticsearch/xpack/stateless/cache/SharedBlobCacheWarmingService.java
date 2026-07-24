@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -67,7 +66,6 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 
 import java.io.IOException;
@@ -76,6 +74,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -606,7 +605,18 @@ public class SharedBlobCacheWarmingService {
 
                 for (SegmentCommitInfo segmentCommitInfo : segmentsToMerge) {
                     try {
-                        filesToWarm.addAll(segmentCommitInfo.files());
+                        try {
+                            filesToWarm.addAll(segmentCommitInfo.files());
+                        } catch (ConcurrentModificationException e) {
+                            // SegmentCommitInfo.files() iterates over internal HashMaps (e.g. dvUpdatesFiles) that
+                            // can be concurrently modified by IndexWriter (e.g. when applying soft-delete DV updates
+                            // during refresh). The modification is very brief so a retry is very likely to succeed.
+                            try {
+                                filesToWarm.addAll(segmentCommitInfo.files());
+                            } catch (ConcurrentModificationException e2) {
+                                filesToWarm.addAll(segmentCommitInfo.info.files());
+                            }
+                        }
                     } catch (IOException e) {
                         listener.onFailure(e);
                         return;
@@ -826,11 +836,7 @@ public class SharedBlobCacheWarmingService {
                     type,
                     indexShard.shardId(),
                     "generation=" + commit.generation(),
-                    Maps.copyMapWithAddedEntry(
-                        StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard),
-                        "prewarming_type",
-                        type.name()
-                    )
+                    warmingLabels(indexShard, type)
                 );
                 boolean preWarmForIdLookupRequested = preWarmForIdLookup && (type == Type.INDEXING_EARLY || type == Type.INDEXING);
                 if (preWarmForIdLookupRequested) {
@@ -855,6 +861,10 @@ public class SharedBlobCacheWarmingService {
                 store.decRef();
             }
         }
+    }
+
+    private static Map<String, Object> warmingLabels(IndexShard indexShard, Type type) {
+        return Map.of("primary", indexShard.routingEntry().primary(), "prewarming_type", type.name());
     }
 
     /**
@@ -934,7 +944,9 @@ public class SharedBlobCacheWarmingService {
     /**
      * Completes {@code resumeRecoveryListener} when warming finishes, or when {@code timeout} elapses (whichever comes first). Records
      * {@link #searchRecoveryWaitDurationMetric} with {@link SearchRecoveryWaitOutcome#TIMEOUT} or
-     * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race.
+     * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race. A warming failure that beats the
+     * timeout also records the metric (attributed to {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE}) and then fails
+     * {@code resumeRecoveryListener}.
      */
     public ActionListener<Void> searchRecoveryWarmingListener(
         TimeValue timeout,
@@ -943,28 +955,58 @@ public class SharedBlobCacheWarmingService {
         ActionListener<Void> resumeRecoveryListener
     ) {
         assert timeout.millis() > 0;
-        long startedMillis = threadPool.relativeTimeInMillis();
-        final SubscribableListener<Void> race = new SubscribableListener<>();
-        final var cancellable = threadPool.schedule(() -> {
-            logger.warn(
-                "Search shard recovery cache warming timed out after [{}] ({}) for {}",
-                timeout,
-                timeoutContext.isEmpty() ? "default" : timeoutContext,
-                indexShard.shardId()
-            );
-            race.onResponse(null);
-        }, timeout, threadPool.generic());
-        race.addListener(ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), () -> {
-            cancellable.cancel();
-            searchRecoveryWaitDurationMetric.record(
-                (threadPool.relativeTimeInMillis() - startedMillis) / 1000.0,
-                Map.of(
-                    SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY,
-                    (cancellable.isCancelled() ? SearchRecoveryWaitOutcome.WARMING_COMPLETE : SearchRecoveryWaitOutcome.TIMEOUT).name()
-                )
-            );
-        }));
-        return race;
+        final long startedMillis = threadPool.relativeTimeInMillis();
+        // First of the two events to complete `race` wins and decides the recorded outcome. The second event is discarded. Events:
+        // - timeout: the scheduled task completes it with TIMEOUT
+        // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
+        final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
+
+        final var timeoutTask = threadPool.schedule(
+            () -> race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT),
+            timeout,
+            threadPool.generic()
+        );
+        final ActionListener<Void> resumeRecoveryByForkingToGeneric = new ThreadedActionListener<>(
+            threadPool.generic(),
+            resumeRecoveryListener
+        );
+
+        final ActionListener<SearchRecoveryWaitOutcome> recordOutcomeThenForkResumeToGeneric = resumeRecoveryByForkingToGeneric.<
+            SearchRecoveryWaitOutcome>map(outcome -> {
+                assert outcome == SearchRecoveryWaitOutcome.TIMEOUT || outcome == SearchRecoveryWaitOutcome.WARMING_COMPLETE
+                    : "expected TIMEOUT || WARMING_COMPLETE; was " + outcome;
+                if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
+                    logger.warn(
+                        "Search shard recovery cache warming timed out after [{}] ({}) for {}",
+                        timeout,
+                        timeoutContext.isEmpty() ? "default" : timeoutContext,
+                        indexShard.shardId()
+                    );
+                }
+                recordSearchRecoveryWaitDuration(startedMillis, outcome);
+                return null;
+            }).delegateResponse((delegate, e) -> {
+                // Warming failed before the timeout fired. Record the wait metric anyway, attributed to WARMING_COMPLETE since the
+                // warming side won the race, before propagating the failure to the resume listener.
+                recordSearchRecoveryWaitDuration(startedMillis, SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+                delegate.onFailure(e);
+            });
+
+        // Best-effort inline cleanup on every completion path; the result is intentionally ignored. If the timeout won, the task has
+        // already fired and cancel() is a no-op; if warming won or failed, the task is still pending and cancel() stops it from
+        // firing later. The outcome is already decided regardless, so a redundant or too-late cancel is harmless.
+        race.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
+
+        // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
+        return race.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    /// Records [#searchRecoveryWaitDurationMetric] for a wait that started at `startedMillis`, attributed to `outcome`.
+    private void recordSearchRecoveryWaitDuration(long startedMillis, SearchRecoveryWaitOutcome outcome) {
+        searchRecoveryWaitDurationMetric.record(
+            (threadPool.relativeTimeInMillis() - startedMillis) / 1000.0,
+            Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.name())
+        );
     }
 
     public void warmCacheForBCCHeadersRead(
@@ -976,8 +1018,7 @@ public class SharedBlobCacheWarmingService {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final Type warmingType = Type.INDEXING_BCC_HEADER_PREWARM;
-        final var bccPrewarmLabels = new HashMap<>(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard));
-        bccPrewarmLabels.put("prewarming_type", warmingType.name());
+        final var bccPrewarmLabels = warmingLabels(indexShard, warmingType);
         final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Collections.unmodifiableMap(bccPrewarmLabels));
         if (store.isClosing()) {
             listener.onFailure(

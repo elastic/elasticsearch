@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
@@ -28,15 +29,13 @@ import org.elasticsearch.xcontent.XContentString;
  */
 final class EscfUnionColumn extends EscfColumn {
 
-    private final byte[] typeVec;
-    private final int typeVecBase;
-    private final int[] offsets;
+    private final BytesRef typeVec;
+    private final IntsRef offsets;
     private final BytesReference data;
 
-    EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
-        super(docCount, absent);
+    EscfUnionColumn(int docCount, FixedBitSet validity, BytesRef typeVec, IntsRef offsets, BytesReference data) {
+        super(docCount, validity);
         this.typeVec = typeVec;
-        this.typeVecBase = typeVecBase;
         this.offsets = offsets;
         this.data = data;
     }
@@ -47,61 +46,79 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
-        return typeVec[typeVecBase + d];
+    byte typeByteForPresent(int row) {
+        return byteAt(typeVec, row);
     }
 
     @Override
-    boolean getBooleanValue(int d) {
-        byte t = typeVec[typeVecBase + d];
+    boolean getBooleanValue(int row) {
+        byte t = byteAt(typeVec, row);
         if (t == SourceValueType.TRUE) {
             return true;
         }
         if (t == SourceValueType.FALSE) {
             return false;
         }
-        throw new IllegalStateException("Doc " + d + " is not boolean, type=" + SourceValueType.name(t));
+        throw new IllegalStateException("Doc " + row + " is not boolean, type=" + SourceValueType.name(t));
     }
 
     @Override
-    long getLongValue(int d) {
-        return data.getLongLE(offsets[d]);
+    long getLongValue(int row) {
+        return data.getLongLE(intAt(offsets, row));
     }
 
     @Override
-    double getDoubleValue(int d) {
-        return Double.longBitsToDouble(data.getLongLE(offsets[d]));
+    double getDoubleValue(int row) {
+        return Double.longBitsToDouble(data.getLongLE(intAt(offsets, row)));
     }
 
     @Override
-    Text getStringValue(int d) {
-        BytesRef ref = value(d);
+    Text getStringValue(int row) {
+        BytesRef ref = value(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
     @Override
-    BytesRef getBinaryValue(int d) {
-        return value(d);
+    BytesRef getBinaryValue(int row) {
+        return value(row);
     }
 
     @Override
-    ArrayReader getArrayValue(int d) {
-        boolean fixed = typeVec[typeVecBase + d] == SourceValueType.FIXED_ARRAY;
+    ArrayReader getArrayValue(int row) {
+        boolean fixed = byteAt(typeVec, row) == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
-        BytesRef ref = value(d);
+        BytesRef ref = value(row);
         return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
     }
 
     @Override
-    KeyValueReader getKeyValue(int d) {
+    KeyValueReader getKeyValue(int row) {
         // KeyValueReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
-        BytesRef ref = value(d);
+        BytesRef ref = value(row);
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
-    /** The contiguous bytes for document {@code d}'s value, sliced from the payload (zero-copy when contiguous). */
-    private BytesRef value(int d) {
-        int off0 = offsets[d];
-        return data.slice(off0, offsets[d + 1] - off0).toBytesRef();
+    /** The contiguous bytes for document {@code row}'s value, sliced from the payload (zero-copy when contiguous). */
+    private BytesRef value(int row) {
+        int off0 = intAt(offsets, row);
+        return data.slice(off0, intAt(offsets, row + 1) - off0).toBytesRef();
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfUnionColumn(
+            count,
+            windowValidity(validity, from, count),
+            new BytesRef(typeVec.bytes, typeVec.offset + from, count),
+            sliceOffsets(offsets, from, count),
+            data
+        );
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        BytesReference newData = sliceData(offsets, data, docCount);
+        int[] newOffsets = rebasedOffsets(offsets, docCount);
+        return EscfColumnData.ofUnion(docCount, validity, typeVec, newOffsets, newData);
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,15 +35,22 @@ public class EsqlLogContext extends QueryLoggerContext {
     private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
-        super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
+        super(task, queryType(request), response.getExecutionInfo().overallTook().nanos());
         this.request = request;
         this.response = response;
     }
 
     EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
-        super(task, TYPE, tookInNanos, error);
+        super(task, queryType(request), tookInNanos, error);
         this.request = request;
         this.response = null;
+    }
+
+    private static String queryType(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest prepared && prepared.getType() != null) {
+            return prepared.getType();
+        }
+        return TYPE;
     }
 
     @Override
@@ -105,6 +113,12 @@ public class EsqlLogContext extends QueryLoggerContext {
 
     @Override
     public String[] getIndices() {
+        if (request instanceof PreparedEsqlQueryRequest prepared) {
+            String index = prepared.getIndex();
+            if (index != null) {
+                return new String[] { index };
+            }
+        }
         if (response == null) {
             return null;
         }

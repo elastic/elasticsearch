@@ -33,7 +33,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
+        return IndexInputUtils.withSlice(in, dimensions, scratch::get, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             return (long) DISTANCE_FUNCS.dotProductI7u(segment, querySegment, dimensions);
         });
@@ -42,7 +42,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch::get, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             DISTANCE_FUNCS.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
@@ -63,7 +63,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch::get, memorySegment -> {
             nativeApplyCorrectionsBulk(
                 similarityFunction,
                 memorySegment,

@@ -167,6 +167,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         // need to refine the MATCH function generation
         "query value .* does not match the type .* of non-index-mapped field",
+        "Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -189,7 +190,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
 
         // TopNOperator type mismatch in ValueExtractor
-        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
+
+        // https://github.com/elastic/elasticsearch/issues/154068
+        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*",
+
+        // https://github.com/elastic/elasticsearch/pull/153514
+        "can't lookup values from DateRangeBlock",
+
+        // https://github.com/elastic/elasticsearch/issues/154079
+        "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
+
+        // https://github.com/elastic/elasticsearch/issues/154080
+        "unexpected data type \\[NULL\\]"
     );
 
     /**
@@ -501,8 +514,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUserAgentLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -668,6 +684,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String functionExpression = matcher.group(1);
             String foundValue = matcher.group(2);
             return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
+        }
+
+        if (isKeywordTypeMismatchForLoadedField(errorWithoutLineBreaks)) {
+            return true;
         }
 
         return false;
@@ -1123,6 +1143,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
+    private static final Pattern USER_AGENT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*USER_AGENT\\b");
+    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\d+\\s+BY\\b");
+    private static final Pattern EVAL_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*EVAL\\b");
+    private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
+
+    /**
+     * The LIMIT BY optimizer prunes the {@code USER_AGENT} input field from {@code ProjectExec}
+     * because it does not appear in the LIMIT BY output columns, but {@code UserAgentExec} still
+     * needs it as its source reference.
+     * See https://github.com/elastic/elasticsearch/issues/154069
+     */
+    static boolean isUserAgentLimitByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return USER_AGENT_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
+    }
+
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
         ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
@@ -1168,6 +1209,36 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN.matcher(errorMessage).matches()
             && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by WHERE causes the optimizer to incorrectly
+     * prune the original field reference, leaving the Filter plan node with a missing reference.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154146">#154146</a>.
+     */
+    static boolean isEvalWhereFilterBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find() && WHERE_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * RENAME followed by INLINE STATS causes the optimizer to drop renamed field references from the
+     * projection, leaving the Project plan node with missing references for the renamed aliases.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isRenameInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find() && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

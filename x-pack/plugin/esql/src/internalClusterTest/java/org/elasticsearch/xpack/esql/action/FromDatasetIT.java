@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
@@ -179,6 +181,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_strict_multi",
         "employees_nonstrict_multi",
         "employees_rename_strict",
+        "employees_headerless_strict",
+        "employees_headerless_dynamic",
+        "employees_absent_warn",
+        "employees_parity_strict",
+        "employees_parity_dynamic",
+        "employees_order_strict",
+        "employees_order_dynamic",
         "employees_rename_nonstrict",
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
@@ -223,6 +232,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "long_csv_equiv",
         "long_parquet_equiv",
         "typed_strings_parquet",
+        "empty_string_double",
         "logs_deferred_coerce",
         "logs_bad_date_token",
         "logs_bad_date_failfast",
@@ -342,6 +352,230 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetWhereMvLike() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        // mv_like is source-agnostic. Over a dataset there is no Lucene index, so the external-source pushdown layer
+        // (ParquetFilterPushdownSupport, which does not list mv_like) does not claim the filter and the compute-engine
+        // evaluator answers instead — the same evaluator the indexed path is proven to agree with by the differential
+        // in EsqlActionIT. "B*" keeps Bob only.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_like(first_name, \"B*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+        // The two-valued contract holds on the dataset path too: NOT returns the exact complement, never nulls.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE NOT mv_like(first_name, \"B*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+        // mv_rlike rides the same path.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_rlike(first_name, \"C.*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The out-of-band request {@code filter} (Query DSL) is applied to a dataset: a {@code term} filter on emp_no=2
+     * returns only Bob. Before the rewrite, the filter was dropped and all three rows came back.
+     */
+    public void testRequestFilterOnDatasetTerm() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var request = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        request.filter(QueryBuilders.termQuery("emp_no", 2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+    }
+
+    /**
+     * Leniency on a dataset, end to end. A filter over a field the dataset does not have never errors:
+     * under {@code must} it matches nothing (zero rows); under {@code must_not} it matches everything (all rows) —
+     * the sharp rule-4 edge, falling out of the two-valued predicate family with no special code.
+     */
+    public void testRequestFilterOnDatasetMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.termQuery("nonexistent", "x"));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nonexistent", "x")));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * A {@code range} request filter on a dataset: emp_no &gt;= 2 returns Bob and Carol. Covers the common
+     * time-range-style filter (single-valued numeric/date field).
+     */
+    public void testRequestFilterOnDatasetRange() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var openLower = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        openLower.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(openLower, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+
+        // A closed range routes through the mv_in_range intrinsic; emp_no in [2,3] -> Bob and Carol.
+        var closed = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        closed.filter(QueryBuilders.rangeQuery("emp_no").gte(2).lte(3));
+        try (var response = run(closed, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * A closed {@code range} over a field the dataset does not have obeys the same leniency as {@code term}: mv_in_range
+     * is two-valued (false on a missing field, never null), so under {@code must} it matches nothing and under
+     * {@code must_not} it matches everything. This is the leniency that only holds because the range leaf folds a missing
+     * field to false rather than throwing.
+     */
+    public void testRequestFilterOnDatasetClosedRangeMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.rangeQuery("nonexistent").gte(2).lte(3));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nonexistent").gte(2).lte(3)));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * A {@code terms} request filter on a dataset maps to {@code mv_intersects} (any-of set membership):
+     * {@code emp_no in [1,3]} returns Alice and Carol. Missing-field leniency holds in both directions.
+     */
+    public void testRequestFilterOnDatasetTerms() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var present = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        present.filter(QueryBuilders.termsQuery("emp_no", List.of(1, 3)));
+        try (var response = run(present, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.termsQuery("nonexistent", List.of(1, 3)));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery("nonexistent", List.of(1, 3))));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
+    /**
+     * An {@code exists} request filter on a dataset maps to {@code IS NOT NULL}: a present field keeps all rows,
+     * an absent field (bound to NULL, two-valued false) keeps none under {@code must}.
+     */
+    public void testRequestFilterOnDatasetExists() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var presentField = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        presentField.filter(QueryBuilders.existsQuery("emp_no"));
+        try (var response = run(presentField, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+
+        var missingField = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        missingField.filter(QueryBuilders.existsQuery("nonexistent"));
+        try (var response = run(missingField, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+    }
+
+    /**
+     * Bool composition on a dataset: {@code must} clauses conjoin (a {@code term} and an {@code exists} together
+     * select Bob), and a {@code should}-only bool becomes an {@code OR} (emp_no 1 or 3 → Alice and Carol).
+     */
+    public void testRequestFilterOnDatasetBoolComposition() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var conjunction = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        conjunction.filter(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("emp_no", 2)).must(QueryBuilders.existsQuery("first_name"))
+        );
+        try (var response = run(conjunction, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+
+        var disjunction = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        disjunction.filter(
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("emp_no", 1)).should(QueryBuilders.termQuery("emp_no", 3))
+        );
+        try (var response = run(disjunction, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * A one-sided {@code range} over a missing field obeys the same leniency as the other leaves: the comparison over
+     * {@code mv_max}/{@code mv_min} is wrapped so a missing field folds to {@code false} (two-valued), giving zero rows
+     * under {@code must} and all rows under {@code must_not}. Without the two-valued wrap, {@code NOT null} would drop
+     * every row under {@code must_not}.
+     */
+    public void testRequestFilterOnDatasetOneSidedRangeMissingFieldLeniency() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        var mustMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustMissing.filter(QueryBuilders.rangeQuery("nonexistent").gte(2));
+        try (var response = run(mustMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+
+        var mustNotMissing = syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10");
+        mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nonexistent").gte(2)));
+        try (var response = run(mustNotMissing, TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+    }
+
     public void testFromDatasetWhereMvInRange() throws Exception {
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
@@ -387,12 +621,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testStrictDeclaredSchemaUsesDeclaredNamesAndTypesSkippingInference() throws Exception {
+    public void testStrictDeclaredNamesAbsentFromHeaderReadNull() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
-        // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
-        // proving the declared mapping is used and inference is skipped.
+        // A declared schema binds by name. The declaration names id/name, which the file (header emp_no,first_name)
+        // does not have and no `path` maps, so both read null with a warning. To rename emp_no->id the supported
+        // mechanism is `path` — see testStrictDeclaredSchemaRenamesColumnsViaSource.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
@@ -414,19 +648,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+        // Both declared names are absent from the file, so every row reads null — the declaration over-claims the file.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("id"));
             assertThat(columns.get(1).name(), equalTo("name"));
-
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
-            // declared LONG => values are Long, not the Integer inference would have produced
-            assertThat(rows.get(0).get(0), equalTo(1L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(2).get(0), equalTo(3L));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+                assertThat(row.get(1), nullValue());
+            }
         }
     }
 
@@ -536,8 +769,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDeclaredSchemaRenamesColumnsViaSource() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. CSV is read
-        // positionally, so the declared order must match the file order; the logical names id/name are what the query sees.
+        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. A declared
+        // path binds by name, so the declared order need not match the file's; the logical names id/name are what the
+        // query sees. This declaration happens to be in file order, which is why it passed even when binding was
+        // positional — see testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv for the case that pins the binding.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
@@ -571,6 +806,129 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
             assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The #1307 invariant, in product terms: strict and dynamic are orthogonal to every other dimension. Over the same
+     * file, with a declaration that names every physical column, the two must return identical results — a declaration
+     * that covers the whole file leaves inference nothing to decide, so the dynamic knob cannot matter.
+     * <p>
+     * The declaration is deliberately NOT in file order: {@code dept} is declared first but names {@code col2}. Binding
+     * a declared path by its declaration position — the bug — serves col0's value under {@code dept} on the strict read
+     * while dynamic reads it correctly, so the two disagree. Binding by name makes the knob a no-op, as it must be.
+     */
+    public void testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-headerless-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Every physical column of the file is declared, in an order that does not match the file's.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_headerless_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_headerless_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        List<List<Object>> strictRows = queryRows("FROM employees_headerless_strict | KEEP id, name, dept | SORT id | LIMIT 10");
+        List<List<Object>> dynamicRows = queryRows("FROM employees_headerless_dynamic | KEEP id, name, dept | SORT id | LIMIT 10");
+
+        // Both must be right, not merely equal: agreement alone would also hold if the two broke the same way.
+        assertThat(strictRows, hasSize(3));
+        assertThat(strictRows.get(0).get(0), equalTo(1L));                          // col0, retyped LONG
+        assertThat(strictRows.get(0).get(1).toString(), equalTo("Alice"));          // col1
+        assertThat(strictRows.get(0).get(2).toString(), equalTo("Engineering"));    // col2, NOT col0's value
+        assertThat(strictRows.get(2).get(2).toString(), equalTo("Support"));
+
+        assertThat(strictRows, equalTo(dynamicRows));
+    }
+
+    /**
+     * The #1307 invariant in its strongest form: a declaration that covers the whole file IN FILE ORDER reads
+     * IDENTICALLY under strict and dynamic — same column names, same column ORDER, same values — with NO {@code KEEP}
+     * to normalize. This is the case where the two modes must not diverge on any dimension.
+     */
+    public void testStrictAndDynamicFullyAgreeNoKeepInFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-parity-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Declared in file order: col0 -> id, col1 -> name, col2 -> dept. Declaration order == file order, so column
+        // order cannot diverge and the two modes must agree on everything.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+
+        registerHeaderlessCsv("employees_parity_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_parity_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_parity_strict | SORT id | LIMIT 10"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_parity_dynamic | SORT id | LIMIT 10"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("id", "name", "dept")));
+            assertThat(columnNames(strict), equalTo(columnNames(dynamic)));   // names + ORDER agree, no KEEP
+            assertThat(getValuesList(strict), equalTo(getValuesList(dynamic))); // values agree
+        }
+    }
+
+    /**
+     * Column ORDER is the one dimension strict and dynamic still diverge on for an OUT-of-file-order declaration:
+     * strict emits declaration order, dynamic emits file order. Pinned here as the known divergence tracked by the
+     * column-order convergence follow-up (a dynamic-side change, out of #1307's binding scope).
+     */
+    public void testStrictDynamicColumnOrderDivergesOutOfFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-order-", ".csv");
+        Files.writeString(headerless, "1,Alice,Engineering\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_order_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_order_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_order_strict | LIMIT 1"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_order_dynamic | LIMIT 1"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("dept", "id", "name")));   // declaration order
+            assertThat(columnNames(dynamic), equalTo(List.of("id", "name", "dept")));  // file order
+        }
+    }
+
+    private static List<String> columnNames(EsqlQueryResponse response) {
+        return response.columns().stream().map(ColumnInfo::name).toList();
+    }
+
+    /** Registers {@code file} as a headerless CSV dataset, so a declared path names a physical column as {@code col<N>}. */
+    private void registerHeaderlessCsv(String name, Path file, DatasetMapping.Dynamic dynamic, Map<String, DatasetFieldMapping> properties)
+        throws Exception {
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false)),
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                )
+            )
+        );
+    }
+
+    private List<List<Object>> queryRows(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response);
         }
     }
 
@@ -893,9 +1251,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Compressed .csv.gz goes through CompressionDelegatingFormatReader; the declared format must reach the wrapped
-        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). The
-        // format/compression is driven by the compound `.csv.gz` extension — an explicit `format` override would bypass
-        // the extension-based compression wrapping entirely, so leave it off.
+        // CSV reader (a missing wrapper override would silently drop it and diverge from the uncompressed result). Format
+        // here is inferred from the compound `.csv.gz` extension; testExplicitFormatOverGzipCsvReads covers the sibling
+        // case of an explicit `format` setting composing with the same compression suffix.
         Path gz = createTempFile("dataset-date-fixture-", ".csv.gz");
         byte[] csv = ("ts:keyword,note:keyword\n10/Oct/2000:13:55:36 -0700,alpha\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gz))) {
@@ -935,17 +1293,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // sourceType from the file name; before the compound-extension fix it last-dotted to "gz" and the query failed
         // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
         // registry) and read the row. Regression guard for the strict compound-extension read fix.
-        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false), "col0", "col1");
+    }
+
+    public void testExplicitFormatOverGzipCsvReads() throws Exception {
+        // Regression guard for the compressed-read-under-explicit-format fix: an explicit `format` setting used
+        // to bypass compression detection entirely (FormatNameResolver.resolveReader looked the format up by
+        // name with no regard for the resource's outer compression suffix), so this query used to fail trying
+        // to parse raw gzip bytes as CSV. `format: csv` must now compose with the `.csv.gz` suffix exactly like
+        // the extension-inferred path does.
+        assertStrictGzippedTextReads(
+            "logs_csv_gz_explicit_format",
+            ".csv.gz",
+            "some_ts,alpha\n",
+            Map.of("header_row", false, "format", "csv"),
+            "col0",
+            "col1"
+        );
     }
 
     public void testStrictOverGzipTsvReads() throws Exception {
-        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false), "col0", "col1");
     }
 
     public void testStrictOverGzipNdjsonReads() throws Exception {
         // NDJSON is read by JSON key, so no header_row setting applies; the compound `.ndjson.gz` must still resolve
         // through the compression-unwrapping registry to the "ndjson" reader rather than last-dotting to "gz".
-        assertStrictGzippedTextReads("logs_ndjson_gz_strict", ".ndjson.gz", "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n", Map.of());
+        assertStrictGzippedTextReads(
+            "logs_ndjson_gz_strict",
+            ".ndjson.gz",
+            "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n",
+            Map.of(),
+            null,
+            null
+        );
     }
 
     public void testStrictOverGzipCsvGlobReads() throws Exception {
@@ -958,9 +1339,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeGzip(root.resolve("part2.csv.gz"), "ts_c,gamma\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Headerless text binds a DECLARED schema by name against col<N>, so ts/note bind via `path` to col0/col1.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", "col0"));
+        properties.put("note", new DatasetFieldMapping("keyword", "col1"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
@@ -995,14 +1377,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * compound extension and asserts {@code note} reads back as {@code alpha} — i.e. the strict path resolved the
      * reader through the compound extension (not the "gz" codec suffix).
      */
-    private void assertStrictGzippedTextReads(String datasetName, String ext, String content, Map<String, Object> settings)
-        throws Exception {
+    private void assertStrictGzippedTextReads(
+        String datasetName,
+        String ext,
+        String content,
+        Map<String, Object> settings,
+        String tsPath,
+        String notePath
+    ) throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path gz = createTempFile("dataset-strict-", ext);
         writeGzip(gz, content);
+        // Under a strict (DECLARED) schema, columns bind by name against the file's physical names. A headerless text
+        // file names its columns col<N> by position, so the declaration must bind ts/note to col0/col1 via `path`;
+        // NDJSON binds by JSON key, where the logical names ts/note already match, so it needs no path.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", tsPath));
+        properties.put("note", new DatasetFieldMapping("keyword", notePath));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -1867,6 +2258,65 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(csvValue, equalTo(42L));
     }
 
+    public void testEmptyStringDeclaredDoubleReproducesReportedFailureWithContext() throws Exception {
+        // Reproduces the exact reported failure end to end: a string column of EMPTY strings declared `double`.
+        // Double.parseDouble("") threw a bare `NumberFormatException: empty String` with no column or type, on the
+        // query that materialized the column. The read still fails under fail_fast, but the client-visible message
+        // now names the column and the declared type and points at error_mode -- the original `empty String` detail
+        // survives as context, no longer the whole story.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetEmptyStringFixture();
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("long", null));
+        props.put("d", new DatasetFieldMapping("double", "s")); // s is the empty string ""
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "empty_string_double",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet", "error_mode", "fail_fast")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props))
+                )
+            )
+        );
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM empty_string_double | KEEP d | LIMIT 10"), TIMEOUT).close()
+        );
+        String message = e.getMessage();
+        assertThat("the original symptom is retained as context", message, containsString("empty String"));
+        assertThat("the failing column is named", message, containsString("Column ["));
+        assertThat("the declared type is named", message, containsString("declared type [double]"));
+        assertThat("the tolerance path is pointed at", message, containsString("error_mode=null_field"));
+    }
+
+    private Path writeParquetEmptyStringFixture() throws IOException {
+        // One required UTF8 string column holding the empty string -- the exact value from the reported incident.
+        MessageType schema = MessageTypeParser.parseMessageType("message empties { required int64 id; required binary s (UTF8); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            g.add("s", "");
+            writer.write(g);
+        }
+        Path tempFile = createTempDir().resolve("empty_string.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
     private long readSingleLong(String query) {
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -2159,12 +2609,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testStrictCsvDeclaredWiderThanFileRejected() throws Exception {
-        // Strict (dynamic: false) binds text columns POSITIONALLY — the declared names replace the header's names in
-        // order (DuckDB columns= / ClickHouse structure semantics), so declared-vs-header NAMES are deliberately not
-        // cross-checked (renaming by position is a feature; see testStrictDeclaredSchemaUsesDeclaredNames...). What
-        // IS checked at first read: a declaration WIDER than the file's header — the file can't supply the declared
-        // columns (drifted file, or the wrong file), so it fails loudly instead of null-splicing every row.
+    public void testStrictCsvDeclaredColumnAbsentReadsNullPartialMatch() throws Exception {
+        // A declared schema binds by name. emp_no/first_name are in the 2-column file and bind; the extra declared
+        // `department` is absent, so it reads null with one per-dataset warning while the other two read real data.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Map<String, DatasetFieldMapping> tooWide = new LinkedHashMap<>();
         tooWide.put("emp_no", new DatasetFieldMapping("integer", null));
@@ -2186,12 +2633,69 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | LIMIT 5"), TIMEOUT).close()
+        // The partial-match case: emp_no/first_name are present and read real data; the extra declared `department`
+        // is absent from the 2-column file, so it reads null (with a per-dataset warning) rather than failing.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(3));
+            assertThat(columns.get(2).name(), equalTo("department"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1)); // emp_no present (declared integer)
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // first_name present
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue()); // department absent -> null
+            }
+        }
+    }
+
+    /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
+    public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_absent_warn",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
         );
-        assertThat(e.getMessage(), containsString("declared schema has 3 columns"));
-        assertThat(e.getMessage(), containsString("has 2"));
+
+        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
+            ActionListener.running(() -> {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains("declared column [department] is not present"))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            })
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -3578,9 +4082,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Strict declaration RENAMES emp_no/first_name to id/name via `path`, per file, by name (each file carries the
+        // same header). This is the strict multi-file rail: the declared schema is pinned once and bound to every
+        // file's own header without a per-file schema inference read.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("long", null));
-        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(

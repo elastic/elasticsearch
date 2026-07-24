@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -100,6 +102,14 @@ public abstract class FullTextFunction extends Function
         PostOptimizationVerificationAware,
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
+
+    public static final TransportVersion ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS = TransportVersion.fromName("esql_options_for_search_functions");
+
+    // TODO: This message omits HIGHLIGHT, which supports MATCH, MATCH_PHRASE, QSTR, and KQL (see
+    // HighlightQueryBuilders#verifyQueryStructure). We cannot simply append it because KNN also shares this message but
+    // remains unsupported in HIGHLIGHT, and many tests assert the exact wording.
+    private static final String UNSUPPORTED_LOCATION_FAILURE =
+        "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function";
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -206,7 +216,7 @@ public abstract class FullTextFunction extends Function
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 
-    protected boolean isRuntimeSearch() {
+    public boolean isRuntimeSearch() {
         return false;
     }
 
@@ -223,25 +233,32 @@ public abstract class FullTextFunction extends Function
             checkFullTextFunctionsInAggs(agg, failures);
         } else if (plan instanceof LookupJoin lookupJoin) {
             checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions(), true, true);
+        } else if (plan instanceof Highlight highlight) {
+            checkFullTextFunctionsInHighlight(plan, highlight, failures);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
                 checkScoreFunction(plan, failures, scoreFunction);
                 plan.forEachExpression(FullTextFunction.class, scoredFTFs::add);
             });
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
-                if (scoredFTFs.remove(ftf) == false) {
-                    failures.add(
-                        fail(
-                            ftf,
-                            "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function",
-                            ftf.functionName(),
-                            ftf.functionType()
-                        )
-                    );
-                }
-            });
+            failFullTextFunctionsOutside(plan, failures, scoredFTFs);
         }
+    }
+
+    private static void checkFullTextFunctionsInHighlight(LogicalPlan plan, Highlight highlight, Failures failures) {
+        List<FullTextFunction> allowedFTFs = new ArrayList<>();
+        if (highlight.query() != null) {
+            highlight.query().forEachDown(FullTextFunction.class, allowedFTFs::add);
+        }
+        failFullTextFunctionsOutside(plan, failures, allowedFTFs);
+    }
+
+    private static void failFullTextFunctionsOutside(LogicalPlan plan, Failures failures, List<FullTextFunction> allowedFTFs) {
+        plan.forEachExpression(FullTextFunction.class, ftf -> {
+            if (allowedFTFs.remove(ftf) == false) {
+                failures.add(fail(ftf, UNSUPPORTED_LOCATION_FAILURE, ftf.functionName(), ftf.functionType()));
+            }
+        });
     }
 
     private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {

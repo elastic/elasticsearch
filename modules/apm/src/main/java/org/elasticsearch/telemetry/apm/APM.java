@@ -62,7 +62,11 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public TelemetryProvider getTelemetryProvider(Environment environment) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
+            environment.settings(),
+            diskBufferPath,
+            environment.configDir()
+        );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -82,7 +86,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
-        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) ? "enabled" : "disabled");
+        telemetryProvider.get().initCertReload(services.resourceWatcherService());
 
         return List.of(apmTracer, apmMeter, loggingService);
     }
@@ -106,6 +111,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL,
+            OtelSdkSettings.TELEMETRY_METRICS_DISABLED,
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
@@ -118,8 +125,11 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_LOGS_ENABLED,
-            OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE
+            OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY
         );
     }
 }

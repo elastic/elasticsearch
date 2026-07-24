@@ -97,10 +97,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-            // Track memory usage
-            long bytesSize = chunk.getBytesLength();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-            totalBreakerBytes.addAndGet(bytesSize);
+            long estimatedRetainedBytes = chunk.estimatedRetainedBytes();
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, "fetch_chunk_accumulation");
+            totalBreakerBytes.addAndGet(estimatedRetainedBytes);
 
             chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
 
@@ -185,7 +184,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     /**
      * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
      */
-    void trackBreakerBytes(int bytes) {
+    void trackBreakerBytes(long bytes) {
         totalBreakerBytes.addAndGet(bytes);
     }
 

@@ -75,7 +75,8 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.AGGREGATE_METRIC_DOUBLE,
                 ElementType.EXPONENTIAL_HISTOGRAM,
                 ElementType.TDIGEST,
-                ElementType.LONG_RANGE
+                ElementType.LONG_RANGE,
+                ElementType.DOUBLE_RANGE
             )) {
                 continue;
             }

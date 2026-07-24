@@ -666,6 +666,40 @@ count:long
 200
 ;
 
+compactedViewWithAliasGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_alias_deduplication_bugfix
+
+// FROM alias, view where the view expands to the same index as the alias should give two copies.
+// employees_alias is an index alias pointing to employees; employees_all is a view defined as "FROM employees".
+// The result must contain 200 rows (two independent copies of the 100-row employees index),
+// not 100 rows (which would indicate the alias and view were incorrectly merged and deduplicated).
+FROM employees_alias, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+compactedViewWithAliasInBodyGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_alias_deduplication_bugfix
+
+// FROM index, view where the view body references an alias pointing to that index should give two copies.
+// employees_via_alias is a view defined as "FROM employees_alias"; employees_alias is an index alias pointing to employees.
+// The result must contain 200 rows (two independent copies of the 100-row employees index),
+// not 100 rows (which would indicate the alias inside the view body was incorrectly merged with the direct index reference).
+FROM employees, employees_via_alias
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
 wildcardExcludeEmployeeViewsNoFalseCircularReference
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

@@ -133,7 +133,7 @@ static inline void dotd1qN_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    constexpr int batches = 2;
+    constexpr int batches = 4;
     constexpr int chunk_size = sizeof(uint64x2_t);
 
     const uint8_t* query[query_bits];

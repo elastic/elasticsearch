@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -1446,6 +1449,193 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * End-to-end proof that mv_like's YES pushdown is correct with no recheck. The docs cover match-on-first (b),
+     * match-on-middle (c), match-on-last (d), no-match (a), duplicates (e), an empty-string value (f), single-valued
+     * (g), a field present with zero values (i) and a field absent entirely (h). The NOT query pins
+     * must_not(wildcard) as the exact complement, valueless docs included — mv_like never nulls, so their negation
+     * is true.
+     */
+    public void testMvLikePushdownEndToEnd() {
+        String index = "mv_like_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("bob", "carl"));      // no value matches
+        docs.put("b", List.of("anna", "bob"));      // matches on the first value
+        docs.put("c", List.of("bob", "anna", "z")); // matches on a middle value
+        docs.put("d", List.of("bob", "anna"));      // matches on the last value
+        docs.put("e", List.of("anna", "anna"));     // duplicates that match
+        docs.put("f", List.of("", "bob"));          // an empty string is a value, but does not match "ann*"
+        docs.put("g", List.of("annabel"));          // single-valued, matches
+        docs.put("i", List.of());                   // field present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "e", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "f", "h", "i"));
+        }
+    }
+
+    /**
+     * The companion to {@link #testMvLikePushedMatchesEvaluator}: that one indexes multivalued docs, so its field block
+     * goes through the evaluator's block path. This one indexes only single-valued docs — every position has exactly one
+     * value and no nulls — so the loaded block is a vector and the evaluator takes its {@code asVector()} fast path.
+     * Proves that fast path agrees with the pushed query, which the multivalued differential cannot reach.
+     */
+    public void testMvLikeSingleValuedFieldMatchesPushed() {
+        String index = "mv_like_single_valued";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        // Every doc has exactly one value — no multivalue, no missing field — so the field block is a vector.
+        List<String> values = List.of("anna", "bob", "annabel", "banana", "a*b", "a?b", "ANNA", "", "xanna");
+        for (int i = 0; i < values.size(); i++) {
+            prepareIndex(index).setSource("id", "d" + i, "v", values.get(i)).get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated (vector path) disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The differential that proves mv_like's pushdown is exact rather than merely asserting it.
+     * <p>
+     * For every pattern in the corpus, two queries run over identical data on identical shards: {@code WHERE mv_like(v, p)},
+     * which pushes to a bare Lucene wildcard query, and {@code EVAL x = mv_like(v, p) | WHERE x}, where the reference
+     * attribute is not a FieldAttribute so isPushableFieldAttribute declines and the compute-engine evaluator runs
+     * instead. The two must select identical id sets, in both polarities. Any divergence between the automaton (or an
+     * affix fast path) and the pushed query fails here, which is the only place the exactness claim is actually tested.
+     */
+    public void testMvLikePushedMatchesEvaluator() {
+        String index = "mv_like_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a*b", "plain"));   // metacharacters appearing literally in the data
+        docs.put("g", List.of("a?b"));
+        docs.put("h", List.of("ANNA"));           // case differs
+        docs.put("i", List.of("anna", "anna"));
+        docs.put("j", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "k").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        // Covers every dispatch shape: prefix, suffix, contains, exact, single-char, escaped metachars, match-all, empty.
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "a\\\\?b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The mv_rlike half of the pushed-vs-evaluator differential. Same discipline as
+     * {@link #testMvLikePushedMatchesEvaluator}: the pushed regexp query and the compute-engine automaton must select
+     * identical id sets over identical data, in both polarities, for every pattern in the corpus.
+     */
+    public void testMvRLikePushedMatchesEvaluator() {
+        String index = "mv_rlike_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a.b", "plain"));   // a literal dot in the data
+        docs.put("g", List.of("ANNA"));
+        docs.put("h", List.of("aaa"));
+        docs.put("i", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "j").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann.*", ".*na", "anna", "a.b", "a\\\\.b", "[abc]anana", "a+", ".*", "", "zzz.*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_rlike(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_rlike(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
      * End-to-end proof that YES pushdown is correct with no recheck: for an integer field the FilterExec is dropped, so
      * rows come straight from the pushed range. The docs cover any-one-value-in-range (b), inclusive bounds (c, d),
      * just-outside (a, e, f), single-valued (g), and no/empty values (h, i). The NOT query pins must_not(range) as the
@@ -2167,6 +2357,49 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testGrokTimeoutIsUserError() {
+        String indexName = "test_grok_timeout";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("message", "type=keyword"));
+        client().prepareIndex(indexName)
+            .setSource(
+                "message",
+                "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+                    + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018"
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        admin().cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder().put(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.getKey(), "200ms").build()
+                )
+            )
+            .actionGet();
+
+        try {
+            // This pattern causes catastrophic backtracking and reliably exceeds the 200 ms watchdog timeout.
+            // The same pattern is used in GrokTests.testExponentialExpressions.
+            var ex = expectThrows(
+                ElasticsearchException.class,
+                () -> run(
+                    "FROM "
+                        + indexName
+                        + " | GROK message \"\"\""
+                        + "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+                        + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10}"
+                        + " Datum->%{DATESTAMP_OTHER:param11}"
+                        + "\"\"\""
+                ).close()
+            );
+            assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
+        } finally {
+            clearPersistentSettings(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
         }
     }
 

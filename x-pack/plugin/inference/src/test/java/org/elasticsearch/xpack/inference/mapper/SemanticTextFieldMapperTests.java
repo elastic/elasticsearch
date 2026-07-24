@@ -28,7 +28,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -552,7 +551,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
         MapperService mapperService = createSemanticMapperServiceWithSourceMode(mapping(b -> {
             b.startObject("body").field("type", "text").field("copy_to", "field").endObject();
-            b.startObject("field").field("type", "semantic_text").field("inference_id", "test_model").endObject();
+            addSemanticMapping(b, "field", "test_model", null, null, null, null);
         }), IndexVersion.current(), SourceFieldMapper.Mode.SYNTHETIC);
         SearchExecutionContext context = createSearchExecutionContext(mapperService);
         assertFalse(new SemanticTextHighlighter().canHighlightWithoutSource(context.getFieldType("field"), context));
@@ -1054,29 +1053,21 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         final String searchInferenceId1 = "test_search_inference_id_1";
         final String searchInferenceId2 = "test_search_inference_id_2";
 
-        CheckedBiFunction<String, String, XContentBuilder, IOException> buildMapping = (f, sid) -> mapping(b -> {
-            b.startObject(f).field("type", "semantic_text").field("inference_id", inferenceId);
-            if (sid != null) {
-                b.field("search_inference_id", sid);
-            }
-            b.endObject();
-        });
-
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
-            MapperService mapperService = createSemanticMapperService(buildMapping.apply(fieldName, null));
+            MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
-            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId1));
+            merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId1));
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId1);
 
-            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId2));
+            merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId2));
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId2);
 
-            merge(mapperService, buildMapping.apply(fieldName, null));
+            merge(mapperService, semanticMapping(fieldName, inferenceId));
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
@@ -1092,15 +1083,15 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
-            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId1));
+            merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId1));
             assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId1);
 
-            merge(mapperService, buildMapping.apply(fieldName, searchInferenceId2));
+            merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId2));
             assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId2);
 
-            merge(mapperService, buildMapping.apply(fieldName, null));
+            merge(mapperService, semanticMapping(fieldName, inferenceId));
             assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }

@@ -52,7 +52,6 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static final String OUTPUT_TOKENS_FIELD = "output_tokens";
     private static final String STOP_REASON_FIELD = "stop_reason";
     private static final String TEXT_FIELD = "text";
-    private static final String INPUT_FIELD = "input";
     private static final String PARTIAL_JSON_FIELD = "partial_json";
     private static final String USAGE_FIELD = "usage";
     private static final String MESSAGE_FIELD = "message";
@@ -244,10 +243,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             var id = extractMandatoryString(contentBlockMap, ID_FIELD);
             var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
             var input = extractOptionalField(contentBlockMap, INPUT_FIELD, Object.class);
-            var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                input != null ? input.toString() : null,
-                name
-            );
+            var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function("", name);
             var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
             delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
         } else {

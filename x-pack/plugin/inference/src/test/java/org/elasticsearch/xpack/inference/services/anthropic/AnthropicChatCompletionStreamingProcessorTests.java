@@ -195,7 +195,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(toolCalls.getFirst().index(), is(0));
         assertThat(toolCalls.getFirst().id(), is("toolu_vrtx_01GooUb1exnL7s8QrUgAQvQj"));
         var function = toolCalls.getFirst().function();
-        assertThat(function.arguments(), is("{}"));
+        assertThat(function.arguments(), is(""));
         assertThat(function.name(), is("get_weather"));
     }
 

@@ -22,9 +22,10 @@ import org.junit.ClassRule;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Verifies that Prometheus endpoints are unavailable (404) when {@code xpack.prometheus.enabled} is
- * {@code false}. When disabled the plugin registers no REST handlers, so the node has no route for
- * any {@code /_prometheus/*} path.
+ * Verifies that Prometheus endpoints return 400 (no handler found) when
+ * {@code xpack.prometheus.enabled} is {@code false}. When disabled the plugin registers no REST
+ * handlers, so the node has no route for any {@code /_prometheus/*} path. Elasticsearch returns 400
+ * for unmatched routes.
  *
  * This class intentionally does NOT extend {@link AbstractPrometheusRestIT} so that the normal
  * test clusters (with SSL and API keys) are never started here.
@@ -57,22 +58,25 @@ public class PrometheusDisabledRestIT extends ESRestTestCase {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    public void testRemoteWriteEndpointReturns404WhenDisabled() throws Exception {
+    public void testRemoteWriteEndpointReturnsNoHandlerWhenDisabled() throws Exception {
         Request request = new Request("POST", "/_prometheus/api/v1/write");
         request.setEntity(new ByteArrayEntity(new byte[0], ContentType.create("application/x-protobuf")));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        // Elasticsearch returns 400 (not 404) for requests with no registered handler
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    public void testInstantQueryEndpointReturns404WhenDisabled() throws Exception {
+    public void testInstantQueryEndpointReturnsNoHandlerWhenDisabled() throws Exception {
         Request request = new Request("GET", "/_prometheus/api/v1/query");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        // Elasticsearch returns 400 (not 404) for requests with no registered handler
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    public void testStatusBuildInfoEndpointReturns404WhenDisabled() throws Exception {
+    public void testStatusBuildInfoEndpointReturnsNoHandlerWhenDisabled() throws Exception {
         Request request = new Request("GET", "/_prometheus/api/v1/status/buildinfo");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        // Elasticsearch returns 400 (not 404) for requests with no registered handler
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 }

@@ -90,7 +90,7 @@ PUT my-semantic-index
 4. Indexes the embeddings using `int8_hnsw` quantization.
 
 :::{tip}
-For a complete runnable example, refer to [Build image search with a `semantic` field](./semantic-field-quickstart.md).
+For a complete runnable example, refer to [Build multimodal search with a `semantic` field](./semantic-field-quickstart.md).
 :::
 
 ## Reference documentation [semantic-reference]

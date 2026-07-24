@@ -1,13 +1,13 @@
 ---
-navigation_title: "Quickstart: Image search"
+navigation_title: "Quickstart: Multimodal search"
 applies_to:
   stack: preview 9.5
   serverless: preview
 ---
 
-# Build image search with a `semantic` field in {{es}} [semantic-quickstart]
+# Build multimodal search with a `semantic` field in {{es}} [semantic-quickstart]
 
-This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings) for multimodal search.
+This quickstart maps a `semantic` field, indexes an image, and searches for the image using text and image input. Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings) for multimodal search.
 
 The quickstart uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint, available through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
 
@@ -204,6 +204,83 @@ curl --fail-with-body --silent --show-error \
 :::::
 
 The endpoint embeds the text query in the same vector space as the indexed image and returns the most semantically similar results.
+
+::::::
+
+::::::{step} Search for the image using an image
+
+For image-to-image search, use a `knn` query with the `embedding` query vector builder. This minimal example reuses the indexed cat image as the query image:
+
+:::::{tab-set}
+
+::::{tab-item} Console
+
+```console
+GET image-search/_search
+{
+  "_source": [
+    "title",
+    "source_url"
+  ],
+  "query": {
+    "knn": {
+      "field": "image",
+      "query_vector_builder": {
+        "embedding": {
+          "input": {
+            "type": "image",
+            "value": "data:image/jpeg;base64,<BASE64_ENCODED_IMAGE>"
+          }
+        }
+      },
+      "k": 1,
+      "num_candidates": 1
+    }
+  }
+}
+```
+% TEST[skip:Requires a Base64-encoded query image and a multimodal embedding endpoint]
+
+::::
+
+::::{tab-item} curl
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --request POST \
+  --url "$ELASTICSEARCH_URL/image-search/_search" \
+  --header "Authorization: ApiKey $ELASTICSEARCH_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data-binary @- <<JSON
+{
+  "_source": [
+    "title",
+    "source_url"
+  ],
+  "query": {
+    "knn": {
+      "field": "image",
+      "query_vector_builder": {
+        "embedding": {
+          "input": {
+            "type": "image",
+            "value": "data:image/jpeg;base64,$image_data"
+          }
+        }
+      },
+      "k": 1,
+      "num_candidates": 1
+    }
+  }
+}
+JSON
+```
+
+::::
+
+:::::
+
+This demonstrates binary-to-binary search: the endpoint embeds the binary image query and searches the indexed image embeddings. Because this toy index and query contain the same image, the image matches itself. In an application, encode a different image to find visually or semantically similar images.
 
 ::::::
 

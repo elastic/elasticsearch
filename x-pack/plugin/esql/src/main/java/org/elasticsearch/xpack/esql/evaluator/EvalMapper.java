@@ -18,10 +18,14 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public final class EvalMapper {
     private EvalMapper() {}
@@ -96,6 +100,28 @@ public final class EvalMapper {
                 @Override
                 public Analyzer getAnalyzer(String name) {
                     return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+                }
+
+                @Override
+                public EvaluatorMapper.LambdaBody lambdaBody(Lambda lambda) {
+                    // The body's upstream references (Lambda.references() already excludes the lambda's own
+                    // parameters) become the leading channels of the body's input page; the parameters follow.
+                    List<Attribute> upstream = new ArrayList<>(lambda.references());
+                    int[] outerChannels = new int[upstream.size()];
+                    for (int i = 0; i < upstream.size(); i++) {
+                        Layout.ChannelAndType channel = layout.get(upstream.get(i).id());
+                        if (channel == null) {
+                            throw new QlIllegalArgumentException("Unknown lambda upstream reference [{}]", upstream.get(i));
+                        }
+                        outerChannels[i] = channel.channel();
+                    }
+                    Layout innerLayout = new Layout.Builder().append(upstream).append(lambda.parameters()).build();
+                    // Recursing with the inner layout builds a fresh ToEvaluator closure over it, so
+                    // lambdas nested inside this body resolve against the inner layout in turn.
+                    return new EvaluatorMapper.LambdaBody(
+                        toEvaluator(foldCtx, lambda.body(), innerLayout, shardContexts, analysisRegistry),
+                        outerChannels
+                    );
                 }
             });
         }

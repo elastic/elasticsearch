@@ -36,6 +36,37 @@ public @interface Param {
     @Nullable
     Hint hint() default @Hint;
 
+    /**
+     * Describes the signature of a lambda parameter so tooling (e.g. Kibana autocomplete) can
+     * advertise the expected lambda shape to the user.
+     * <p>
+     * Usage: set {@code paramTypes} to the names of the function's other parameters whose
+     * concrete types the lambda parameters inherit (in order), and set {@code returnType} to
+     * the fixed return type of the lambda body (e.g. {@code "boolean"} for a predicate).
+     * Leave {@code returnType} empty to indicate that the lambda's return type matches the
+     * function's own return type (typical for transformation functions like {@code map}).
+     * <p>
+     * If {@code paramTypes} is empty the annotation is considered absent and no lambda
+     * information is emitted.
+     */
+    Lambda lambda() default @Lambda;
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    @interface Lambda {
+        /**
+         * Names of the function's other parameters whose concrete types become the lambda's
+         * parameter types, in order. Empty means "no lambda info provided".
+         */
+        String[] paramTypes() default {};
+
+        /**
+         * The fixed return type of the lambda body (e.g. {@code "boolean"}).
+         * An empty string means the lambda's return type equals the function's return type.
+         */
+        String returnType() default "";
+    }
+
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
     @interface Hint {

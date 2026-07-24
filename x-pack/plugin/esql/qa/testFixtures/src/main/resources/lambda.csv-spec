@@ -1,0 +1,242 @@
+// Tests for lambda-accepting multi-value functions: any_match, map, filter.
+// Each test is gated on the implicit per-function capability (fn_any_match,
+// fn_map, fn_filter) so mixed-version clusters only run tests for functions
+// that are actually registered on every node.
+
+anyMatchTrue
+required_capability: fn_any_match
+// tag::any_match[]
+ROW a = [1, 2, 3] | EVAL r = any_match(a, x -> x > 2);
+// end::any_match[]
+
+// tag::any_match-result[]
+a:integer | r:boolean
+[1, 2, 3] | true
+// end::any_match-result[]
+;
+
+anyMatchFalse
+required_capability: fn_any_match
+ROW a = [1, 2, 3] | EVAL r = any_match(a, x -> x > 5);
+
+a:integer | r:boolean
+[1, 2, 3] | false
+;
+
+anyMatchKeyword
+required_capability: fn_any_match
+ROW s = ["foo", "bar"] | EVAL r = any_match(s, x -> x == "bar");
+
+s:keyword  | r:boolean
+[foo, bar] | true
+;
+
+anyMatchSingleValue
+required_capability: fn_any_match
+ROW a = 5 | EVAL r = any_match(a, x -> x > 1);
+
+a:integer | r:boolean
+5         | true
+;
+
+anyMatchNullField
+required_capability: fn_any_match
+ROW a = null | EVAL r = any_match(a, x -> x == 1);
+
+a:null | r:boolean
+null   | null
+;
+
+anyMatchUpstreamReference
+required_capability: fn_any_match
+ROW a = [1, 2, 3], b = 2 | EVAL r = any_match(a, x -> x > b);
+
+a:integer | b:integer | r:boolean
+[1, 2, 3] | 2         | true
+;
+
+anyMatchNestedLambdas
+required_capability: fn_any_match
+ROW a = [1, 2], b = [3, 4]
+| EVAL r = any_match(a, x -> any_match(b, y -> y > x + 2)), r2 = any_match(a, x -> any_match(b, y -> y > x + 3));
+
+a:integer | b:integer | r:boolean | r2:boolean
+[1, 2]    | [3, 4]    | true      | false
+;
+
+anyMatchOnIndex
+required_capability: fn_any_match
+FROM employees
+| WHERE emp_no <= 10010
+| EVAL r = any_match(job_positions, x -> x == "Tech Lead")
+| KEEP emp_no, r
+| SORT emp_no;
+
+emp_no:integer | r:boolean
+10001          | false
+10002          | false
+10003          | null
+10004          | true
+10005          | null
+10006          | true
+10007          | null
+10008          | false
+10009          | false
+10010          | true
+;
+
+anyMatchInWhere
+required_capability: fn_any_match
+FROM employees
+| WHERE emp_no <= 10010 AND any_match(job_positions, x -> x == "Tech Lead")
+| KEEP emp_no
+| SORT emp_no;
+
+emp_no:integer
+10004
+10006
+10010
+;
+
+mapInts
+required_capability: fn_map
+// tag::map[]
+ROW a = [1, 2, 3] | EVAL r = map(a, x -> x * 10);
+// end::map[]
+
+// tag::map-result[]
+a:integer | r:integer
+[1, 2, 3] | [10, 20, 30]
+// end::map-result[]
+;
+
+mapStrings
+required_capability: fn_map
+ROW s = ["foo", "bar"] | EVAL r = map(s, x -> to_upper(x));
+
+s:keyword  | r:keyword
+[foo, bar] | [FOO, BAR]
+;
+
+mapBooleans
+required_capability: fn_map
+ROW b = [true, false] | EVAL r = map(b, x -> NOT x);
+
+b:boolean     | r:boolean
+[true, false] | [false, true]
+;
+
+mapLongs
+required_capability: fn_map
+ROW l = [1000000000000, 2000000000000] | EVAL r = map(l, x -> x + 1);
+
+l:long                          | r:long
+[1000000000000, 2000000000000]  | [1000000000001, 2000000000001]
+;
+
+mapTypeChange
+required_capability: fn_map
+ROW a = [1, 2] | EVAL r = map(a, x -> x + 0.5);
+
+a:integer | r:double
+[1, 2]    | [1.5, 2.5]
+;
+
+mapFlattensMultivalueResults
+required_capability: fn_map
+ROW a = [1, 2] | EVAL r = map(a, x -> mv_append(x, x * 10));
+
+a:integer | r:integer
+[1, 2]    | [1, 10, 2, 20]
+;
+
+mapUpstreamReference
+required_capability: fn_map
+ROW a = [1, 2, 3], b = 10 | EVAL r = map(a, x -> x * b);
+
+a:integer | b:integer | r:integer
+[1, 2, 3] | 10        | [10, 20, 30]
+;
+
+mapOnIndex
+required_capability: fn_map
+FROM employees
+| WHERE emp_no <= 10004
+| EVAL r = map(job_positions, x -> length(x))
+| KEEP emp_no, r
+| SORT emp_no;
+
+emp_no:integer | r:integer
+10001          | [10, 23]
+10002          | 16
+10003          | null
+10004          | [20, 17, 16, 9]
+;
+
+filterInts
+required_capability: fn_filter
+// tag::filter[]
+ROW a = [1, 2, 3, 4] | EVAL r = filter(a, x -> x > 2);
+// end::filter[]
+
+// tag::filter-result[]
+a:integer    | r:integer
+[1, 2, 3, 4] | [3, 4]
+// end::filter-result[]
+;
+
+filterSingleResult
+required_capability: fn_filter
+ROW a = [1, 2, 3] | EVAL r = filter(a, x -> x > 2);
+
+a:integer | r:integer
+[1, 2, 3] | 3
+;
+
+filterNoneMatchIsNull
+required_capability: fn_filter
+ROW a = [1, 2] | EVAL r = filter(a, x -> x > 5);
+
+a:integer | r:integer
+[1, 2]    | null
+;
+
+filterKeyword
+required_capability: fn_filter
+ROW s = ["foo", "bar", "baz"] | EVAL r = filter(s, x -> starts_with(x, "ba"));
+
+s:keyword       | r:keyword
+[foo, bar, baz] | [bar, baz]
+;
+
+filterDoubles
+required_capability: fn_filter
+ROW d = [1.5, 2.5, 3.5] | EVAL r = filter(d, x -> x > 2.0);
+
+d:double        | r:double
+[1.5, 2.5, 3.5] | [2.5, 3.5]
+;
+
+filterUpstreamReferenceOnIndex
+required_capability: fn_filter
+FROM employees
+| WHERE emp_no <= 10004
+| EVAL r = filter(salary_change.int, x -> x >= languages)
+| KEEP emp_no, languages, r
+| SORT emp_no;
+
+emp_no:integer | languages:integer | r:integer
+10001          | 2                 | null
+10002          | 5                 | 11
+10003          | 4                 | [12, 14]
+10004          | 5                 | 13
+;
+
+composedLambdaFunctions
+required_capability: fn_map
+required_capability: fn_filter
+ROW a = [1, 2, 3, 4] | EVAL r = map(filter(a, x -> x > 1), y -> y * 2);
+
+a:integer    | r:integer
+[1, 2, 3, 4] | [4, 6, 8]
+;

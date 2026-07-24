@@ -311,6 +311,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // By definition, functions never support UNSUPPORTED
                 return false;
             }
+            if (t == DataType.LAMBDA) {
+                // Lambda is a special type for lambda expressions, not a value type
+                return false;
+            }
             if (t == DataType.DOC_DATA_TYPE) {
                 /*
                  * Doc is special and functions aren't
@@ -792,7 +796,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (alwaysLiteral[i]) {
                     assertTrue(
                         "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
-                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                        arg instanceof EsqlFunctionRegistry.LambdaArgSignature
+                            || (arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind()))
                     );
                     if (arg.hint() != null && arg.hint().allowedValues() != null && arg.hint().allowedValues().isEmpty() == false) {
                         Set<String> declaredValues = new HashSet<>(arg.hint().allowedValues());
@@ -1107,6 +1112,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (DataType dt : DataType.UNDER_CONSTRUCTION) {
+            if (dt == DataType.LAMBDA) {
+                // LAMBDA is a structural type for lambda expressions, not a value type; the function's
+                // preview/snapshot_only flags already gate the feature, so don't hide the signature.
+                continue;
+            }
             if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
                 return true;
             }

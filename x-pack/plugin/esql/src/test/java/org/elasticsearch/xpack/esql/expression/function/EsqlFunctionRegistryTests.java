@@ -334,7 +334,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsTests is missing")
+                // TODO: ErrorTests for lambda functions require framework support for lambda-typed invalid arguments
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilterErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMapErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")

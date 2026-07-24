@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -604,10 +603,11 @@ public final class ParallelParsingCoordinator {
             }
             long boundary;
             if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                // Probe through bounded chunks: each is a closed range read to completion, so closing it
+                // releases a connection the provider can pool. Declaring the whole remainder instead (the
+                // previous shape) left abort as the only exit, and an abort destroys the connection, so every
+                // probe re-paid a connect and TLS handshake.
+                try (InputStream stream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
                     long skipped = splitter.findNextRecordBoundary(stream);
                     if (skipped < 0) {
                         break;
@@ -616,8 +616,7 @@ public final class ParallelParsingCoordinator {
                 }
             } else {
                 long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                try (InputStream probeStream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
                     probed = splitter.findProvenRecordBoundary(probeStream);
                 }
                 if (probed >= 0) {
@@ -625,10 +624,8 @@ public final class ParallelParsingCoordinator {
                 } else if (probed == RecordSplitter.AMBIGUOUS) {
                     // Exact walk from the last proven boundary. This path is range-bounded and read at planning
                     // time, so it relies on the existing read-time cancellation rather than a new supplier.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
                     long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                    try (InputStream walkStream = new ChunkedStorageInputStream(storageObject, exactCursor, fileLength)) {
                         start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> false);
                     }
                     if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {

@@ -15,10 +15,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import java.util.Set;
 
 /**
  * A lambda expression, e.g. {@code x -> x + 1} or {@code (x, y) -> x + y}, as accepted by functions
@@ -77,10 +78,35 @@ public class Lambda extends Expression {
 
     @Override
     public DataType dataType() {
-        // No function understands lambdas yet; this placeholder makes function-signature
-        // resolution reject a Lambda argument the same way it rejects any other wrong-typed one.
-        // TODO: replace with a first-class LAMBDA data type once lambda-aware functions land
-        return UNSUPPORTED;
+        return DataType.LAMBDA;
+    }
+
+    /**
+     * The upstream references needed to evaluate this lambda are the body's references minus the
+     * parameters, which are bound within this lambda's own scope and must not be treated as
+     * upstream inputs by the enclosing plan node.
+     * <p>
+     * Subtraction is done by name rather than by {@link NameId} so that pre-resolution, where the
+     * param slot and body slot hold distinct {@link UnresolvedAttribute} instances with different
+     * ids but the same name, the param is still correctly excluded from the upstream dependency set.
+     */
+    @Override
+    public AttributeSet references() {
+        AttributeSet bodyRefs = body().references();
+        if (bodyRefs.isEmpty() || parameters().isEmpty()) {
+            return bodyRefs;
+        }
+        Set<String> paramNames = new HashSet<>(parameters().size());
+        for (Attribute p : parameters()) {
+            paramNames.add(p.name());
+        }
+        List<Attribute> filtered = new ArrayList<>(bodyRefs.size());
+        for (Attribute a : bodyRefs) {
+            if (paramNames.contains(a.name()) == false) {
+                filtered.add(a);
+            }
+        }
+        return AttributeSet.of(filtered);
     }
 
     @Override

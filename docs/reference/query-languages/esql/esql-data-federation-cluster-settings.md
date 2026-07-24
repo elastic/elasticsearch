@@ -10,6 +10,8 @@ products:
 
 # Configure cluster settings for {{esql}} Data Federation
 
+The data sources feature adds the following cluster settings. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
+
 The object-count limits and authentication gates are operator-managed and take effect without a restart. The remaining settings require a node restart.
 
 ## Object limits
@@ -56,7 +58,7 @@ These settings control the external-source cache, which stores inferred schemas 
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.source.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). Dynamic. |
+| `esql.source.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.source.cache.size` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
 | `esql.source.cache.schema.ttl` | 5m | How long an inferred schema is cached. Applied at node startup only. |
 | `esql.source.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |

@@ -18,7 +18,7 @@ When a data source connects to a private bucket, its encrypted credentials are s
 
 ### Credential encryption
 
-When a data source includes credentials, {{es}} encrypts them using the cluster state encryption key before storing them in the cluster state.
+When a data source includes credentials, {{es}} encrypts them using the cluster state encryption key before storing them in the cluster state. For general information about securing your deployment, refer to [secure your cluster or deployment](docs-content://deploy-manage/security/secure-your-cluster-deployment.md).
 
 The cluster state encryption key is available automatically in most environments, including {{ech}}, {{ece}}, {{eck}}, and {{serverless-short}}.
 

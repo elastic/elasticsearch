@@ -28,7 +28,7 @@ You can use this page in two ways:
 
 Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) as the authoritative reference for the commands shown here.
 
-## Requirements
+## Before you begin
 
 To follow this guide, you need:
 

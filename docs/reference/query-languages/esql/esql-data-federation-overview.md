@@ -20,7 +20,7 @@ Many organizations store large volumes of data in cloud object storage for cost 
 
 - **One language for all your data.** Use the same {{esql}} syntax for both indexed data and external data. No context-switching, no second query engine.
 - **No extra infrastructure.** Query external data natively in {{es}} without deploying or managing additional compute services, catalogs, or connectors.
-- **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search. Both tiers stay queryable with the same `FROM` syntax.
+- **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search. Both tiers stay queryable with the same {{esql}} syntax.
 
 ## How it works
 
@@ -43,7 +43,7 @@ Datasets share the same namespace as indices, data streams, aliases, and [{{esql
 ::::::
 
 ::::::{step} You query with FROM, just like a regular index
-Once a dataset exists, you query it the same way you query any {{es}} index. There is no special syntax for federated data. Use `FROM` with the dataset name, and {{es}} handles file discovery, format detection, compression, and schema inference automatically. For example, to return the first 10 rows from a dataset named `my_s3_bucket_logs`:
+Once a dataset exists, you [query](esql-data-federation-querying.md) it the same way you query any {{es}} index. There is no special syntax for federated data. Use [`FROM`](/reference/query-languages/esql/commands/from.md) with the dataset name, and {{es}} handles file discovery, format detection, compression, and schema inference automatically. For example, to return the first 10 rows from a dataset named `my_s3_bucket_logs`:
 
 ```esql
 FROM my_s3_bucket_logs

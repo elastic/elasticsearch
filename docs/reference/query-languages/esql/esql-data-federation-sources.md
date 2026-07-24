@@ -61,6 +61,7 @@ For the full set of authentication methods, refer to [authentication models](#au
 
 ## Manage data sources using the API
 
+<!-- TODO: link to API reference once https://github.com/elastic/elasticsearch-specification/pull/6503 is published -->
 Data sources are managed under the `/_query/data_source` endpoint. All data source operations require the cluster `manage` privilege or a `global.data_source` privilege (refer to [manage credentials and privileges](esql-data-federation-security.md)).
 
 | Operation | Endpoint |

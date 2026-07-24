@@ -109,10 +109,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         threadPool = new TestThreadPool("TransportMasterNodeActionTests");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
@@ -131,8 +129,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         clusterService.close();
         transportService.close();
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -44,6 +45,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             T model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         );
 
@@ -66,6 +68,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceSparseEmbeddingsModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -80,6 +83,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),
+                    preferences,
                     authApplier
                 ),
                 EmbeddingsInput.class
@@ -105,6 +109,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceRerankModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -119,6 +124,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     model,
                     traceContext,
                     metadata,
+                    preferences,
                     authApplier
                 ),
                 QueryAndDocsInputs.class
@@ -147,6 +153,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceDenseEmbeddingsModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -160,6 +167,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),
+                    preferences,
                     authApplier
                 ),
                 EmbeddingsInput.class
@@ -189,6 +197,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             ElasticInferenceServiceCompletionModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
+            InferencePreferences preferences,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
         ) {
             var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
@@ -201,6 +210,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                     model,
                     traceContext,
                     metadata,
+                    preferences,
                     authApplier
                 ),
                 UnifiedChatInput.class

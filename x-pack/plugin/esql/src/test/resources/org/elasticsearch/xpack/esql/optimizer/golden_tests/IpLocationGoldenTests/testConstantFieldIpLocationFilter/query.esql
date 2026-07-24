@@ -1,0 +1,3 @@
+FROM all_types
+| ip_location g = `constant_keyword-foo`
+| WHERE `constant_keyword-foo` == "foo"

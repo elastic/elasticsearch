@@ -11,8 +11,13 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -22,9 +27,12 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -36,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
@@ -63,7 +72,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
@@ -139,7 +151,14 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model, CCMAuthenticationApplierFactory factory) {
-        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory);
+        var cache = new InferencePreferencesCache(
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            mock(Client.class),
+            mockClusterService(),
+            featureService(true),
+            listener -> listener.onResponse(null)
+        );
+        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory, cache);
         var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
         actionCreator.create(model, createTraceContext(), actionCreatorListener);
 
@@ -192,6 +211,51 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
             assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_SparseEmbedding_AddsRegionPolicyHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var regionPolicy = new RegionPolicy(List.of("eu"), null);
+            var cache = new InferencePreferencesCache(
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(Client.class),
+                mockClusterService(),
+                featureService(true),
+                listener -> listener.onResponse(regionPolicy)
+            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(
+                sender,
+                createWithEmptySettings(threadPool),
+                createNoopApplierFactory(),
+                cache
+            );
+            var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
+            actionCreator.create(model, createTraceContext(), actionCreatorListener);
+            var action = actionCreatorListener.actionGet(TIMEOUT);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+            listener.actionGet(TIMEOUT);
+
+            var request = assertSingleRequestSent(webServer.requests());
+            assertThat(request.getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER), equalTo("eu"));
         }
     }
 
@@ -737,6 +801,18 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
     private TraceContext createTraceContext() {
         return new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    private static ClusterService mockClusterService() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        return clusterService;
+    }
+
+    private static FeatureService featureService(boolean hasFeature) {
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.INFERENCE_CLEAR_PREFERENCES_CACHE))).thenReturn(hasFeature);
+        return featureService;
     }
 
 }

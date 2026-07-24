@@ -46,7 +46,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         private float postFilterDelegateSelectivity = Float.NaN;
         private int retryCalls;
         private int[] retryExcludedDocs;
-        private int[] retrySeedDocs;
+        private int[][] retrySeedDocs;
         private int retryRemainingK = -1;
 
         void recordPostFilterDelegate(float selectivity) {
@@ -54,10 +54,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             postFilterDelegateSelectivity = selectivity;
         }
 
-        void recordRetry(int[] excluded, int[] seedDocs, int remainingK) {
+        void recordRetry(int[] excluded, int[][] seedDocsPerLeaf, int remainingK) {
             retryCalls++;
             retryExcludedDocs = excluded.clone();
-            retrySeedDocs = seedDocs.clone();
+            retrySeedDocs = seedDocsPerLeaf.clone();
             retryRemainingK = remainingK;
         }
 
@@ -77,7 +77,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             return retryExcludedDocs;
         }
 
-        int[] retrySeedDocs() {
+        int[][] retrySeedDocs() {
             return retrySeedDocs;
         }
 
@@ -196,11 +196,11 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excluded, int[] seedDocs, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excluded, int[][] seedDocsPerLeaf, int remainingK) {
         assert isSorted(excluded) : "excludedDocs must be sorted: " + Arrays.toString(excluded);
-        assert isSorted(seedDocs) : "seedDocs must be sorted: " + Arrays.toString(seedDocs);
+        assert allSorted(seedDocsPerLeaf) : "each leaf's seedDocs must be sorted: " + Arrays.deepToString(seedDocsPerLeaf);
         assert remainingK > 0 : "remainingK must be > 0, got " + remainingK;
-        postFilterMeta.recordRetry(excluded, seedDocs, remainingK);
+        postFilterMeta.recordRetry(excluded, seedDocsPerLeaf, remainingK);
         Query excludeFilter = excluded.length > 0 ? new ExcludeDocsQuery(excluded, reader) : null;
         return new AssertingKnnQuery(
             vectorType,
@@ -279,6 +279,13 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private static boolean isSorted(int[] arr) {
         for (int i = 1; i < arr.length; i++) {
             if (arr[i] < arr[i - 1]) return false;
+        }
+        return true;
+    }
+
+    private static boolean allSorted(int[][] perLeaf) {
+        for (int[] leaf : perLeaf) {
+            if (leaf != null && isSorted(leaf) == false) return false;
         }
         return true;
     }

@@ -89,7 +89,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
     }
 
     @Override
-    public EsField rewrapWithCast(Expression convertExpression) {
+    public UnionTypeEsField rewrapWithCast(Expression convertExpression) {
         return new CompactMultiTypeEsField(
             getName(),
             convertExpression.dataType(),
@@ -97,6 +97,18 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
             getTimeSeriesFieldType(),
             unmappedConversionExpression
+        );
+    }
+
+    @Override
+    public UnionTypeEsField withPotentiallyUnmappedExpression(Expression unmappedExpression) {
+        return new CompactMultiTypeEsField(
+            getName(),
+            getDataType(),
+            isAggregatable(),
+            typeToConversionExpressions,
+            getTimeSeriesFieldType(),
+            unmappedExpression
         );
     }
 

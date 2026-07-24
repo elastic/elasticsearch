@@ -26,6 +26,8 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.util.Random;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
+
 public class BinaryQuantizationTests extends LuceneTestCase {
 
     public void testQuantizeForIndex() {
@@ -739,14 +741,6 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         );
     }
 
-    private float[] generateRandomFloatArray(Random random, int dimensions, float lowerBoundInclusive, float upperBoundExclusive) {
-        float[] data = new float[dimensions];
-        for (int i = 0; i < dimensions; i++) {
-            data[i] = random.nextFloat(lowerBoundInclusive, upperBoundExclusive);
-        }
-        return data;
-    }
-
     public void testQuantizeForIndexMIP() {
         int dimensions = 768;
 
@@ -754,8 +748,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToIndex = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToIndex = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         VectorSimilarityFunction[] similarityFunctionsActingLikeEucllidean = new VectorSimilarityFunction[] {
             VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
@@ -886,8 +880,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToQuery = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToQuery = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         VectorSimilarityFunction[] similarityFunctionsActingLikeEucllidean = new VectorSimilarityFunction[] {
             VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
@@ -1311,8 +1305,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToIndex = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToIndex = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         mipVectorToIndex = VectorUtil.l2normalize(mipVectorToIndex);
         mipCentroid = VectorUtil.l2normalize(mipCentroid);
@@ -1440,8 +1434,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToQuery = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToQuery = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         mipVectorToQuery = VectorUtil.l2normalize(mipVectorToQuery);
         mipCentroid = VectorUtil.l2normalize(mipCentroid);

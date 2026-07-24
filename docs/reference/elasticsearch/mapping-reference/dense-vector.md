@@ -102,10 +102,10 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types).
+Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types). For other element types, such as `byte` and `bit`, the default index type is `hnsw` with no quantization.
 
 :::{note}
-In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
+In {{stack}} 9.0, `float` dense vector fields are always indexed as `int8_hnsw`.
 :::
 
 
@@ -392,10 +392,12 @@ When indexing `float` vectors, the default index type is:
 :::
 
 :::{applies-item} { "stack": "ga 9.4", "serverless": "ga" }
-When indexing `float` vectors, the default index type is `bbq_disk`
+When indexing `float` or `bfloat16` vectors, the default index type is `bbq_disk`
 when available under the current license.
 :::
 ::::
+
+For `byte` and `bit` element types, automatic quantization does not apply. These element types always default to `hnsw` with no quantization across all versions.
 
 ### int8 [dense-vector-quantization-int8]
 
@@ -556,7 +558,7 @@ $$$dense-vector-index-options$$$
 :::::{dropdown} Properties of index_options
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
-    * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
+    * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values. This is the default index type for `byte` and `bit` element types.
     * `int8_hnsw` - The default index type for some float vectors:
       * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
@@ -581,7 +583,7 @@ $$$dense-vector-index-options$$$
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
 `precondition` {applies_to}`stack: ga 9.4`
-:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`.
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`. Cannot be changed after the field is created.
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
@@ -595,11 +597,15 @@ $$$dense-vector-index-options$$$
     * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
+    :   For `bbq_disk` fields with `auto_calibrate: true`, mapping `oversample` is a fallback when a segment has no calibrated value. When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
 :   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
+
+`auto_calibrate` {applies_to}`stack: ga 9.5`
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus. Segments containing fewer than 10,000 vectors after merging are not calibrated and, when not otherwise specified in the mappings, use the default oversampling factor of 3.0x. Defaults to `false`. Cannot be changed after the field is created. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
 :::::
 
 
@@ -720,6 +726,47 @@ stack: preview 9.3
 
 {{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
 
+
+## Index modes for vector search [dense-vector-index-modes]
+
+### `vectordb_document` [dense-vector-vectordb-document-mode]
+
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+
+The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
+
+In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_document"
+    }
+  }
+}
+```
+
+When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
+
+`element_type` (dense_vector)
+:   Defaults to `bfloat16` instead of `float`, halving the storage cost of raw vectors while preserving most recall quality.
+
+Dynamic float array mapping
+:   Float arrays with at least 32 elements are automatically mapped to `dense_vector` during dynamic mapping, compared to the 128-element threshold used in other index modes.
+
+`index.mapping.exclude_source_vectors`
+:   Set to `true`. Vector field values are excluded from the stored `_source`, reducing storage overhead. This setting is required and cannot be overridden to `false`.
+
+`index.store.preload`
+:   Set to `["vex", "veq", "veb", "cenivf"]`. These vector index file extensions (HNSW graph, scalar-quantized data, binary-quantized data, and IVF centroid data) are preloaded into the file system cache.
+
+`index.merge.intra_merge_parallelism_enabled`
+:   Set to `true`. Enables parallel execution within a single merge operation, which speeds up merging of segments.
+
+`index.merge.scheduler.auto_throttle`
+:   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
 
 ## Updatable field type [_updatable_field_type]
 

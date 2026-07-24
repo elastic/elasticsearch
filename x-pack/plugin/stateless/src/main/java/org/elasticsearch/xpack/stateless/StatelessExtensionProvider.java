@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
@@ -22,6 +23,7 @@ public interface StatelessExtensionProvider {
      * Callback invoked for extending plugins to allow them to access the stateless services.
      */
     default void onServicesCreated(
+        StatelessSharedBlobCacheService cacheService,
         ClosedShardService closedShardService,
         HollowShardsService hollowShardsService,
         SearchShardSizeCollector searchShardSizeCollector,

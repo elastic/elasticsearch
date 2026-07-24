@@ -26,6 +26,5 @@
   "examples" : [
     "clamp_min(http_requests_total, 0)"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

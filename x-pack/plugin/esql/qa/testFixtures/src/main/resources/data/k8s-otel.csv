@@ -1,0 +1,5 @@
+@timestamp:date,attributes.cpu:keyword,attributes.state:keyword,metrics.cpu_time:double
+2024-05-10T00:58:01.000Z,user,active,10.0
+2024-05-10T00:58:02.000Z,user,idle,2.0
+2024-05-10T00:58:03.000Z,system,active,5.0
+2024-05-10T00:58:04.000Z,system,idle,1.0

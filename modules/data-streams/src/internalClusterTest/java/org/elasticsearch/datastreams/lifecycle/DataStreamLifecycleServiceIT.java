@@ -994,8 +994,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testCollectAndMarkIndicesForFrozen() throws Exception {
-        assumeTrue("requires feature flag to be enabled", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         client().execute(
             TransportPutRepositoryAction.TYPE,
             new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DEFAULT_REPO).name(DEFAULT_REPO)

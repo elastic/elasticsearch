@@ -105,6 +105,11 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
     }
 
     @Override
+    public void testWriterByteVectorRamEstimate() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public void testWriterRamEstimate() throws Exception {
         final FieldInfos fieldInfos = new FieldInfos(new FieldInfo[0]);

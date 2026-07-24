@@ -138,10 +138,12 @@ nested_quantile_avg_by_cluster
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
+required_capability: fix_promql_quantile_scale
+// avg by (cluster) (network.cost) = {staging:5.2917, prod:6.2083, qa:8.8333}; φ=0.5 selects the median (prod).
 PROMQL index=k8s step=1h result=(quantile(0.5, avg by (cluster) (network.cost)));
 
 result:double     | step:datetime
-5.300833333333333 | 2024-05-10T01:00:00.000Z
+6.208333333333333 | 2024-05-10T01:00:00.000Z
 ;
 
 nested_different_grouping_avg_sum_by_cluster

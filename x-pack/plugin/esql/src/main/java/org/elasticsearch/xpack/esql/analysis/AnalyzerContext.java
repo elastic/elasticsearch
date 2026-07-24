@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,6 +34,7 @@ public class AnalyzerContext {
     private final Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry;
     private final PromqlFunctionRegistry promqlFunctionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
@@ -41,14 +44,16 @@ public class AnalyzerContext {
     private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
-    private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
+    private final IpLocationResolution ipLocationResolution;
 
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -58,11 +63,13 @@ public class AnalyzerContext {
         ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
@@ -73,6 +80,7 @@ public class AnalyzerContext {
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
+        this.ipLocationResolution = ipLocationResolution;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -84,6 +92,7 @@ public class AnalyzerContext {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -95,6 +104,7 @@ public class AnalyzerContext {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             null,
             indexResolution,
             lookupResolution,
@@ -104,7 +114,8 @@ public class AnalyzerContext {
             ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution,
-            null
+            null,
+            IpLocationResolution.SERVICE_UNAVAILABLE
         );
     }
 
@@ -118,6 +129,13 @@ public class AnalyzerContext {
 
     public PromqlFunctionRegistry promqlFunctionRegistry() {
         return promqlFunctionRegistry;
+    }
+
+    /**
+     * Node-level analyzer registry.
+     */
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
@@ -155,16 +173,16 @@ public class AnalyzerContext {
         return projectMetadata;
     }
 
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
-    }
-
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
+    }
+
+    /**
+     * Header warnings collected during analysis but emitted only once the {@code Verifier} has passed, so a query that fails
+     * verification produces no warnings.
+     */
+    public Set<String> deferredHeaderWarnings() {
+        return deferredHeaderWarnings;
     }
 
     /**
@@ -173,6 +191,15 @@ public class AnalyzerContext {
     @Nullable
     public TimestampBounds timestampBounds() {
         return timestampBounds;
+    }
+
+    /**
+     * The pre-fetched IP database metadata used by the {@code ResolveIpLocation} analyzer rule to resolve {@code IP_LOCATION}
+     * output columns. When the service was unavailable while building the context, this is
+     * {@link IpLocationResolution#SERVICE_UNAVAILABLE} and resolution fails verification.
+     */
+    public IpLocationResolution ipLocationResolution() {
+        return ipLocationResolution;
     }
 
     public Set<String> allowedTags() {
@@ -199,15 +226,18 @@ public class AnalyzerContext {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution
     ) {
         this(
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
@@ -217,7 +247,8 @@ public class AnalyzerContext {
             result.externalSourceResolution(),
             result.minimumTransportVersion(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            ipLocationResolution
         );
     }
 }

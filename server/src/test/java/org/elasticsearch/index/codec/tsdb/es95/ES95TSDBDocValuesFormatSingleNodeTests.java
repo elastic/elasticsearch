@@ -19,11 +19,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValuesFormatSingleNodeTests {
 
     @Override
-    protected void assumeCodecSelected() {
-        assumeTrue("ES95 feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
-    }
-
-    @Override
     protected Settings tsdbSettings() {
         return Settings.builder()
             .put(super.tsdbSettings())

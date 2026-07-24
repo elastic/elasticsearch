@@ -59,12 +59,20 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         String description,
         EnumSet<TaskType> supportedTaskTypes
     ) {
+        return toSettingsConfigurationWithDescription(description, supportedTaskTypes, true);
+    }
+
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
+        String description,
+        EnumSet<TaskType> supportedTaskTypes,
+        boolean required
+    ) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             API_KEY,
             new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
                 .setLabel("API Key")
-                .setRequired(true)
+                .setRequired(required)
                 .setSensitive(true)
                 .setUpdatable(true)
                 .setType(SettingsConfigurationFieldType.STRING)
@@ -111,10 +119,14 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         out.writeSecureString(apiKey);
     }
 
+    public static SecureString extractOptionalApiKey(Map<String, Object> map, String scope, ValidationException validationException) {
+        return extractOptionalSecureString(map, API_KEY, scope, validationException);
+    }
+
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
-        var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
+        var extractedApiKey = extractOptionalApiKey(newSecrets, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {

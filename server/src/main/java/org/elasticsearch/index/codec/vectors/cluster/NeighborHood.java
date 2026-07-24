@@ -20,13 +20,20 @@ import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+/**
+ * Contains an array of the nearest centroid to a specific centroid.
+ *
+ * @param neighbors        ordinals of the nearest neighboring centers in distance order
+ * @param maxIntraDistance the squared distance from this center to the farthest center in {@code neighbors}.
+ *                         This can be used as a bound when finding the closest center to a vector.
+ */
 public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     private static final int M = 8;
@@ -34,25 +41,47 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
 
-    public static NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        assert centers.length > clustersPerNeighborhood;
-        return computeNeighborhoods(null, 1, centers, clustersPerNeighborhood);
+    /**
+     * Computes the neighborhood for each centroid in {@code centers}.
+     *
+     * @param ops          the centroid operations
+     * @param centers      the centroids
+     * @param clustersPerNeighborhood the maximum number of nearest neighbors to compute for each centroid
+     * @return the neighborhoods for each centroid, corresponding to the input centroids in {@code centers}
+     */
+    public static <V> NeighborHood[] computeNeighborhoods(CentroidOps<V> ops, V[] centers, int clustersPerNeighborhood) throws IOException {
+        return computeNeighborhoods(ops, null, 1, centers, clustersPerNeighborhood);
     }
 
-    public static NeighborHood[] computeNeighborhoods(TaskExecutor executor, int numWorkers, float[][] centers, int clustersPerNeighborhood)
-        throws IOException {
+    /**
+     * Computes the neighborhood for each centroid in {@code centers}.
+     *
+     * @param ops          the centroid operations
+     * @param executor     the task executor, or null to use a single thread
+     * @param numWorkers   the number of workers to use
+     * @param centers      the centroids
+     * @param clustersPerNeighborhood the maximum number of nearest neighbors to compute for each centroid
+     * @return the neighborhoods for each centroid, corresponding to the input centroids in {@code centers}
+     */
+    public static <V> NeighborHood[] computeNeighborhoods(
+        CentroidOps<V> ops,
+        @Nullable TaskExecutor executor,
+        int numWorkers,
+        V[] centers,
+        int clustersPerNeighborhood
+    ) throws IOException {
         assert centers.length > clustersPerNeighborhood;
         // experiments shows that below 10k, we better use brute force, otherwise hnsw gives us a nice speed up
         if (centers.length < 10_000) {
-            return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
+            return computeNeighborhoodsBruteForce(ops, centers, clustersPerNeighborhood);
         } else if (executor == null || numWorkers < 2) {
-            return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
+            return computeNeighborhoodsGraph(ops, centers, clustersPerNeighborhood);
         } else {
-            return computeNeighborhoodsGraph(executor, numWorkers, centers, clustersPerNeighborhood);
+            return computeNeighborhoodsGraph(ops, executor, numWorkers, centers, clustersPerNeighborhood);
         }
     }
 
-    public static NeighborHood[] computeNeighborhoodsBruteForce(float[][] centers, int clustersPerNeighborhood) {
+    public static <V> NeighborHood[] computeNeighborhoodsBruteForce(CentroidOps<V> ops, V[] centers, int clustersPerNeighborhood) {
         int k = centers.length;
         NeighborQueue[] neighborQueues = new NeighborQueue[k];
         for (int i = 0; i < k; i++) {
@@ -61,17 +90,17 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         final float[] scores = new float[4];
         final int limit = k - 3;
         for (int i = 0; i < k - 1; i++) {
-            float[] center = centers[i];
+            V center = centers[i];
             int j = i + 1;
             for (; j < limit; j += 4) {
-                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], 0, scores);
+                ops.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], 0, scores);
                 for (int h = 0; h < 4; h++) {
                     neighborQueues[j + h].insertWithOverflow(i, scores[h]);
                     neighborQueues[i].insertWithOverflow(j + h, scores[h]);
                 }
             }
             for (; j < k; j++) {
-                float dsq = ESVectorUtil.squareDistance(center, centers[j]);
+                float dsq = ops.squareDistance(center, centers[j]);
                 neighborQueues[j].insertWithOverflow(i, dsq);
                 neighborQueues[i].insertWithOverflow(j, dsq);
             }
@@ -97,21 +126,23 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         return neighborhoods;
     }
 
-    public static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier(centers);
+    public static <V> NeighborHood[] computeNeighborhoodsGraph(CentroidOps<V> ops, V[] centers, int clustersPerNeighborhood)
+        throws IOException {
+        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier<>(ops, centers);
         final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L, centers.length).build(centers.length);
         final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
         populateNeighboursFromGraph(graph, clustersPerNeighborhood, neighborhoods, supplier, 0, centers.length);
         return neighborhoods;
     }
 
-    public static NeighborHood[] computeNeighborhoodsGraph(
+    public static <V> NeighborHood[] computeNeighborhoodsGraph(
+        CentroidOps<V> ops,
         TaskExecutor executor,
         int numWorkers,
-        float[][] centers,
+        V[] centers,
         int clustersPerNeighborhood
     ) throws IOException {
-        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier(centers);
+        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier<>(ops, centers);
         // what we want here is really is call "new OnHeapHnswGraph(M, ceneters.length)" but the constructor is package private
         final OnHeapHnswGraph initGraph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L, centers.length).build(0);
         final OnHeapHnswGraph graph = new HnswConcurrentMergeBuilder(executor, numWorkers, supplier, M, EF_CONSTRUCTION, initGraph, null)
@@ -187,16 +218,18 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         }
     }
 
-    private record CentersScorerSupplier(float[][] centers, UpdateableRandomVectorScorer scorer) implements RandomVectorScorerSupplier {
+    private record CentersScorerSupplier<V>(CentroidOps<V> ops, V[] centers, UpdateableRandomVectorScorer scorer)
+        implements
+            RandomVectorScorerSupplier {
 
-        CentersScorerSupplier(float[][] centers) {
-            this(centers, new UpdateableRandomVectorScorer() {
+        CentersScorerSupplier(CentroidOps<V> ops, V[] centers) {
+            this(ops, centers, new UpdateableRandomVectorScorer() {
                 private int scoringOrdinal;
                 private final float[] distances = new float[4];
 
                 @Override
                 public float score(int node) {
-                    return VectorUtil.normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
+                    return VectorUtil.normalizeDistanceToUnitInterval(ops.squareDistance(centers[scoringOrdinal], centers[node]));
                 }
 
                 @Override
@@ -205,7 +238,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                     final int limit = numNodes - 3;
                     float max = Float.NEGATIVE_INFINITY;
                     for (; i < limit; i += 4) {
-                        ESVectorUtil.squareDistanceBulk(
+                        ops.squareDistanceBulk(
                             centers[scoringOrdinal],
                             centers[nodes[i]],
                             centers[nodes[i + 1]],
@@ -245,7 +278,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
         @Override
         public RandomVectorScorerSupplier copy() {
-            return new CentersScorerSupplier(centers);
+            return new CentersScorerSupplier<>(ops, centers);
         }
     }
 }

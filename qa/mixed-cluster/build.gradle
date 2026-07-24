@@ -85,6 +85,10 @@ excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 // sync_id is removed in 9.0
 excludeList.add("cat.shards/10_basic/Help")
 
+// Pre-9.5 coordinators do not reserve REQUEST breaker bytes for buffered msearch sub-responses,
+// so the circuit breaker limit is never enforced and sub-search 1 succeeds instead of returning 429.
+excludeList.add('msearch/50_circuit_breaker/msearch circuit breaker trips and returns failure item without aborting the request')
+
 def clusterPath = getPath()
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

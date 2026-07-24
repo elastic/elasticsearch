@@ -63,13 +63,10 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
     private KnnVectorsFormat format;
 
     @Override
-    public void setUp() throws Exception {
-        format = createFormat();
-        super.setUp();
-    }
-
-    @Override
-    protected Codec getCodec() {
+    protected final Codec getCodec() {
+        if (format == null) {
+            format = createFormat();
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

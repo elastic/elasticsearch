@@ -44,12 +44,29 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
+    public static final String STORE_BYTES_READ_HISTOGRAM_NAME = "es.search_response.store_bytes_read.histogram";
     private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.took_durations.%s.histogram";
+    public static final String CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.can_match.result.bytes.histogram";
+    public static final String DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs.result.bytes.histogram";
+    public static final String DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs_query.result.bytes.histogram";
+    public static final String QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.query.result.bytes.histogram";
+    public static final String RANK_FEATURE_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.rank_feature.result.bytes.histogram";
+    public static final String FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.fetch.result.bytes.histogram";
+
+    public static final String CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.can_match.request.bytes.histogram";
+    public static final String DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs.request.bytes.histogram";
+    public static final String DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs_query.request.bytes.histogram";
+    public static final String QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.query.request.bytes.histogram";
+    public static final String RANK_FEATURE_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.rank_feature.request.bytes.histogram";
+    public static final String FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.fetch.request.bytes.histogram";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
+    private final LongHistogram storeBytesReadHistogram;
 
     private final Map<String, LongHistogram> phaseNameToDurationHistogram;
+    private final Map<String, LongHistogram> phaseNameToShardResultBytesHistogram;
+    private final Map<String, LongHistogram> phaseNameToShardRequestBytesHistogram;
 
     public SearchResponseMetrics(MeterRegistry meterRegistry) {
         this.tookDurationTotalMillisHistogram = meterRegistry.registerLongHistogram(
@@ -63,6 +80,11 @@ public class SearchResponseMetrics {
                 + "success, partial failure, or failure, expressed as a single total counter and individual "
                 + "attribute counters",
             "count"
+        );
+        this.storeBytesReadHistogram = meterRegistry.registerLongHistogram(
+            STORE_BYTES_READ_HISTOGRAM_NAME,
+            "The number of bytes read from the store while serving a search request, expressed as a histogram",
+            "bytes"
         );
 
         phaseNameToDurationHistogram = Map.of(
@@ -103,6 +125,94 @@ public class SearchResponseMetrics {
                 "millis"
             )
         );
+        phaseNameToShardResultBytesHistogram = Map.of(
+            "can_match",
+            meterRegistry.registerLongHistogram(
+                CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the can_match phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "dfs",
+            meterRegistry.registerLongHistogram(
+                DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the dfs phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "dfs_query",
+            meterRegistry.registerLongHistogram(
+                DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the dfs_query phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "query",
+            meterRegistry.registerLongHistogram(
+                QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the query phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "rank-feature",
+            meterRegistry.registerLongHistogram(
+                RANK_FEATURE_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the rank-feature phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "fetch",
+            meterRegistry.registerLongHistogram(
+                FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard results received by the coordinator for the fetch phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            )
+        );
+        phaseNameToShardRequestBytesHistogram = Map.of(
+            "can_match",
+            meterRegistry.registerLongHistogram(
+                CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the can_match phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "dfs",
+            meterRegistry.registerLongHistogram(
+                DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the dfs phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "dfs_query",
+            meterRegistry.registerLongHistogram(
+                DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the dfs_query phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "query",
+            meterRegistry.registerLongHistogram(
+                QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the query phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "rank-feature",
+            meterRegistry.registerLongHistogram(
+                RANK_FEATURE_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the rank-feature phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            ),
+            "fetch",
+            meterRegistry.registerLongHistogram(
+                FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
+                "Total bytes of shard requests sent by the coordinator for the fetch phase, "
+                    + "per search request, expressed as a histogram",
+                "bytes"
+            )
+        );
     }
 
     public long recordTookTimeForSearchScroll(long tookTime) {
@@ -133,5 +243,33 @@ public class SearchResponseMetrics {
         LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
         assert queryPhaseDurationHistogram != null;
         queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
+    }
+
+    public void recordStoreBytesRead(long bytesRead, Map<String, Object> attributes) {
+        storeBytesReadHistogram.record(bytesRead, attributes);
+    }
+
+    /**
+     * Records the total bytes of shard results received by the coordinator for the given search phase,
+     * as a single observation representing one search request.
+     */
+    public void recordSearchPhaseShardResultBytes(String phaseName, long bytes, Map<String, Object> attributes) {
+        LongHistogram histogram = phaseNameToShardResultBytesHistogram.get(phaseName);
+        assert histogram != null : "unknown phase: " + phaseName;
+        if (histogram != null) {
+            histogram.record(bytes, attributes);
+        }
+    }
+
+    /**
+     * Records the total bytes of shard requests sent by the coordinator for the given search phase,
+     * as a single observation representing one search request.
+     */
+    public void recordSearchPhaseShardRequestBytes(String phaseName, long bytes, Map<String, Object> attributes) {
+        LongHistogram histogram = phaseNameToShardRequestBytesHistogram.get(phaseName);
+        assert histogram != null : "unknown phase: " + phaseName;
+        if (histogram != null) {
+            histogram.record(bytes, attributes);
+        }
     }
 }

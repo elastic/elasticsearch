@@ -192,6 +192,27 @@ By default, system indices use `ThreadPool.Names.SYSTEM_READ` for reads/searches
 
 This ensures those operations are not starved by heavy user traffic even when the standard system thread pools are saturated.
 
+### Replica settings
+
+By default, each system index uses the replica settings from its descriptor (or the generic `index.number_of_replicas` default if the descriptor does not specify them). Operators can override replica configuration uniformly across **all** system indices using two dynamic cluster-scoped settings:
+
+| Cluster setting | Index setting equivalent | Description |
+|---|---|---|
+| `cluster.system_indices.number_of_replicas` | `index.number_of_replicas` | Fixed replica count for all system indices |
+| `cluster.system_indices.auto_expand_replicas` | `index.auto_expand_replicas` | Auto-expand replica behaviour for all system indices |
+
+Both settings can be applied dynamically via the cluster settings API (`PUT /_cluster/settings`) or statically in `elasticsearch.yml`.
+
+**Priority order** (highest to lowest):
+1. `cluster.system_indices.*` set via `PUT /_cluster/settings` (cluster state)
+2. `cluster.system_indices.*` in `elasticsearch.yml`
+3. Descriptor-specified settings
+4. Generic setting defaults
+
+When a cluster-level setting is removed, each system index reverts individually: managed indices revert to their descriptor value; unmanaged indices fall back to the generic default.
+
+The security plugin exposes `PUT /_security/settings` for per-index replica customisation of security indices. If `cluster.system_indices.*` settings are present in cluster state, they take precedence and override any value previously applied via that API.
+
 ### Templates
 
 By default, user-defined index templates are NOT applied to system indices. The `.setAllowsTemplates()` option exists for legacy compatibility (currently used only by `.kibana_*` indices) and is intended to be removed in the future.
@@ -529,6 +550,16 @@ When a new system index descriptor is added (e.g. after an upgrade), any existin
 
 The service also ensures all system indices have `hidden=true`.
 
+### `SystemIndexSettingsUpdateService`
+
+A `ClusterStateListener` running on the master node. Propagates changes to `cluster.system_indices.number_of_replicas` and `cluster.system_indices.auto_expand_replicas` to all existing system indices.
+
+- **Initial settings**: On first master election after cluster state recovery, applies any values from `elasticsearch.yml` that are not already present in the cluster state (cluster state takes precedence).
+- **Dynamic changes**: On each cluster state change, detects additions, modifications, or removals of the two cluster-level settings and propagates them to all system indices in a single `UpdateSettingsRequest`.
+- **Reset on removal**: When a cluster-level setting is removed, each index is reverted to its descriptor value (for managed indices) or the generic default (for unmanaged or descriptor-less indices), rather than applying a uniform value.
+
+Indices are grouped by their effective settings before issuing updates so that one `UpdateSettingsRequest` is sent per group rather than per index.
+
 ### `SystemIndexMigrator`
 
 A persistent task that performs major-version reindexing. State is serialized to `SystemIndexMigrationTaskState` so it survives master failover.
@@ -561,3 +592,4 @@ Groups together all descriptors belonging to one plugin. Provides:
 | Hook into major-version migration | Override `prepareForIndicesMigration` / `indicesMigrationComplete` in your plugin |
 | Check if index is system (by name) | Use `SystemIndices.isSystemIndex(name)` — automaton-based, O(string-length) |
 | Check if index is system (from metadata) | Inspect `IndexMetadata.isSystem()` — authoritative for existing indices |
+| Configure replicas for all system indices | Set `cluster.system_indices.number_of_replicas` or `cluster.system_indices.auto_expand_replicas` via `PUT /_cluster/settings` |

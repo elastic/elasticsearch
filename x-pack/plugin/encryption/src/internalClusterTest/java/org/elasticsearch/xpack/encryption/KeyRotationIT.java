@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
+import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -60,6 +64,40 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     private final List<Integer> keyAddEvents = new CopyOnWriteArrayList<>();
 
+    /**
+     * Stops rotation and drains any in-flight cluster-state tasks before the framework's post-test
+     * consistency check runs. {@link KeyRotationCoordinator#close()} prevents new ticks from firing
+     * but cannot atomically abort a tick that is already executing on the generic thread pool. The
+     * {@code assertBusy} wait ensures any task that slipped into the master-service queue after
+     * {@code close()} has been executed and its cluster-state publication committed before we hand
+     * off to the framework's own consistency check. Publishing a retire/re-encrypt task can take
+     * several seconds on loaded CI (especially right after the master failover exercised by
+     * {@code testRotationContinuesAfterMasterFailover}), so this waits generously rather than racing
+     * a tight budget — every second spent draining here is a second the framework's check won't need.
+     */
+    @After
+    public void stopKeyRotationCoordinators() throws Exception {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
+        assertBusy(
+            () -> assertThat(
+                client().execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT))
+                    .get()
+                    .pendingTasks()
+                    .stream()
+                    .filter(t -> {
+                        String src = t.getSource().string();
+                        return src.contains("project-encryption-key") || src.startsWith("re-encrypt-");
+                    })
+                    .toList(),
+                empty()
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -68,15 +106,12 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        // The encryption settings are only registered when the feature flag is enabled
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
-                .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-            SecuritySettingsSource.addSecureSettings(builder, secure -> {
-                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
-                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
-            });
-        }
+        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        SecuritySettingsSource.addSecureSettings(builder, secure -> {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
+        });
         return builder.build();
     }
 
@@ -90,11 +125,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        // Check feature flag
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
         // Add listener that registers PEK changes
         internalCluster().clusterService().addListener(event -> {
             if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {

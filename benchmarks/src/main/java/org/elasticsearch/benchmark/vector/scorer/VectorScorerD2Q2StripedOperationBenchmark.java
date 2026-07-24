@@ -30,12 +30,9 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 /**
  * Kernel-direct benchmark for the symmetric 2-bit-doc / 2-bit-query striped (bit-plane) BBQ
@@ -93,10 +90,6 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
     // Java-side results returned from each @Benchmark to suppress dead-code elimination
     private float[] scores;
 
-    private MethodHandle singleImpl;
-    private MethodHandle bulkImpl;
-    private MethodHandle bulkOffsetsImpl;
-
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
         private final byte[][] packedDocs;
         private final byte[] packedQuery;
@@ -145,22 +138,6 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
         ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
-
-        singleImpl = vectorSimilarityFunctions.getHandle(
-            VectorSimilarityFunctions.Function.DOT_PRODUCT,
-            VectorSimilarityFunctions.BBQType.D2Q2,
-            VectorSimilarityFunctions.Operation.SINGLE
-        );
-        bulkImpl = vectorSimilarityFunctions.getHandle(
-            VectorSimilarityFunctions.Function.DOT_PRODUCT,
-            VectorSimilarityFunctions.BBQType.D2Q2,
-            VectorSimilarityFunctions.Operation.BULK
-        );
-        bulkOffsetsImpl = vectorSimilarityFunctions.getHandle(
-            VectorSimilarityFunctions.Function.DOT_PRODUCT,
-            VectorSimilarityFunctions.BBQType.D2Q2,
-            VectorSimilarityFunctions.Operation.BULK_OFFSETS
-        );
     }
 
     @TearDown
@@ -171,16 +148,12 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
     /** Single-pair scoring, sequential walk (control vs scoreBulk). */
     @Benchmark
     public float[] scoreSingle() {
-        try {
-            int v = 0;
-            while (v < numVectorsToScore) {
-                for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) v * docBytes, docBytes);
-                    scores[i] = (long) singleImpl.invokeExact(vec, query, docBytes);
-                }
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                MemorySegment vec = dataset.asSlice((long) v * docBytes, docBytes);
+                scores[i] = vectorSimilarityFunctions.dotProductD2Q2(vec, query, docBytes);
             }
-        } catch (Throwable t) {
-            throw rethrow(t);
         }
         return scores;
     }
@@ -188,14 +161,10 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
     /** BULK: contiguous slice, sequential by construction. */
     @Benchmark
     public float[] scoreBulk() {
-        try {
-            for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-                int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment slice = dataset.asSlice((long) i * docBytes, (long) count * docBytes);
-                bulkImpl.invokeExact(slice, query, docBytes, count, resultsSeg);
-            }
-        } catch (Throwable t) {
-            throw rethrow(t);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            MemorySegment slice = dataset.asSlice((long) i * docBytes, (long) count * docBytes);
+            vectorSimilarityFunctions.dotProductD2Q2Bulk(slice, query, docBytes, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -204,14 +173,10 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
     /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
     @Benchmark
     public float[] scoreBulkOffsets() {
-        try {
-            for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-                int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                bulkOffsetsImpl.invokeExact(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
-            }
-        } catch (Throwable t) {
-            throw rethrow(t);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
+            vectorSimilarityFunctions.dotProductD2Q2BulkWithOffsets(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -222,16 +187,12 @@ public class VectorScorerD2Q2StripedOperationBenchmark {
      * {@link #scoreBulkOffsets}, so the test can assert offsets correctness.
      */
     float[] scoreSingleAtOrdinals() {
-        try {
-            int v = 0;
-            while (v < numVectorsToScore) {
-                for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) ordinals[v] * docBytes, docBytes);
-                    scores[i] = (long) singleImpl.invokeExact(vec, query, docBytes);
-                }
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                MemorySegment vec = dataset.asSlice((long) ordinals[v] * docBytes, docBytes);
+                scores[i] = vectorSimilarityFunctions.dotProductD2Q2(vec, query, docBytes);
             }
-        } catch (Throwable t) {
-            throw rethrow(t);
         }
         return scores;
     }

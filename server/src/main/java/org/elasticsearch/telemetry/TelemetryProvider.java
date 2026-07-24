@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
@@ -27,9 +28,12 @@ public interface TelemetryProvider {
 
     MeterRegistry getMeterRegistry();
 
+    HttpServerInstrumentation getHttpServerInstrumentation();
+
     /**
-     * Attempts to export all buffered telemetry (metrics and traces). Implementations should flush
-     * both signals concurrently where possible and bound the wait to an appropriate timeout.
+     * Forces any buffered telemetry (metrics, traces, and log records) to be exported immediately.
+     * Implementations should flush all signals concurrently where possible and bound the wait to
+     * an appropriate timeout.
      */
     void attemptFlush();
 
@@ -45,6 +49,11 @@ public interface TelemetryProvider {
         @Override
         public MeterRegistry getMeterRegistry() {
             return MeterRegistry.NOOP;
+        }
+
+        @Override
+        public HttpServerInstrumentation getHttpServerInstrumentation() {
+            return HttpServerInstrumentation.NOOP;
         }
 
         @Override

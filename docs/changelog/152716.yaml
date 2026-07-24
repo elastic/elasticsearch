@@ -1,0 +1,18 @@
+pr: 152716
+summary: Create backing indices for backfilling past timestamps in TSDB (opt-in)
+area: TSDB
+type: enhancement
+issues:
+  - 149856
+highlight:
+  title: Create backing indices for backfilling past timestamps in TSDB (opt-in)
+  body: |-
+    Bulk requests that create documents in a time series data stream no longer fail
+    outright when a document's `@timestamp` falls outside the boundaries of all
+    existing backing indices. If the timestamp is still within the data stream's
+    eligible write window and the new `data_stream.past_tsdb_index_creation_enabled`
+    cluster setting is enabled (defaults to `false`), Elasticsearch now creates the
+    necessary backing indices needed to cover it before indexing, instead of rejecting
+    the write. Timestamps outside the eligible window, or in the future, are still
+    rejected.
+  notable: true

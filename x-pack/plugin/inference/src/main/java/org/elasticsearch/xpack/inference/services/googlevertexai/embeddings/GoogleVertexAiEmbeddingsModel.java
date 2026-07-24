@@ -143,15 +143,15 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return visitor.create(this, taskSettings);
     }
 
-    public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
+    public static URI buildUri(@Nullable String location, String projectId, String modelId) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setHost(GoogleVertexAiUtils.resolveHost(location))
             .setPathSegments(
                 GoogleVertexAiUtils.V1,
                 GoogleVertexAiUtils.PROJECTS,
                 projectId,
                 GoogleVertexAiUtils.LOCATIONS,
-                location,
+                GoogleVertexAiUtils.resolveLocation(location),
                 GoogleVertexAiUtils.PUBLISHERS,
                 GoogleVertexAiUtils.PUBLISHER_GOOGLE,
                 GoogleVertexAiUtils.MODELS,

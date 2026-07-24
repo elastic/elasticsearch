@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends LuceneSyntheticSourceChangesSnapshotTests {
     @Override
     protected Settings indexSettings() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())

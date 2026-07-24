@@ -29,53 +29,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Verifies that {@link SeededRetryCollectorManager} never feeds more than 16 seed entry points
- * into a single graph (leaf), regardless of how many round-0 docs are offered as seeds.
+ * Verifies that {@link SeededRetryCollectorManager} maps the seed doc IDs that fall in a given leaf to
+ * that leaf's vector ordinals, partitioning per leaf. The seed set is already capped and
+ * proximity-selected upstream (see {@link PostFilterKnnQuery#nearestSeedsPerLeaf}), so the manager
+ * applies no cap of its own and simply feeds every in-range seed as an HNSW entry point.
  */
 public class SeededRetryCollectorManagerTests extends ESTestCase {
 
     private static final String FIELD = "vector";
-    /** Mirror of the (package-private) cap under test so an accidental change to one is caught. */
-    private static final int MAX_SEEDS_PER_GRAPH = 16;
 
-    /**
-     * A single graph offered far more seeds than the cap keeps exactly {@link #MAX_SEEDS_PER_GRAPH},
-     * and keeps the lowest doc IDs (ordinals 0..15 in a single all-vectors segment).
-     */
-    public void testSingleGraphCapsSeedsAtMax() throws IOException {
+    /** Every seed lands in the single graph and is mapped to its ordinal; nothing is dropped. */
+    public void testMapsAllInRangeSeeds() throws IOException {
         try (Directory dir = newDirectory()) {
             writeSingleSegment(dir, 50);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals("test relies on a single graph", 1, reader.leaves().size());
-                int[] seedDocs = ascendingSeeds(50);
 
-                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, seedDocs);
+                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, new int[][] { seedRange(0, 50) });
                 assertEquals(1, perLeaf.size());
                 KnnSearchStrategy.Seeded seeded = perLeaf.get(0);
-                assertEquals(MAX_SEEDS_PER_GRAPH, seeded.numberOfEntryPoints());
+                assertEquals(50, seeded.numberOfEntryPoints());
 
                 int[] ordinals = drain(seeded);
-                assertEquals(MAX_SEEDS_PER_GRAPH, ordinals.length);
-                for (int i = 0; i < MAX_SEEDS_PER_GRAPH; i++) {
-                    assertEquals("expected the lowest doc IDs to be kept", i, ordinals[i]);
+                assertEquals(50, ordinals.length);
+                for (int i = 0; i < 50; i++) {
+                    assertEquals(i, ordinals[i]);
                 }
             }
         }
     }
 
-    public void testFewerSeedsThanCapAreAllKept() throws IOException {
-        int seedCount = randomIntBetween(1, MAX_SEEDS_PER_GRAPH);
-        try (Directory dir = newDirectory()) {
-            writeSingleSegment(dir, 50);
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, ascendingSeeds(seedCount));
-                assertEquals(1, perLeaf.size());
-                assertEquals(seedCount, perLeaf.get(0).numberOfEntryPoints());
-            }
-        }
-    }
-
-    public void testCapAppliesPerGraph() throws IOException {
+    /** Seeds spanning two graphs are partitioned per leaf and mapped to leaf-local ordinals. */
+    public void testSeedsPartitionedPerLeafWithLocalOrdinals() throws IOException {
         try (Directory dir = newDirectory()) {
             // Two commits with NoMergePolicy produce two separate segments (graphs) deterministically.
             try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
@@ -87,20 +72,38 @@ public class SeededRetryCollectorManagerTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals("test relies on two graphs", 2, reader.leaves().size());
 
-                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, ascendingSeeds(60));
+                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, new int[][] { seedRange(0, 30), seedRange(30, 60) });
                 assertEquals(2, perLeaf.size());
+                // Each leaf holds 30 docs; the global seeds for it map to leaf-local ordinals 0..29.
                 for (KnnSearchStrategy.Seeded seeded : perLeaf) {
-                    assertEquals(MAX_SEEDS_PER_GRAPH, seeded.numberOfEntryPoints());
+                    assertEquals(30, seeded.numberOfEntryPoints());
+                    int[] ordinals = drain(seeded);
+                    assertEquals(30, ordinals.length);
+                    for (int i = 0; i < 30; i++) {
+                        assertEquals(i, ordinals[i]);
+                    }
                 }
             }
         }
     }
 
-    private static List<KnnSearchStrategy.Seeded> captureSeedsPerLeaf(DirectoryReader reader, int[] seedDocs) throws IOException {
+    /** A leaf with no seeds in its doc-id range is searched without a seeded strategy. */
+    public void testSeedsOutsideLeafRangeSkipped() throws IOException {
+        try (Directory dir = newDirectory()) {
+            writeSingleSegment(dir, 50);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                // All seeds are beyond the leaf's maxDoc, so none map into it.
+                List<KnnSearchStrategy.Seeded> perLeaf = captureSeedsPerLeaf(reader, new int[][] { { 100, 200, 300 } });
+                assertTrue("no seeded strategy expected when no seed falls in the leaf", perLeaf.isEmpty());
+            }
+        }
+    }
+
+    private static List<KnnSearchStrategy.Seeded> captureSeedsPerLeaf(DirectoryReader reader, int[][] seedDocsPerLeaf) throws IOException {
         List<KnnSearchStrategy.Seeded> captured = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             CapturingCollectorManager capturing = new CapturingCollectorManager();
-            SeededRetryCollectorManager manager = new SeededRetryCollectorManager(capturing, seedDocs, FIELD);
+            SeededRetryCollectorManager manager = new SeededRetryCollectorManager(capturing, seedDocsPerLeaf, FIELD);
             manager.newCollector(Integer.MAX_VALUE, KnnSearchStrategy.Hnsw.DEFAULT, ctx);
             if (capturing.captured instanceof KnnSearchStrategy.Seeded seeded) {
                 captured.add(seeded);
@@ -118,16 +121,16 @@ public class SeededRetryCollectorManagerTests extends ESTestCase {
         return ordinals.stream().mapToInt(Integer::intValue).toArray();
     }
 
-    private static int[] ascendingSeeds(int count) {
-        int[] seeds = new int[count];
-        for (int i = 0; i < count; i++) {
-            seeds[i] = i;
+    /** Global doc IDs [fromInclusive, toExclusive), the seed set for one leaf. */
+    private static int[] seedRange(int fromInclusive, int toExclusive) {
+        int[] seeds = new int[toExclusive - fromInclusive];
+        for (int i = 0; i < seeds.length; i++) {
+            seeds[i] = fromInclusive + i;
         }
         return seeds;
     }
 
-    // Plain IndexWriterConfig + a single commit keeps every doc in one segment (one HNSW graph) so the
-    // per-graph cap is exercised deterministically; we intentionally do not force-merge.
+    // Plain IndexWriterConfig + a single commit keeps every doc in one segment (one HNSW graph).
     private static void writeSingleSegment(Directory dir, int docCount) throws IOException {
         try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig())) {
             addVectorDocs(iw, 0, docCount);

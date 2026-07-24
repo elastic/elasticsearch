@@ -1,0 +1,2 @@
+FROM (FROM languages | WHERE language_code > 1)
+| WHERE language_name is not null

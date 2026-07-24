@@ -24,14 +24,12 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
-
 public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider, PostFilterableKnnQuery {
     private final int kParam;
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final int[] seedDocs;
+    private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
@@ -59,13 +57,13 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seedDocs
+        int[][] seedDocsPerLeaf
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
-        this.seedDocs = seedDocs;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
     }
 
     @Override
@@ -88,7 +86,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         return new ESKnnByteVectorQuery(
             field,
@@ -98,21 +96,23 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             filter,
             searchStrategy,
             earlyTermination,
-            seedDocs
+            seedDocsPerLeaf
         );
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
-        int scaledK = (int) Math.clamp(
-            Math.ceil((kParam + zMargin) / filterSelectivity),
-            Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
-            NUM_CANDS_LIMIT
+        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
+        return new ESKnnByteVectorQuery(
+            field,
+            getTargetCopy(),
+            params.scaledK(),
+            params.scaledNumCands(),
+            null,
+            searchStrategy,
+            earlyTermination,
+            null
         );
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
-        // todo: do we actually need scaling numCands?
-        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override
@@ -160,8 +160,8 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
-        if (seedDocs != null && seedDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seedDocs, field);
+        if (PostFilterableKnnQuery.hasSeeds(seedDocsPerLeaf)) {
+            base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

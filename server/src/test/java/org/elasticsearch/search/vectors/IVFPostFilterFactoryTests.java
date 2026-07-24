@@ -20,6 +20,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -44,6 +45,8 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final BytesRef SLICE_ID = new BytesRef("s1");
     // parentsFilter is only stored (never invoked) by these factory paths.
     private static final BitSetProducer PARENTS = context -> null;
+    // Non-calibrating resolver: these factory paths only carry it through withParams, they never call resolve().
+    private static final IvfQueryConfigResolver RESOLVER = IvfQueryConfigResolver.from(false, false, 4, 1.0f, null);
 
     // Derivation for selectivity=0.5, k=10, numCands=20:
     // zMargin = 2.5 * sqrt(10 * (1-0.5)/0.5) = 7.905
@@ -54,36 +57,15 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final int EXPECTED_SCALED_NUM_CANDS = 72;
 
     private AbstractIVFKnnVectorQuery plain() {
-        return new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, false, 1.0f);
+        return new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER);
     }
 
     private AbstractIVFKnnVectorQuery sliced() {
-        return new IVFKnnFloatSlicedVectorQuery(
-            FIELD,
-            QUERY.clone(),
-            K,
-            NUM_CANDS,
-            filter(),
-            VISIT_RATIO,
-            false,
-            1.0f,
-            SLICE_FIELD,
-            SLICE_ID
-        );
+        return new IVFKnnFloatSlicedVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER, SLICE_FIELD, SLICE_ID);
     }
 
     private AbstractIVFKnnVectorQuery diversifying() {
-        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
-            FIELD,
-            QUERY.clone(),
-            K,
-            NUM_CANDS,
-            filter(),
-            PARENTS,
-            VISIT_RATIO,
-            false,
-            1.0f
-        );
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), PARENTS, VISIT_RATIO, RESOLVER);
     }
 
     private AbstractIVFKnnVectorQuery diversifyingSliced() {
@@ -95,8 +77,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             filter(),
             PARENTS,
             VISIT_RATIO,
-            false,
-            1.0f,
+            RESOLVER,
             SLICE_FIELD,
             SLICE_ID
         );
@@ -121,7 +102,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         for (AbstractIVFKnnVectorQuery original : Arrays.asList(sliced(), diversifyingSliced())) {
             IVFKnnFloatSlicedVectorQuery delegate = (IVFKnnFloatSlicedVectorQuery) original.createPostFilterDelegate(SELECTIVITY);
             assertEquals(SLICE_FIELD, delegate.sliceField);
-            assertEquals(SLICE_ID, delegate.sliceId);
+            assertArrayEquals(new BytesRef[] { SLICE_ID }, delegate.sliceIds);
         }
     }
 
@@ -147,7 +128,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                     AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) original.createRetryQuery(
                         reader,
                         excluded,
-                        new int[0],
+                        new int[0][],
                         remainingK
                     );
 
@@ -157,7 +138,6 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                     assertEquals("retry asks only for the remaining k", remainingK, retry.k());
                     assertEquals("retry scales numCands proportionally", expectedNumCands, retry.numCands());
                     assertTrue("excluded docs must become an ExcludeDocsQuery", retry.filter instanceof ExcludeDocsQuery);
-                    assertFalse("retry must skip preconditioning", retry.doPrecondition);
                 }
             }
         }
@@ -170,8 +150,8 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 for (AbstractIVFKnnVectorQuery original : Arrays.asList(plain(), sliced(), diversifying(), diversifyingSliced())) {
-                    IVFKnnFloatVectorQuery retry = (IVFKnnFloatVectorQuery) original.createRetryQuery(reader, new int[0], new int[0], 4);
-                    assertArrayEquals("retry must carry the current (possibly preconditioned) vector", QUERY, retry.getQuery(), 0f);
+                    IVFKnnFloatVectorQuery retry = (IVFKnnFloatVectorQuery) original.createRetryQuery(reader, new int[0], new int[0][], 4);
+                    assertArrayEquals("retry must carry the original query vector", QUERY, retry.getQuery(), 0f);
                 }
             }
         }
@@ -183,7 +163,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 w.addDocument(new Document());
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) plain().createRetryQuery(reader, new int[0], new int[0], 4);
+                AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) plain().createRetryQuery(reader, new int[0], new int[0][], 4);
                 assertNull("no exclusions -> no filter", retry.filter);
                 assertEquals(4, retry.k());
             }

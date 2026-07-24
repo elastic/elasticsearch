@@ -1,0 +1,15 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[SUM(salary{r}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS s#1],SINGLE,[$$s$sum{r}#2, $$s$seen{r}#3],null]
+  \_MergeExec[[emp_no{r}#4, salary{r}#0, dept{r}#5]]
+    |_ExchangeExec[[emp_no{r}#6, salary{r}#7, dept{r}#8],false]
+    | \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#6, salary{r}#7, dept{r}#8]]
+\_Project[[emp_no{r}#6, salary{r}#7, dept{r}#8]]
+  \_Filter[salary{r}#7 > 0[INTEGER]]
+    \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#6, salary{r}#7, dept{r}#8]<>]]
+    \_ExchangeExec[[emp_no{r}#9, salary{r}#10, dept{r}#11],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#9, salary{r}#10, dept{r}#11]]
+\_Project[[emp_no{r}#9, salary{r}#10, dept{r}#11]]
+  \_Filter[salary{r}#10 > 0[INTEGER]]
+    \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#9, salary{r}#10, dept{r}#11]<>]]

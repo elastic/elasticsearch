@@ -14,7 +14,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 `field`
 :   (Required, string)
 
-    The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search).
+    The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search). To run a kNN search on a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field, use the [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) instead.
 
 
 `query_vector`

@@ -208,7 +208,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
          * not just {@code TS} command queries.
          */
         private boolean hasTimeSeriesShards() {
-            return context.searchStats().targetShards().values().stream().anyMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES);
+            return context.searchStats().targetShards().values().stream().anyMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()));
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {

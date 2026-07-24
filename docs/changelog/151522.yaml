@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 151522
+summary: "[Encryption] Add encryption password to auto-configuration"
+type: enhancement

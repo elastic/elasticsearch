@@ -9,12 +9,12 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
-import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -32,9 +31,10 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -47,6 +47,10 @@ import java.util.concurrent.atomic.LongAccumulator;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 
+/**
+ * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore); per-segment
+ * preconditioning and oversample expansion come from {@link IvfQueryConfigResolver#resolve}.
+ */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
@@ -57,7 +61,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
-    protected boolean doPrecondition;
+    protected final IvfQueryConfigResolver ivfQueryConfigResolver;
 
     // Stashed during rewrite() so the post-filter orchestrator can read back the raw per-leaf
     // candidates without re-running: one TopDocs per leaf, doc ids already shifted to global by
@@ -65,7 +69,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        IvfQueryConfigResolver ivfQueryConfigResolver
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -80,7 +91,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.doPrecondition = doPrecondition;
+        this.ivfQueryConfigResolver = Objects.requireNonNull(ivfQueryConfigResolver, "ivfQueryConfigResolver should not be null");
     }
 
     @Override
@@ -126,11 +137,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = null;
         }
 
-        // we request numCands as we are using it as an approximation measure
-        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
-        // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
-        // 2k to the collector.
-        IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
         this.leaves = leafReaderContexts;
@@ -140,26 +146,53 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
+        float maxRescoreOversampleAcrossLeaves = 1f;
         for (LeafReaderContext context : leafReaderContexts) {
-            if (doPrecondition) {
-                preconditionQuery(context);
+            LeafReader leafReader = context.reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            float segmentOversample = 1f;
+            IvfSegmentConfig resolved = null;
+            if (fieldInfo != null) {
+                resolved = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
+                segmentOversample = resolved.rescoreOversample();
+                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
             }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
+                IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
+                indexSearcher
+            );
+
+            // Preconditioning might differ per segment when they are calibrated, so, potentially,
+            // each carries its own preconditioner. The transform is therefore applied inside
+            // getLeafResults against that segment's own preconditioner, producing a segment-local
+            // query. The shared query field is never mutated, so segments that disagree on
+            // preconditioning (and the exact-rescore query) each see the correct vector.
+            final boolean usePrecondition = resolved != null && resolved.usePrecondition();
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
         this.rawPerLeafResults = perLeafResults;
 
-        TopDocs topK = mergeLeafResults(k, perLeafResults);
+        int mergeK = tasks.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
+        if (ivfQueryConfigResolver.isAutoCalibrate()) {
+            return getAutoRescoreQuery(indexSearcher, topK, mergeK);
+        }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
+    /**
+     * Returns a query that performs exact rescoring of oversampled candidates.
+     * Implementations can return {@code null} when rescoring is unavailable.
+     */
+    abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK);
+
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
-        // During merge across segments, always favor bulk pivot collection.
-        // Segment-level unsorted gathering avoids per-segment sorting work.
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
         long totalHitsValue = 0;
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
@@ -193,9 +226,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(new TotalHits(totalHitsValue, relation), mergedScoreDocs);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
+    private TopDocs searchLeaf(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
@@ -212,84 +250,40 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        final LeafReader reader = ctx.reader();
-        final Bits liveDocs = reader.getLiveDocs();
-        final int maxDoc = reader.maxDoc();
-
-        if (filterWeight == null) {
-            return approximateSearch(
-                ctx,
-                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
-                Integer.MAX_VALUE,
-                knnCollectorManager,
-                visitRatio
-            );
-        }
-
-        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
-        if (supplier == null) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
-        }
-
-        return approximateSearch(
-            ctx,
-            new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc),
-            Integer.MAX_VALUE,
-            knnCollectorManager,
-            visitRatio
-        );
-    }
-
-    abstract void preconditionQuery(LeafReaderContext context) throws IOException;
-
-    abstract TopDocs approximateSearch(
-        LeafReaderContext context,
-        AcceptDocs acceptDocs,
-        int visitedLimit,
+    abstract TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
         IVFCollectorManager knnCollectorManager,
-        float visitRatio
+        float visitRatio,
+        boolean usePrecondition
     ) throws IOException;
 
     /**
      * Rebuilds this query as a new instance of the same concrete type, carrying over every
-     * parameter except {@code filter}, {@code k}, {@code numCands}, {@code overSampleFactor},
-     * {@code queryVector}, and {@code doPrecondition}.
+     * parameter except {@code filter}, {@code k}, {@code numCands}, and {@code queryVector}.
      * Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate} so each subclass
-     * (sliced, diversifying-children, ...) reconstructs itself with its extra state (slice range,
-     * parents filter) intact.
+     * (sliced, diversifying-children, ...) reconstructs itself with its extra state (slice ids,
+     * parents filter) intact. Preconditioning is resolved per-segment during {@link #rewrite},
+     * so the (un-preconditioned) query vector is carried through unchanged.
      */
-    protected abstract AbstractIVFKnnVectorQuery withParams(
-        Query filter,
-        int k,
-        int numCands,
-        float overSampleFactor,
-        float[] queryVector,
-        boolean doPrecondition
-    );
+    protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector);
 
     /**
-     * Returns the current (possibly preconditioned) query vector. Used by {@link #createRetryQuery}
-     * to pass the already-transformed vector so the retry skips redundant preconditioning.
+     * Returns the (un-preconditioned) query vector. Preconditioning is applied per-segment inside
+     * {@code getLeafResults}, so the stored vector is never mutated and can be carried straight into
+     * retry and post-filter delegate queries.
      */
-    protected abstract float[] currentQueryVector();
-
-    /**
-     * Returns the original (un-preconditioned) query vector. Used by {@link #createPostFilterDelegate}
-     * which is called before preconditioning has run.
-     */
-    protected abstract float[] originalQueryVector();
+    protected abstract float[] queryVector();
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
-        // seedDocs are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        // seedDocsPerLeaf are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
         // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
-        // cross-round dedup. The delegate has already preconditioned the query vector, so pass
-        // it directly and skip re-preconditioning.
+        // cross-round dedup. Preconditioning is re-applied per-segment on the retry, so pass the
+        // original query vector through.
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands * remainingK / k));
-        return withParams(retryFilter, remainingK, scaledNumCands, 1.0f, currentQueryVector(), false);
+        return withParams(retryFilter, remainingK, scaledNumCands, queryVector());
     }
 
     @Override
@@ -301,7 +295,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCands / k));
-        return withParams(null, scaledK, scaledNumCands, 1.0f, originalQueryVector(), doPrecondition);
+        return withParams(null, scaledK, scaledNumCands, queryVector());
     }
 
     @Override

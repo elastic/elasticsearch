@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,15 +30,9 @@ public class ChunkedBlobOutputStreamTests extends ESTestCase {
 
     private BigArrays bigArrays;
 
-    @Override
-    public void setUp() throws Exception {
+    @Before
+    public void initBigArrays() throws Exception {
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        super.setUp();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     public void testSuccessfulChunkedWrite() throws IOException {

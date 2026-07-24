@@ -25,8 +25,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
-
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery
     implements
         QueryProfilerProvider,
@@ -37,7 +35,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final int[] seedDocs;
+    private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
@@ -75,14 +73,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seedDocs
+        int[][] seedDocsPerLeaf
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.seedDocs = seedDocs;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
     }
 
     @Override
@@ -105,7 +103,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
@@ -116,27 +114,19 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            seedDocs
+            seedDocsPerLeaf
         );
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
-        int scaledK = (int) Math.clamp(
-            Math.ceil((kParam + zMargin) / filterSelectivity),
-            Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
-            NUM_CANDS_LIMIT
-        );
-        // maintain the configured numCands/k ratio so HNSW exploration scales with K.
-        // todo: do we actually need scaling numCands?
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
+        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
             null,
-            scaledK,
-            scaledNumCands,
+            params.scaledK(),
+            params.scaledNumCands(),
             parentsFilter,
             searchStrategy,
             earlyTermination,
@@ -185,8 +175,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
-        if (seedDocs != null && seedDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seedDocs, field);
+        if (PostFilterableKnnQuery.hasSeeds(seedDocsPerLeaf)) {
+            base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

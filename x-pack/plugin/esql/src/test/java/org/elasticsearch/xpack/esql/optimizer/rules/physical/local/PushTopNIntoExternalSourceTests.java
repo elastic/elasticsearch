@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,18 +25,26 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PushTopNIntoExternalSourceTests extends ESTestCase {
 
@@ -49,9 +60,10 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         ExternalSourceExec ext = unwrap(result);
         BlockHash.TopNDef def = ext.pushedTopN();
         assertNotNull(def);
-        assertEquals(0, def.order());
-        assertTrue(def.asc());
-        assertFalse(def.nullsFirst());
+        assertEquals(1, def.sortKeys().size());
+        assertEquals(0, def.primaryKey().groupingIndex());
+        assertTrue(def.primaryKey().asc());
+        assertFalse(def.primaryKey().nullsFirst());
         assertEquals(10, def.limit());
     }
 
@@ -61,7 +73,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         TopNExec result = (TopNExec) applyRule(topN);
         BlockHash.TopNDef def = unwrap(result).pushedTopN();
         assertNotNull(def);
-        assertFalse(def.asc());
+        assertFalse(def.primaryKey().asc());
         assertEquals(5, def.limit());
     }
 
@@ -79,15 +91,50 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         assertNull(unwrap(result).pushedTopN());
     }
 
-    public void testTopNNotPushedWithMultipleGroupings() {
+    /**
+     * A single sort key that references one of two grouping attributes — the rule must fire with a
+     * single-entry {@link BlockHash.TopNDef} pointing at the matched grouping index.
+     */
+    public void testTopNPushedWithMultipleGroupingsSingleSortKey() {
         AggregateExec aggregate = aggregateExec(List.of(USER_ID, REGION), externalSource(), countStarAlias());
         TopNExec topN = topN(USER_ID, Order.OrderDirection.ASC, 10, aggregate);
 
         TopNExec result = (TopNExec) applyRule(topN);
-        assertNull(unwrap(result).pushedTopN());
+        BlockHash.TopNDef def = unwrap(result).pushedTopN();
+        assertNotNull(def);
+        assertEquals(1, def.sortKeys().size());
+        assertEquals(0, def.primaryKey().groupingIndex()); // USER_ID is grouping[0]
+        assertTrue(def.primaryKey().asc());
+        assertEquals(10, def.limit());
     }
 
-    public void testTopNNotPushedWithMultipleSortKeys() {
+    /**
+     * Both sort keys reference grouping attributes — the rule must fire with a 2-entry {@link BlockHash.TopNDef}.
+     */
+    public void testTopNPushedWith2KeySort() {
+        AggregateExec aggregate = aggregateExec(List.of(USER_ID, REGION), externalSource(), countStarAlias());
+        Order primary = new Order(Source.EMPTY, USER_ID, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        Order secondary = new Order(Source.EMPTY, REGION, Order.OrderDirection.DESC, Order.NullsPosition.FIRST);
+        TopNExec topN = new TopNExec(Source.EMPTY, aggregate, List.of(primary, secondary), literal(10), null);
+
+        TopNExec result = (TopNExec) applyRule(topN);
+        BlockHash.TopNDef def = unwrap(result).pushedTopN();
+        assertNotNull(def);
+        assertEquals(2, def.sortKeys().size());
+        assertEquals(0, def.sortKeys().get(0).groupingIndex()); // USER_ID is grouping[0]
+        assertTrue(def.sortKeys().get(0).asc());
+        assertFalse(def.sortKeys().get(0).nullsFirst());
+        assertEquals(1, def.sortKeys().get(1).groupingIndex()); // REGION is grouping[1]
+        assertFalse(def.sortKeys().get(1).asc());
+        assertTrue(def.sortKeys().get(1).nullsFirst());
+        assertEquals(10, def.limit());
+    }
+
+    /**
+     * The second sort key references a field that is NOT one of the grouping attributes — the rule must not fire.
+     */
+    public void testTopNNotPushedWhenSortKeyNotInGroupings() {
+        // USER_ID is the only grouping but the sort also references REGION which is not a grouping attribute.
         AggregateExec aggregate = aggregateExec(USER_ID, externalSource(), countStarAlias());
         Order primary = new Order(Source.EMPTY, USER_ID, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondary = new Order(Source.EMPTY, REGION, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
@@ -124,7 +171,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
 
     public void testWithPushedTopNReturnsNewInstance() {
         ExternalSourceExec ext = externalSource();
-        BlockHash.TopNDef def = new BlockHash.TopNDef(0, true, false, 7);
+        BlockHash.TopNDef def = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, true, false)), 7);
         ExternalSourceExec annotated = ext.withPushedTopN(def);
 
         assertNotSame(ext, annotated);
@@ -152,6 +199,57 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
 
         PhysicalPlan result = applyRule(topN);
         assertSame("rule must be no-op when source has a pushed filter", topN, result);
+    }
+
+    // --- full-pipeline tests ---
+
+    /**
+     * Full-pipeline test: parse → analyze → logical optimize → {@link LocalMapper} → {@link LocalPhysicalPlanOptimizer}.
+     *
+     * <p>Verifies end-to-end that {@link PushTopNIntoExternalSource} fires and annotates the
+     * {@link ExternalSourceExec} when the query is
+     * {@code EXTERNAL "..." | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
+     * Uses {@link LocalMapper} (the data-node path) so that {@code TopNExec → AggregateExec(INITIAL) →
+     * ExternalSourceExec} appears in one contiguous plan tree where the rule can see both nodes.
+     */
+    public void testFullPipelineMultiKeySortPushesTopNAnnotation() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        String path = "file:///test.parquet";
+        List<Attribute> schema = List.of(referenceAttribute("user_id", DataType.KEYWORD), referenceAttribute("region", DataType.KEYWORD));
+
+        LogicalPlan analyzed = EsqlTestUtils.analyzer()
+            .externalSourceUnresolved(path, schema)
+            .query("EXTERNAL \"" + path + "\" | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10");
+
+        LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())
+        ).optimize(analyzed);
+
+        PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicallyOptimized);
+        PhysicalPlan localPlan = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                EsqlTestUtils.TEST_CFG,
+                FoldContext.small(),
+                EsqlTestUtils.TEST_SEARCH_STATS
+            )
+        ).localOptimize(physicalPlan);
+
+        List<ExternalSourceExec> externalSources = new ArrayList<>();
+        localPlan.forEachDown(ExternalSourceExec.class, externalSources::add);
+        assertThat("expected exactly one ExternalSourceExec", externalSources, hasSize(1));
+
+        BlockHash.TopNDef topN = externalSources.get(0).pushedTopN();
+        assertNotNull("PushTopNIntoExternalSource must have fired and set pushedTopN on ExternalSourceExec", topN);
+        assertEquals("expected 2 sort keys (user_id, region)", 2, topN.sortKeys().size());
+        assertEquals("limit must match the query LIMIT", 10, topN.limit());
+        // user_id is grouping[0], region is grouping[1] — matching order in the BY clause
+        assertEquals("primary key must reference grouping index 0 (user_id)", 0, topN.sortKeys().get(0).groupingIndex());
+        assertTrue("user_id sorts ascending", topN.sortKeys().get(0).asc());
+        assertEquals("secondary key must reference grouping index 1 (region)", 1, topN.sortKeys().get(1).groupingIndex());
+        assertTrue("region sorts ascending", topN.sortKeys().get(1).asc());
     }
 
     // --- helpers ---

@@ -149,7 +149,7 @@ public class LlamaServiceParameterizedTestConfiguration {
         assertThat(model, instanceOf(LlamaModel.class));
         var llamaModel = (LlamaModel) model;
         assertThat(llamaModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
-        assertThat(llamaModel.uri().toString(), Matchers.is(URL_VALUE));
+        assertThat(llamaModel.getServiceSettings().uri().toString(), Matchers.is(URL_VALUE));
         assertThat(llamaModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
         if (minimalSettings) {
             // Check default value

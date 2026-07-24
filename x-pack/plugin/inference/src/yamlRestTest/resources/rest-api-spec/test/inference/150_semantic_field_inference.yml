@@ -220,3 +220,46 @@ setup:
   - match: { hits.hits.0._id: doc_1 }
   - not_exists: hits.hits.0._source.semantic_field
   - not_exists: hits.hits.0._source._inference_fields
+
+---
+"Indexing a base64-encoded image with an empty payload is rejected":
+  - do:
+      catch: bad_request
+      index:
+        index: test-semantic-field-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/png;base64,"
+        refresh: true
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Input for field [semantic_field] from source field [semantic_field] has an empty base64 payload." }
+
+---
+"Indexing a base64-encoded image with a short unpadded payload is accepted":
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/png;base64,aa"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            match_all: { }
+          _source:
+            exclude_vectors: false
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: doc_1 }
+  - length: { hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field: 1 }
+  - match:  { hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.input_index: 0 }
+  - exists: hits.hits.0._source._inference_fields.semantic_field.inference.chunks.semantic_field.0.embeddings

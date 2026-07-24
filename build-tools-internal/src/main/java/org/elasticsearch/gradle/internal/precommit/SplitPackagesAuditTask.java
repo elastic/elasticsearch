@@ -19,10 +19,10 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
@@ -160,6 +160,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
 
             // Finally, print out (and fail) if we have any split packages
             ProblemReporter reporter = getProblems().getReporter();
+            List<Problem> problems = new ArrayList<>();
             for (var entry : splitPackages.entrySet()) {
                 String packageName = entry.getKey();
                 List<File> deps = dependencyPackages.get(packageName);
@@ -171,18 +172,22 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 entry.getValue().forEach(c -> msg.add("    '" + c + "',"));
                 String fullMessage = String.join(System.lineSeparator(), msg);
                 LOGGER.error(fullMessage);
-                reporter.report(
-                    ProblemId.create("split-package", "Split package detected", ElasticsearchBuildProblems.SPLIT_PACKAGES),
-                    spec -> spec.contextualLabel("Split package '" + packageName + "' in project " + projectPath)
-                        .details(fullMessage)
-                        .severity(Severity.ERROR)
-                        .solution("Choose a new package name for the classes added. DO NOT add these to the ignore list.")
+                problems.add(
+                    reporter.create(
+                        ProblemId.create("split-package", "Split package detected", ElasticsearchBuildProblems.SPLIT_PACKAGES),
+                        spec -> spec.contextualLabel("Split package '" + packageName + "' in project " + projectPath)
+                            .details(fullMessage)
+                            .solution("Choose a new package name for the classes added. DO NOT add these to the ignore list.")
+                    )
                 );
             }
             if (splitPackages.isEmpty() == false) {
-                throw new GradleException(
-                    "Verification failed: Split packages found! See errors above for details.\n"
-                        + "DO NOT ADD THESE SPLIT PACKAGES TO THE IGNORE LIST! Choose a new package name for the classes added."
+                throw reporter.throwing(
+                    new GradleException(
+                        "Verification failed: Split packages found! See errors above for details.\n"
+                            + "DO NOT ADD THESE SPLIT PACKAGES TO THE IGNORE LIST! Choose a new package name for the classes added."
+                    ),
+                    problems
                 );
             }
 

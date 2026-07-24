@@ -104,7 +104,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                  * so we *try* and wait for the delete to be fully
                  * complete here.
                  */
-                assertBusy(() -> assertFalse(indexExists("source")));
+                awaitClusterState(state -> state.metadata().getProject().hasIndex("source") == false);
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(

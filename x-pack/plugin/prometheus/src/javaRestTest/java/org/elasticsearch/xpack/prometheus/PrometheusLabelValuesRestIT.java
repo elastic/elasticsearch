@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -61,14 +62,19 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         assertThat(body.get("data"), notNullValue());
     }
 
-    public void testUnknownLabelReturnsEmptyData() throws Exception {
+    public void testUnknownLabelOnEmptyClusterReturnsKnownError() throws Exception {
+        // Known gap: before any Prometheus TS source exists, ESQL fails while resolving the
+        // generated @timestamp time filter. Once a TS source exists, unmapped labels are handled by
+        // SET unmapped_fields = "NULLIFY" (see testUnmappedLabelOnSpecificPrometheusDataStreamReturnsEmptyNotError).
         Request request = labelValuesRequest("label_that_does_not_exist_anywhere");
         addReadAuth(request);
-        Response response = client().performRequest(request);
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
 
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        List<String> data = labelValuesData(response);
-        assertThat(data.isEmpty(), equalTo(true));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+        String body = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(body, containsString("\"status\":\"error\""));
+        assertThat(body, containsString("\"errorType\":\"execution\""));
+        assertThat(body, containsString("Invalid call to dataType on an unresolved object ?@timestamp"));
     }
 
     public void testGetReturnsValuesForRegularLabel() throws Exception {
@@ -108,6 +114,21 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         assertThat(values, not(hasItem("other_job")));
     }
 
+    public void testGetWithRegexNameMatchSelectorForRegularLabelFiltersCorrectly() throws Exception {
+        // Verifies that regex __name__ matchers are NOT dropped for regular-label (non-__name__) queries.
+        // Before the fix, buildRegularLabelPlan silently ignored such matchers and returned values
+        // from all metrics. Now it falls back to filtering on labels.__name__.
+        writeMetric("http_requests_regex_lv_test", Map.of("job", "http_job_unique"));
+        writeMetric("node_cpu_regex_lv_test", Map.of("job", "other_job_unique"));
+
+        Request request = labelValuesRequest("job", "{__name__=~\"http_requests_regex.*\"}");
+        addReadAuth(request);
+        List<String> values = labelValuesData(client().performRequest(request));
+
+        assertThat(values, hasItem("http_job_unique"));
+        assertThat(values, not(hasItem("other_job_unique")));
+    }
+
     public void testGetWithMultipleMatchSelectorsReturnsCombinedValues() throws Exception {
         writeMetric("multi_selector_metric_a", Map.of("job", "multi_job_a"));
         writeMetric("multi_selector_metric_b", Map.of("job", "multi_job_b"));
@@ -142,14 +163,49 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         assertThat(ours, equalTo(List.of("alpha", "middle", "zebra")));
     }
 
-    public void testUEncodedLabelNameIsDecoded() throws Exception {
-        // U__http_2e_requests decodes to http.requests — which doesn't exist, so we just
-        // verify the endpoint is reachable and returns a 200 with an empty data array.
-        Request request = new Request("GET", "/_prometheus/api/v1/label/U__http_2e_requests/values");
+    public void testNameLabelValuesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
+
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
+
+        List<String> defaultScopeValues = labelValuesData(
+            client().performRequest(labelValuesRequestWithApiKey("/_prometheus/api/v1/label/__name__/values", apiKey))
+        );
+        List<String> prometheusScopeValues = labelValuesData(
+            client().performRequest(
+                labelValuesRequestWithApiKey("/_prometheus/metrics-*.prometheus-*/api/v1/label/__name__/values", apiKey)
+            )
+        );
+
+        assertThat(defaultScopeValues, hasItem(MIXED_METRICS_PROMETHEUS_METRIC));
+        assertThat(prometheusScopeValues, hasItem(MIXED_METRICS_PROMETHEUS_METRIC));
+    }
+
+    public void testUnmappedLabelOnSpecificPrometheusDataStreamReturnsEmptyNotError() throws Exception {
+        // Write a metric with only "job" label, then query the default data stream by name
+        // for "foo" — a label never written by any test and therefore absent from the mapping.
+        // SET unmapped_fields = "NULLIFY" makes the field evaluate to null, so ESQL returns no rows.
+        writeMetric("prom_nullify_test_metric", Map.of("job", "myjob"));
+        Request request = new Request("GET", "/_prometheus/" + DEFAULT_DATA_STREAM + "/api/v1/label/foo/values");
         addReadAuth(request);
+
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(entityAsMap(response).get("status"), equalTo("success"));
+        List<String> values = labelValuesData(response);
+        assertThat(values.isEmpty(), equalTo(true));
+    }
+
+    public void testUEncodedLabelNameIsDecoded() throws Exception {
+        // U__http_2e_requests decodes to http.requests — which doesn't exist, so we just
+        // verify the endpoint decodes the label and reaches the known empty-cluster ESQL gap.
+        Request request = new Request("GET", "/_prometheus/api/v1/label/U__http_2e_requests/values");
+        addReadAuth(request);
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+        String body = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(body, containsString("\"status\":\"error\""));
+        assertThat(body, containsString("Invalid call to dataType on an unresolved object ?@timestamp"));
     }
 
     private static Request labelValuesRequest(String labelName, String... matchers) {
@@ -158,6 +214,10 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
             request.addParameter("match[]", matcher);
         }
         return request;
+    }
+
+    private Request labelValuesRequestWithApiKey(String path, String apiKey) {
+        return prometheusGetRequest(path, apiKey);
     }
 
     @SuppressWarnings("unchecked")

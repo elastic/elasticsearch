@@ -220,7 +220,11 @@ public class TransformTask extends AllocatedPersistentTask
             );
             return;
         }
-        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
+        transformsCheckpointService.getCheckpointProvider(
+            parentTaskClient,
+            transformIndexer.getConfig(),
+            () -> getContext().getPersistedCloudCredential()
+        )
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),
@@ -552,6 +556,15 @@ public class TransformTask extends AllocatedPersistentTask
             // We should just allow that stop to continue
             if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPED) {
                 logger.info("[{}] encountered a failure but indexer is STOPPED; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
+            // If we are aborting, this means a cancellation request (e.g. the node the task is on is going away) is already
+            // tearing the indexer down towards a clean completion. A failure racing that teardown (e.g. an in-flight search
+            // failing because of the same disconnect that triggered the cancellation) must not override it with FAILED,
+            // since FAILED is sticky and blocks the reassigned task from auto-starting on the new node.
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.ABORTING) {
+                logger.info("[{}] encountered a failure but indexer is ABORTING; reason [{}].", getTransformId(), reason);
                 listener.onResponse(null);
                 return;
             }

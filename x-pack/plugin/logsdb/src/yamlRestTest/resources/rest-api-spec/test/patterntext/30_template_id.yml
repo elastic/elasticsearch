@@ -63,7 +63,7 @@ Field caps:
       field_caps:
         index: logs-pattern-text-test
         fields: [ foo.template_id ]
-  - match: { fields: {"foo.template_id": {"keyword": {"type": "keyword", "metadata_field": false, "searchable": true, "aggregatable": true}}}}
+  - match: { fields: {"foo.template_id": {"keyword": {"type": "keyword", "metadata_field": false, "searchable": true, "aggregatable": true, "inference": false}}}}
 
 ---
 Get template_id field:

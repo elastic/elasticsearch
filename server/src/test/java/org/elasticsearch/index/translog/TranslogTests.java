@@ -245,24 +245,20 @@ public class TranslogTests extends ESTestCase {
         );
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTranslog() throws Exception {
         primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         // if a previous test failed we clean up things here
         translogDir = createTempDir();
         translog = create(translogDir);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeTranslog() throws Exception {
         try {
             translog.getDeletionPolicy().assertNoOpenTranslogRefs();
-            translog.close();
         } finally {
-            super.tearDown();
+            translog.close();
         }
     }
 

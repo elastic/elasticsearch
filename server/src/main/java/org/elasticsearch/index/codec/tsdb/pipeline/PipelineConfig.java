@@ -59,6 +59,16 @@ public record PipelineConfig(
     }
 
     /**
+     * Starts building a double (floating-point) pipeline configuration.
+     *
+     * @param blockSize the number of values per block
+     * @return a new builder for double pipelines
+     */
+    public static DoubleBuilder forDoubles(int blockSize) {
+        return new DoubleBuilder(blockSize);
+    }
+
+    /**
      * Returns all stage specifications in order (transforms followed by payload).
      *
      * @return unmodifiable list of all specs
@@ -159,6 +169,92 @@ public record PipelineConfig(
          */
         public PipelineConfig bitPack() {
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, transforms, new StageSpec.BitPackPayload());
+        }
+    }
+
+    /**
+     * Builder for double (floating-point) pipelines. Starts with an ALP transform that
+     * converts sortable-long-encoded doubles into integer mantissas, then composes the
+     * standard integer transforms ahead of the terminal payload.
+     */
+    public static final class DoubleBuilder {
+        private final int blockSize;
+        private final List<StageSpec.TransformSpec> transforms = new ArrayList<>();
+
+        private DoubleBuilder(int blockSize) {
+            this.blockSize = blockSize;
+        }
+
+        /**
+         * Adds the ALP double-to-integer transform stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder alpDoubleStage() {
+            transforms.add(new StageSpec.AlpDoubleStage());
+            return this;
+        }
+
+        /**
+         * Adds a delta encoding stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder delta() {
+            transforms.add(new StageSpec.DeltaStage());
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage using the default flip cap
+         * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
+         *
+         * @return this builder
+         */
+        public DoubleBuilder splitDelta() {
+            transforms.add(new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX));
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage that accepts up to {@code kMax} direction
+         * flips per block. Blocks with more flips fall through to the rest of the pipeline.
+         *
+         * @param kMax the maximum number of flips accepted per block; must be at least one
+         * @return this builder
+         */
+        public DoubleBuilder splitDelta(int kMax) {
+            transforms.add(new StageSpec.SplitDeltaStage(kMax));
+            return this;
+        }
+
+        /**
+         * Adds an offset removal stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder offset() {
+            transforms.add(new StageSpec.OffsetStage());
+            return this;
+        }
+
+        /**
+         * Adds a GCD factoring stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder gcd() {
+            transforms.add(new StageSpec.GcdStage());
+            return this;
+        }
+
+        /**
+         * Adds a bit-packing payload and builds the configuration.
+         *
+         * @return the pipeline configuration
+         */
+        public PipelineConfig bitPack() {
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, transforms, new StageSpec.BitPackPayload());
         }
     }
 }

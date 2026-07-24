@@ -1152,9 +1152,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                    "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
-                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. Omit this field to target the Vertex AI global endpoint. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",

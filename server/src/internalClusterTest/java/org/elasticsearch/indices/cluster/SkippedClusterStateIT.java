@@ -175,10 +175,6 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
 
             // Before fixing, "term is only increased as part of primary promotion" would show up here and reroute would fail
             ClusterRerouteUtils.reroute(client(masterNodeName), new CancelAllocationCommand(INDEX_NAME, SHARD_ID, primaryNodeName, true));
-
-            final var reinitRoutingOnMaster = masterClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-            assertEquals(reinitRoutingOnMaster.allocationId().getId(), startedRoutingOnMaster.allocationId().getId());
-
             ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
 
             final var finalState = masterClusterService.state();

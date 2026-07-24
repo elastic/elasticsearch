@@ -144,14 +144,21 @@ public final class KnnQueryUtils {
     }
 
     /**
-     * Merges two disjoint sorted int arrays into a single sorted array.
+     * Merges two disjoint, individually-sorted int arrays into one sorted array
      */
     public static int[] sortedMerge(int[] a, int[] b) {
         if (a.length == 0) return b.length == 0 ? a : b.clone();
         if (b.length == 0) return a.clone();
-        int[] merged = Arrays.copyOf(a, a.length + b.length);
-        System.arraycopy(b, 0, merged, a.length, b.length);
-        Arrays.sort(merged);
+        int[] merged = new int[a.length + b.length];
+        int i = 0, j = 0, k = 0;
+        while (i < a.length && j < b.length) {
+            merged[k++] = a[i] <= b[j] ? a[i++] : b[j++];
+        }
+        if (i < a.length) {
+            System.arraycopy(a, i, merged, k, a.length - i);
+        } else {
+            System.arraycopy(b, j, merged, k, b.length - j);
+        }
         return merged;
     }
 

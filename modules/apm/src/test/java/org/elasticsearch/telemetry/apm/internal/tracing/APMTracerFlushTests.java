@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -26,121 +27,73 @@ import static org.hamcrest.Matchers.empty;
 
 public class APMTracerFlushTests extends ESTestCase {
 
-    /** doStop() must call attemptFlushTraces() before close() on the trace supplier. */
-    public void testDoStopFlushesBeforeClose() {
-        List<String> calls = new ArrayList<>();
-        TraceSupplier trackingSupplier = new TraceSupplier() {
-            @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
-            }
+    /**
+     * A {@link TraceSupplier} that records, in order, when {@code attemptFlushTraces()} and {@code close()} are called
+     * so tests can assert the shutdown sequence. The flush result is configurable so the same double can model a
+     * successful flush, a failed one, or one that throws.
+     */
+    private static class RecordingTraceSupplier implements TraceSupplier {
+        final List<String> calls = new ArrayList<>();
+        private final Supplier<CompletableResultCode> onFlush;
 
-            @Override
-            public CompletableResultCode attemptFlushTraces() {
-                calls.add("attemptFlushTraces");
-                return CompletableResultCode.ofSuccess();
-            }
+        RecordingTraceSupplier() {
+            this(CompletableResultCode::ofSuccess);
+        }
 
-            @Override
-            public void close() {
-                calls.add("close");
-            }
-        };
+        RecordingTraceSupplier(Supplier<CompletableResultCode> onFlush) {
+            this.onFlush = onFlush;
+        }
 
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
-        tracer.start();
-        tracer.stop();
+        @Override
+        public OpenTelemetry get() {
+            return OpenTelemetry.noop();
+        }
 
-        assertThat(calls, contains("attemptFlushTraces", "close"));
+        @Override
+        public CompletableResultCode attemptFlushTraces() {
+            calls.add("attemptFlushTraces");
+            return onFlush.get();
+        }
+
+        @Override
+        public void close() {
+            calls.add("close");
+        }
     }
 
-    /**
-     * The public attemptFlushTraces() is gated on enabled — callers should not pay the flush cost when tracing is off.
-     */
-    public void testAttemptFlushTracesIsNoopWhenDisabled() {
-        List<String> calls = new ArrayList<>();
-        TraceSupplier trackingSupplier = new TraceSupplier() {
-            @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
-            }
+    public void testDoStopFlushesAndDoCloseCloses() {
+        RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
-            @Override
-            public CompletableResultCode attemptFlushTraces() {
-                calls.add("attemptFlushTraces");
-                return CompletableResultCode.ofSuccess();
-            }
-        };
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
+        tracer.start();
+        tracer.stop();
+        assertThat(supplier.calls, contains("attemptFlushTraces"));
+
+        tracer.close();
+        assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
+    }
+
+    public void testAttemptFlushTracesIsNoopWhenDisabled() {
+        RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
         tracer.start();
         tracer.attemptFlushTraces();
 
-        assertThat(calls, empty());
+        assertThat(supplier.calls, empty());
     }
 
-    /**
-     * A flush failure must not prevent close() or service teardown: losing the flush is acceptable, but leaking
-     * resources or leaving the tracer in a broken state is not.
-     */
     public void testDoStopClosesAndDestroysServicesEvenIfFlushThrows() {
-        List<String> calls = new ArrayList<>();
-        TraceSupplier trackingSupplier = new TraceSupplier() {
-            @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
-            }
-
-            @Override
-            public CompletableResultCode attemptFlushTraces() {
-                throw new RuntimeException("simulated flush failure");
-            }
-
-            @Override
-            public void close() {
-                calls.add("close");
-            }
-        };
+        RecordingTraceSupplier supplier = new RecordingTraceSupplier(() -> { throw new RuntimeException("simulated flush failure"); });
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
         tracer.start();
-        tracer.stop(); // must not throw
+        tracer.close(); // must not throw
 
-        assertThat(calls, contains("close"));
-        assertThat(tracer.getSpans(), anEmptyMap());
-    }
-
-    /**
-     * A flush that returns ofFailure() must not prevent close() or service teardown.
-     */
-    public void testDoStopClosesAndDestroysServicesEvenIfFlushFails() {
-        List<String> calls = new ArrayList<>();
-        TraceSupplier trackingSupplier = new TraceSupplier() {
-            @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
-            }
-
-            @Override
-            public CompletableResultCode attemptFlushTraces() {
-                return CompletableResultCode.ofFailure();
-            }
-
-            @Override
-            public void close() {
-                calls.add("close");
-            }
-        };
-
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
-        tracer.start();
-        tracer.stop(); // must not throw
-
-        assertThat(calls, contains("close"));
+        assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
         assertThat(tracer.getSpans(), anEmptyMap());
     }
 
@@ -150,31 +103,14 @@ public class APMTracerFlushTests extends ESTestCase {
      * close() must still be called to release resources.
      */
     public void testDoStopSkipsFlushWhenTracingDisabled() {
-        List<String> calls = new ArrayList<>();
-        TraceSupplier trackingSupplier = new TraceSupplier() {
-            @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
-            }
-
-            @Override
-            public CompletableResultCode attemptFlushTraces() {
-                calls.add("attemptFlushTraces");
-                return CompletableResultCode.ofSuccess();
-            }
-
-            @Override
-            public void close() {
-                calls.add("close");
-            }
-        };
+        RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
+        APMTracer tracer = new APMTracer(settings, supplier, false, 0, false);
         tracer.start();
-        tracer.stop();
+        tracer.close();
 
-        assertThat(calls, contains("close"));
+        assertThat(supplier.calls, contains("close"));
     }
 
 }

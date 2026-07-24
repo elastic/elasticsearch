@@ -3,11 +3,16 @@
 // with multi_value_syntax: none does NOT fail for TSV: the field delimiter is the tab, so the commas
 // inside [a,b,c] are not field separators — the cell is read as one literal value (MV_COUNT == 1),
 // with no column misalignment.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. Dataset names encode the WITH options
+// so the same name always carries the same settings.
 
 tsvBracketsParsesMultiValue
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: mv_sample_brackets: "{{mv_sample}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "brackets"}
+FROM mv_sample_brackets
 | EVAL cnt = MV_COUNT(tags)
 | KEEP id, tags, cnt
 | SORT id
@@ -19,9 +24,10 @@ id:integer | tags:keyword         | cnt:integer
 ;
 
 tsvNoneOnMultiValueDataReadsLiteralNoFailure
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: mv_sample_none: "{{mv_sample}}" WITH {"multi_value_syntax": "none"}
 
-EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "none"}
+FROM mv_sample_none
 | EVAL cnt = MV_COUNT(tags)
 | KEEP id, cnt
 | SORT id
@@ -33,9 +39,10 @@ id:integer | cnt:integer
 ;
 
 tsvScalarWithNoneParses
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: web_logs_none: "{{web_logs}}" WITH {"multi_value_syntax": "none"}
 
-EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "none"}
+FROM web_logs_none
 | STATS c = COUNT(*)
 ;
 
@@ -44,9 +51,10 @@ c:long
 ;
 
 tsvScalarWithBracketsParsesSame
-required_capability: external_command
+required_capability: dataset_in_from_command
+dataset: web_logs_brackets: "{{web_logs}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "brackets"}
+FROM web_logs_brackets
 | STATS c = COUNT(*)
 ;
 

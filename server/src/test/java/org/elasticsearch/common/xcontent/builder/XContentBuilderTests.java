@@ -160,6 +160,24 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
+    public void testCharSequenceValue() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        StringBuilder sb = new StringBuilder("hello");
+        builder.startObject().field("test").value((CharSequence) sb).endObject();
+        assertThat(Strings.toString(builder), equalTo("{\"test\":\"hello\"}"));
+    }
+
+    public void testCharSequenceValueReusedBuilder() throws Exception {
+        // The same StringBuilder, cleared and reappended between writes, must not leak stale content.
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        StringBuilder sb = new StringBuilder("first");
+        builder.startObject().field("a").value((CharSequence) sb);
+        sb.setLength(0);
+        sb.append("second");
+        builder.field("b").value((CharSequence) sb).endObject();
+        assertThat(Strings.toString(builder), equalTo("{\"a\":\"first\",\"b\":\"second\"}"));
+    }
+
     public void testWritingBinaryToStream() throws Exception {
         BytesStreamOutput bos = new BytesStreamOutput();
 

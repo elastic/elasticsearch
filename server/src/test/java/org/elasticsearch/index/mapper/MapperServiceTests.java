@@ -136,7 +136,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testSliceEnabledRequiresRouting() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
+            .build();
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertTrue(mapperService.documentMapper().routingFieldMapper().required());
@@ -2048,7 +2051,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnField() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             for (String value : List.of("all", "arrays", "none")) {
                 Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
@@ -2073,7 +2075,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModesRejectCopyToOnField() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             String targetField = randomAlphanumericOfLength(8);
@@ -2091,7 +2092,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testColumnarStoredSourceModeRejectsCopyToOnField() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), indexMode.getName())
@@ -2113,7 +2113,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testColumnarModesRejectSyntheticSourceKeepIndexSetting() {
         // The "all"" value is already rejected globally by the setting's value validator, so we only need to cover "arrays" here
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), indexMode.getName())

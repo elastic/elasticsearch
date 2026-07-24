@@ -88,6 +88,7 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
             ElasticInferenceServiceRerankModelTests.createModel(url, modelId),
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
@@ -121,6 +122,7 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
             rerankModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

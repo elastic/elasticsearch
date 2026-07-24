@@ -12,6 +12,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -24,14 +25,17 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -71,6 +75,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -507,6 +512,32 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
+     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
+     */
+    public void testStatelessMergeThrottleConfiguration() throws IOException {
+        int factor = randomIntBetween(1, 5);
+        Settings nodeSettings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+
+            // threshold = factor × allocatedProcessors (= thread pool merge max)
+            int maxConcurrentMerges = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertThat(scheduler.getMaxMergeCount(), equalTo(factor * maxConcurrentMerges));
+
+            // callbacks wire through to the engine's throttle state
+            assertFalse(engine.isThrottled());
+            scheduler.enableIndexingThrottling(0, 1, factor * maxConcurrentMerges);
+            assertTrue(engine.isThrottled());
+            scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
+            assertFalse(engine.isThrottled());
+        }
+    }
+
     private static Engine.Index versionConflictingIndexOperation(Engine.Index indexOp) throws IOException {
         return new Engine.Index(
             newUid(indexOp.parsedDoc()),
@@ -755,6 +786,36 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMerges.get());
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
+        }
+    }
+
+    public void testDeleteUnownedDocumentsBumpsForceMergeUUID() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(settings))) {
+            engine.index(randomDoc("doc-1"));
+            engine.flush(true, true);
+
+            assertNull(engine.getForceMergeUUID());
+            assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY));
+
+            IndexMetadata metadata = engine.config().getIndexSettings().getIndexMetadata();
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String firstUuid = engine.getForceMergeUUID();
+            assertNotNull(firstUuid);
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(firstUuid));
+
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String secondUuid = engine.getForceMergeUUID();
+            assertNotNull(secondUuid);
+            assertThat(secondUuid, not(equalTo(firstUuid)));
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(secondUuid));
         }
     }
 }

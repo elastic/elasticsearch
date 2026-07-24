@@ -11,16 +11,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -46,15 +51,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
-    private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
+    protected final ClusterService clusterService;
+    protected final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
@@ -97,6 +105,19 @@ public class ViewResolver {
 
     ViewMetadata getMetadata() {
         return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+    }
+
+    /**
+     * Returns the current {@link ProjectMetadata}, or {@code null} when the resolver is in NOOP mode
+     * (i.e. the {@code projectResolver} was not injected). Subclasses may override this to supply
+     * project metadata from a different source (e.g. in-memory test infrastructure).
+     */
+    @Nullable
+    protected ProjectMetadata getCurrentProjectMetadata() {
+        if (projectResolver == null || clusterService == null) {
+            return null;
+        }
+        return projectResolver.getProjectMetadata(clusterService.state());
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -506,8 +527,12 @@ public class ViewResolver {
             }
         }
 
-        // Pass 2: Try to merge bare UnresolvedRelations that don't share index patterns
-        mergeCompatibleUnresolvedRelations(plans);
+        // Pass 2: Try to merge bare UnresolvedRelations that don't share index patterns. Most of the
+        // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
+        // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
+        // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
+        // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
+        mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
 
         if (plans.size() == 1) {
             return plans.values().iterator().next();
@@ -517,10 +542,36 @@ public class ViewResolver {
     }
 
     /**
+     * Builds a function that maps a local, non-wildcard index or alias name to the set of concrete
+     * index names it backs. Concrete indices map to a singleton containing themselves; aliases map to
+     * the set of their backing indices. Returns {@code null} when project metadata is unavailable
+     * (NOOP resolver mode), in which case alias-aware merge checking is skipped.
+     */
+    @Nullable
+    private Function<String, Set<String>> buildAliasResolver() {
+        ProjectMetadata projectMetadata = getCurrentProjectMetadata();
+        if (projectMetadata == null) {
+            return null;
+        }
+        Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
+        return name -> {
+            IndexAbstraction abstraction = indicesLookup.get(name);
+            if (abstraction == null || abstraction.getType() != IndexAbstraction.Type.ALIAS) {
+                return Set.of(name);
+            }
+            Set<String> backingIndices = abstraction.getIndices().stream().map(Index::getName).collect(Collectors.toSet());
+            return backingIndices.isEmpty() ? Set.of(name) : backingIndices;
+        };
+    }
+
+    /**
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication semantics.
      */
-    private static void mergeCompatibleUnresolvedRelations(LinkedHashMap<String, LogicalPlan> plans) {
+    private static void mergeCompatibleUnresolvedRelations(
+        LinkedHashMap<String, LogicalPlan> plans,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
         List<String> urKeys = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : plans.entrySet()) {
             if (entry.getValue() instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.STANDARD) {
@@ -538,7 +589,7 @@ public class ViewResolver {
         for (int i = 1; i < urKeys.size(); i++) {
             String key = urKeys.get(i);
             UnresolvedRelation ur = (UnresolvedRelation) plans.get(key);
-            UnresolvedRelation result = mergeIfPossible(merged, ur);
+            UnresolvedRelation result = mergeIfPossible(merged, ur, aliasResolver);
             if (result != null) {
                 merged = result;
                 plans.remove(key);
@@ -551,7 +602,11 @@ public class ViewResolver {
     }
 
     /** Merge the unresolved relation unless the index patterns contain matching index names. */
-    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    static UnresolvedRelation mergeIfPossible(
+        UnresolvedRelation main,
+        UnresolvedRelation other,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
@@ -567,6 +622,18 @@ public class ViewResolver {
                 if (Regex.isSimpleMatchPattern(otherPattern)
                     && Regex.isSimpleMatchPattern(mainPattern) == false
                     && Regex.simpleMatch(otherPattern, mainPattern)) {
+                    return null;
+                }
+                // Check alias resolution: two non-wildcard, non-remote patterns may point to the same
+                // concrete index via alias. Without this check, merging "source-index" and "source-alias"
+                // (where source-alias → source-index) produces UnresolvedRelation("source-index,source-alias")
+                // which field-caps deduplicates to a single copy, silently dropping one data branch.
+                if (aliasResolver != null
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.isSimpleMatchPattern(otherPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(mainPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(otherPattern) == false
+                    && haveNonEmptyIntersection(aliasResolver.apply(mainPattern), aliasResolver.apply(otherPattern))) {
                     return null;
                 }
             }
@@ -786,7 +853,7 @@ public class ViewResolver {
         for (int i = 1; i < urKeys.size(); i++) {
             String key = urKeys.get(i);
             UnresolvedRelation ur = (UnresolvedRelation) flat.get(key);
-            UnresolvedRelation result = mergeIfPossible(merged, ur);
+            UnresolvedRelation result = mergeIfPossible(merged, ur, null);
             if (result != null) {
                 merged = result;
                 flat.remove(key);

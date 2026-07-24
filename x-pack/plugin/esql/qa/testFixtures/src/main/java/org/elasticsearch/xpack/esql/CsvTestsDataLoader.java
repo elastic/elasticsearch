@@ -295,8 +295,18 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("employees_via_alias")
     ).collect(toMap(ViewConfig::name, Function.identity()));
+
+    /**
+     * Index aliases created unconditionally alongside the main test indices. These are not tied
+     * to view support — any csv-spec test may reference them. Non-view tests that use wildcard
+     * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
+     * deduplicates an alias and its backing index into a single logical source.
+     */
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>
@@ -417,6 +427,9 @@ public class CsvTestsDataLoader {
                 }
                 if (policies) {
                     loadEnrichPolicies(client);
+                }
+                if (indexes) {
+                    loadAliasesIntoEs(client);
                 }
                 if (views) {
                     loadViewsIntoEs(client);
@@ -553,6 +566,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
+        loadAliasesIntoEs(client, indicesToLoad);
     }
 
     /**
@@ -639,6 +653,37 @@ public class CsvTestsDataLoader {
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    private static void loadAliasesIntoEs(RestClient client) throws IOException {
+        loadAliasesIntoEs(client, null);
+    }
+
+    /**
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
+     * only aliases whose backing index is in that list are created — aliases for indices that were
+     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     */
+    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
+        logger.info("Loading aliases");
+        for (var alias : ALIAS_CONFIGS.values()) {
+            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+                continue;
+            }
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(
+                "{\"actions\":[{\"add\":{\"index\":\"" + alias.indexName() + "\",\"alias\":\"" + alias.aliasName() + "\"}}]}"
+            );
+            try {
+                client.performRequest(request);
+            } catch (ResponseException e) {
+                // Alias may already exist (idempotent re-load); ignore 400
+                if (e.getResponse().getStatusLine().getStatusCode() != 400) {
+                    throw e;
+                }
+            }
         }
     }
 
@@ -1400,6 +1445,9 @@ public class CsvTestsDataLoader {
             return getResourceString("/views/" + name + ".esql");
         }
     }
+
+    /** An index alias to create alongside the main test indices. */
+    public record AliasConfig(String aliasName, String indexName) {}
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

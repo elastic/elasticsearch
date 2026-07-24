@@ -3505,6 +3505,11 @@ public class EsqlCapabilities {
          */
         FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
 
+        /**
+         * Fix multi value unsigned long conversion to aggregate metric double
+         */
+        FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

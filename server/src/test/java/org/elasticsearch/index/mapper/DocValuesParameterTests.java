@@ -739,9 +739,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     public void testFallbackFieldIndexedNormallyCommitsPrecaptureToIgnoredSource() throws Exception {
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword")
-                    .field("normalizer", "lowercase")
-                    .field("normalizer_skip_store_original_value", false)
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
             )
         ).documentMapper();
 

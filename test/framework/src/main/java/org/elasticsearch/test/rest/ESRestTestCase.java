@@ -2544,6 +2544,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "data-streams-mappings":
             case "search-acl-filter":
             case ".kibana-reporting":
+            case "ai-index-idx":
+            case "ai-index-ds":
                 return true;
             default:
                 return false;

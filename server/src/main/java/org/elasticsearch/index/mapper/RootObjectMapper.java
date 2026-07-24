@@ -701,6 +701,10 @@ public class RootObjectMapper extends ObjectMapper {
         if (str.equalsIgnoreCase("runtime")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [runtime]");
         }
+        // Dynamic.FLATTENED is an internal resolved value only; it is not user-settable (Dynamic.valueOf would otherwise accept it).
+        if (str.equalsIgnoreCase("flattened")) {
+            throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [flattened]");
+        }
         try {
             return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {

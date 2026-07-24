@@ -142,27 +142,7 @@ class FlattenedFieldParser {
             String value = parser.text();
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            String key = path.pathAsText(currentName);
-            if (key.contains(SEPARATOR)) {
-                throw new IllegalArgumentException(
-                    "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
-                );
-            }
-            FieldMapper mappedSubField = mappedSubFields.get(key);
-            if (mappedSubField != null) {
-                mappedSubField.parse(context.documentParserContext());
-            } else if (nullValue != null) {
-                addField(context, path, currentName, nullValue);
-            } else if (usesArrayOrderBinaryDocValues) {
-                // Document-order mode: record a null slot with the key inline so synthetic source can reconstruct it.
-                MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
-                    context.documentParserContext.doc(),
-                    keyedFieldFullPath,
-                    new BytesRef(key + SEPARATOR)
-                );
-            } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
-                context.arrayContext.recordNull(key);
-            }
+            addNull(context, path, currentName);
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
             // this case, since XContentParser verifies that the input is well-formed as it parses.
@@ -287,6 +267,48 @@ class FlattenedFieldParser {
                 context.documentParserContext().getRoutingFields().addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue);
             }
         }
+    }
+
+    private void addNull(Context context, ContentPath path, String currentName) throws IOException {
+        String key = path.pathAsText(currentName);
+        if (key.contains(SEPARATOR)) {
+            throw new IllegalArgumentException(
+                "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+            );
+        }
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            mappedSubField.parse(context.documentParserContext());
+        } else if (nullValue != null) {
+            addField(context, path, currentName, nullValue);
+        } else if (usesArrayOrderBinaryDocValues) {
+            // Document-order mode: record a null slot with the key inline so synthetic source can reconstruct it.
+            MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
+                context.documentParserContext.doc(),
+                keyedFieldFullPath,
+                new BytesRef(key + SEPARATOR)
+            );
+        } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            context.arrayContext.recordNull(key);
+        }
+    }
+
+    /**
+     * Indexes a single unmapped value at {@code fullPath} (already a full dotted key from the document root) reusing {@link #addField}.
+     */
+    void absorbUnmappedValue(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String fullPath)
+        throws IOException {
+        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
+        addField(context, new ContentPath(), fullPath, documentParserContext.parser().text());
+    }
+
+    /**
+     * Records an unmapped null slot at {@code fullPath} reusing {@link #addNull} so columnar array order is preserved.
+     */
+    void absorbUnmappedNull(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String fullPath)
+        throws IOException {
+        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
+        addNull(context, new ContentPath(), fullPath);
     }
 
     private void validateDepthLimit(ContentPath path) {

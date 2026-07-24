@@ -2910,6 +2910,24 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
+    public void testMvLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
+        // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
+        // after constant folding, in postOptimizationVerification — see LogicalPlanOptimizerTests#testMvLike*.
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_like(first_name, 1)",
+            containsString("second argument of [mv_like(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
+    public void testMvRLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_rlike(first_name, \"Ann.*\")");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_rlike(first_name, 1)",
+            containsString("second argument of [mv_rlike(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 

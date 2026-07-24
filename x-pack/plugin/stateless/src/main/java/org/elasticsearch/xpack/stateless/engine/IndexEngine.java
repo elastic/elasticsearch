@@ -61,6 +61,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -517,6 +519,21 @@ public class IndexEngine extends InternalEngine {
             documentParsingReporter.onIndexingCompleted(parsedDocument);
         }
         return result;
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        for (Index operation : operations) {
+            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
+        }
+        List<IndexResult> results = super.indexBatch(operations, batch);
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).getResultType() == Result.Type.SUCCESS) {
+                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+            }
+        }
+        return results;
     }
 
     @Override

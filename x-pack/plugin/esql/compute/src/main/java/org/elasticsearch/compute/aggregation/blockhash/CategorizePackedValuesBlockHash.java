@@ -120,7 +120,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         if (aggregatorMode.isOutputPartial() == false) {
             // For final output, the keys are the category regexes.
             try (
-                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(categorizeBlockHash.nonEmpty())[0];
+                IntVector nonEmpty = categorizeBlockHash.nonEmpty();
+                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(nonEmpty)[0];
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys[0].getPositionCount())
             ) {
                 IntVector idsVector = (IntVector) keys[0].asVector();

@@ -659,14 +659,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         }
     }
 
-    private SemanticIndexOptions getDefaultSparseVectorIndexOptionsForMapper(MapperService mapperService) {
-        var mapperIndexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-        var defaultSparseVectorIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(mapperIndexVersion);
-        return defaultSparseVectorIndexOptions == null
-            ? null
-            : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, defaultSparseVectorIndexOptions);
-    }
-
     public void testInvalidTaskTypes() {
         for (var taskType : TaskType.values()) {
             if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING || taskType == TaskType.EMBEDDING) {
@@ -785,8 +777,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 inferenceId,
                 new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
-            assertSemanticField(mapperService, fieldName, true, model, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, model, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
 
@@ -799,8 +790,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 inferenceId,
                 new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
-            assertSemanticField(mapperService, fieldName, true, model, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, model, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
         }
     }
@@ -827,14 +817,12 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                     mapperService,
                     semanticMapping(fieldName, "test_model", new MinimalServiceSettings(null, TaskType.SPARSE_EMBEDDING, null, null, null))
                 );
-                var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
-                assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+                assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             }
             {
                 Model sparseModel = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
                 merge(mapperService, semanticMapping(fieldName, "test_model"));
-                var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
-                assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+                assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             }
             {
                 Exception exc = expectThrows(
@@ -935,41 +923,21 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-            IndexVersion indexVersion = useLegacyFormat
-                ? IndexVersionUtils.randomVersionBetween(
-                    IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
-                    IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
-                )
-                : SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
             final SemanticIndexOptions indexOptions = randomSemanticIndexOptions(TaskType.SPARSE_EMBEDDING);
-            String fieldName = "field";
+            final String fieldName = "field";
 
-            MapperService mapperService = createSemanticMapperServiceWithIndexVersion(
-                semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions),
-                indexVersion
+            MapperService mapperService = createSemanticMapperService(
+                semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)
             );
-            var expectedIndexOptions = (indexOptions == null)
-                ? new SemanticIndexOptions(
-                    SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-                )
-                : indexOptions;
-            assertSemanticField(mapperService, fieldName, false, model, chunkingSettings, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, false, model, chunkingSettings, indexOptions);
 
             final SemanticIndexOptions newIndexOptions = randomSemanticIndexOptions(TaskType.SPARSE_EMBEDDING);
-            expectedIndexOptions = (newIndexOptions == null)
-                ? new SemanticIndexOptions(
-                    SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-                )
-                : newIndexOptions;
-
-            ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
+            final ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
             merge(
                 mapperService,
                 semanticMapping(fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, newIndexOptions)
             );
-            assertSemanticField(mapperService, fieldName, false, model, newChunkingSettings, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, false, model, newChunkingSettings, newIndexOptions);
         }
     }
 
@@ -1004,20 +972,19 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                     new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
                 )
             );
-            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
-            assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
             merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId1));
-            assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId1);
 
             merge(mapperService, semanticMapping(fieldName, inferenceId, searchInferenceId2));
-            assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId2);
 
             merge(mapperService, semanticMapping(fieldName, inferenceId));
-            assertSemanticField(mapperService, fieldName, true, sparseModel, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName, true, sparseModel, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
     }
@@ -1127,22 +1094,15 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 );
             });
 
-            var expectedIndexOptions = (indexOptions == null)
-                ? new SemanticIndexOptions(
-                    SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-                )
-                : indexOptions;
-
             MapperService mapperService = createSemanticMapperServiceWithIndexVersion(mapping, indexVersion);
-            assertSemanticField(mapperService, fieldName1, false, model1, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName1, false, model1, null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName1,
                 model1.getInferenceEntityId(),
                 setSearchInferenceId ? searchInferenceId : model1.getInferenceEntityId()
             );
-            assertSemanticField(mapperService, fieldName2, false, model2, null, expectedIndexOptions);
+            assertSemanticField(mapperService, fieldName2, false, model2, null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName2,

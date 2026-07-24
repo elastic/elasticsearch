@@ -1512,8 +1512,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
-
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed a bug where a view and an index alias pointing to the same underlying index were
+         * not correctly identified as overlapping, causing field-caps to deduplicate the alias into
+         * the concrete index and silently drop one branch of data.
+         */
+        VIEWS_ALIAS_DEDUPLICATION_BUGFIX,
         /**
          * Fixed false circular view reference errors when multiple sibling views are resolved together.
          * See https://github.com/elastic/elasticsearch/issues/146208
@@ -3147,6 +3152,11 @@ public class EsqlCapabilities {
         PROMQL_DAYS_IN_MONTH,
 
         /**
+         * Support for PromQL timestamp() function.
+         */
+        PROMQL_TIMESTAMP,
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -3479,6 +3489,13 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
+
+        /**
+         * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
+         * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
+         * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
+         */
+        FIX_PROMQL_TOPK_OVER_AGGREGATE,
 
         /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over

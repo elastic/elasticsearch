@@ -116,12 +116,11 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
-        // Select is always nonEmpty because we don't support splitting pages from Categorize
         Block[] keys = packedValuesBlockHash.getKeys(selected);
         if (aggregatorMode.isOutputPartial() == false) {
             // For final output, the keys are the category regexes.
             try (
-                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(selected)[0];
+                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(categorizeBlockHash.nonEmpty())[0];
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys[0].getPositionCount())
             ) {
                 IntVector idsVector = (IntVector) keys[0].asVector();

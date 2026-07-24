@@ -18,7 +18,11 @@ import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
@@ -139,10 +143,20 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder()
+        var builder = SdkMeterProvider.builder()
             .setResource(OtelSdkResource.get(settings))
-            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT)
-            .build();
+            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
+        registerDisabledMetricViews(builder, settings);
+        return builder.build();
+    }
+
+    static void registerDisabledMetricViews(SdkMeterProviderBuilder builder, Settings settings) {
+        for (String pattern : OtelSdkSettings.TELEMETRY_METRICS_DISABLED.get(settings)) {
+            builder.registerView(
+                InstrumentSelector.builder().setName(pattern).build(),
+                View.builder().setAggregation(Aggregation.drop()).build()
+            );
+        }
     }
 
     private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {

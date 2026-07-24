@@ -53,6 +53,10 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
+    private static void requireTsMixedWithNonTsSourcesFix() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+    }
+
     private static void requireNullifySupport() {
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
     }
@@ -484,6 +488,14 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES, dimensionValuesVersion());
     }
 
+    public void testTSSubqueryInFromWithOuterTimeSeriesAggregate() {
+        requireTsSubquerySupport();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled)
+            | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+            """, STAGES, dimensionValuesVersion());
+    }
+
     public void testMultipleSubqueriesInFromWithTS() {
         requireTsSubquerySupport();
         runGoldenTest("""
@@ -590,6 +602,36 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             | EVAL m = m::double
             | KEEP m
             """, STAGES);
+    }
+
+    // -- TS subquery mixed with non-TS sources: outer STATS must produce plain Aggregate --
+
+    public void testTsSubqueryMixedWithStandardSubquery() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (FROM sample_data) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTwoTsSubqueriesInFrom() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (TS k8s-downsampled) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithDirectIndex() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), sample_data | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithView() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), my_view | STATS count(*)
+            """, STAGES, Map.of("my_view", "FROM sample_data | STATS total = COUNT() BY message"));
     }
 
     // -- subquery union of a regular index, a time-series rate, and an external dataset --

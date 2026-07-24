@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -32,15 +33,22 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -53,6 +61,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.MlConfigSizeUsage;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -140,7 +149,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
         anomalyDetectionEnabled = MachineLearning.ANOMALY_DETECTION_ENABLED.get(environment.settings());
         dataFrameAnalyticsEnabled = MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.get(environment.settings());
-        nlpEnabled = MachineLearning.NLP_ENABLED.get(environment.settings());
+        nlpEnabled = XPackSettings.NLP_ENABLED.get(environment.settings());
     }
 
     @Override
@@ -236,33 +245,50 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
         });
 
-        // Step 2. Extract usage from datafeeds stats and then request stats for data frame analytics
         GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(
             Metadata.ALL
         );
         dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
-        ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
-            addDatafeedsUsage(response, datafeedsUsage);
-            if (dataFrameAnalyticsEnabled) {
-                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
-            } else {
-                addInferenceUsage(inferenceUsageListener);
-            }
-        }, e -> {
-            logger.warn("Failed to get datafeed stats to include in ML usage", e);
-            if (dataFrameAnalyticsEnabled) {
-                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
-            } else {
-                addInferenceUsage(inferenceUsageListener);
-            }
-        });
 
-        // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
+        // Step 2. Extract usage from datafeeds stats and configs, then request stats for data frame analytics
+        GetDatafeedsAction.Request getDatafeedsRequest = new GetDatafeedsAction.Request(GetDatafeedsAction.ALL);
+        ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(
+            response -> fetchDatafeedConfigsAndContinue(
+                response,
+                getDatafeedsRequest,
+                datafeedsUsage,
+                dataframeAnalyticsStatsRequest,
+                dataframeAnalyticsStatsListener,
+                inferenceUsageListener
+            ),
+            e -> {
+                logger.warn("Failed to get datafeed stats to include in ML usage", e);
+                fetchDatafeedConfigsAndContinue(
+                    null,
+                    getDatafeedsRequest,
+                    datafeedsUsage,
+                    dataframeAnalyticsStatsRequest,
+                    dataframeAnalyticsStatsListener,
+                    inferenceUsageListener
+                );
+            }
+        );
+
+        // Step 1. Extract usage from jobs stats and auxiliary AD configs, then request stats for all datafeeds
         GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(Metadata.ALL);
         ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
             response -> jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                 addJobsUsage(response, jobs.results(), jobsUsage);
-                client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+                addAuxiliaryAdConfigUsage(
+                    jobsUsage,
+                    ActionListener.wrap(
+                        ignored -> client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener),
+                        e -> {
+                            logger.warn("Failed to get auxiliary AD config sizes to include in ML usage", e);
+                            client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+                        }
+                    )
+                );
             }, e -> {
                 logger.warn("Failed to get job configs to include in ML usage", e);
                 client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
@@ -327,7 +353,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         jobsUsage.put(
             MachineLearningFeatureSetUsage.ALL,
-            createJobUsageEntry(jobs.size(), allJobsDetectorsStats, allJobsModelSizeStats, allJobsForecastStats, allJobsCreatedBy)
+            withJobConfigSizes(
+                createJobUsageEntry(jobs.size(), allJobsDetectorsStats, allJobsModelSizeStats, allJobsForecastStats, allJobsCreatedBy),
+                jobs
+            )
         );
         for (JobState jobState : jobCountByState.keySet()) {
             jobsUsage.put(
@@ -341,6 +370,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 )
             );
         }
+    }
+
+    private static Map<String, Object> withJobConfigSizes(Map<String, Object> usageEntry, List<Job> jobs) {
+        MlConfigSizeUsage.putConfigSizes(usageEntry, MlConfigSizeUsage.collectJobConfigSizes(jobs));
+        return usageEntry;
     }
 
     private static String jobCreatedBy(Job job) {
@@ -369,20 +403,59 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return usage;
     }
 
-    private static void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
+    private static void addDatafeedsUsage(
+        GetDatafeedsStatsAction.Response response,
+        List<DatafeedConfig> datafeeds,
+        Map<String, Object> datafeedsUsage
+    ) {
         Map<DatafeedState, Counter> datafeedCountByState = new EnumMap<>(DatafeedState.class);
 
-        List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedsStats = response.getResponse().results();
-        for (GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats : datafeedsStats) {
-            datafeedCountByState.computeIfAbsent(datafeedStats.getDatafeedState(), ds -> Counter.newCounter()).addAndGet(1);
+        if (response != null) {
+            List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedsStats = response.getResponse().results();
+            for (GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats : datafeedsStats) {
+                datafeedCountByState.computeIfAbsent(datafeedStats.getDatafeedState(), ds -> Counter.newCounter()).addAndGet(1);
+            }
         }
 
-        datafeedsUsage.put(MachineLearningFeatureSetUsage.ALL, createCountUsageEntry(response.getResponse().count()));
+        long totalCount = response == null ? datafeeds.size() : response.getResponse().count();
+        Map<String, Object> allUsage = createCountUsageEntry(totalCount);
+        MlConfigSizeUsage.putConfigSizes(allUsage, MlConfigSizeUsage.collectDatafeedConfigSizes(datafeeds));
+        datafeedsUsage.put(MachineLearningFeatureSetUsage.ALL, allUsage);
         for (DatafeedState datafeedState : datafeedCountByState.keySet()) {
             datafeedsUsage.put(
                 datafeedState.name().toLowerCase(Locale.ROOT),
                 createCountUsageEntry(datafeedCountByState.get(datafeedState).get())
             );
+        }
+    }
+
+    private void fetchDatafeedConfigsAndContinue(
+        GetDatafeedsStatsAction.Response statsResponse,
+        GetDatafeedsAction.Request getDatafeedsRequest,
+        Map<String, Object> datafeedsUsage,
+        GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest,
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener,
+        ActionListener<Map<String, Object>> inferenceUsageListener
+    ) {
+        client.execute(GetDatafeedsAction.INSTANCE, getDatafeedsRequest, ActionListener.wrap(datafeedsResponse -> {
+            addDatafeedsUsage(statsResponse, datafeedsResponse.getResources().results(), datafeedsUsage);
+            continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
+        }, e -> {
+            logger.warn("Failed to get datafeed configs to include in ML usage", e);
+            addDatafeedsUsage(statsResponse, List.of(), datafeedsUsage);
+            continueAfterDatafeedsUsage(dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener, inferenceUsageListener);
+        }));
+    }
+
+    private void continueAfterDatafeedsUsage(
+        GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest,
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener,
+        ActionListener<Map<String, Object>> inferenceUsageListener
+    ) {
+        if (dataFrameAnalyticsEnabled) {
+            client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+        } else {
+            addInferenceUsage(inferenceUsageListener);
         }
     }
 
@@ -431,6 +504,15 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             perAnalysisTypeCounterMap.put(config.getAnalysis().getWriteableName(), ++count);
         }
         dataframeAnalyticsUsage.put("analysis_counts", perAnalysisTypeCounterMap);
+        Object allUsage = dataframeAnalyticsUsage.get(MachineLearningFeatureSetUsage.ALL);
+        if (allUsage instanceof Map<?, ?> allUsageMap) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> allUsageEntry = (Map<String, Object>) allUsageMap;
+            MlConfigSizeUsage.putConfigSizes(
+                allUsageEntry,
+                MlConfigSizeUsage.collectDataFrameAnalyticsConfigSizes(response.getResources().results())
+            );
+        }
     }
 
     private void addInferenceUsage(ActionListener<Map<String, Object>> listener) {
@@ -455,14 +537,35 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                             addInferenceIngestUsage(getStatsResponse, inferenceUsage);
                             addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
                             addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                            l.onResponse(inferenceUsage);
+                            addInferenceEndpointConfigSizes(inferenceUsage, l);
                         })
                     );
                 })
             );
         } else {
-            listener.onResponse(Map.of());
+            addInferenceEndpointConfigSizes(new LinkedHashMap<>(), listener);
         }
+    }
+
+    private void addInferenceEndpointConfigSizes(Map<String, Object> inferenceUsage, ActionListener<Map<String, Object>> listener) {
+        // Endpoint config_sizes live in the ML usage generic map to avoid a TransportVersion-gated field on
+        // InferenceFeatureSetUsage; this duplicates TransportInferenceUsageAction's GetInferenceModelAction fetch
+        // during full _xpack/usage, but endpoint count is bounded.
+        client.execute(
+            GetInferenceModelAction.INSTANCE,
+            new GetInferenceModelAction.Request("_all", TaskType.ANY, false),
+            ActionListener.wrap(response -> {
+                MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                    inferenceUsage,
+                    "inference_endpoints",
+                    MlConfigSizeUsage.collectInferenceEndpointConfigSizes(response.getEndpoints())
+                );
+                listener.onResponse(inferenceUsage);
+            }, e -> {
+                logger.warn("Failed to get inference endpoints to include in ML usage", e);
+                listener.onResponse(inferenceUsage);
+            })
+        );
     }
 
     private static void addDeploymentStats(
@@ -586,6 +689,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         trainedModelsUsage.put("count", counts);
         trainedModelsUsage.put(TrainedModelConfig.ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations.asMap());
         trainedModelsUsage.put(TrainedModelConfig.MODEL_SIZE_BYTES.getPreferredName(), estimatedMemoryUsageBytes.asMap());
+        MlConfigSizeUsage.putConfigSizes(trainedModelsUsage, MlConfigSizeUsage.collectTrainedModelConfigSizes(trainedModelConfigs));
 
         inferenceUsage.put("trained_models", trainedModelsUsage);
     }
@@ -644,6 +748,64 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         asMap.put("min", Double.valueOf(stats.getMin()).longValue());
         asMap.put("max", Double.valueOf(stats.getMax()).longValue());
         return asMap;
+    }
+
+    private void addAuxiliaryAdConfigUsage(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
+        GetCalendarsAction.Request calendarsRequest = new GetCalendarsAction.Request();
+        calendarsRequest.setCalendarId(GetCalendarsAction.Request.ALL);
+        calendarsRequest.setPageParams(new PageParams(0, 10_000));
+        client.execute(GetCalendarsAction.INSTANCE, calendarsRequest, ActionListener.wrap(calendarsResponse -> {
+            MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                jobsUsage,
+                "calendars",
+                MlConfigSizeUsage.collectCalendarConfigSizes(calendarsResponse.getResources().results())
+            );
+            GetFiltersAction.Request filtersRequest = new GetFiltersAction.Request(Metadata.ALL);
+            filtersRequest.setPageParams(new PageParams(0, 10_000));
+            client.execute(GetFiltersAction.INSTANCE, filtersRequest, ActionListener.wrap(filtersResponse -> {
+                MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                    jobsUsage,
+                    "filters",
+                    MlConfigSizeUsage.collectFilterConfigSizes(filtersResponse.getFilters().results())
+                );
+                GetCalendarEventsAction.Request eventsRequest = new GetCalendarEventsAction.Request(GetCalendarsAction.Request.ALL);
+                eventsRequest.setPageParams(new PageParams(0, 10_000));
+                client.execute(GetCalendarEventsAction.INSTANCE, eventsRequest, ActionListener.wrap(eventsResponse -> {
+                    MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                        jobsUsage,
+                        "scheduled_events",
+                        MlConfigSizeUsage.collectScheduledEventConfigSizes(eventsResponse.getResources().results())
+                    );
+                    collectModelSnapshotConfigSizes(jobsUsage, listener);
+                }, e -> {
+                    logger.warn("Failed to get scheduled events to include in ML usage", e);
+                    collectModelSnapshotConfigSizes(jobsUsage, listener);
+                }));
+            }, e -> {
+                logger.warn("Failed to get filters to include in ML usage", e);
+                collectModelSnapshotConfigSizes(jobsUsage, listener);
+            }));
+        }, e -> {
+            logger.warn("Failed to get calendars to include in ML usage", e);
+            collectModelSnapshotConfigSizes(jobsUsage, listener);
+        }));
+    }
+
+    private void collectModelSnapshotConfigSizes(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
+        GetModelSnapshotsAction.Request snapshotsRequest = new GetModelSnapshotsAction.Request("*", null);
+        // Sample at most 10_000 snapshots across all jobs for description-size histograms.
+        snapshotsRequest.setPageParams(new PageParams(0, 10_000));
+        client.execute(GetModelSnapshotsAction.INSTANCE, snapshotsRequest, ActionListener.wrap(response -> {
+            MlConfigSizeUsage.putAuxiliaryConfigSizes(
+                jobsUsage,
+                "model_snapshots",
+                MlConfigSizeUsage.collectModelSnapshotConfigSizes(response.getPage().results())
+            );
+            listener.onResponse(null);
+        }, e -> {
+            logger.warn("Failed to get model snapshots to include in ML usage", e);
+            listener.onResponse(null);
+        }));
     }
 
     private static int mlNodeCount(final ClusterState clusterState) {

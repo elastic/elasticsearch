@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -248,13 +250,63 @@ public class AnthropicToolUtilsTests extends ESTestCase {
                             {
                                 "type": "tool_result",
                                 "tool_use_id": "call_1",
-                                "content": "72F and sunny"
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "72F and sunny"
+                                    }
+                                ]
                             }
                         ]
                     }
                 ]
             }
             """);
+    }
+
+    public void testWriteMessages_translatesToolResultContentObjectsToTextBlocks() throws IOException {
+        // OpenAI also accepts a tool message whose content is an array of text objects; each becomes an Anthropic text block.
+        var content = new ContentObjects(
+            List.of(new ContentObject.ContentObjectText("72F and sunny"), new ContentObject.ContentObjectText("Humidity is 40%"))
+        );
+        var message = new Message(content, "tool", "call_1", null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_1",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "72F and sunny"
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": "Humidity is 40%"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_toolResultWithNonTextContentThrows() {
+        var imageUrl = new ContentObject.ContentObjectImage.ContentObjectImageUrl("https://example.com/image.png", null);
+        var content = new ContentObjects(List.of(new ContentObject.ContentObjectImage(imageUrl)));
+        var message = new Message(content, "tool", "call_1", null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Unsupported content type [image_url] in a tool message for the Anthropic chat completion API.")
+        );
     }
 
     public void testWriteMessages_emitsLeadingTextBlockWhenAssistantHasContent() throws IOException {

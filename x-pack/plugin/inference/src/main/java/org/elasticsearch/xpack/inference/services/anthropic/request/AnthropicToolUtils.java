@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.completion.Content;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -77,7 +80,9 @@ public final class AnthropicToolUtils {
      *         content is emitted as a leading {@code text} block. The OpenAI {@code arguments} string is parsed back into the JSON
      *         object Anthropic expects under {@code input}.</li>
      *     <li>A {@code role: "tool"} message becomes a {@code user} message whose {@code content} is a single {@code tool_result}
-     *         block ({@code {"type":"tool_result","tool_use_id":...,"content":...}}).</li>
+     *         block ({@code {"type":"tool_result","tool_use_id":...,"content":[{"type":"text","text":...}]}}). The unified API
+     *         accepts the tool message's {@code content} as either a plain string or an array of content objects; both are emitted
+     *         as an array of {@code text} blocks, which Anthropic accepts alongside the plain-string form.</li>
      * </ul>
      *
      * <p>All other messages (plain user/assistant text or multimodal content) are passed through with their unified serialization,
@@ -105,10 +110,7 @@ public final class AnthropicToolUtils {
         builder.startArray(CONTENT_FIELD);
         // Anthropic allows a leading text block alongside tool_use blocks; the unified assistant message often carries empty content.
         if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
-            builder.startObject();
-            builder.field(TYPE_FIELD, TEXT_TYPE);
-            builder.field(TEXT_FIELD, content);
-            builder.endObject();
+            writeTextBlock(builder, content);
         }
         for (var toolCall : toolCalls) {
             builder.startObject();
@@ -129,11 +131,48 @@ public final class AnthropicToolUtils {
         builder.startObject();
         builder.field(TYPE_FIELD, TOOL_RESULT_TYPE);
         builder.field(TOOL_USE_ID_FIELD, message.toolCallId());
-        if (message.content() instanceof ContentString cs) {
-            builder.field(CONTENT_FIELD, cs.content());
-        }
+        writeToolResultContent(builder, message.content());
         builder.endObject();
         builder.endArray();
+        builder.endObject();
+    }
+
+    /**
+     * Writes a {@code tool_result} block's {@code content}. Anthropic accepts either a plain string or an array of content blocks
+     * here; the array form is always emitted (mirroring the EIS gateway) so the unified API's two tool-message content shapes
+     * serialize uniformly: a {@link ContentString} becomes a single {@code text} block and each text item of a
+     * {@link ContentObjects} becomes its own {@code text} block. Non-text items are rejected with a 400 - the Anthropic services
+     * do not translate multimodal content - rather than forwarded in the OpenAI shape, which Anthropic would reject with a less
+     * actionable error. A {@code null} content writes no {@code content} field, which Anthropic permits on a {@code tool_result}.
+     */
+    private static void writeToolResultContent(XContentBuilder builder, Content content) throws IOException {
+        if (content instanceof ContentString(String text)) {
+            builder.startArray(CONTENT_FIELD);
+            writeTextBlock(builder, text);
+            builder.endArray();
+        } else if (content instanceof ContentObjects(List<ContentObject> contentObjects)) {
+            builder.startArray(CONTENT_FIELD);
+            for (var contentObject : contentObjects) {
+                if (contentObject instanceof ContentObject.ContentObjectText textObject) {
+                    writeTextBlock(builder, textObject.text());
+                } else {
+                    throw new ElasticsearchStatusException(
+                        Strings.format(
+                            "Unsupported content type [%s] in a tool message for the Anthropic chat completion API.",
+                            contentObject.type()
+                        ),
+                        RestStatus.BAD_REQUEST
+                    );
+                }
+            }
+            builder.endArray();
+        }
+    }
+
+    private static void writeTextBlock(XContentBuilder builder, String text) throws IOException {
+        builder.startObject();
+        builder.field(TYPE_FIELD, TEXT_TYPE);
+        builder.field(TEXT_FIELD, text);
         builder.endObject();
     }
 

@@ -146,7 +146,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
                     {
                         "role": "user",
                         "content": [
-                            {"type": "tool_result", "tool_use_id": "call_1", "content": "72F and sunny"}
+                            {"type": "tool_result", "tool_use_id": "call_1", "content": [{"type": "text", "text": "72F and sunny"}]}
                         ]
                     }
                 ],

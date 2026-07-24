@@ -417,7 +417,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 
 {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support) is supported in cross-cluster queries. By default, {{esql}} resolves the lookup index on every cluster in the query and each cluster joins against its own local index with that name. In this case, the lookup index must exist on every cluster being queried. This follows the same pattern as [remote mode Enrich](#esql-enrich-remote).
 
-If the lookup index is missing from one or more remote clusters, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against a local cluster lookup index copy.
+{applies_to}`stack: ga 9.6+` If the lookup index is missing from one or more remote clusters, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against a local cluster lookup index copy.
 
 
 ## Excluding clusters or indices from {{esql}} query [ccq-exclude]

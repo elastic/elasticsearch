@@ -125,6 +125,13 @@ public final class AnthropicToolUtils {
     }
 
     private static void writeToolResult(XContentBuilder builder, Message message) throws IOException {
+        // Anthropic requires tool_use_id on every tool_result block, so a tool message without a tool_call_id cannot be translated.
+        if (message.toolCallId() == null) {
+            throw new ElasticsearchStatusException(
+                "Field [tool_call_id] is required in a tool message for the Anthropic chat completion API.",
+                RestStatus.BAD_REQUEST
+            );
+        }
         builder.startObject();
         builder.field(ROLE_FIELD, USER_ROLE);
         builder.startArray(CONTENT_FIELD);

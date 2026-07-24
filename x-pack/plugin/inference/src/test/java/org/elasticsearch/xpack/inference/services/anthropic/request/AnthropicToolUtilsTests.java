@@ -309,6 +309,14 @@ public class AnthropicToolUtilsTests extends ESTestCase {
         );
     }
 
+    public void testWriteMessages_toolResultWithoutToolCallIdThrows() {
+        // Anthropic requires tool_use_id on every tool_result block, so a tool message must carry a tool_call_id.
+        var message = new Message(new ContentString("72F and sunny"), "tool", null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("Field [tool_call_id] is required in a tool message for the Anthropic chat completion API."));
+    }
+
     public void testWriteMessages_emitsLeadingTextBlockWhenAssistantHasContent() throws IOException {
         var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
         var message = new Message(new ContentString("Let me check the weather."), "assistant", null, List.of(toolCall));

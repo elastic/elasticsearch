@@ -336,4 +336,325 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
         assertTrue("Expected error about all platforms listed but got: " + result.errors(), hasError);
     }
+
+    /**
+     * A {@code @StructSpecification} interface that does NOT declare {@code extends Addressable}
+     * must compile cleanly — the processor no longer requires it.
+     */
+    public void testStructInterfaceWithoutAddressableCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface CleanStructLib {
+                @StructSpecification
+                interface RLimit {
+                    long rlim_cur();
+                    long rlim_max();
+                }
+
+                @Function("getrlimit")
+                int getrlimit(int resource, RLimit rlimit);
+            }
+            """;
+
+        CompilationResult result = compile("test.CleanStructLib", source);
+        assertTrue("Expected compilation to succeed without extends Addressable but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineArrayField} getter-only method
+     * must compile cleanly and produce a model.
+     */
+    public void testInlineArrayFieldGetterOnlyCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface InlineArrayLib {
+                @StructSpecification
+                interface SockAddr {
+                    short sa_family();
+                    @InlineArrayField(length = 14)
+                    byte sa_data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineArrayLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineArrayField} getter and setter pair
+     * must compile cleanly.
+     */
+    public void testInlineArrayFieldGetterSetterCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface InlineArrayLib {
+                @StructSpecification
+                interface SunPath {
+                    @InlineArrayField(length = 108)
+                    byte sun_path(int index);
+                    @InlineArrayField(length = 108)
+                    void sun_path(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineArrayLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineStringField} getter-only method
+     * must compile cleanly.
+     */
+    public void testInlineStringFieldGetterOnlyCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface UnixAddr {
+                    short sa_family();
+                    @InlineStringField(length = 108)
+                    String sun_path();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineStringField} getter and setter
+     * must compile cleanly.
+     */
+    public void testInlineStringFieldGetterSetterCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface UnixAddr {
+                    short sa_family();
+                    @InlineStringField(length = 108)
+                    String sun_path();
+                    @InlineStringField(length = 108)
+                    void sun_path(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * {@code @InlineArrayField} with a non-positive {@code length} must emit an error.
+     */
+    public void testInlineArrayFieldNonPositiveLengthEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 0)
+                    byte data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with zero length", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("positive length"));
+        assertTrue("Expected error about positive length but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineArrayField} applied to a non-primitive return type must emit an error.
+     */
+    public void testInlineArrayFieldNonPrimitiveReturnTypeEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    String data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with non-primitive return type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("primitive type"));
+        assertTrue("Expected error about primitive type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineStringField} with a non-String return type must emit an error.
+     */
+    public void testInlineStringFieldNonStringReturnTypeEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16)
+                    int notAString();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with non-String return type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must return String"));
+        assertTrue("Expected error about String return type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A method with both {@code @InlineArrayField} and {@code @InlineStringField} must emit an error
+     * (mixing annotations is forbidden).
+     */
+    public void testMixingInlineAnnotationsEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    @InlineStringField(length = 4)
+                    byte data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when mixing inline annotations", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("more than one"));
+        assertTrue("Expected error about mixing annotations but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * An {@code @InlineArrayField} getter/setter pair with mismatched lengths must emit an error.
+     */
+    public void testInlineArrayFieldMismatchedLengthEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    byte data(int index);
+                    @InlineArrayField(length = 8)
+                    void data(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with mismatched lengths", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("mismatched lengths"));
+        assertTrue("Expected error about mismatched lengths but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A getter and setter for the same scalar field that are separated by another field declaration
+     * must emit an error. Non-adjacent pairs would silently reorder struct fields, breaking the
+     * native memory layout.
+     */
+    public void testNonAdjacentGetterSetterEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Mixed {
+                    int a();
+                    int b();
+                    void a(int v);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when getter and setter are not adjacent", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("adjacent"));
+        assertTrue("Expected error about non-adjacent getter/setter but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * The same adjacency rule applies to {@code @InlineArrayField}: getter and setter must be
+     * declared next to each other.
+     */
+    public void testNonAdjacentInlineArrayFieldEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.InlineArrayField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Mixed {
+                    @InlineArrayField(length = 4)
+                    byte data(int index);
+                    short other();
+                    @InlineArrayField(length = 4)
+                    void data(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @InlineArrayField getter/setter are not adjacent", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("adjacent"));
+        assertTrue("Expected error about non-adjacent @InlineArrayField but got: " + result.errors(), hasError);
+    }
 }

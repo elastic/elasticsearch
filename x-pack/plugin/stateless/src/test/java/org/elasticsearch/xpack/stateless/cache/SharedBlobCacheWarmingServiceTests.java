@@ -2193,36 +2193,26 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
     public void testPrioritizationOfWarmingTasks() throws IOException {
         var primaryTerm = 1;
-        try (var fakeNode = createFakeNode(primaryTerm)) {
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    // Override to be able to block the thread pool easily.
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+        }) {
             var warmingService = fakeNode.warmingService;
 
             // We want to force the warming tasks that we assert on to go into the queue of the task runner.
             // That way we'll verify their order in the queue.
-            // The number of concurrent tasks in the rask runner is one more than the number of threads.
-            // Later we'll want to free up one slot in the thread pool at a time to assert the order.
-            // To do that and keeping in mind that concurrent tasks in the task runner is one more
-            // than the number of threads, we need three tasks that can be controlled independently to pull this off.
-            // See other comments below.
-            var genericWarmingBlockedLatch = new CountDownLatch(1);
-            var genericBlockingTask = new AbstractWarmingTask(INDEXING, 1) {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    try (releasable) {
-                        safeAwait(genericWarmingBlockedLatch);
-                    }
-                }
+            // The number of concurrent tasks in the rask runner is one more than the max number of threads in the pool
+            // so to control the scheduling we need two tasks.
 
-                @Override
-                public void onFailure(Exception e) {}
-            };
-            // These just occupy threads in the thread pool allowing fine grained control,
-            // note - 3 as discussed above.
-            int genericTasks = (1 + fakeNode.threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax()) - 3;
-            for (int i = 0; i < genericTasks; i++) {
-                warmingService.scheduleWarmingTask(genericBlockingTask);
-            }
-
-            // This task occupies the second-to-last available thread in the thread pool.
+            // This task occupies the single available thread in the thread pool.
             var task1Blocked = new CountDownLatch(1);
             var task1 = new AbstractWarmingTask(INDEXING, 1) {
                 @Override
@@ -2237,7 +2227,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             };
             warmingService.scheduleWarmingTask(task1);
 
-            // This task occupies the last available thread in the thread pool.
+            // This task occupies the last available slot in the task runner and is in the thread pool queue.
             var task2Blocked = new CountDownLatch(1);
             var task2 = new AbstractWarmingTask(INDEXING, 1) {
                 @Override
@@ -2252,23 +2242,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             };
             warmingService.scheduleWarmingTask(task2);
 
-            // This task takes the final slot in the task runner and is added to a thread pool queue.
-            var task3Blocked = new CountDownLatch(1);
-            var task3 = new AbstractWarmingTask(INDEXING, 1) {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    try (releasable) {
-                        safeAwait(task3Blocked);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {}
-            };
-            warmingService.scheduleWarmingTask(task3);
-
             // Now we can submit warming tasks with different priorities which will be added
-            // to task runner queue.
+            // to the task runner queue.
 
             var indexCommits = fakeNode.generateIndexCommitsWithoutCompoundFiles(randomIntBetween(1, 5));
             var vbcc = new VirtualBatchedCompoundCommit(
@@ -2339,22 +2314,27 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 nonMergeWarmFuture
             );
 
-            // This pulls the head item from the task runner queue and adds it to the thread pool queue.
+            // task1 occupies the single thread of the thread pool and task2 is in the thread pool queue.
+            // This allows task2 to get the thread in the thread pool,
+            // pulls the head item from the task runner queue and adds it to the thread pool queue.
             task1Blocked.countDown();
 
-            // This will pull the head item from the task runner queue again
-            // and allow to execute the task that is in the thread pool queue.
-            // The item pulled from the task runner queue is added to the thread pool queue.
+            // Submit another blocking task directly to the thread pool queue to block the pool again right after
+            // the first item from the task runner queue executes.
+            // This ensures we have strong asserts on which future is executed first below.
+            var inBetweenTaskBlocked = new CountDownLatch(1);
+            Runnable inBetweenTask = () -> safeAwait(inBetweenTaskBlocked);
+            fakeNode.threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL).submit(inBetweenTask);
+
+            // This allows the task in the thread pool queue to be executed and pulls the head item from the task runner queue.
+            // Due to priority this has to be the non-merge warming task.
             task2Blocked.countDown();
 
-            // And that task should be the non-merge one due to priority.
             safeGet(nonMergeWarmFuture);
             assertFalse(mergeWarmFuture.isDone());
 
-            task3Blocked.countDown();
+            inBetweenTaskBlocked.countDown();
             safeGet(mergeWarmFuture);
-
-            genericWarmingBlockedLatch.countDown();
         }
     }
 

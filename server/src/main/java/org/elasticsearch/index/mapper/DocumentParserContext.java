@@ -448,7 +448,7 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
-        // Stash the encoded violating value; FallbackStorageRouter.parseField drains this after fieldMapper.parse returns.
+        // Stash the encoded violating value; FieldMapper.parse drains this via takePendingMultiValueViolation at its end.
         pendingMultiValueViolations.put(fieldName, XContentDataHelper.encodeToken(parser()));
         addIgnoredField(fieldName);
         return true;
@@ -456,7 +456,7 @@ public abstract class DocumentParserContext {
 
     /**
      * Returns and removes the pending multi-value violation stash for {@code fieldName}, or {@code null} if none.
-     * Called by {@link FallbackStorageRouter} after {@link FieldMapper#parse} returns.
+     * Called by {@link FieldMapper#parse} at its end to collect any violation into a {@link ParseResult.MultiValueViolation}.
      */
     final BytesRef takePendingMultiValueViolation(String fieldName) {
         return pendingMultiValueViolations.remove(fieldName);

@@ -172,9 +172,6 @@ public final class FallbackStorageRouter {
     /**
      * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
      * before the mapper runs, or {@link Optional#empty()} if no pre-capture is needed.
-     * <p>
-     * Pre-capture is skipped for {@code multi_value=false, on_failure=ignore} fields: their extra values
-     * go to {@code ._on_failure} and pre-capturing would double-store the first accepted value.
      */
     public static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
         if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
@@ -203,9 +200,10 @@ public final class FallbackStorageRouter {
      * Parses a field value through the fallback storage pipeline.
      * <p>
      * Tentatively pre-captures the value when the field participates in any {@code _ignored_source} fallback
-     * path, then delegates to the mapper. After the mapper returns, the pre-capture is either committed
-     * (successful index), discarded (malformed — mapper already wrote to {@code ._ignore_malformed}), or
-     * discarded and re-routed to {@code ._on_failure} (multi-value violation).
+     * path, then delegates to the mapper. After the mapper returns, the pre-capture is committed on success,
+     * committed or discarded on malformed (committed for {@link FieldMapper.SyntheticSourceMode#FALLBACK} fields
+     * since they reconstruct from {@code _ignored_source}; discarded otherwise), or discarded and re-routed
+     * to {@code ._on_failure} on multi-value violation.
      *
      * @return the outcome of parsing the field value
      */

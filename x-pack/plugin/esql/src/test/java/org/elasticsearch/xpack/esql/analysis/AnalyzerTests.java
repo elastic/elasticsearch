@@ -203,6 +203,14 @@ public class AnalyzerTests extends ESTestCase {
         Settings.EMPTY
     );
 
+    @After
+    public void resetNameIndexThreshold() {
+        // A few tests flip the mutable static Analyzer.ResolveRefs#nameIndexThreshold to force a specific
+        // resolution path. Restore the production default after every test so the setting can never leak across
+        // tests that share this JVM, even if a test were to change it without restoring.
+        Analyzer.ResolveRefs.nameIndexThreshold = Analyzer.ResolveRefs.NAME_INDEX_THRESHOLD_DEFAULT;
+    }
+
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
         var analyzer = analyzer().addIndex(idx).buildAnalyzer();
@@ -4667,12 +4675,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(idAttr.name(), equalTo("id"));
     }
 
-    /**
-     * Wide child output (> NAME_INDEX_THRESHOLD) so reference resolution takes the exact-name index path in
-     * {@code ResolveRefs} (WHERE/SORT via {@code resolveExpressions}, explicit KEEP via {@code keepResolver},
-     * explicit DROP via {@code dropResolver}) rather than the per-reference linear scan. Results must match
-     * the scan path.
-     */
     public void testWideOutputResolvesThroughNameIndex() {
         IndexResolution resolution = keywordFieldsIndex("wide", 200);
 
@@ -4712,10 +4714,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(dropError.getMessage(), containsString("Unknown column [does_not_exist]"));
     }
 
-    /**
-     * The same query resolved against a narrow (scan path, {@code <= NAME_INDEX_THRESHOLD}) and a wide
-     * (index path) output must produce identical resolution.
-     */
     public void testWideAndNarrowOutputsResolveIdentically() {
         IndexResolution narrow = keywordFieldsIndex("narrow", 50);
         IndexResolution wide = keywordFieldsIndex("wide", 200);
@@ -4739,9 +4737,6 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    /**
-     * Resolution is identical right at the name-index threshold boundary (128 scans, 129 uses the index).
-     */
     public void testNameIndexThresholdBoundary() {
         IndexResolution atThreshold = keywordFieldsIndex("at_threshold", 128);
         IndexResolution overThreshold = keywordFieldsIndex("over_threshold", 129);
@@ -4757,14 +4752,6 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(analyzer().addIndex(atThreshold).query("FROM at_threshold | DROP f0").output(), hasSize(127));
         assertThat(analyzer().addIndex(overThreshold).query("FROM over_threshold | DROP f0").output(), hasSize(128));
-    }
-
-    @After
-    public void resetNameIndexThreshold() {
-        // A few tests flip the mutable static Analyzer.ResolveRefs#nameIndexThreshold to force a specific
-        // resolution path. Restore the production default after every test so the setting can never leak across
-        // tests that share this JVM, even if a test were to change it without restoring.
-        Analyzer.ResolveRefs.nameIndexThreshold = Analyzer.ResolveRefs.NAME_INDEX_THRESHOLD_DEFAULT;
     }
 
     public void testIndexAndScanPathsResolveIdenticallyGenerative() {
@@ -4813,10 +4800,6 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    /**
-     * A no-match on the index path still scans the full output for "did you mean" suggestions,
-     * for both the {@code resolveExpressions} (WHERE) and {@code keepResolver} (KEEP) entry points.
-     */
     public void testWideOutputUnknownColumnSuggestsSimilarThroughIndex() {
         IndexResolution wide = keywordFieldsIndex("wide", 200);
 
@@ -4835,9 +4818,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(keepErr.getMessage(), containsString("f100"));
     }
 
-    /**
-     * Explicit name (index path) and wildcard (scan path) combine in a single wide KEEP.
-     */
     public void testWideKeepExactAndWildcardCombine() {
         IndexResolution wide = keywordFieldsIndex("wide", 200);
         LogicalPlan plan = analyzer().addIndex(wide).query("FROM wide | KEEP f5, f1*");
@@ -4850,9 +4830,6 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    /**
-     * Wildcard DROP on a wide output, including overlapping patterns that re-match already-removed columns.
-     */
     public void testWideDropWildcardAndOverlap() {
         IndexResolution wide = keywordFieldsIndex("wide", 200);
 
@@ -4873,25 +4850,7 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    /**
-     * Guards the {@code if (ua.customMessage()) return ua;} short-circuit in {@code ResolveRefs#maybeResolveAttribute}
-     * on the wide (name-index) resolution path.
-     * <p>
-     * {@code ResolveRefs} runs to a fixed point, and an {@link UnresolvedAttribute} that already failed to resolve keeps
-     * {@code resolved() == false}, so it is re-visited on every subsequent pass. If, on such a re-visit, the child output
-     * contains two same-name attributes, re-running resolution would reach {@code AnalyzerRules.resolveCollectedMatches},
-     * which throws "Found ambiguous reference" on 2+ non-pattern matches - clobbering the attribute's deliberate custom
-     * message. Notably, the downstream {@code customMessage()} check in {@code potentialCandidatesIfNoMatchesFound} cannot
-     * prevent this, because the ambiguity throw happens earlier, inside {@code resolveCollectedMatches}. Only the early
-     * guard does.
-     * <p>
-     * This reproduces that mid-fixed-point state directly - a wide ({@code > NAME_INDEX_THRESHOLD}) output with a
-     * duplicated name feeding a WHERE whose condition is an already-customized reference - and asserts the guard returns
-     * the reference unchanged. Removing the guard makes this throw a {@link VerificationException}.
-     */
     public void testWideCustomMessageAttributeIsNotReResolvedToAmbiguity() {
-        // Wide output (> NAME_INDEX_THRESHOLD) so resolveExpressions takes the name-index path; "dup" appears twice so
-        // its index bucket is ambiguous.
         List<Attribute> attrs = new ArrayList<>();
         for (int i = 0; i < 129; i++) {
             String f = "f" + i;

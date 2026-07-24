@@ -456,7 +456,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         // The query value can only be converted to the field's runtime type once it has been folded down to a
         // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
         // postOptimizationPlanVerification runs.
-        boolean validQueryValue = true;
         if (query() instanceof Literal) {
             try {
                 verifyRuntimeQueryValue();
@@ -470,12 +469,18 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         field.sourceText()
                     )
                 );
-                validQueryValue = false;
             }
         }
 
-        if (options() != null && validQueryValue) {
+        if (options() != null && field().dataType() == TEXT) {
             verifyRuntimeOptions(function, field, failures);
+        } else if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
+                )
+            );
         }
     }
 

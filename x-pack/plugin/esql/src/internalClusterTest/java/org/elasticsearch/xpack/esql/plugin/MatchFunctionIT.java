@@ -550,6 +550,19 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchRuntimeEvalNonTextTypeWithOptionsThrowsError() {
+        var query = """
+             FROM test
+             | EVAL new_id = to_long(id)
+             | WHERE match(new_id, "200", {"analyzer": "whitespace" })
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [new_id]")
+        );
+    }
+
     public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
         var query = """
             FROM test

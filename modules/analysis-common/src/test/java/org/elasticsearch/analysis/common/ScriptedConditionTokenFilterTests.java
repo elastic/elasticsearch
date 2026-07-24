@@ -114,19 +114,20 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             }
         };
         @SuppressWarnings("unchecked")
-        ScriptService scriptService = new ScriptService(
-            indexSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            () -> 1L,
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
-        ) {
+        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 return (FactoryType) factory;
             }
         };
-        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
+        Client client = new MockClient(Settings.EMPTY, null);
+
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.client()).thenReturn(client);
+        when(services.scriptService()).thenReturn(scriptService);
+        plugin.createComponents(services);
+
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),

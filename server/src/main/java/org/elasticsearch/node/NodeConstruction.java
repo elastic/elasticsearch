@@ -933,7 +933,6 @@ class NodeConstruction {
         };
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
-        // Recovery gates are contributed by plugins (RecoveryPlugin#getRecoveryGates) and registered below, once plugin components exist.
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,

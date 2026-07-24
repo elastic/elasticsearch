@@ -22,6 +22,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -92,12 +93,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.projectResolver = projectResolver;
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
-        this.recoveryGates = new RecoveryGates(
-            this::fillSlots,
-            schedulingListener::onRecoveriesBlocked,
-            schedulingListener::onRecoveriesUnblocked,
-            threadPool::relativeTimeInMillis
-        );
+        this.recoveryGates = new RecoveryGates(this::fillSlots, (gateName, reason) -> {
+            logger.info("recovery dispatch blocked by gate [{}]: {}", gateName, reason);
+            schedulingListener.onRecoveriesBlocked(gateName);
+        }, (gateName, blockedTimeMillis) -> {
+            logger.info("resuming recoveries held for [{}] by gate [{}]", TimeValue.timeValueMillis(blockedTimeMillis), gateName);
+            schedulingListener.onRecoveriesUnblocked(gateName, blockedTimeMillis);
+        }, threadPool::relativeTimeInMillis);
     }
 
     /// Registers a recovery gate that can hold recoveries back beyond the concurrency bound. Called at startup.
@@ -303,13 +305,23 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         final RecoveryGate.Decision decision = recoveryGates.check();
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
-            if (isClosed() == false && decision.mayRun()) {
-                while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
-                    final PendingRecovery recovery = pendingRecoveries.poll();
-                    recoveriesToDispatch.add(recovery);
-                    runningRecoveries++;
-                    recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
-                }
+            if (isClosed()) {
+                return;
+            }
+            if (decision.mayRun() == false) {
+                logger.debug(
+                    "recovery dispatch still blocked by gate [{}] for [{}]: {}",
+                    decision.gateName(),
+                    TimeValue.timeValueMillis(recoveryGates.blockedDurationMillis()),
+                    decision.reason()
+                );
+                return;
+            }
+            while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
+                final PendingRecovery recovery = pendingRecoveries.poll();
+                recoveriesToDispatch.add(recovery);
+                runningRecoveries++;
+                recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {

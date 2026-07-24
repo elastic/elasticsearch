@@ -11,7 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.ObjLongConsumer;
 
@@ -26,7 +26,7 @@ final class RecoveryGates {
 
     /// Forwarded to each gate on [#addGate] as its change handler; invoking it asks the scheduler to re-check.
     private final Runnable onGateChange;
-    private final Consumer<String> onBlocked;
+    private final BiConsumer<String, String> onBlocked;
     private final ObjLongConsumer<String> onUnblocked;
     private final LongSupplier relativeTimeInMillisSupplier;
 
@@ -37,11 +37,11 @@ final class RecoveryGates {
     private long lastTransitionMillis;
 
     /// @param onGateChange re-check handler forwarded to each gate as its change handler
-    /// @param onBlocked    invoked with the gate's name when the node starts holding recoveries back
+    /// @param onBlocked    invoked with the gate's name and reason when the node starts holding recoveries back
     /// @param onUnblocked  invoked with the gate's name and how long the node was blocked, when it resumes
     RecoveryGates(
         Runnable onGateChange,
-        Consumer<String> onBlocked,
+        BiConsumer<String, String> onBlocked,
         ObjLongConsumer<String> onUnblocked,
         LongSupplier relativeTimeInMillisSupplier
     ) {
@@ -82,9 +82,14 @@ final class RecoveryGates {
         if (current.mayRun()) {
             onUnblocked.accept(previous.gateName(), blockedTimeMillis);
         } else {
-            onBlocked.accept(current.gateName());
+            onBlocked.accept(current.gateName(), current.reason());
         }
         return current;
+    }
+
+    /// How long the node has currently been blocked, in millis, or 0 if not currently blocked.
+    synchronized long blockedDurationMillis() {
+        return lastTransitionDecision.mayRun() ? 0L : relativeTimeInMillisSupplier.getAsLong() - lastTransitionMillis;
     }
 
     /// The current node-wide decision, most-restrictive-wins: the first non-may-run gate's decision, else [RecoveryGate.Decision#RUN].

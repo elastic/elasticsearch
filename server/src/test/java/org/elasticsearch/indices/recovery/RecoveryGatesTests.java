@@ -65,7 +65,7 @@ public class RecoveryGatesTests extends ESTestCase {
     public void testForwardsChangeHandlerToGates() {
         // The gate-change handler is forwarded to each gate, so a gate reporting a change re-checks (adding a gate does not).
         final AtomicInteger reChecks = new AtomicInteger();
-        final var gates = new RecoveryGates(reChecks::incrementAndGet, gateName -> {}, (gateName, millis) -> {}, () -> 0L);
+        final var gates = new RecoveryGates(reChecks::incrementAndGet, (gateName, reason) -> {}, (gateName, millis) -> {}, () -> 0L);
 
         final List<TestGate> added = new ArrayList<>();
         for (int i = between(1, 4); i > 0; i--) {
@@ -84,14 +84,16 @@ public class RecoveryGatesTests extends ESTestCase {
 
     public void testCheckReportsTransitionsWithBlockedDuration() {
         final var blockedGate = new AtomicReference<String>();
+        final var blockedReason = new AtomicReference<String>();
         final var unblockedGate = new AtomicReference<String>();
         final var reportedMillis = new AtomicLong(-1);
         final var blockedCount = new AtomicInteger();
         final var unblockedCount = new AtomicInteger();
         final long startMillis = randomLongBetween(0, 1_000_000);
         final var clock = new AtomicLong(startMillis);
-        final var gates = new RecoveryGates(() -> {}, gateName -> {
+        final var gates = new RecoveryGates(() -> {}, (gateName, reason) -> {
             blockedGate.set(gateName);
+            blockedReason.set(reason);
             blockedCount.incrementAndGet();
         }, (gateName, millis) -> {
             unblockedGate.set(gateName);
@@ -106,9 +108,10 @@ public class RecoveryGatesTests extends ESTestCase {
         assertTrue(gates.check().mayRun());
         assertThat(blockedCount.get(), equalTo(0));
 
-        // Flips to block: reported once, naming the responsible gate. Repeated checks while blocked do not re-report.
+        // Flips to block: reported once, naming the responsible gate and reason. Repeated checks while blocked do not re-report.
         final String gateName = randomIdentifier();
-        gate.set(Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
+        final String reason = randomAlphaOfLengthBetween(5, 30);
+        gate.set(Decision.block(gateName, reason));
         final long blockMillis = startMillis + randomLongBetween(0, 10_000);
         clock.set(blockMillis);
         assertFalse(gates.check().mayRun());
@@ -117,6 +120,7 @@ public class RecoveryGatesTests extends ESTestCase {
         }
         assertThat(blockedCount.get(), equalTo(1));
         assertThat(blockedGate.get(), equalTo(gateName));
+        assertThat(blockedReason.get(), equalTo(reason));
         assertThat(unblockedCount.get(), equalTo(0));
 
         // Flips back to run: reported once with the elapsed blocked time and the gate that had been blocking.
@@ -130,7 +134,7 @@ public class RecoveryGatesTests extends ESTestCase {
     }
 
     private static RecoveryGates newGates() {
-        return new RecoveryGates(() -> {}, gateName -> {}, (gateName, millis) -> {}, () -> 0L);
+        return new RecoveryGates(() -> {}, (gateName, reason) -> {}, (gateName, millis) -> {}, () -> 0L);
     }
 
     private static class TestGate implements RecoveryGate {

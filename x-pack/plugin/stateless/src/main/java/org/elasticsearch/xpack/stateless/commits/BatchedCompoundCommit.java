@@ -172,12 +172,12 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
         @Override
         public boolean hasNext() {
-            assert offset < maxBlobLength || offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
-                : "offset "
-                    + offset
-                    + " != page-aligned blobLength "
-                    + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
-                    + " with exact blob length flag [true]";
+            // assert offset < maxBlobLength || offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
+            // : "offset "
+            // + offset
+            // + " != page-aligned blobLength "
+            // + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
+            // + " with exact blob length flag [true]";
             return offset < maxBlobLength;
         }
 

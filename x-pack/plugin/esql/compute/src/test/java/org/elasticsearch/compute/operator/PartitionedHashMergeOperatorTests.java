@@ -238,16 +238,13 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     }
 
     /**
-     * Regression test: COUNT aggregation through the promoted (partitioned) path calls
-     * {@code addGather} on {@link org.elasticsearch.compute.aggregation.CountGroupingAggregatorFunction},
-     * which previously threw {@link UnsupportedOperationException} because both of its anonymous
-     * {@code AddInput} inner classes were missing the override.
+     * Regression test: COUNT aggregation works correctly through the promoted (partitioned) path.
      */
     public void testCountAggregationPromotedPath() {
         Map<Long, Long> countOracle = new HashMap<>();
         List<Page> raw = rawCountInput(4_000, 200, countOracle);
 
-        // Data-node operator: COUNT(*) with low threshold to trigger conversion → addGather calls.
+        // Data-node operator: COUNT(*) with low threshold to trigger conversion to partitioned mode.
         AggregatorFunctionSupplier countSupplier = CountAggregatorFunction.supplier();
         PartitionedHashAggregationOperator dataNodeOp = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))

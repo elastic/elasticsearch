@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Exercises {@link PartitionedHashAggregationOperator} end to end: conversion from the legacy
- * single table to N partitions, bucket-sort routing via {@code addGather}, per-partition early
- * emit, null-key handling, and the multi-valued-key fallback to permanent single-table behavior.
+ * single table to N partitions, bucket-sort routing, per-partition early emit, null-key handling,
+ * and the multi-valued-key fallback to permanent single-table behavior.
  * Every test compares the operator's output (which is always {@link AggregatorMode#INITIAL},
  * i.e. intermediate state - sum/seen/failed per group, possibly split across several emitted
  * pages for the same key) against a hand-computed reference by folding all emitted rows for a
@@ -292,10 +292,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     /**
-     * Regression test: COUNT aggregation in the promoted (partitioned) path calls
-     * {@code addGather} on {@link org.elasticsearch.compute.aggregation.CountGroupingAggregatorFunction},
-     * which previously threw {@link UnsupportedOperationException} because both anonymous
-     * {@code AddInput} inner classes were missing the override.
+     * Regression test: COUNT aggregation works correctly in the promoted (partitioned) path.
      */
     public void testCountAggregationInPromotedPath() {
         Map<Long, Long> oracle = new HashMap<>();
@@ -305,10 +302,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
-            // Empty channel list → countAll=true → exercises the countAll addGather path.
             .aggregators(List.of(countAllFactory()))
             .partitionCount(8)
-            .partitionConversionThreshold(30)  // low threshold forces conversion → addGather calls
+            .partitionConversionThreshold(30)  // low threshold forces conversion to partitioned mode
             .perPartitionEmit(Integer.MAX_VALUE, 1.0)
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);

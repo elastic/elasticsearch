@@ -80,11 +80,6 @@ public final class AnyBooleanGroupingAggregatorFunction implements GroupingAggre
       }
 
       @Override
-      public void addGather(IntVector groupIds, IntVector positions) {
-        addRawInput(groupIds, positions, valuesBlock);
-      }
-
-      @Override
       public void close() {
       }
     };
@@ -259,14 +254,6 @@ public final class AnyBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AnyBooleanAggregator.combineIntermediate(state, groupId, observed.getBoolean(valuesPosition), values, valuesPosition);
-    }
-  }
-
-  private void addRawInput(IntVector groupIds, IntVector positions, BooleanBlock valuesBlock) {
-    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-      int valuesPosition = positions.getInt(groupPosition);
-      int groupId = groupIds.getInt(groupPosition);
-      AnyBooleanAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

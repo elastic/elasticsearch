@@ -89,11 +89,6 @@ public final class SpatialExtentGeoShapeCombinedDocValuesGroupingAggregatorFunct
       }
 
       @Override
-      public void addGather(IntVector groupIds, IntVector positions) {
-        addRawInput(groupIds, positions, valuesBlock);
-      }
-
-      @Override
       public void close() {
       }
     };
@@ -436,14 +431,6 @@ public final class SpatialExtentGeoShapeCombinedDocValuesGroupingAggregatorFunct
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentGeoShapeCombinedDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
-    }
-  }
-
-  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valuesBlock) {
-    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-      int valuesPosition = positions.getInt(groupPosition);
-      int groupId = groupIds.getInt(groupPosition);
-      SpatialExtentGeoShapeCombinedDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

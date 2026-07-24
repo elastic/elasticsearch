@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -375,7 +374,7 @@ public class PartitionedHashAggregationOperator implements Operator {
      * at channel 0, then each aggregator's raw value(s) at {@link #combinedChannelStart}[i]. Every
      * table's aggregators are built with channels wide enough to also read their own intermediate
      * state (channel 0's group id excluded) at those same positions, so the exact same aggregator
-     * instances can be fed either raw pages (via {@code addGather}, reading only the first
+     * instances can be fed either raw pages (reading only the first
      * {@code rawChannels.size()} of their channels) or this operator's own intermediate pages
      * (reading all of them) - no separate "raw" vs. "intermediate" aggregator instances needed.
      * <p>
@@ -581,17 +580,16 @@ public class PartitionedHashAggregationOperator implements Operator {
      * Routes each row to its owning partition, then bucket-sorts positions so each partition's rows
      * are contiguous before insertion. For each partition we:
      * <ol>
-     *   <li>Compute a partition ID per row via {@link BlockHash.Router#fillPartitions}. Rows with
-     *       a null key land in {@link #NULL_PARTITION} regardless of their hash.</li>
+     *   <li>Compute a partition ID per row. When no key column has nulls,
+     *       {@link BlockHash.Router#fillPartitions} is used: implementations can hoist
+     *       {@link Page#getBlock} calls outside the inner loop (O(1) per page instead of O(N)).
+     *       Rows with a null key land in {@link #NULL_PARTITION} regardless.</li>
      *   <li>Bucket-sort positions into a per-partition contiguous range in O(N+P) time.</li>
-     *   <li>Build a key-only sub-page by filtering just the key columns (no value columns) for
-     *       the partition's sorted positions. Aggregators are prepared against the original full
-     *       page so their {@link GroupingAggregatorFunction.AddInput} instances hold references to
-     *       the original value blocks — no copy of value columns needed.</li>
-     *   <li>Feed the key sub-page to {@code partitions[p].blockHash.add()} with a
-     *       {@link GatherFanOutAddInput} that converts each {@code (positionOffset, groupIds)}
-     *       callback into {@code addInput.addGather(groupIds, positionsVector)} calls, reading
-     *       values directly from the original page at the pre-sorted positions.</li>
+     *   <li>Create a filtered sub-page via {@link Page#filter(boolean, int[], int, int)},
+     *       passing the pre-sorted positions array with an offset and length to avoid a
+     *       per-partition {@link java.util.Arrays#copyOfRange} allocation.</li>
+     *   <li>Feed the sub-page to {@code partitions[p].blockHash.add()} — the fastest available
+     *       hash for this schema (typically {@code LongIntAdaptiveBlockHash}).</li>
      * </ol>
      */
     private void addToPartitions(Page page) {
@@ -616,32 +614,16 @@ public class PartitionedHashAggregationOperator implements Operator {
                 continue;
             }
             Table table = partitions[p];
-            // Copy only the key columns for blockHash; value columns are read from the original
-            // page via addGather, so we never materialize those copies.
-            Block[] keyBlocks = new Block[keyCount];
-            boolean success = false;
-            try {
-                for (int k = 0; k < keyCount; k++) {
-                    keyBlocks[k] = page.getBlock(k).filter(false, sortedPositions, start, end - start);
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.closeExpectNoException(keyBlocks);
-                }
-            }
-            try (Page keySubPage = new Page(keyBlocks)) {
+            try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
                 List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
                 try {
                     for (GroupingAggregator aggregator : table.aggregators) {
-                        // Prepare against the original page: AddInput captures the original value
-                        // blocks so addGather reads them at gather positions without copying.
-                        GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(table.blockHash, page);
+                        GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(table.blockHash, subPage);
                         if (addInput != null) {
                             prepared.add(addInput);
                         }
                     }
-                    table.blockHash.add(keySubPage, new GatherFanOutAddInput(prepared, sortedPositions, start, driverContext.blockFactory()));
+                    table.blockHash.add(subPage, new FanOutAddInput(prepared));
                 } finally {
                     Releasables.closeExpectNoException(Releasables.wrap(prepared));
                 }
@@ -933,70 +915,6 @@ public class PartitionedHashAggregationOperator implements Operator {
         public void add(int positionOffset, IntVector groupIds) {
             for (GroupingAggregatorFunction.AddInput p : prepared) {
                 p.add(positionOffset, groupIds);
-            }
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    /**
-     * {@link GroupingAggregatorFunction.AddInput} used in {@link #addToPartitions}: translates
-     * each {@code (positionOffset, IntVector groupIds)} callback from blockHash into
-     * {@code addGather(groupIds, positionsVector)} calls on each prepared aggregator, where
-     * {@code positionsVector} is the slice of {@code sortedPositions[start + positionOffset ..]}
-     * that maps sub-page positions back to positions in the original full page.
-     * <p>
-     *     {@link #add(int, IntArrayBlock)} and {@link #add(int, IntBigArrayBlock)} must never be
-     *     called: {@link #addToPartitions} only runs after {@link #hasMultiValuedKeys} confirmed no
-     *     MV keys on this page, so every block-hash implementation produces {@code IntVector}
-     *     group IDs (dense, single-valued) for the whole lifetime of this callback.
-     * </p>
-     */
-    private static final class GatherFanOutAddInput implements GroupingAggregatorFunction.AddInput {
-        private final List<GroupingAggregatorFunction.AddInput> prepared;
-        private final int[] sortedPositions;
-        private final int start;
-        private final BlockFactory blockFactory;
-
-        GatherFanOutAddInput(
-            List<GroupingAggregatorFunction.AddInput> prepared,
-            int[] sortedPositions,
-            int start,
-            BlockFactory blockFactory
-        ) {
-            this.prepared = prepared;
-            this.sortedPositions = sortedPositions;
-            this.start = start;
-            this.blockFactory = blockFactory;
-        }
-
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            throw new AssertionError("unexpected IntArrayBlock group IDs in gather path; MV key check should have prevented this");
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            throw new AssertionError("unexpected IntBigArrayBlock group IDs in gather path; MV key check should have prevented this");
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            int len = groupIds.getPositionCount();
-            try (IntVector positions = buildPositions(start + positionOffset, len)) {
-                for (GroupingAggregatorFunction.AddInput p : prepared) {
-                    p.addGather(groupIds, positions);
-                }
-            }
-        }
-
-        private IntVector buildPositions(int base, int len) {
-            try (var builder = blockFactory.newIntVectorFixedBuilder(len)) {
-                for (int i = 0; i < len; i++) {
-                    builder.appendInt(sortedPositions[base + i]);
-                }
-                return builder.build();
             }
         }
 

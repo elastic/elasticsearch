@@ -81,11 +81,6 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
       }
 
       @Override
-      public void addGather(IntVector groupIds, IntVector positions) {
-        addRawInput(groupIds, positions, valuesBlock);
-      }
-
-      @Override
       public void close() {
       }
     };
@@ -260,14 +255,6 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AnyLongAggregator.combineIntermediate(state, groupId, observed.getBoolean(valuesPosition), values, valuesPosition);
-    }
-  }
-
-  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock valuesBlock) {
-    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-      int valuesPosition = positions.getInt(groupPosition);
-      int groupId = groupIds.getInt(groupPosition);
-      AnyLongAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

@@ -87,11 +87,6 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       }
 
       @Override
-      public void addGather(IntVector groupIds, IntVector positions) {
-        addRawInput(groupIds, positions, vectorBlock);
-      }
-
-      @Override
       public void close() {
       }
     };
@@ -290,22 +285,6 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
-    }
-  }
-
-  private void addRawInput(IntVector groupIds, IntVector positions, FloatBlock vectorBlock) {
-    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-      int valuesPosition = positions.getInt(groupPosition);
-      int groupId = groupIds.getInt(groupPosition);
-      if (state.hasFailed(groupId)) {
-        continue;
-      }
-      try {
-        SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        state.setFailed(groupId);
-      }
     }
   }
 

@@ -4141,7 +4141,7 @@ public class TranslogTests extends ESTestCase {
      */
     private static Consumer<LongsRef> longsRefConsumer(LongConsumer consumer) {
         return longsRef -> {
-            for (int i = longsRef.offset; i < longsRef.length; i++) {
+            for (int i = longsRef.offset; i < longsRef.offset + longsRef.length; i++) {
                 consumer.accept(longsRef.longs[i]);
             }
         };

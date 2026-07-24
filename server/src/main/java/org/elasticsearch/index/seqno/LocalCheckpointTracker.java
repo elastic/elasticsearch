@@ -145,7 +145,7 @@ public class LocalCheckpointTracker {
      */
     public void markSeqNosAsPersisted(final LongsRef seqNos) {
         synchronized (persistedSeqNo) {
-            for (int i = seqNos.offset; i < seqNos.length; i++) {
+            for (int i = seqNos.offset; i < seqNos.offset + seqNos.length; i++) {
                 markSeqNo(seqNos.longs[i], persistedCheckpoint, persistedSeqNo);
             }
         }

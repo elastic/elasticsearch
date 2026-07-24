@@ -100,7 +100,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_obsolete_regions.enabled",
         false,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
 
@@ -318,7 +318,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
-    public boolean evictObsoleteRegionsEnabled() {
+    public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
     }
 

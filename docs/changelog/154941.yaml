@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154941
+summary: Fixes other possible causes of losing warnings (third attempt)
+type: bug

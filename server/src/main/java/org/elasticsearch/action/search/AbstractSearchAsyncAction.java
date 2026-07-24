@@ -76,8 +76,9 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+    public static final String PARTIAL_RESULTS_CANCELLATION_REASON = "partial results are not allowed and at least one shard has failed";
 
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -452,7 +453,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                        searchTransportService.cancelSearchTask(task, PARTIAL_RESULTS_CANCELLATION_REASON);
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }

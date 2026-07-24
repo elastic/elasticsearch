@@ -56,39 +56,6 @@ This page provides technical reference information for the `semantic` field type
 `meta`
 :   (Optional, object) Metadata about the field. Refer to [`meta`](./mapping-field-meta.md).
 
-The following example customizes the search endpoint, text chunking, and dense-vector index options:
-
-```console
-PUT my-semantic-index
-{
-  "mappings": {
-    "properties": {
-      "content": {
-        "type": "semantic",
-        "inference_id": "my-index-embedding-endpoint", <1>
-        "search_inference_id": "my-search-embedding-endpoint", <2>
-        "chunking_settings": { <3>
-          "strategy": "word",
-          "max_chunk_size": 250,
-          "overlap": 50
-        },
-        "index_options": { <4>
-          "dense_vector": {
-            "type": "int8_hnsw"
-          }
-        }
-      }
-    }
-  }
-}
-```
-% TEST[skip:Requires embedding {{infer}} endpoints]
-
-1. Endpoint used to generate embeddings while indexing.
-2. Compatible endpoint used to generate embeddings while querying.
-3. Splits text into chunks of at most 250 words, with an overlap of 50 words.
-4. Indexes the embeddings using `int8_hnsw` quantization.
-
 ## {{infer-cap}} endpoint requirements [semantic-inference-endpoint]
 
 A `semantic` field requires an {{infer}} endpoint with the `embedding` task type. The endpoint determines:

@@ -183,6 +183,7 @@ toc:
           - file: mapping-reference/search-as-you-type.md
           - file: mapping-reference/semantic-field.md
             children:
+              - file: mapping-reference/semantic-field-quickstart.md
               - file: mapping-reference/semantic-field-reference.md
           - file: mapping-reference/semantic-text.md
             children:

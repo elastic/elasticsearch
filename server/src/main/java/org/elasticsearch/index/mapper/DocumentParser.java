@@ -328,9 +328,6 @@ public final class DocumentParser {
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
         if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
-            var captureReason = sourceKeepMode == Mapper.SourceKeepMode.ALL
-                ? FallbackStorageRouter.Reason.SOURCE_KEEP_ALL
-                : FallbackStorageRouter.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
             context = FallbackStorageRouter.preCaptureParent(context);
             token = context.parser().currentToken();
             parser = context.parser();

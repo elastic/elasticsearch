@@ -20,7 +20,7 @@ public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Mal
     /** The value was parsed and indexed successfully; no fallback write is needed. */
     record Indexed() implements ParseResult {}
 
-    /** Malformed with {@code ignore_malformed} enabled; the mapper already wrote to {@code ._ignore_malformed}. */
+    /** The field was ignored during parsing (e.g. {@code ignore_malformed} or {@code ignore_above}); the mapper wrote to its own fallback destination. */
     record Malformed() implements ParseResult {}
 
     /**

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,10 +39,10 @@ import java.util.Objects;
  * <p>The pattern for a plan is computed by the analyzer's {@code DetermineUnmappedFieldsToKeep} rule.
  */
 public final class UnmappedFieldsPattern implements NamedWriteable {
-    private static final String MATCH_ALL = "*";
+    private static final List<String> INCLUDES_ALL = List.of("*");
 
     /** Keep every additional source field (no filtering applied). */
-    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(List.of(MATCH_ALL), List.of());
+    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(INCLUDES_ALL, List.of());
 
     /** Keep no additional source fields. */
     public static final UnmappedFieldsPattern NONE = new UnmappedFieldsPattern(List.of(), List.of());
@@ -51,28 +50,41 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     private final List<String> includes;
     private final List<String> excludes;
 
-    public UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
+    public static UnmappedFieldsPattern excludes(List<String> excludes) {
+        return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes);
+    }
+
+    public static UnmappedFieldsPattern includes(List<String> includes) {
+        return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(includes, List.of());
+    }
+
+    private UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
         this.includes = includes;
         this.excludes = excludes;
     }
-
-    public static final List<String> INCLUDES_ALL = List.of(MATCH_ALL);
 
     /** Returns the intersection pattern, i.e., a field would match iff it matches both this and the other pattern. */
     public UnmappedFieldsPattern intersect(UnmappedFieldsPattern other) {
         return isNone() || other.isNone()
             ? NONE
-            : new UnmappedFieldsPattern(effectiveIncludes(other), CollectionUtils.combine(excludes, other.excludes));
+            : new UnmappedFieldsPattern(effectiveIncludes(other), combineDeduping(excludes, other.excludes));
+    }
+
+    private static List<String> combineDeduping(List<String> l1, List<String> l2) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(l1.size() + l2.size());
+        merged.addAll(l1);
+        merged.addAll(l2);
+        return new ArrayList<>(merged);
     }
 
     private List<String> effectiveIncludes(UnmappedFieldsPattern other) {
         if (includes.equals(INCLUDES_ALL)) {
             return other.includes;
         }
-        if (other.includes.equals(List.of(MATCH_ALL))) {
+        if (other.includes.equals(INCLUDES_ALL)) {
             return includes;
         }
-        return CollectionUtils.combine(includes, other.includes);
+        return combineDeduping(includes, other.includes);
     }
 
     /**
@@ -81,7 +93,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * every include.
      */
     public boolean matches(String name) {
-        return includes.isEmpty() == false
+        return isNone() == false
             && excludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
             && includes.stream().allMatch(include -> Regex.simpleMatch(include, name));
     }
@@ -90,7 +102,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * Returns a new pattern with {@code names} appended to the excludes list, deduplicating.
      */
     public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {
-        if (names.isEmpty()) {
+        if (names.isEmpty() || this.isNone()) {
             return this;
         }
         LinkedHashSet<String> merged = new LinkedHashSet<>(excludes.size() + names.size());

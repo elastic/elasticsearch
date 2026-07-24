@@ -140,6 +140,90 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra");
     }
 
+    public void testKeepWildcardThenDropWildcard() {
+        // KEEP narrows includes to "first*"; DROP then subtracts the "first_name*" sub-family. Both commands
+        // contribute: "first_grade" (first* but not first_name*) survives, "first_name_suffix" does not.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary | DROP first_name*"))
+        );
+        assertKept(pattern, "first_grade");
+        assertNotKept(pattern, "first_name_suffix", "unmapped_extra", "salary_bonus");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testKeepThenDropRemovesAllMappedColumns() {
+        // KEEP first* leaves only the mapped field "first_name"; DROP first_name* then removes it, so NO mapped
+        // column survives. This is still valid under LOAD_ALL — analysis must not fail: ResolvingProject always
+        // re-appends _unmapped_fields, so the projection is never empty, and unmapped source fields matching
+        // "first*" but not "first_name*" (e.g. "first_pet") are still kept. We cannot know at planning time
+        // whether such fields exist in _source, so erroring would be wrong.
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first* | DROP first_name*")));
+        assertKept(pattern, "first_pet", "first_grade");
+        assertNotKept(pattern, "first_name_suffix", "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testEvalShadowThenKeepWildcard() {
+        // The EVAL output "first_name_x" matches the later KEEP wildcard "first_name*" but is shadowed by the
+        // EVAL, so it is not kept; other "first_name*" source fields still are.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | EVAL first_name_x = 1 | KEEP first_name*"))
+        );
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("first_name_x"));
+        assertNotKept(pattern, "unmapped_extra");
+    }
+
+    public void testRenameThenEval() {
+        // The RENAME target ("x") and the EVAL output ("y") each shadow a same-named unmapped source field.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x | EVAL y = 2"))
+        );
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl("x", "y"));
+    }
+
+    public void testKeepWildcardThenRename() {
+        // RENAME after KEEP: the rename target "first_name_x" matches the KEEP wildcard "first_name*" but is
+        // shadowed by the rename, so it is not kept; other "first_name*" source fields still are.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | KEEP first_name* | RENAME first_name AS first_name_x"))
+        );
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("first_name_x"));
+        assertNotKept(pattern, "unmapped_extra");
+    }
+
+    public void testChainedKeepWildcardsIntersect() {
+        // Chained KEEP wildcards apply AND semantics: only source fields matching BOTH "first*" and
+        // "first_name*" survive. "first_name_suffix" matches both; "first_grade" matches only "first*".
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first* | KEEP first_name*")));
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, "first_grade", "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testChainedDropsAccumulateExcludes() {
+        // Chained DROPs accumulate excludes. DROP salary removes only the exact name "salary", so the unmapped
+        // "salary_bonus" survives; DROP first_name* removes the entire "first_name*" family.
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP salary | DROP first_name*")));
+        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
+        assertNotKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("salary"));
+    }
+
+    public void testKeepThenDropThenEval() {
+        // Three commands, each observable: KEEP first*, salary narrows includes to "first*"; DROP first_name*
+        // excludes that sub-family; EVAL first_grade = 1 shadows the exact name "first_grade". So
+        // "first_grade_bonus" (first*, not first_name*, not the exact eval name) survives, but "first_grade" does not.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary | DROP first_name* | EVAL first_grade = 1"))
+        );
+        assertKept(pattern, "first_grade_bonus");
+        assertNotKept(pattern, "first_grade", "first_name_suffix", "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
     public void testLoadAllUnmappedFieldsColumnNotDirectlyReferenceable() {
         // _unmapped_fields is a synthetic column; it must not be explicitly referenceable by name.
         // TODO: the correct error is "Unknown column [_unmapped_fields]", but currently

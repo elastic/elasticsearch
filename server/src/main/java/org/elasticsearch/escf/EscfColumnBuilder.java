@@ -29,12 +29,16 @@ import java.util.List;
  * {@link EscfColumnData} when {@link #finish(int)} is called.
  *
  * <p>The first non-absent value selects the kind. A conflicting later value, or an explicit
- * {@code null}, promotes the column to {@link EscfColumnKind#UNION}.
+ * {@code null}, promotes the column to {@link EscfColumnKind#UNION}. Empty arrays are accumulated
+ * in the columnar list layout alongside non-empty arrays; a column of only empty arrays and absent
+ * rows finishes as {@link EscfColumnKind#UNION}.
  */
 final class EscfColumnBuilder {
 
+    /** Sentinel for an array column whose child kind has not yet been resolved (only empty arrays seen so far). */
+    private static final byte UNSET_ARRAY_KIND = -1;
     /** Sentinel returned by {@link #arrayChildKind} for arrays that aren't a single fixed primitive kind. */
-    private static final byte NO_CHILD_KIND = -1;
+    private static final byte UNION_CHILD_KIND = -2;
 
     private final Recycler<BytesRef> recycler;
     private TypedBuilder current;
@@ -84,12 +88,13 @@ final class EscfColumnBuilder {
     /**
      * Adds an array value parsed into its inline form ({@code arrayType} is
      * {@code SourceValueType.FIXED_ARRAY} or {@code SourceValueType.UNION_ARRAY}). A fixed array of one primitive
-     * element kind is accumulated in a columnar list layout; anything else (heterogeneous, nested, object
-     * elements, empty, or a child-kind change) promotes the column to a union holding inline arrays.
+     * element kind, or an empty array, is accumulated in a columnar list layout; anything else (heterogeneous,
+     * nested, object elements, or a child-kind change) promotes the column to a union holding inline arrays.
+     * A column that sees only empty arrays and absent rows finishes as union.
      */
     void addArray(byte arrayType, byte[] packed) {
         byte childKind = arrayChildKind(arrayType, packed);
-        if (childKind == NO_CHILD_KIND) {
+        if (childKind == UNION_CHILD_KIND) {
             promoteToUnion();
             current.addInlineArray(arrayType, packed);
             return;
@@ -102,8 +107,15 @@ final class EscfColumnBuilder {
             leadingAbsents = 0;
             current = array;
             array.addColumnarArray(packed);
-        } else if (current.kind() == EscfColumnKind.ARRAY && current.childKind() == childKind) {
-            current.addColumnarArray(packed);
+        } else if (current.kind() == EscfColumnKind.ARRAY) {
+            byte currentChildKind = current.childKind();
+            if (childKind == UNSET_ARRAY_KIND || currentChildKind == UNSET_ARRAY_KIND || currentChildKind == childKind) {
+                // Incoming empty (UNSET_ARRAY_KIND) is compatible with any existing kind; a concrete kind resolves an existing UNSET.
+                current.addColumnarArray(packed);
+            } else {
+                promoteToUnion();
+                current.addInlineArray(arrayType, packed);
+            }
         } else {
             promoteToUnion();
             current.addInlineArray(arrayType, packed);
@@ -184,16 +196,22 @@ final class EscfColumnBuilder {
         };
     }
 
-    /** Returns the fixed columnar child kind for a packed array, or {@link #NO_CHILD_KIND} if it doesn't have one. */
+    /**
+     * Returns the fixed columnar child kind for a packed array, {@link #UNSET_ARRAY_KIND} for an empty
+     * array (zero elements, compatible with any child kind), or {@link #UNION_CHILD_KIND} if the array must go inline.
+     */
     private static byte arrayChildKind(byte arrayType, byte[] packed) {
-        if (arrayType != SourceValueType.FIXED_ARRAY || packed.length == 0) {
-            return NO_CHILD_KIND;
+        if (packed.length == 0) {
+            return UNSET_ARRAY_KIND;
+        }
+        if (arrayType != SourceValueType.FIXED_ARRAY) {
+            return UNION_CHILD_KIND;
         }
         return switch (packed[0]) {
             case SourceValueType.INT, SourceValueType.LONG -> EscfColumnKind.LONG;
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> EscfColumnKind.DOUBLE;
             case SourceValueType.STRING -> EscfColumnKind.STRING;
-            default -> NO_CHILD_KIND;
+            default -> UNION_CHILD_KIND;
         };
     }
 
@@ -232,15 +250,39 @@ final class EscfColumnBuilder {
     private abstract static class BaseBuilder implements TypedBuilder {
 
         int count;
-        FixedBitSet absent;
+        FixedBitSet validity;
 
-        final void markAbsent() {
-            absent = absent == null ? new FixedBitSet(Math.max(64, count + 1)) : FixedBitSet.ensureCapacity(absent, count + 1);
-            absent.set(count);
+        /**
+         * Marks the current document (at {@code count}) as absent and advances {@code count}. On the first
+         * absence, the validity bitset is materialised and all prior documents are backfilled as present.
+         */
+        final void advanceAbsent() {
+            if (validity == null) {
+                // First absent: materialise and backfill all prior docs as present.
+                validity = new FixedBitSet(Math.max(64, count + 1));
+                validity.set(0, count); // [0, count) are present
+            } else {
+                validity = FixedBitSet.ensureCapacity(validity, count + 1);
+            }
+            // leave bit[count] clear — this document is absent
+            count++;
+        }
+
+        /**
+         * Marks the current document (at {@code count}) as present and advances {@code count}. A no-op on
+         * the validity bitset when the column is still dense (null), since all documents are implicitly
+         * present; once the bitset is materialised, the present bit is explicitly set.
+         */
+        final void advancePresent() {
+            if (validity != null) {
+                validity = FixedBitSet.ensureCapacity(validity, count + 1);
+                validity.set(count);
+            }
+            count++;
         }
 
         final boolean isAbsentAt(int d) {
-            return absent != null && absent.get(d);
+            return validity != null && validity.get(d) == false;
         }
 
         @Override
@@ -315,20 +357,19 @@ final class EscfColumnBuilder {
         @Override
         public void addLong(long value) {
             writeLongLE(data, value);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addDouble(double value) {
             writeLongLE(data, Double.doubleToRawLongBits(value));
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
-            markAbsent();
             writeLongLE(data, 0L);
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -341,13 +382,13 @@ final class EscfColumnBuilder {
                 offsets[i] = i * 8;
             }
             offsets[count] = count * 8;
-            return new UnionBuilder(data, typeVec, offsets, count * 8, count, absent);
+            return new UnionBuilder(data, typeVec, offsets, count * 8, count, validity);
         }
 
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return EscfColumnData.ofFixed64(kind, docCount, absent, data.moveToBytesReference());
+            return EscfColumnData.ofFixed64(kind, docCount, validity, data.moveToBytesReference());
         }
 
         @Override
@@ -372,13 +413,12 @@ final class EscfColumnBuilder {
                 values = values == null ? new FixedBitSet(Math.max(64, count + 1)) : FixedBitSet.ensureCapacity(values, count + 1);
                 values.set(count);
             }
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -391,13 +431,13 @@ final class EscfColumnBuilder {
                     typeVec[i] = (values != null && values.get(i)) ? SourceValueType.TRUE : SourceValueType.FALSE;
                 }
             }
-            return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, absent);
+            return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, validity);
         }
 
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return EscfColumnData.ofBool(docCount, absent, values);
+            return EscfColumnData.ofBool(docCount, validity, values);
         }
     }
 
@@ -432,14 +472,13 @@ final class EscfColumnBuilder {
             recordOffset();
             writeBytes(data, value.bytes(), value.offset(), value.length());
             dataLen += value.length();
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             recordOffset();
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         private void recordOffset() {
@@ -456,7 +495,7 @@ final class EscfColumnBuilder {
             }
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return new UnionBuilder(data, typeVec, offsets, dataLen, count, absent);
+            return new UnionBuilder(data, typeVec, offsets, dataLen, count, validity);
         }
 
         @Override
@@ -464,7 +503,7 @@ final class EscfColumnBuilder {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return EscfColumnData.ofVarWidth(kind, docCount, absent, Arrays.copyOf(offsets, docCount + 1), data.moveToBytesReference());
+            return EscfColumnData.ofVarWidth(kind, docCount, validity, Arrays.copyOf(offsets, docCount + 1), data.moveToBytesReference());
         }
 
         @Override
@@ -475,11 +514,11 @@ final class EscfColumnBuilder {
 
     /**
      * ARRAY: arrays of a single fixed primitive child kind, kept as their inline bytes per row
-     * during building (so promotion to a union is a cheap replay) and materialised into a native
+     * during building (so promotion to a union is a cheap replay) and materialized into a native
      * {@code child} sub-column at {@link #finish}.
      */
     private static final class ArrayBuilder extends BaseBuilder {
-        private final byte childKind;
+        private byte childKind;
         private final Recycler<BytesRef> recycler;
         /** Per-row inline FIXED_ARRAY bytes; {@code null} marks an absent row. */
         private final List<byte[]> rows = new ArrayList<>();
@@ -501,15 +540,22 @@ final class EscfColumnBuilder {
 
         @Override
         public void addColumnarArray(byte[] packed) {
+            if (childKind == UNSET_ARRAY_KIND && packed.length > 0) {
+                childKind = switch (packed[0]) {
+                    case SourceValueType.INT, SourceValueType.LONG -> EscfColumnKind.LONG;
+                    case SourceValueType.FLOAT, SourceValueType.DOUBLE -> EscfColumnKind.DOUBLE;
+                    case SourceValueType.STRING -> EscfColumnKind.STRING;
+                    default -> UNSET_ARRAY_KIND;
+                };
+            }
             rows.add(packed);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             rows.add(null);
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         @Override
@@ -518,6 +564,8 @@ final class EscfColumnBuilder {
             for (byte[] packed : rows) {
                 if (packed == null) {
                     union.addAbsent();
+                } else if (packed.length == 0) {
+                    union.addInlineArray(SourceValueType.UNION_ARRAY, packed);
                 } else {
                     union.addInlineArray(SourceValueType.FIXED_ARRAY, packed);
                 }
@@ -528,6 +576,10 @@ final class EscfColumnBuilder {
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
+            if (childKind == UNSET_ARRAY_KIND) {
+                // Only empty arrays and absents were accumulated; no concrete kind was ever established.
+                return promote(recycler).finish(docCount);
+            }
             int[] rowOffsets = new int[docCount + 1];
             RecyclerBytesStreamOutput childData = newStream(recycler);
             EscfColumnData child;
@@ -592,7 +644,7 @@ final class EscfColumnBuilder {
             } catch (IOException e) {
                 throw new UncheckedIOException(e); // in-memory stream never performs IO
             }
-            return EscfColumnData.ofArray(docCount, absent, rowOffsets, child);
+            return EscfColumnData.ofArray(docCount, validity, rowOffsets, child);
         }
     }
 
@@ -607,13 +659,13 @@ final class EscfColumnBuilder {
             this.data = newStream(recycler);
         }
 
-        UnionBuilder(RecyclerBytesStreamOutput data, byte[] typeVec, int[] offsets, int dataLen, int count, FixedBitSet absent) {
+        UnionBuilder(RecyclerBytesStreamOutput data, byte[] typeVec, int[] offsets, int dataLen, int count, FixedBitSet validity) {
             this.data = data;
             this.typeVec = typeVec;
             this.offsets = offsets;
             this.dataLen = dataLen;
             this.count = count;
-            this.absent = absent;
+            this.validity = validity;
         }
 
         @Override
@@ -626,7 +678,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.LONG);
             writeLongLE(data, value);
             dataLen += 8;
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -634,13 +686,13 @@ final class EscfColumnBuilder {
             prep(SourceValueType.DOUBLE);
             writeLongLE(data, Double.doubleToRawLongBits(value));
             dataLen += 8;
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addBoolean(boolean value) {
             prep(value ? SourceValueType.TRUE : SourceValueType.FALSE);
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -648,7 +700,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.STRING);
             writeBytes(data, utf8.bytes(), utf8.offset(), utf8.length());
             dataLen += utf8.length();
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -656,7 +708,7 @@ final class EscfColumnBuilder {
             prep(SourceValueType.BINARY);
             writeBytes(data, bytes.bytes(), bytes.offset(), bytes.length());
             dataLen += bytes.length();
-            count++;
+            advancePresent();
         }
 
         @Override
@@ -664,20 +716,19 @@ final class EscfColumnBuilder {
             prep(arrayType);
             writeBytes(data, packed, 0, packed.length);
             dataLen += packed.length;
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addNull() {
             prep(SourceValueType.NULL);
-            count++;
+            advancePresent();
         }
 
         @Override
         public void addAbsent() {
             prep(SourceValueType.ABSENT);
-            markAbsent();
-            count++;
+            advanceAbsent();
         }
 
         private void prep(byte type) {
@@ -699,7 +750,7 @@ final class EscfColumnBuilder {
             offsets[count] = dataLen;
             return EscfColumnData.ofUnion(
                 docCount,
-                absent,
+                validity,
                 new BytesRef(Arrays.copyOf(typeVec, docCount)),
                 Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()

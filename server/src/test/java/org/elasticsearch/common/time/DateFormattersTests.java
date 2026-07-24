@@ -293,7 +293,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     /**
-     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn throw errors since we use these
+     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn't throw errors since we use these
      * e.g. for sorting documents with `null` values first or last
      */
     public void testPrintersLongMinMaxValue() {
@@ -462,7 +462,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testTimeZones() {
-        // zone is null by default due to different behaviours between java8 and above
+        // zone is null by default due to different behaviors between java8 and above
         assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
@@ -654,7 +654,7 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
-        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nanosecond
         var formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_millis");
         Instant epochMilliInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
@@ -667,7 +667,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "1234567890", 1234567890L);
 
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
-        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nanosecond
         formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_second");
         Instant epochSecondInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
@@ -867,7 +867,7 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testExceptionWhenCompositeParsingFailsDateMath() {
         // both parsing failures should contain pattern and input text in exception
-        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        // both patterns fail parsing the input text due to only 2 digits of millis. Hence, full text was not parsed.
         String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(

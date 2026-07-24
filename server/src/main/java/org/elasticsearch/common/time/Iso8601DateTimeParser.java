@@ -21,7 +21,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
 
     private final Iso8601Parser parser;
     private final ZoneId timezone;
-    // the locale doesn't actually matter, as we're parsing in a standardised format
+    // the locale doesn't actually matter, as we're parsing in a standardized format,
     // and we already account for . or , in decimals
     private final Locale locale;
 

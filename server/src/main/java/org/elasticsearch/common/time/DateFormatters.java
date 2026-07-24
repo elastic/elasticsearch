@@ -688,7 +688,7 @@ public class DateFormatters {
     );
 
     /*
-     * A strict formatter that formats or parses a hour, minute and second, such as '09:43:25'.
+     * A strict formatter that formats or parses an hour, minute, and second, such as '09:43:25'.
      */
     private static final DateFormatter STRICT_HOUR_MINUTE_SECOND = newDateFormatter(
         "strict_hour_minute_second",
@@ -786,7 +786,7 @@ public class DateFormatters {
         ).withLocale(Locale.ROOT)
     );
 
-    // NOTE: this is not a strict formatter to retain the joda time based behaviour, even though it's named like this
+    // NOTE: this is not a strict formatter to retain the joda time based behavior, even though it's named like this
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER = new DateTimeFormatterBuilder().append(
         STRICT_HOUR_MINUTE_SECOND_FORMATTER
     ).appendFraction(NANO_OF_SECOND, 1, 9, true).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
@@ -800,7 +800,7 @@ public class DateFormatters {
      * hour, two digit second of minute, and three digit fraction of
      * second (HH:mm:ss.SSS).
      *
-     * NOTE: this is not a strict formatter to retain the joda time based behaviour,
+     * NOTE: this is not a strict formatter to retain the joda time based behavior,
      *       even though it's named like this
      */
     private static final DateFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS = newDateFormatter(
@@ -1611,7 +1611,7 @@ public class DateFormatters {
     );
 
     /*
-     * A strict formatter that formats or parses a hour, minute and second, such as '09:43:25'.
+     * A strict formatter that formats or parses an hour, minute and second, such as '09:43:25'.
      */
     private static final DateFormatter HOUR_MINUTE_SECOND = newDateFormatter(
         "hour_minute_second",
@@ -2158,10 +2158,10 @@ public class DateFormatters {
      * or Instant.from(accessor). This results in a huge performance penalty and should be prevented
      * This method prevents exceptions by querying the accessor for certain capabilities
      * and then act on it accordingly
-     *
+     * <p>
      * This action assumes that we can reliably fall back to some defaults if not all parts of a
      * zoned date time are set
-     *
+     * <p>
      * - If a zoned date time is passed, it is returned
      * - If no timezone is found, ZoneOffset.UTC is used
      * - If we find a time and a date, converting to a ZonedDateTime is straight forward,
@@ -2233,7 +2233,7 @@ public class DateFormatters {
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
     }
 
-    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale, WeekFields weekFields) {
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale ignored, WeekFields weekFields) {
         if (accessor.isSupported(weekFields.weekOfWeekBasedYear())) {
             return LocalDate.ofEpochDay(0)
                 .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
@@ -2250,9 +2250,9 @@ public class DateFormatters {
     /**
      * extending the java.time.temporal.TemporalQueries.LOCAL_DATE implementation to also create local dates
      * when YearOfEra was used instead of Year.
-     * This is to make it compatible with Joda behaviour
+     * This is to make it compatible with Joda behavior
      */
-    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<LocalDate>() {
+    static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<>() {
         @Override
         public LocalDate queryFrom(TemporalAccessor temporal) {
             if (temporal.isSupported(ChronoField.EPOCH_DAY)) {

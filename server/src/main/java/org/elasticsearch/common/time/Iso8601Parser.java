@@ -30,10 +30,10 @@ import java.util.Set;
  * <ul>
  *     <li>
  *         We are historically a bit more lenient with strings that are invalid according to the strict specification
- *         (eg using a zone region instead of offset for timezone)
+ *         (e.g. using a zone region instead of offset for timezone)
  *     </li>
  *     <li>Various built-in formats specify some fields as mandatory and some as optional</li>
- *     <li>Callers can specify defaults for fields that are not present (eg for roundup parsers)</li>
+ *     <li>Callers can specify defaults for fields that are not present (e.g. for roundup parsers)</li>
  * </ul>
  * We also do not use exceptions here, instead returning {@code null} for any invalid values, that are then
  * checked and propagated as appropriate.
@@ -73,7 +73,7 @@ class Iso8601Parser {
      * See {@link #Iso8601Parser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence, Map, char)}.
      *
      * @param mandatoryFields  The set of fields that must be present for a valid parse. These should be specified in field order
-     *                         (eg if {@link ChronoField#DAY_OF_MONTH} is specified,
+     *                         (e.g. if {@link ChronoField#DAY_OF_MONTH} is specified,
      *                         {@link ChronoField#MONTH_OF_YEAR} should also be specified).
      *                         {@link ChronoField#YEAR} is always mandatory.
      * @param optionalTime     {@code false} if the presence of time fields follows {@code mandatoryFields},
@@ -103,7 +103,7 @@ class Iso8601Parser {
      * Constructs a new {@code Iso8601Parser} object.
      *
      * @param mandatoryFields   The set of fields that must be present for a valid parse. These should be specified in field order
-     *                          (eg if {@link ChronoField#DAY_OF_MONTH} is specified,
+     *                          (e.g. if {@link ChronoField#DAY_OF_MONTH} is specified,
      *                          {@link ChronoField#MONTH_OF_YEAR} should also be specified).
      *                          {@link ChronoField#YEAR} is always mandatory.
      * @param optionalTime      {@code false} if the presence of time fields follows {@code mandatoryFields},
@@ -117,7 +117,7 @@ class Iso8601Parser {
      * @param decimalSeparator  The decimal separator that is allowed.
      * @param timezonePresence  Specifies if the timezone is optional, mandatory, or forbidden.
      * @param defaults          Map of default field values, if they are not present in the parsed string.
-     * @param dateTimeSeparator The character separating the date and time components (eg {@code 'T'} for standard ISO-8601,
+     * @param dateTimeSeparator The character separating the date and time components (e.g. {@code 'T'} for standard ISO-8601,
      *                          or {@code ' '} for {@code yyyy-MM-dd HH:mm:ss}).
      */
     Iso8601Parser(

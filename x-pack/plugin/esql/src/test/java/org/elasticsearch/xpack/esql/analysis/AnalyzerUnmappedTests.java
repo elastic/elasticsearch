@@ -1111,7 +1111,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Verify that PromQL queries are rejected when unmapped_fields=load
      */
     public void testUnmappedFieldLoadRejectionWithPromQl() {
-        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
 
         assertUnmappedLoadError(
             analyzer,

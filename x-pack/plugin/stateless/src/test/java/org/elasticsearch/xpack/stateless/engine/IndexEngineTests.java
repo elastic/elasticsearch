@@ -15,13 +15,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -471,7 +470,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         ) {
             // Success case: all docs in the batch succeed.
             List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
-            List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+            List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEscfBatch(ops));
             for (int i = 0; i < results.size(); i++) {
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 verify(documentSizeReporter).onParsingCompleted(eq(ops.get(i).parsedDoc()));
@@ -481,7 +480,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             // Failure case: a version-conflicting op does not get onIndexingCompleted.
             Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
             List<Engine.Index> failOps = List.of(conflictingOp);
-            List<Engine.IndexResult> failResults = engine.indexBatch(failOps, encodeAsEirfBatch(failOps));
+            List<Engine.IndexResult> failResults = engine.indexBatch(failOps, encodeAsEscfBatch(failOps));
             assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
             verify(documentSizeReporter).onParsingCompleted(eq(conflictingOp.parsedDoc()));
             verify(documentSizeReporter, never()).onIndexingCompleted(eq(conflictingOp.parsedDoc()));
@@ -498,24 +497,22 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             final var maxSeqNo = engine.getMaxSeqNo();
 
             List<Engine.Index> batchOps = List.of(randomDoc(String.valueOf(1)));
-            expectThrows(IllegalStateException.class, () -> engine.indexBatch(batchOps, encodeAsEirfBatch(batchOps)));
+            expectThrows(IllegalStateException.class, () -> engine.indexBatch(batchOps, encodeAsEscfBatch(batchOps)));
             assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
         }
     }
 
     /**
-     * Encodes a list of index operations as an {@link EirfBatch}. All operations must share the same
-     * {@link XContentType}. Bytes are copied so the caller does not need to manage the encoder's recycler lifecycle.
+     * Encodes a list of index operations as an {@link EscfBatch}. All operations must share the same
+     * {@link XContentType}.
      */
-    private static SourceBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
+    private static SourceBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
         List<BytesReference> sources = new ArrayList<>(operations.size());
         XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
         for (Engine.Index op : operations) {
             sources.add(op.source().originalBytes());
         }
-        try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
-            return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
-        }
+        return EscfEncoder.encode(sources, xContentType);
     }
 
     public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {

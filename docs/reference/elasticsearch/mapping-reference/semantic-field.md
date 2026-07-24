@@ -15,7 +15,7 @@ The `semantic` field type simplifies semantic and multimodal search across text,
 
 - Generates embeddings when you index field values, without an ingest pipeline or {{infer}} processor.
 - Splits long text into smaller passages, called chunks.
-- Configures and stores the underlying dense vectors based on the field's {{infer}} endpoint.
+- Indexes the generated embeddings using default index options that optimize for common use cases.
 - Searches the embeddings generated for each value or text chunk.
 
 Multiple `semantic` fields can use the same {{infer}} endpoint. For example, an index can use one field for image embeddings and another for description embeddings, then search either field or both.
@@ -103,7 +103,7 @@ curl --fail-with-body --silent --show-error \
 
 :::::
 
-Unlike [`semantic_text`](./semantic-text.md), a `semantic` field has no default {{infer}} endpoint. You must configure an endpoint that uses the `embedding` task type and specify its ID in the field mapping.
+Unlike [`semantic_text`](./semantic-text.md), a `semantic` field has no default {{infer}} endpoint. You must use an endpoint that uses the `embedding` task type and specify its ID in the field mapping.
 
 ::::::
 

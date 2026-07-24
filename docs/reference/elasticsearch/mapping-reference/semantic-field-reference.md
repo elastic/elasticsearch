@@ -93,7 +93,7 @@ PUT my-semantic-index
 
 A `semantic` field requires an {{infer}} endpoint with the `embedding` task type. The endpoint determines:
 
-- The input modalities supported by the model.
+- The input modalities supported by the field.
 - The vector dimensions, similarity measure, and element type.
 - The default text chunking settings.
 
@@ -110,9 +110,9 @@ PUT _inference/embedding/my-embedding-endpoint
 ```
 % TEST[skip:Requires access to EIS]
 
-The `embedding` task type does not guarantee that every endpoint supports every modality. Check the model and service documentation before indexing non-text input.
+The `embedding` task type does not guarantee that every endpoint supports every modality. Check the model and service documentation to determine the modalities supported.
 
-If a referenced endpoint is unavailable, indexing and searches against the field fail. Elasticsearch prevents you from deleting an endpoint that is referenced by an inference field.
+If a referenced endpoint is unavailable, indexing and searches against the field fail. By default, Elasticsearch prevents you from deleting an endpoint that is referenced by an inference field.
 
 ## Supported input types [semantic-input]
 
@@ -130,7 +130,7 @@ POST my-semantic-index/_doc
 ```
 % TEST[skip:Requires a configured semantic field]
 
-Long text is divided according to the field's `chunking_settings`. To provide text that is already chunked, set the chunking strategy to `none` and index an array of strings.
+Long text is chunked according to the field's `chunking_settings`. To provide text that is already chunked, set the chunking strategy to `none` and index an array of strings.
 
 :::{tip}
 If you're working exclusively with text, consider using [`semantic_text`](./semantic-text.md).
@@ -141,7 +141,7 @@ If you're working exclusively with text, consider using [`semantic_text`](./sema
 Provide non-text input as an object with the following properties:
 
 `type`
-:   (Required, string) Type of non-text input. Valid values are `image`, `audio`, `video`, and `pdf`. Text input is provided directly as a JSON string and does not use this property.
+:   (Required, string) Type of non-text input. Valid values are `image`, `audio`, `video`, and `pdf`. [Text input](#semantic-text-input) is provided directly as a JSON string.
 
 `value`
 :   (Required, string) Input encoded as a [data URL](https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/data). The value must include its media type and Base64 encoding, for example `data:image/jpeg;base64,...`.
@@ -210,7 +210,7 @@ Query DSL supports the following queries:
 - Use a [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) with the `embedding` query vector builder for text or non-text input.
 - Use a `knn` query with `query_vector` if you already have a vector compatible with the field's endpoint.
 
-The following example searches for images using image input:
+The following example searches using image input:
 
 ```console
 POST my-semantic-index/_search
@@ -234,7 +234,7 @@ POST my-semantic-index/_search
 ```
 % TEST[skip:Requires a configured semantic field]
 
-When all targeted fields are inference fields with the same endpoint, Elasticsearch obtains `inference_id` from the field mapping. Specify `inference_id` in the query vector builder when querying a `semantic` field together with a `dense_vector` field or fields that use different endpoints.
+When all targeted fields are inference fields, Elasticsearch obtains the `inference_id`s from the field mappings. Specify `inference_id` in the query vector builder when querying inference fields together with a `dense_vector` field.
 
 ### Retrievers [semantic-retrievers]
 
@@ -316,7 +316,7 @@ Automatic pre-filtering does not apply when you use a `knn` query directly. Use 
 
 The original text and non-text values are returned in `_source`. The generated embeddings are excluded by default.
 
-Non-text values can make `_source` responses large because they include complete data URLs. Use [source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering) to exclude `semantic` fields or return only the metadata fields your application needs.
+Non-text values can make `_source` responses large because they include complete data URLs. Use [source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering) to exclude `semantic` fields or return only the fields your application needs.
 
 To retrieve the values as they were processed for {{infer}}, use the `fields` parameter with the `chunks` format:
 
@@ -376,4 +376,4 @@ The `semantic` field has the following limitations:
 - It cannot be placed in an object that has `subobjects` disabled.
 - It does not support term-level queries, sorting, scripting, or aggregations.
 - ES|QL does not support querying `semantic` fields.
-- It supports only endpoints with the `embedding` task type and dense-vector embeddings. For sparse embeddings, use [`semantic_text`](./semantic-text.md).
+- It supports only endpoints with the `embedding` task type and dense-vector embeddings. For `text_embedding` and `sparse_embedding` endpoints, use [`semantic_text`](./semantic-text.md).

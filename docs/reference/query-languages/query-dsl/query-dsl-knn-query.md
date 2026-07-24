@@ -444,7 +444,7 @@ $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview 9.4` {
       **Parameters for `embedding`**:
 
         `inference_id`
-        :   (Optional, string) The ID of the {{infer}} endpoint used to generate the embedding. It must reference an endpoint configured with the `embedding` task type. When the query targets only inference fields that use the same endpoint, Elasticsearch can infer this value from the field mapping. Specify it when querying a `dense_vector` field or fields that use different endpoints.
+        :   (Optional, string) The ID of the {{infer}} endpoint used to generate the embedding. It must reference an endpoint configured with the `embedding` task type. When the query targets only inference fields, Elasticsearch can infer this value from the field mapping(s). Specify it when querying a `dense_vector` field.
 
         `input`
         :   (Required, string, object, or array) The input used to generate the query vector. You can provide the input in one of the following formats:

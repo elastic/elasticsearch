@@ -11,7 +11,7 @@ applies_to:
 
 This page provides reference content for the `semantic_text` field type, including parameter descriptions, {{infer}} endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
 
-The `semantic_text` field type accepts text only. To use images, audio, video, or PDF files, map a [`semantic`](./semantic-field.md) field with a compatible multimodal embedding endpoint.
+The `semantic_text` field type accepts text only. To use images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
 
 ## Parameters for `semantic_text` [semantic-text-params]
 

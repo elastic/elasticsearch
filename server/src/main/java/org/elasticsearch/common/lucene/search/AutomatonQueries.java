@@ -12,7 +12,6 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -30,12 +29,12 @@ import java.util.Objects;
  */
 public class AutomatonQueries {
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static Automaton caseInsensitivePrefix(String s) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
+            list.add(Automata.makeCaseInsensitiveChar(iter.next()));
         }
         list.add(Automata.makeAnyString());
 
@@ -45,17 +44,17 @@ public class AutomatonQueries {
         return a;
     }
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
         return new CaseInsensitivePrefixQuery(prefix);
     }
 
-    /** Build an automaton accepting all terms ASCII case insensitive. */
+    /** Build an automaton accepting all terms case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         return new CaseInsensitiveTermQuery(term);
     }
 
-    /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
+    /** Build an automaton matching a wildcard pattern, case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
         return new CaseInsensitiveWildcardQuery(wildcardquery);
     }
@@ -148,7 +147,7 @@ public class AutomatonQueries {
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(toCaseInsensitiveChar(c));
+                    automata.add(Automata.makeCaseInsensitiveChar(c));
             }
             i += length;
         }
@@ -191,23 +190,6 @@ public class AutomatonQueries {
         }
 
         return Operations.concatenate(automata);
-    }
-
-    protected static Automaton toCaseInsensitiveString(BytesRef br) {
-        return toCaseInsensitiveString(br.utf8ToString());
-    }
-
-    public static Automaton toCaseInsensitiveString(String s) {
-        List<Automaton> list = new ArrayList<>();
-        Iterator<Integer> iter = s.codePoints().iterator();
-        while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
-        }
-
-        Automaton a = Operations.concatenate(list);
-        // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
-        assert a.isDeterministic();
-        return a;
     }
 
     /**
@@ -287,19 +269,4 @@ public class AutomatonQueries {
         return c == '+' || c == '*' || c == '?';
     }
 
-    public static Automaton toCaseInsensitiveChar(int codepoint) {
-        Automaton case1 = Automata.makeChar(codepoint);
-        if (codepoint > 128) {
-            return case1;
-        }
-        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-        Automaton result;
-        if (altCase != codepoint) {
-            result = Operations.union(case1, Automata.makeChar(altCase));
-            assert result.isDeterministic();
-        } else {
-            result = case1;
-        }
-        return result;
-    }
 }

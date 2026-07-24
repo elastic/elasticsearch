@@ -128,6 +128,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testEvalReplacesUnmappedFieldFromEmptyMapping() throws Exception {
+        runTestsLoadOnly("""
+            FROM no_mapping_date_extract_fields
+            | EVAL date_string = date_string::date
+            """, STAGES);
+    }
+
     public void testMultipleEval() throws Exception {
         runTests("""
             FROM employees
@@ -405,8 +412,27 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // MV_EXPAND makes unmapped_message a ReferenceAttribute in branch 1's output; the sibling WHERE branch must still load it
-    // (matched by name, not the transformed type) since all FORK branches share one source. #142033
+    // DROP of an unmapped field is a mention, so the sibling branch materializes it while the DROP branch null-fills it. #152843
+    public void testForkDropsUnmappedFieldInOneBranchMaterializesSibling() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
+    // WHERE then DROP of an unmapped field is still a mention, so the sibling branch materializes it. #152843
+    public void testForkWhereThenDropsUnmappedFieldInOneBranch() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
+    // MV_EXPAND turns unmapped_message into a ReferenceAttribute in branch 1; the sibling branch still loads it by name. #142033
     public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {
         runTests("""
             FROM partial_mapping_sample_data

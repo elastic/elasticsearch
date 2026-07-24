@@ -178,6 +178,30 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * The request circuit breaker for {@code searcher}, or {@code null} when it is not a {@link ContextIndexSearcher} or has no breaker
+     * configured (e.g. percolator or tests). Meant to be called from {@code Query#createWeight} to capture the breaker for later checks.
+     */
+    @Nullable
+    public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
+    }
+
+    /**
+     * Checkpoint for query-time binary doc values decoding. A large should-fan-out of binary-doc-values matcher queries opens one decoder
+     * per surviving clause/segment pair, each holding a multi-hundred-KB decode buffer that is invisible to any breaker. Passing 0 bytes
+     * means the child breaker never accumulates (nothing to release), but the call still runs the parent's real-heap check, which trips
+     * once the accumulating buffers push heap over the limit - turning a node OOM into a recoverable
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
+     */
+    public static void checkBinaryDvDecodeBreaker(@Nullable CircuitBreaker breaker) {
+        if (breaker != null) {
+            // Passing 0 bytes means the child breaker never accumulates and hence there is no need to explicitly release anything.
+            // The call still runs the parent's real-heap check, which trips once the accumulating buffers push heap over the limit.
+            breaker.addEstimateBytesAndMaybeBreak(0L, "binary_doc_values_decode");
+        }
+    }
+
+    /**
      * Reserve {@code bytes} of point-range execution RAM on the request breaker for the leaf currently
      * being scored on this thread, recording it so {@link #searchLeaf} can release it once the leaf is
      * done. No-op when no breaker is configured or {@code bytes <= 0}. Propagates

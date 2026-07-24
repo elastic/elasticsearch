@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -53,7 +55,11 @@ public class HistogramPercentile extends EsqlScalarFunction {
     private final Expression histogram;
     private final Expression percentile;
 
-    @FunctionInfo(returnType = { "double" }, briefSummary = "Calculates a percentile value from a histogram.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double" },
+        briefSummary = "Calculates a percentile value from a histogram."
+    )
     public HistogramPercentile(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,

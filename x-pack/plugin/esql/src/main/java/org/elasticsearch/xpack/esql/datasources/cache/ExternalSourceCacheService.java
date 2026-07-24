@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -28,27 +29,46 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongFunction;
 
 /**
- * Coordinator-only, in-memory cache service for external source metadata.
- * Maintains two independent caches:
+ * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
  * <ul>
- *   <li>Schema cache (20% of budget, 5m TTL) — shared across users</li>
- *   <li>Listing cache (80% of budget, 30s TTL) — isolated by credential hash</li>
+ *   <li>Per-file schema cache (~20% of budget) — schema + the per-file {@code _stats.*} overlay, keyed by
+ *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
+ *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
+ *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
+ *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
+ *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
+ *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
+ *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * Uses hard TTL via {@code setExpireAfterWrite} for the initial implementation.
- * Lazy TTL with ETag revalidation is deferred to a follow-up PR.
+ * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
+ * timer would only discard still-valid, expensively harvested entries. The discovery caches (file-metadata,
+ * listing) keep a short TTL because they hold current-mtime freshness with no identity key to key on.
  */
 public class ExternalSourceCacheService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ExternalSourceCacheService.class);
 
     private final Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache;
+    /**
+     * The memoized whole-dataset row-count aggregate, keyed by file-set fingerprint. Tiny per entry but
+     * expensive to rebuild (a full cold scan), so it gets its OWN cache: sharing the per-file budget let
+     * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
+     * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
+     */
+    private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
+    private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
@@ -62,21 +82,101 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private final KeyedLock<String> stripeCommitLocks = new KeyedLock<>();
 
+    /**
+     * A resolve-registered promise that a dataset-level aggregate should be materialized once the
+     * in-flight cold scan's reconcile proves every file of the set whole-file complete. Registered by
+     * the resolver when the multi-file per-file aggregate comes back incomplete (the cold query);
+     * fulfilled — sum of per-file row counts committed under the dataset key — only when EVERY path
+     * folded to whole-file completeness in one reconcile with the expected mtime and config
+     * fingerprint. A poisoned, incomplete, or mid-flight-modified file leaves the descriptor
+     * unfulfilled: correct-or-miss, exactly like the per-file rail.
+     */
+    private record PendingDatasetAggregate(
+        SchemaCacheKey datasetKey,
+        Map<String, Long> pathToMtimeMillis,
+        String configFingerprint,
+        String sourceType,
+        String location,
+        long registeredAtNanos
+    ) {}
+
+    /**
+     * Bounded registry of pending dataset aggregates, insertion-ordered so overflow drops the oldest.
+     * Bounded on TWO axes: descriptor count ({@link #MAX_PENDING_DATASET_AGGREGATES}) and total stored
+     * paths across all descriptors ({@link #MAX_PENDING_TOTAL_PATHS}) — each descriptor copies a
+     * path→mtime map for every file of its glob, so without the path budget 64 descriptors of
+     * MAX_DISCOVERED_FILES-sized globs would pin unbounded coordinator heap outside any cache budget.
+     * Guarded by its own monitor ({@code synchronized (pendingDatasetAggregates)}): registration is
+     * per-resolve and fulfillment is per-reconcile, both rare, so a plain lock never contends.
+     * Deliberately NOT a {@link CacheBuilder} cache: that offers a count bound or a weight bound but not
+     * both at once, has no fulfill-then-remove semantics (a promise is consumed exactly once, not
+     * evicted), and its {@code expireAfterWrite} would be the wrong clock for a register-before /
+     * fulfill-after horizon (see {@link #PENDING_DATASET_AGGREGATE_TTL_NANOS}).
+     */
+    private static final int MAX_PENDING_DATASET_AGGREGATES = 64;
+    private static final int MAX_PENDING_TOTAL_PATHS = 65_536;
+
+    /**
+     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
+     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so the
+     * cache is bounded by count rather than bytes — no per-entry byte weigher. 100k tiny entries is a few
+     * tens of MB worst case, and, being TTL-bounded by the listing TTL, the live set is normally far
+     * smaller. Kept a constant rather than a cluster setting: no workload has needed to tune it, and a
+     * public setting is a permanent support surface — it can be promoted to a setting later if a real need
+     * appears.
+     */
+    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
+    private final LinkedHashMap<SchemaCacheKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
+
+    /**
+     * Pending-descriptor expiry horizon: a FIXED constant, long enough to comfortably outlive the longest
+     * realistic cold scan (the promise is registered at resolve time, before the scan, and fulfilled at
+     * reconcile time, after it). A stale promise costs nothing: the registry is tiny and doubly bounded,
+     * and fulfillment re-validates every path's mtime and config fingerprint, so correctness never depends
+     * on this horizon. It is only a heap-safety bound on abandoned promises (a query that failed mid-scan).
+     */
+    private static final long PENDING_DATASET_AGGREGATE_TTL_NANOS = TimeUnit.HOURS.toNanos(1);
+
+    private final LongAdder datasetAggregateHits = new LongAdder();
+    private final LongAdder datasetAggregateMisses = new LongAdder();
+    private final LongAdder statsAggregateIncomplete = new LongAdder();
+
     public ExternalSourceCacheService(Settings settings) {
         ByteSizeValue totalBudget = ExternalSourceCacheSettings.CACHE_SIZE.get(settings);
         this.maxTotalBytes = totalBudget.getBytes();
         this.enabled = ExternalSourceCacheSettings.CACHE_ENABLED.get(settings);
 
-        TimeValue schemaTtl = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
 
-        long schemaBudget = maxTotalBytes / 5; // 20%
-        long listingBudget = maxTotalBytes - schemaBudget; // 80%
+        // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
+        // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
+        // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
+        long schemaBudget = maxTotalBytes / 5;               // 20%
+        long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
+        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
 
+        // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
+        // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
+        // discard still-valid, expensively harvested entries on a clock. The two discovery caches below
+        // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
+        // per-file key to invalidate on, so they must refresh on a clock.
         this.schemaCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
             .setMaximumWeight(schemaBudget)
-            .setExpireAfterWrite(schemaTtl)
             .weigher((key, value) -> value.estimatedBytes())
+            .build();
+
+        this.datasetAggregateCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
+            .setMaximumWeight(datasetAggregateBudget)
+            .weigher((key, value) -> value.estimatedBytes())
+            .build();
+
+        // Freshness-discovery, like listing: this holds a file's CURRENT {length, mtime} (the version token
+        // that rebuilds the identity keys), so it must refresh on a clock — it shares the listing TTL. No
+        // byte weigher: entries are tiny and fixed-size, so it is bounded by a generous entry count instead
+        // of the byte budget.
+        this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
+            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
+            .setExpireAfterWrite(listingTtl)
             .build();
 
         this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
@@ -86,11 +186,13 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], listing=[{}], schemaTTL=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], "
+                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
+            ByteSizeValue.ofBytes(datasetAggregateBudget),
             ByteSizeValue.ofBytes(listingBudget),
-            schemaTtl,
+            FILE_METADATA_CACHE_MAX_ENTRIES,
             listingTtl
         );
     }
@@ -104,6 +206,21 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return schemaCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Returns cached {@link FileMetadata} or computes it via the loader. The loader — a single object
+     * probe (mtime + length), on S3 one {@code bytes=-1} GET — is only invoked on a miss. When the cache
+     * is disabled, the loader is called directly (bypassing the cache), so the probe still happens every
+     * query. Mirrors {@link #getOrComputeSchema}: this is the amortization lever that removes the
+     * per-query warm-path metadata probe for single-file sources.
+     */
+    public FileMetadata getOrComputeFileMetadata(FileMetadataCacheKey key, CacheLoader<FileMetadataCacheKey, FileMetadata> loader)
+        throws Exception {
+        if (enabled == false) {
+            return loader.load(key);
+        }
+        return fileMetadataCache.computeIfAbsent(key, loader);
     }
 
     /**
@@ -129,6 +246,152 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Returns the dataset-level aggregate stats stored under {@code key} (see
+     * {@link SchemaCacheKey#forDatasetAggregate}), or {@code null} on a miss. The map carries only
+     * dataset-INDEPENDENT-of-declaration keys — today just {@code _stats.row_count} — never per-column
+     * stats, so serving it can never leak a wrongly-normalized MIN/MAX (those keep re-scanning until the
+     * per-file rail serves them). It lives in the dedicated {@link #datasetAggregateCache}, so per-file churn
+     * can no longer evict it. Does NOT touch the hit/miss counters — those are resolver-driven at the serve
+     * decision (see {@link #recordDatasetAggregateHit} / {@link #recordDatasetAggregateMiss}).
+     */
+    @Nullable
+    public Map<String, Object> getDatasetAggregate(SchemaCacheKey key) {
+        if (enabled == false || key == null) {
+            return null;
+        }
+        // Cache.get() already promotes the entry to the LRU head, so a hot dataset stays resident; no re-put
+        // is needed (there is no expireAfterWrite clock to refresh — the dataset cache has no TTL).
+        SchemaCacheEntry entry = datasetAggregateCache.get(key);
+        if (entry == null || entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number == false) {
+            return null;
+        }
+        return entry.safeMetadata();
+    }
+
+    /**
+     * Stores the dataset-level row-count aggregate for one resolved file set into the dedicated
+     * {@link #datasetAggregateCache}. The entry is a synthetic {@link SchemaCacheEntry} (no columns;
+     * {@code safeMetadata} = the row count) so the common cache plumbing — weigher, enable/disable,
+     * clearAll, usage stats — applies unchanged; only the store (and its budget, no-TTL policy) differs.
+     */
+    public void putDatasetAggregate(SchemaCacheKey key, long rowCount, String sourceType, String location) {
+        if (enabled == false || key == null || rowCount < 0) {
+            return;
+        }
+        SchemaCacheEntry entry = new SchemaCacheEntry(
+            new String[0],
+            new DataType[0],
+            new Nullability[0],
+            new boolean[0],
+            sourceType,
+            location,
+            Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount),
+            Map.of(),
+            System.currentTimeMillis()
+        );
+        datasetAggregateCache.put(key, entry);
+    }
+
+    /**
+     * Registers a {@link PendingDatasetAggregate} promise for the reconcile of the in-flight cold scan
+     * to fulfill. Doubly bounded ({@value #MAX_PENDING_DATASET_AGGREGATES} descriptors /
+     * {@value #MAX_PENDING_TOTAL_PATHS} total stored paths, oldest dropped) and expired on
+     * {@link #PENDING_DATASET_AGGREGATE_TTL_NANOS}, so an abandoned promise (query failed, scan
+     * partial) costs nothing. Re-registering the same dataset key replaces the previous promise
+     * (same content, refreshed clock).
+     * <p>
+     * {@code expectedFileCount} is the resolved listing's file COUNT (a multiset count: a
+     * comma-separated source list can name the same file twice, and the scan then counts its rows
+     * twice). {@code pathToMtimeMillis} is a map and therefore deduplicates; when the two disagree the
+     * promise-side sum over unique paths would publish an undercount relative to the scan, so
+     * registration is refused — the dataset stays on the re-scan path (correct-or-miss).
+     */
+    public void registerPendingDatasetAggregate(
+        SchemaCacheKey datasetKey,
+        Map<String, Long> pathToMtimeMillis,
+        int expectedFileCount,
+        String configFingerprint,
+        String sourceType,
+        String location
+    ) {
+        if (enabled == false || datasetKey == null || pathToMtimeMillis == null || pathToMtimeMillis.size() < 2) {
+            return;
+        }
+        if (pathToMtimeMillis.size() != expectedFileCount) {
+            // Duplicate paths in the listing — a unique-path sum would undercount the multiset scan. Same
+            // guard as ExternalSourceResolver#listingPathsAreDistinct on the write-through rail, encoded
+            // here as size-vs-count because the map has already deduplicated.
+            return;
+        }
+        if (pathToMtimeMillis.size() > MAX_PENDING_TOTAL_PATHS) {
+            return; // one glob beyond the whole registry's path budget — safe-miss rather than pin the heap
+        }
+        PendingDatasetAggregate pending = new PendingDatasetAggregate(
+            datasetKey,
+            Map.copyOf(pathToMtimeMillis),
+            configFingerprint,
+            sourceType,
+            location,
+            System.nanoTime()
+        );
+        synchronized (pendingDatasetAggregates) {
+            pendingDatasetAggregates.remove(datasetKey); // re-insert at tail so eviction order tracks freshness
+            pendingDatasetAggregates.put(datasetKey, pending);
+            Iterator<PendingDatasetAggregate> it = pendingDatasetAggregates.values().iterator();
+            int totalPaths = 0;
+            for (PendingDatasetAggregate p : pendingDatasetAggregates.values()) {
+                totalPaths += p.pathToMtimeMillis().size();
+            }
+            while ((pendingDatasetAggregates.size() > MAX_PENDING_DATASET_AGGREGATES || totalPaths > MAX_PENDING_TOTAL_PATHS)
+                && it.hasNext()) {
+                PendingDatasetAggregate evicted = it.next();
+                if (evicted == pending) {
+                    break; // never evict the entry just registered; both bounds are already satisfied for it alone
+                }
+                totalPaths -= evicted.pathToMtimeMillis().size();
+                it.remove();
+            }
+        }
+    }
+
+    /**
+     * Counts a resolve whose per-file stats aggregate came back incomplete (observability). Only
+     * aggregate-QUALIFYING resolves are counted (multi-file, text-format, file-set-fingerprint-bearing,
+     * cacheable provider): the caller sits after the {@code datasetKey == null} early-return in
+     * {@code ExternalSourceResolver#applyDatasetAggregate}, so non-qualifying incompletes never reach it.
+     * <p>
+     * Today {@code stats_aggregate.incomplete == dataset_aggregate.hits + dataset_aggregate.misses}
+     * exactly (every incomplete then resolves to precisely one of hit/miss on the same needed path). Kept
+     * as its own counter so the "the per-file merge was incomplete" signal survives a future serve path
+     * that grows a third outcome and breaks that identity.
+     */
+    public void recordStatsAggregateIncomplete() {
+        statsAggregateIncomplete.increment();
+    }
+
+    /**
+     * Counts a dataset-aggregate fallback that was NEEDED (the per-file merge came back incomplete) AND
+     * PRESENT — i.e. the memoized aggregate was actually served. Resolver-driven and symmetric with
+     * {@link #recordDatasetAggregateMiss} so that {@code hits / (hits + misses)} is a true fallback hit
+     * rate over the resolves that actually needed the aggregate.
+     */
+    public void recordDatasetAggregateHit() {
+        datasetAggregateHits.increment();
+    }
+
+    /**
+     * Counts a dataset-aggregate fallback that was NEEDED (the per-file merge came back incomplete) but
+     * ABSENT. Deliberately resolver-driven rather than incremented inside {@link #getDatasetAggregate}:
+     * every multi-file resolve prefetches the aggregate — including healthy warm resolves whose per-file
+     * merge succeeds and never consumes it — so a get-side counter would count non-events. Its hit twin
+     * ({@link #recordDatasetAggregateHit}) is counted at the same serve decision, so the two share a
+     * denominator (resolves that needed the fallback) and their ratio is meaningful.
+     */
+    public void recordDatasetAggregateMiss() {
+        datasetAggregateMisses.increment();
+    }
+
+    /**
      * Returns a cached file listing or stores the provided one. The loader is only invoked
      * on a cache miss. When the cache is disabled, the loader is called directly (bypassing the cache).
      */
@@ -150,16 +413,28 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
             return;
         }
-        // Snapshot the glob's entries BEFORE any commit writes: the first put() sweeps TTL-expired
-        // entries, evicting files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
+        // Snapshot the glob's entries BEFORE any commit writes: under weight pressure the first put() can
+        // LRU-evict files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot = snapshotEntriesByPath(
             contributionsPerFile.keySet()
         );
         // LinkedHashMap, not HashMap: commit whole-file entries in the caller's contribution order so the
-        // reconcile (and which sibling a capacity/TTL sweep hits during a commit) is deterministic rather
+        // reconcile (and which sibling a capacity sweep hits during a commit) is deterministic rather
         // than dependent on path hashCode. Final per-entry state is order-independent (each path keys a
         // distinct entry; a swept sibling is recovered per key), so this only pins reproducibility.
         Map<String, Map<String, Object>> merged = new LinkedHashMap<>(contributionsPerFile.size());
+        // Per-path whole-file stats this reconcile PROVED complete (a whole-file contribution, or a
+        // stripe delta whose committed fold reached 0..K+EOF). Input to the pending dataset-aggregate
+        // fulfillment below: a dataset promise is honored only when every one of its paths lands here.
+        // Only worth tracking while a promise is actually pending — the common no-promise reconcile
+        // skips the bookkeeping and the direct delta fold entirely. A promise registered concurrently
+        // after this check belongs to a resolve whose own scan has not reconciled yet, so skipping it
+        // this reconcile loses nothing (its own reconcile fulfills it).
+        final boolean anyPendingDatasetAggregate;
+        synchronized (pendingDatasetAggregates) {
+            anyPendingDatasetAggregate = pendingDatasetAggregates.isEmpty() == false;
+        }
+        Map<String, Map<String, Object>> completedWholeFile = new HashMap<>(contributionsPerFile.size());
         for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
             List<Map<String, Object>> contributions = e.getValue();
             if (contributions == null || contributions.isEmpty()) {
@@ -198,6 +473,9 @@ public class ExternalSourceCacheService implements Closeable {
                 Map<String, Object> mergedForFile = mergeWholeFileContributions(wholeFile);
                 if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                     merged.put(e.getKey(), mergedForFile);
+                    if (anyPendingDatasetAggregate) {
+                        completedWholeFile.put(e.getKey(), mergedForFile);
+                    }
                 }
                 continue;
             }
@@ -206,19 +484,171 @@ public class ExternalSourceCacheService implements Closeable {
                 logger.debug("dropping captured stats for [{}]: no complete stripe among fragments", e.getKey());
                 continue;
             }
-            commitStripeDelta(e.getKey(), delta, preCommitSnapshot.get(e.getKey()));
+            Map<String, Object> foldedWholeFile = commitStripeDelta(e.getKey(), delta, preCommitSnapshot.get(e.getKey()));
+            if (anyPendingDatasetAggregate) {
+                if (foldedWholeFile == null) {
+                    // The entry-side fold requires a matching schema entry to still be cached, but under the
+                    // exact LRU pressure the dataset aggregate exists for, those entries are already
+                    // weight-evicted at reconcile time. A full cold scan's delta is whole-file complete on
+                    // its own (every stripe 0..EOF observed by THIS query), so fold it directly — the
+                    // dataset promise must not depend on per-file cache survival.
+                    foldedWholeFile = foldQueryDeltaStripes(delta);
+                }
+                if (foldedWholeFile != null) {
+                    completedWholeFile.put(e.getKey(), foldedWholeFile);
+                }
+            }
         }
         reconcileSourceStats(merged, preCommitSnapshot);
+        if (anyPendingDatasetAggregate) {
+            fulfillPendingDatasetAggregates(completedWholeFile);
+        }
+    }
+
+    /**
+     * Honors every {@link PendingDatasetAggregate} promise this reconcile fully covers: each of the
+     * promise's paths must appear in {@code completedWholeFile} with a numeric row count, the promised
+     * mtime, and the promised config fingerprint. The sum is committed under the dataset key so the very
+     * FIRST warm query survives per-file entry loss (eviction under pressure — the observed 20-minute
+     * warm re-scan) without waiting for a second successful per-file merge. Expired promises are dropped
+     * on the way through; an unfulfillable promise (poisoned file, cover gap, mid-flight modification)
+     * stays registered until it expires — a later scan of the same set may still complete it.
+     */
+    private void fulfillPendingDatasetAggregates(Map<String, Map<String, Object>> completedWholeFile) {
+        List<PendingDatasetAggregate> candidates;
+        synchronized (pendingDatasetAggregates) {
+            if (pendingDatasetAggregates.isEmpty()) {
+                return;
+            }
+            long now = System.nanoTime();
+            pendingDatasetAggregates.values().removeIf(p -> now - p.registeredAtNanos() > PENDING_DATASET_AGGREGATE_TTL_NANOS);
+            candidates = List.copyOf(pendingDatasetAggregates.values());
+        }
+        for (PendingDatasetAggregate pending : candidates) {
+            Long sum = sumIfFullyCovered(pending, completedWholeFile);
+            if (sum != null) {
+                putDatasetAggregate(pending.datasetKey(), sum, pending.sourceType(), pending.location());
+                synchronized (pendingDatasetAggregates) {
+                    pendingDatasetAggregates.remove(pending.datasetKey());
+                }
+                logger.debug(
+                    "materialized dataset aggregate for [{}]: row_count=[{}] across [{}] files",
+                    pending.location(),
+                    sum,
+                    pending.pathToMtimeMillis().size()
+                );
+            }
+        }
+    }
+
+    /**
+     * Folds ONE query's stripe delta to whole-file {@code _stats.*} keys, or {@code null} when the delta
+     * alone is not whole-file complete (EOF unseen, or an ordinal missing). The stateless counterpart of
+     * {@link #foldCommittedStripes}: no schema-cache entry involved, so it works for files whose entries
+     * were already evicted — a full scan's delta carries every stripe by itself. Cross-query assembly is
+     * deliberately NOT attempted here; a partial scan simply does not fulfill the dataset promise.
+     */
+    @Nullable
+    private static Map<String, Object> foldQueryDeltaStripes(StripeDelta delta) {
+        // TRIPWIRE — coercion asymmetry vs foldCommittedStripes: the stripes folded here are the delta's
+        // RAW per-stripe stats, while foldCommittedStripes folds entry-committed stripes that went through
+        // coerceColumnStatsToResolvedTypes. Safe today because this fold's only consumer is the dataset
+        // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column
+        // min/max. If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the
+        // committed path (or the two folds must share the coercion) before per-column keys are served.
+        return foldStripes(delta.lastStripeOrdinal(), k -> delta.stripes().get(k), delta.mtimeMillis(), delta.fingerprint());
+    }
+
+    /**
+     * The one owner of the whole-file stripe fold: walks stripes {@code 0..lastOrdinal} through
+     * {@code stripeAt}, requiring every ordinal present (all-or-nothing — a gap means knowledge is
+     * incomplete and the fold safe-misses with {@code null}), then merges and re-keys via
+     * {@link #mergeStripesAndRekey}. {@link #foldCommittedStripes} walks the entry-committed
+     * {@code _stats.stripe.<k>} sub-entries; {@link #foldQueryDeltaStripes} walks one query's raw delta.
+     */
+    @Nullable
+    private static Map<String, Object> foldStripes(
+        long lastOrdinal,
+        LongFunction<Map<String, Object>> stripeAt,
+        long mtimeMillis,
+        String fingerprint
+    ) {
+        if (lastOrdinal < 0) {
+            return null;
+        }
+        List<Map<String, Object>> stripes = new ArrayList<>(Math.toIntExact(lastOrdinal) + 1);
+        for (long k = 0; k <= lastOrdinal; k++) {
+            Map<String, Object> stripe = stripeAt.apply(k);
+            if (stripe == null) {
+                return null; // ordinal missing — knowledge incomplete, safe-miss
+            }
+            stripes.add(stripe);
+        }
+        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint);
+    }
+
+    /**
+     * Merges a list of flat per-stripe stats maps into one whole map and re-attaches the keying fields
+     * (mtime, config fingerprint) that {@code mergeStatistics} — which rebuilds from the {@code _stats.*}
+     * keys only — would drop. {@code implicitNullsForAbsentColumn=false} always: every stripe fold is
+     * text-only, and under the default PROJECTED scope different cold queries harvest different columns,
+     * so a column absent from a stripe means "not harvested by that scan," NOT "all-null" — the footer
+     * ({@code true}) contract would fold that stripe's rows into the column's null_count and under-count
+     * {@code COUNT(col)} / serve a subset MIN/MAX. {@code false} drops a column missing from any stripe
+     * so it safe-misses, matching the cross-file text merge in {@code ExternalSourceResolver}.
+     */
+    @Nullable
+    private static Map<String, Object> mergeStripesAndRekey(List<Map<String, Object>> stripes, long mtimeMillis, String fingerprint) {
+        Map<String, Object> whole = stripes.size() == 1
+            ? new HashMap<>(stripes.get(0))
+            : SourceStatisticsSerializer.mergeStatistics(stripes, false);
+        if (whole != null) {
+            if (mtimeMillis >= 0) {
+                whole.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+            }
+            if (fingerprint != null) {
+                whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            }
+        }
+        return whole;
+    }
+
+    /**
+     * The promise's row-count sum, or {@code null} unless EVERY promised path is whole-file complete in
+     * this reconcile under the promised (mtime, config fingerprint). All-or-nothing at the dataset
+     * level on purpose: a partial sum served as the dataset count would be a wrong answer, whereas a
+     * miss merely re-scans.
+     */
+    @Nullable
+    private static Long sumIfFullyCovered(PendingDatasetAggregate pending, Map<String, Map<String, Object>> completedWholeFile) {
+        long sum = 0;
+        for (Map.Entry<String, Long> expected : pending.pathToMtimeMillis().entrySet()) {
+            Map<String, Object> stats = completedWholeFile.get(expected.getKey());
+            if (stats == null) {
+                return null;
+            }
+            Object rowCount = stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+            Object mtime = stats.get(ExternalStats.MTIME_MILLIS_KEY);
+            if (rowCount instanceof Number == false) {
+                return null;
+            }
+            if (mtime instanceof Number == false || ((Number) mtime).longValue() != expected.getValue()) {
+                return null; // file changed between the resolve's listing and the scan — different version, safe-miss
+            }
+            if (Objects.equals(stats.get(ExternalStats.CONFIG_FINGERPRINT_KEY), pending.configFingerprint()) == false) {
+                return null; // harvested under a different row-interpretation config — not this promise's stats
+            }
+            sum += ((Number) rowCount).longValue();
+        }
+        return sum;
     }
 
     /**
      * Snapshots, per contribution path, every schema-cache entry whose canonical path matches — taken
-     * BEFORE a reconcile's first commit write. A cold scan longer than the schema TTL reconciles into a
-     * cache whose entries for the scanned glob have ALL expired: expired entries are still forEach-visible
-     * (expiry evicts lazily), but the first {@code schemaCache.put()} prunes them from the LRU tail, so
-     * file #1's commit would evict files #2..N's entries before their deltas apply — the deltas match
-     * nothing, the all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the
-     * whole source.
+     * BEFORE a reconcile's first commit write. Under weight pressure (a many-file glob whose entries do not
+     * all fit the schema budget), the first {@code schemaCache.put()} prunes the LRU tail, so file #1's
+     * commit can evict files #2..N's entries before their deltas apply — the deltas then match nothing, the
+     * all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the whole source.
      * <p>
      * Only ever consulted (via {@link #collectMatchingEntries}'s {@code fallback}) to recover a SIBLING's
      * swept entry, so it is worth building only for a multi-path reconcile. A single-path reconcile has no
@@ -233,11 +663,12 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a 6-tuple (path, mtime, formatType, formatConfig, endpoint, region), so
-        // a contribution path alone does not reconstruct a key, and forEach is the only path-agnostic
-        // enumeration the Cache exposes that is safe against concurrent LRU mutation (keys()/values() walk
-        // the lock-free LRU list). The sweep is O(cache) for a multi-path reconcile, but that is the price of
-        // capturing each sibling's pre-eviction entry before the first commit's put() prunes the expired ones.
+        // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
+        // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
+        // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
+        // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
+        // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
+        // commit's put() prunes the LRU tail under weight pressure.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaCache.forEach((key, entry) -> {
             if (paths.contains(key.canonicalPath())) {
@@ -251,14 +682,14 @@ public class ExternalSourceCacheService implements Closeable {
      * Collects every schema-cache entry a contribution for {@code (path, mtimeMillis, fingerprint)}
      * applies to: every live match, plus — per KEY, for keys the live sweep no longer has — the
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
-     * sibling path's earlier commit swept this path's expired entry out of the cache before its stats
+     * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
      * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
      * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
      * its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
-     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry with a
-     * fresh write time — the same revive a live expired match already gets. Must run holding the
+     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
+     * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
      */
@@ -300,7 +731,14 @@ public class ExternalSourceCacheService implements Closeable {
         return matches;
     }
 
-    /** True when the entry is for {@code path}, observed at the contribution's mtime, under the same format config. */
+    /**
+     * True when the entry is for {@code path}, observed at the contribution's mtime, under the same format
+     * config. Dataset-aggregate entries ({@link SchemaCacheKey#DATASET_AGGREGATE_MARKER}) are excluded
+     * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
+     * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
+     * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
+     * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     */
     private static boolean matchesContribution(
         SchemaCacheKey key,
         SchemaCacheEntry entry,
@@ -308,7 +746,8 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         Object fingerprint
     ) {
-        return path.equals(key.canonicalPath())
+        return key.isDatasetAggregate() == false
+            && path.equals(key.canonicalPath())
             && key.lastModifiedEpochMillis() == mtimeMillis
             && Objects.equals(entry.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY), fingerprint);
     }
@@ -491,18 +930,10 @@ public class ExternalSourceCacheService implements Closeable {
         for (SourceStatsContribution.StripeFragment f : chain) {
             maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint()));
         }
-        // false: text-only fold (see foldCommittedStripes) — an absent column is "not harvested", not all-null.
-        Map<String, Object> folded = maps.size() == 1 ? maps.get(0) : SourceStatisticsSerializer.mergeStatistics(maps, false);
-        if (folded != null && maps.size() > 1) {
-            // mergeStatistics rebuilds from the _stats.* keys only; re-attach the keying fields.
-            if (mtimeMillis >= 0) {
-                folded.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-            }
-            if (fingerprint != null) {
-                folded.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-            }
-        }
-        return folded;
+        // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
+        // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
+        // is an idempotent overwrite.
+        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint);
     }
 
     /**
@@ -513,28 +944,45 @@ public class ExternalSourceCacheService implements Closeable {
      * whole-file {@code _stats.*} keys — the optimizer's existing warm short-circuit input —
      * making the short-circuit deterministic: complete knowledge implies enrichment, possibly
      * assembled across queries.
+     *
+     * @return the whole-file {@code _stats.*} fold when this commit brought (any matching entry for)
+     *         the file to whole-file completeness, else {@code null}. Input to the dataset-aggregate
+     *         promise fulfillment: the fold is a pure function of the file's bytes at
+     *         {@code (mtime, fingerprint)}, so whichever matching entry completed first is authoritative.
      */
-    private void commitStripeDelta(String path, StripeDelta delta, @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback) {
+    @Nullable
+    private Map<String, Object> commitStripeDelta(
+        String path,
+        StripeDelta delta,
+        @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback
+    ) {
         if (enabled == false || path == null) {
-            return;
+            return null;
         }
         if (delta.mtimeMillis() < 0) {
-            return; // no freshness key — cannot match an entry
+            return null; // no freshness key — cannot match an entry
         }
         // Serialize the read-modify-write per file path: concurrent commits of different stripes for the
         // same file would otherwise each copy the same entry snapshot and the later put would drop the
         // earlier stripe (lost update). Commits are coordinator-side and infrequent.
         try (Releasable ignored = stripeCommitLocks.acquire(path)) {
-            applyStripeDelta(path, delta, fallback);
+            return applyStripeDelta(path, delta, fallback);
         }
     }
 
     /**
      * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries via
      * {@link #collectMatchingEntries} (live cache, snapshot fallback), then enrich and re-put each.
-     * Must run holding the per-path {@link #stripeCommitLocks} lock.
+     * Must run holding the per-path {@link #stripeCommitLocks} lock. Returns the first completed
+     * whole-file fold (see {@link #commitStripeDelta}).
      */
-    private void applyStripeDelta(String path, StripeDelta delta, @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback) {
+    @Nullable
+    private Map<String, Object> applyStripeDelta(
+        String path,
+        StripeDelta delta,
+        @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback
+    ) {
+        Map<String, Object> completedFold = null;
         List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = collectMatchingEntries(
             path,
             delta.mtimeMillis(),
@@ -577,9 +1025,13 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; entry weight back to O(1)
                 enriched.putAll(wholeFile);
+                if (completedFold == null) {
+                    completedFold = wholeFile;
+                }
             }
             schemaCache.put(key, existing.withSafeMetadata(enriched));
         }
+        return completedFold;
     }
 
     /**
@@ -732,37 +1184,16 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
-        if (lastIndex < 0) {
-            return null;
-        }
-        List<Map<String, Object>> stripes = new ArrayList<>(Math.toIntExact(lastIndex) + 1);
-        for (long k = 0; k <= lastIndex; k++) {
+        // The stripes folded here went through coerceColumnStatsToResolvedTypes when committed — see the
+        // TRIPWIRE on foldQueryDeltaStripes for the coercion asymmetry between the two foldStripes callers.
+        return foldStripes(lastIndex, k -> {
             if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> stripeMap = (Map<String, Object>) stripe;
-                stripes.add(stripeMap);
-            } else {
-                return null; // ordinal missing — knowledge incomplete, keep accumulating
+                return stripeMap;
             }
-        }
-        // implicitNullsForAbsentColumn=false: stripe deltas are text-only, and under the default PROJECTED
-        // scope different cold queries harvest different columns, so an entry's stripes can carry non-uniform
-        // column sets. A column absent from a stripe means "not harvested by that scan," NOT "all-null" — the
-        // footer (true) contract would fold that stripe's rows into the column's null_count and under-count
-        // COUNT(col) / serve a subset MIN/MAX. false drops a column missing from any stripe so it safe-misses,
-        // matching the cross-file text merge in ExternalSourceResolver.
-        Map<String, Object> whole = stripes.size() == 1
-            ? new HashMap<>(stripes.get(0))
-            : SourceStatisticsSerializer.mergeStatistics(stripes, false);
-        if (whole != null) {
-            if (delta.mtimeMillis() >= 0) {
-                whole.put(ExternalStats.MTIME_MILLIS_KEY, delta.mtimeMillis());
-            }
-            if (delta.fingerprint() != null) {
-                whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, delta.fingerprint());
-            }
-        }
-        return whole;
+            return null; // ordinal missing — knowledge incomplete, keep accumulating
+        }, delta.mtimeMillis(), delta.fingerprint());
     }
 
     /**
@@ -865,7 +1296,7 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Snapshot-aware body of {@link #reconcileSourceStats}. {@code preCommitSnapshot} is the pre-reconcile
      * per-path entry snapshot (see {@link #snapshotEntriesByPath}), consulted only when the live cache
-     * has no match — the sibling-commit expiry-sweep case described there. Same discipline as
+     * has no match — the sibling-commit weight-sweep case described there. Same discipline as
      * {@link #applyStripeDelta}.
      */
     private void reconcileSourceStats(
@@ -888,8 +1319,8 @@ public class ExternalSourceCacheService implements Closeable {
             long mtimeMillis = ((Number) mtimeObj).longValue();
             // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
             // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
-            // several entries — one per (formatType, formatConfig) tuple (e.g. WITH {"header_row": true}
-            // vs {"header_row": false} count rows differently). The config fingerprint disambiguates
+            // several entries — one per (formatType, formatConfig) tuple (e.g. header_row=true vs
+            // header_row=false count rows differently). The config fingerprint disambiguates
             // them, and it is node-stable: both the data node's contribution and the coordinator's entry
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
@@ -939,7 +1370,12 @@ public class ExternalSourceCacheService implements Closeable {
 
     public void clearAll() {
         schemaCache.invalidateAll();
+        datasetAggregateCache.invalidateAll();
+        fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
+        synchronized (pendingDatasetAggregates) {
+            pendingDatasetAggregates.clear();
+        }
     }
 
     public Map<String, Object> usageStats() {
@@ -952,10 +1388,24 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("schema_cache.misses", schemaCache.stats().getMisses());
         stats.put("schema_cache.evictions", schemaCache.stats().getEvictions());
 
+        stats.put("file_metadata_cache.count", fileMetadataCache.count());
+        stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
+        stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
+        stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());
+
         stats.put("listing_cache.count", listingCache.count());
         stats.put("listing_cache.hits", listingCache.stats().getHits());
         stats.put("listing_cache.misses", listingCache.stats().getMisses());
         stats.put("listing_cache.evictions", listingCache.stats().getEvictions());
+
+        stats.put("dataset_aggregate_cache.count", datasetAggregateCache.count());
+        stats.put("dataset_aggregate_cache.evictions", datasetAggregateCache.stats().getEvictions());
+        stats.put("dataset_aggregate.hits", datasetAggregateHits.sum());
+        stats.put("dataset_aggregate.misses", datasetAggregateMisses.sum());
+        synchronized (pendingDatasetAggregates) {
+            stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
+        }
+        stats.put("stats_aggregate.incomplete", statsAggregateIncomplete.sum());
 
         return stats;
     }
@@ -968,6 +1418,16 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache() {
         return schemaCache;
+    }
+
+    // Visible for testing
+    Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
+        return datasetAggregateCache;
+    }
+
+    // Visible for testing
+    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
+        return fileMetadataCache;
     }
 
     // Visible for testing

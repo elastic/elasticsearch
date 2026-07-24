@@ -1200,6 +1200,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         // match_only_text has no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
         return docValuesParameters.nullability();

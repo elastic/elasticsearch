@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -517,7 +518,14 @@ public class SearchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(
+                    randomLong(),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    () -> randomAlphaOfLength(6),
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of()
+                ),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,

@@ -13,3 +13,8 @@
  */
 
 apply plugin: 'elasticsearch.standalone-test'
+
+tasks.withType(Test).configureEach {
+  // this module tests process spawning, which requires the system call filter to be disabled
+  systemProperty 'tests.system_call_filter', 'false'
+}

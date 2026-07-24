@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 153433
+summary: Generalize per-fetch directory metrics to all pluggable metrics
+type: enhancement

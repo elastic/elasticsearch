@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +24,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 
 /**
  * Generates {@code HIGHLIGHT} commands with string and full-text queries. Queries only reference fields in the
@@ -47,7 +46,17 @@ public class HighlightGenerator implements CommandGenerator {
         { "operator", "\"AND\"", "\"OR\"" },
         { "fuzziness", "\"AUTO\"", "1", "2" },
         { "boost", "1.0", "2.5" },
-        { "zero_terms_query", "\"none\"", "\"all\"" } };
+        { "zero_terms_query", "\"none\"", "\"all\"" },
+        { "lenient", "true", "false" } };
+
+    /** Field-independent QSTR options ({@code default_field} is handled separately since its value is a field name). */
+    private static final String[][] QSTR_OPTIONS = {
+        { "default_operator", "\"OR\"", "\"AND\"" },
+        { "lenient", "true", "false" },
+        { "fuzziness", "\"AUTO\"", "1" },
+        { "boost", "1.0", "2.5" },
+        { "phrase_slop", "1", "2", "3" },
+        { "analyze_wildcard", "true", "false" } };
 
     /** Entries have the form {@code { name, value1, value2, ... }}. */
     private static final String[][] WITH_OPTIONS = {
@@ -90,37 +99,30 @@ public class HighlightGenerator implements CommandGenerator {
 
         List<Column> onFields = pickOnFields(stringColumns);
         String query = buildQuery(onFields);
-
-        // Generated column names must work with EsqlQueryGenerator.needsQuoting. Do not generate prefixes with spaces.
-        String prefixValue;
-        String prefixClause;
-        switch (randomIntBetween(0, 2)) {
-            case 0 -> {
-                prefixValue = "highlight_";
-                prefixClause = "";
-            }
-            case 1 -> {
-                prefixValue = randomBoolean() ? "hl_" : EsqlQueryGenerator.randomIdentifier() + "_";
-                prefixClause = "prefix = \"" + prefixValue + "\" ";
-            }
-            case 2 -> {
-                prefixValue = "";
-                prefixClause = "prefix = \"\" ";
-            }
-            default -> throw new IllegalStateException("unexpected prefix choice");
-        }
-
+        Prefix prefix = pickPrefix();
         String onClause = onFields.stream().map(c -> ref(c.name())).collect(Collectors.joining(", "));
 
-        StringBuilder command = new StringBuilder(" | HIGHLIGHT ");
-        command.append(prefixClause);
-        command.append(query);
-        command.append(" ON ").append(onClause);
-        command.append(maybeWith());
+        String command = " | HIGHLIGHT " + prefix.clause() + query + " ON " + onClause + maybeWith();
 
-        List<String> generatedColumns = onFields.stream().map(c -> prefixValue + c.name()).toList();
+        List<String> generatedColumns = onFields.stream().map(c -> prefix.value() + c.name()).toList();
         Map<String, Object> commandContext = Map.of(HIGHLIGHT_COLUMNS, generatedColumns);
-        return new CommandDescription(HIGHLIGHT, this, command.toString(), commandContext);
+        return new CommandDescription(HIGHLIGHT, this, command, commandContext);
+    }
+
+    /** A generated column prefix and the {@code prefix = "..."} clause (if any) that produces it. */
+    private record Prefix(String value, String clause) {}
+
+    /** Generated column names must work with {@link EsqlQueryGenerator#needsQuoting}. Do not generate prefixes with spaces. */
+    private static Prefix pickPrefix() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new Prefix("highlight_", "");
+            case 1 -> {
+                String value = randomBoolean() ? "hl_" : EsqlQueryGenerator.randomIdentifier() + "_";
+                yield new Prefix(value, "prefix = \"" + value + "\" ");
+            }
+            case 2 -> new Prefix("", "prefix = \"\" ");
+            default -> throw new IllegalStateException("unexpected prefix choice");
+        };
     }
 
     @Override
@@ -147,10 +149,8 @@ public class HighlightGenerator implements CommandGenerator {
 
         Object generated = commandDescription.context().get(HIGHLIGHT_COLUMNS);
         if (generated instanceof List<?> generatedColumns) {
-            Map<String, String> typesByName = new HashMap<>();
-            for (Column c : columns) {
-                typesByName.put(c.name(), c.type());
-            }
+            Map<String, String> typesByName = columns.stream()
+                .collect(Collectors.toMap(Column::name, Column::type, (first, second) -> second));
             for (Object nameObj : generatedColumns) {
                 String name = (String) nameObj;
                 String type = typesByName.get(name);
@@ -165,9 +165,11 @@ public class HighlightGenerator implements CommandGenerator {
         return VALIDATION_OK;
     }
 
+    private static final Set<String> STRING_TYPES = Set.of("text", "keyword");
+
     /** Union-typed string columns can be used by the ON clause and string queries. */
     private static boolean isStringField(Column column) {
-        return (column.type().equals("text") || column.type().equals("keyword")) && EsqlQueryGenerator.fieldCanBeUsed(column);
+        return STRING_TYPES.contains(column.type()) && EsqlQueryGenerator.fieldCanBeUsed(column);
     }
 
     /**
@@ -180,25 +182,12 @@ public class HighlightGenerator implements CommandGenerator {
 
     /** Excludes union types that can resolve to a different field name during MATCH translation. */
     private static boolean cleanStringField(Column column) {
-        if (isStringField(column) == false) {
-            return false;
-        }
-        for (String originalType : column.originalTypes()) {
-            if (originalType.equals("text") == false && originalType.equals("keyword") == false) {
-                return false;
-            }
-        }
-        return true;
+        return isStringField(column) && column.originalTypes().stream().allMatch(STRING_TYPES::contains);
     }
 
     private static List<Column> pickOnFields(List<Column> stringColumns) {
         int n = randomIntBetween(1, Math.min(2, stringColumns.size()));
-        List<Column> pool = new ArrayList<>(stringColumns);
-        List<Column> chosen = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            chosen.add(pool.remove(randomIntBetween(0, pool.size() - 1)));
-        }
-        return chosen;
+        return randomSubsetOf(n, stringColumns);
     }
 
     /** Builds a query using only the given ON fields. */
@@ -226,11 +215,14 @@ public class HighlightGenerator implements CommandGenerator {
         if (simpleIndexMappedFields.isEmpty() == false) {
             forms.add(() -> kqlQuery(randomFrom(simpleIndexMappedFields)));
         }
+        if (simpleFields.isEmpty() == false) {
+            forms.add(() -> fieldQualifiedLiteralQuery(randomFrom(simpleFields)));
+        }
         return randomFrom(forms).get();
     }
 
     private static String stringLiteralQuery() {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 10)) {
             case 0 -> "\"" + word() + "\"";
             case 1 -> "\"" + word() + " " + word() + "\"";
             // An empty query analyzes to no terms (a valid no-match query).
@@ -238,8 +230,34 @@ public class HighlightGenerator implements CommandGenerator {
             case 3 -> "\"" + word() + " AND " + word() + "\"";
             case 4 -> "\"(" + word() + " OR " + word() + ") AND " + word() + "\"";
             case 5 -> "\"" + word() + " " + word() + " " + word() + "\"";
+            // A prohibited term suppresses the whole match when present.
+            case 6 -> "\"" + word() + " -" + word() + "\"";
+            // Wildcard term: exercises the multi-term (consumeTermsMatching) highlighter path.
+            case 7 -> "\"" + wildcardTerm() + "\"";
+            // Fuzzy term with AUTO fuzziness.
+            case 8 -> "\"" + word() + "~\"";
+            // Regexp term between slashes.
+            case 9 -> "\"/" + word() + "/\"";
+            // Quoted phrase: wraps the exact sequence in a single weight-matches span.
+            case 10 -> "\"\\\"" + word() + " " + word() + "\\\"\"";
             default -> throw new IllegalStateException("unexpected query choice");
         };
+    }
+
+    /** A prefix, leading, or double-sided wildcard term (all valid query_string syntax in HIGHLIGHT). */
+    private static String wildcardTerm() {
+        String w = word();
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> w + "*";
+            case 1 -> "*" + w;
+            case 2 -> "*" + w + "*";
+            default -> throw new IllegalStateException("unexpected wildcard choice");
+        };
+    }
+
+    /** A field-qualified literal string query; the field is in ON so it highlights (require_field_match parity). */
+    private static String fieldQualifiedLiteralQuery(Column simpleField) {
+        return "\"" + simpleField.name() + ":" + word() + "\"";
     }
 
     private static String matchQuery(Column field) {
@@ -257,10 +275,27 @@ public class HighlightGenerator implements CommandGenerator {
     }
 
     private static String qstrQuery(List<Column> simpleFields) {
-        if (simpleFields.isEmpty() == false && randomBoolean()) {
-            return "qstr(\"" + randomFrom(simpleFields).name() + ":" + word() + "\")";
+        List<Supplier<String>> bodies = new ArrayList<>();
+        bodies.add(HighlightGenerator::word);
+        // Quoted phrase -> single weight-matches span.
+        bodies.add(() -> "\\\"" + word() + " " + word() + "\\\"");
+        if (simpleFields.isEmpty() == false) {
+            // Field-qualified term, and a range matching every in-range term; both need a simple ON field.
+            bodies.add(() -> randomFrom(simpleFields).name() + ":" + word());
+            bodies.add(() -> randomFrom(simpleFields).name() + ":[a TO z]");
         }
-        return "qstr(\"" + word() + "\")";
+        return "qstr(\"" + randomFrom(bodies).get() + "\"" + maybeQstrOptions(simpleFields) + ")";
+    }
+
+    private static String maybeQstrOptions(List<Column> simpleFields) {
+        if (randomIntBetween(0, 3) != 0) {
+            return "";
+        }
+        // default_field must name an ON field, so only offer it when a simple (unquoted) field exists.
+        if (simpleFields.isEmpty() == false && randomBoolean()) {
+            return ", {\"default_field\": \"" + randomFrom(simpleFields).name() + "\"}";
+        }
+        return ", {" + optionEntry(randomFrom(QSTR_OPTIONS)) + "}";
     }
 
     private static String kqlQuery(Column simpleField) {
@@ -281,8 +316,12 @@ public class HighlightGenerator implements CommandGenerator {
         if (randomIntBetween(0, 3) != 0) {
             return "";
         }
-        String[] entry = randomFrom(MATCH_OPTIONS);
-        return ", {\"" + entry[0] + "\": " + entry[randomIntBetween(1, entry.length - 1)] + "}";
+        // fuzzy_rewrite only has an effect alongside fuzziness, so emit the two together.
+        if (randomBoolean()) {
+            String rewrite = randomFrom("\"constant_score\"", "\"scoring_boolean\"", "\"constant_score_boolean\"");
+            return ", {\"fuzziness\": \"AUTO\", \"fuzzy_rewrite\": " + rewrite + "}";
+        }
+        return ", {" + optionEntry(randomFrom(MATCH_OPTIONS)) + "}";
     }
 
     private static String maybeWith() {
@@ -290,17 +329,15 @@ public class HighlightGenerator implements CommandGenerator {
             return "";
         }
         int count = randomIntBetween(1, 3);
-        Set<Integer> usedIndices = new HashSet<>();
-        List<String> entries = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            int idx = randomIntBetween(0, WITH_OPTIONS.length - 1);
-            if (usedIndices.add(idx) == false) {
-                continue;
-            }
-            String[] entry = WITH_OPTIONS[idx];
-            entries.add("\"" + entry[0] + "\": " + entry[randomIntBetween(1, entry.length - 1)]);
-        }
+        List<String> entries = randomSubsetOf(Math.min(count, WITH_OPTIONS.length), List.of(WITH_OPTIONS)).stream()
+            .map(HighlightGenerator::optionEntry)
+            .toList();
         return " WITH { " + String.join(", ", entries) + " }";
+    }
+
+    /** Renders a {@code { name, value1, value2, ... }} entry as {@code "name": value}, picking one value at random. */
+    private static String optionEntry(String[] entry) {
+        return "\"" + entry[0] + "\": " + entry[randomIntBetween(1, entry.length - 1)];
     }
 
     private static String word() {

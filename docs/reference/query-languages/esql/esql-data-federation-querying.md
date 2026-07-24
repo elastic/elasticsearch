@@ -28,6 +28,8 @@ When a dataset's resource path uses Hive-style partitioning (for example, `year=
 
 Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
 
+Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
+
 For details on partition detection modes, refer to [dataset settings](esql-data-federation-datasets.md#common-settings).
 
 ### Filter and limit pushdown
@@ -101,6 +103,8 @@ Because there is no inverted index, search functions on a dataset evaluate by sc
 
 Runtime `MATCH` on a dataset does not accept function options, requires the query value's type to match the field's type, and analyzes text with a fixed standard analyzer.
 
+Runtime `MATCH` on a dataset does not accept function options, requires the query value's type to match the field's type, and analyzes text with a fixed standard analyzer.
+
 The following search functions are available for datasets:
 
 | Function | Stack | Serverless |
@@ -123,6 +127,8 @@ The operations below require structures that only exist in an {{es}} index, such
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets` |
 | Search functions | Not all search functions are available immediately on all deployment types. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping` |
+| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). The error tells you to remove the DLS/FLS restrictions or exclude the affected names from the request. | `Datasets with document or field level security restrictions are not supported` |

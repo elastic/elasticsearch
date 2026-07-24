@@ -65,7 +65,7 @@ The following data source types are supported:
 :::
 
 :::{tip}
-New data source types are available on {{serverless-short}} first.
+Amazon S3 is the first supported data source type. Support for additional storage systems, including Google Cloud Storage and Azure Blob Storage, is planned. New data source types are available on {{serverless-short}} first.
 :::
 
 ## Supported file formats

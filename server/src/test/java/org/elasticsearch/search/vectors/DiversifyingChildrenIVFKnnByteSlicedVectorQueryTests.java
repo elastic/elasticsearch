@@ -10,52 +10,46 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
-
-/** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */
-public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCase<
-    float[]> {
+/** Tests for {@link DiversifyingChildrenIVFKnnByteSlicedVectorQuery}. */
+public class DiversifyingChildrenIVFKnnByteSlicedVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCase<
+    byte[]> {
 
     @Override
-    float[] vector(int... components) {
-        float[] v = new float[components.length];
+    byte[] vector(int... components) {
+        byte[] v = new byte[components.length];
         for (int i = 0; i < components.length; i++)
-            v[i] = components[i];
+            v[i] = (byte) components[i];
         return v;
     }
 
     @Override
-    float[][] createVectorArray(int size) {
-        return new float[size][];
+    byte[][] createVectorArray(int size) {
+        return new byte[size][];
     }
 
     @Override
-    float[] randomVector(int dim) {
-        return VectorTestUtils.randomNormalizedFloatVector(dim);
+    byte[] randomVector(int dim) {
+        byte[] v = new byte[dim];
+        random().nextBytes(v);
+        return v;
     }
 
     @Override
-    float[] randomDenseQueryVector(int dim) {
-        float[] vec = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            vec[i] = randomFloat();
-        }
-        VectorUtil.l2normalize(vec);
-        return vec;
+    byte[] randomDenseQueryVector(int dim) {
+        return randomVector(dim);
     }
 
     @Override
-    Query getDiversifyingChildrenKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
-        return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+    Query getDiversifyingChildrenKnnQuery(String fieldName, byte[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
+        return new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
             fieldName,
             queryVector,
             k,
@@ -72,7 +66,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     @Override
     Query createSlicedDiversifyingQuery(
         String field,
-        float[] vector,
+        byte[] vector,
         int k,
         int numCands,
         Query filter,
@@ -82,7 +76,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
         String routingField,
         BytesRef... slices
     ) {
-        return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+        return new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
             field,
             vector,
             k,
@@ -97,14 +91,14 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     }
 
     @Override
-    Field getKnnVectorField(String name, float[] vector) {
-        return new KnnFloatVectorField(name, vector);
+    Field getKnnVectorField(String name, byte[] vector) {
+        return new KnnByteVectorField(name, vector, VectorSimilarityFunction.EUCLIDEAN);
     }
 
     public void testToString() {
-        DiversifyingChildrenIVFKnnFloatSlicedVectorQuery q = new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
-            "vec",
-            new float[] { 0.5f, 0.5f },
+        DiversifyingChildrenIVFKnnByteSlicedVectorQuery q = new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+            "vector",
+            new byte[] { 0, 1 },
             4,
             4,
             null,
@@ -115,7 +109,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             SLICE_ZERO
         );
         assertEquals(
-            "DiversifyingChildrenIVFKnnFloatSlicedVectorQuery:vec[0.5,...][4][" + RoutingFieldMapper.NAME + "=[0]]",
+            "DiversifyingChildrenIVFKnnByteSlicedVectorQuery:vector[0,...][4][" + RoutingFieldMapper.NAME + "=[0]]",
             q.toString("ignored")
         );
     }

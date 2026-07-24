@@ -9,7 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -17,43 +17,49 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
 import java.io.IOException;
 
-public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
+public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<byte[]> {
 
     @Override
-    float[] vector(int... components) {
-        float[] v = new float[components.length];
+    byte[] vector(int... components) {
+        byte[] v = new byte[components.length];
         for (int i = 0; i < components.length; i++)
-            v[i] = components[i];
+            v[i] = (byte) components[i];
         return v;
     }
 
     @Override
-    float[][] createVectorArray(int size) {
-        return new float[size][];
+    byte[][] createVectorArray(int size) {
+        return new byte[size][];
     }
 
     @Override
-    IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, testResolver());
+    IVFKnnByteVectorQuery getKnnVectorQuery(String field, byte[] query, int k, Query queryFilter, float visitRatio) {
+        return new IVFKnnByteVectorQuery(field, query, k, k, queryFilter, visitRatio, testResolver());
     }
 
     @Override
-    float[] randomVector(int dim) {
-        return VectorTestUtils.randomNormalizedFloatVector(dim);
+    byte[] randomVector(int dim) {
+        byte[] v = new byte[dim];
+        random().nextBytes(v);
+        return v;
     }
 
     @Override
-    Field getKnnVectorField(String name, float[] vector, VectorSimilarityFunction similarityFunction) {
-        return new KnnFloatVectorField(name, vector, similarityFunction);
+    Field getKnnVectorField(String name, byte[] vector, VectorSimilarityFunction similarityFunction) {
+        return new KnnByteVectorField(name, vector, similarityFunction);
     }
 
     @Override
-    Field getKnnVectorField(String name, float[] vector) {
-        return new KnnFloatVectorField(name, vector);
+    Field getKnnVectorField(String name, byte[] vector) {
+        return new KnnByteVectorField(name, vector);
+    }
+
+    @Override
+    boolean supportsCosine() {
+        return false;
     }
 
     public void testToString() throws IOException {
@@ -61,15 +67,15 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
-            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10);
-            assertEquals("IVFKnnFloatVectorQuery:field[0.0,...][10]", query.toString("ignored"));
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 1 }, 10);
+            assertEquals("IVFKnnByteVectorQuery:field[0,...][10]", query.toString("ignored"));
 
             assertDocScoreQueryToString(query.rewrite(newSearcher(reader)));
 
             // test with filter
             Query filter = new TermQuery(new Term("id", "text"));
-            query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10, filter);
-            assertEquals("IVFKnnFloatVectorQuery:field[0.0,...][10][id:text]", query.toString("ignored"));
+            query = getKnnVectorQuery("field", new byte[] { 0, 1 }, 10, filter);
+            assertEquals("IVFKnnByteVectorQuery:field[0,...][10][id:text]", query.toString("ignored"));
         }
     }
 }

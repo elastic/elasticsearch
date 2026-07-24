@@ -37,9 +37,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.hamcrest.Matchers.containsString;
 
 public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
@@ -94,7 +94,6 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         }
 
     }
-
 
     public void testSelfReferentialConditionIsRejected() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();

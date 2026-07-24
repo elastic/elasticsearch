@@ -28,7 +28,7 @@ For a comparison table, refer to [Should I use `semantic_text` or `semantic`?](#
 
 ## `semantic` field quickstart [semantic-quickstart]
 
-This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. It uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
+This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. It uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint, available through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
 
 To run the curl examples, set your Elasticsearch URL and API key as environment variables:
 

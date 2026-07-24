@@ -7,6 +7,14 @@ Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/quer
 MatchPhrase can be used on [text](/reference/elasticsearch/mapping-reference/text.md) and keyword fields.
 MatchPhrase is not supported for other field types, like [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), boolean, date, or numeric types.
 
+MatchPhrase can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options for the
+match_phrase query.
+All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
+
+`MATCH_PHRASE` returns true if the provided query matches the row.
+
+**`MATCH_PHRASE` on expressions**
+
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,
 such as computed columns produced by `EVAL`, `STATS`, or other commands.
@@ -18,12 +26,6 @@ When searching expressions, [function named parameters](/reference/query-languag
 (match_phrase query options) are not supported.
 Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
 when using `METADATA _score`.
-
-MatchPhrase can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options for the
-match_phrase query.
-All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
-
-`MATCH_PHRASE` returns true if the provided query matches the row.
 
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

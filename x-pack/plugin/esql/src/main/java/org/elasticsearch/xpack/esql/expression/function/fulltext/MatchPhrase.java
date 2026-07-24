@@ -95,6 +95,14 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             MatchPhrase can be used on <<text, text>> and keyword fields.
             MatchPhrase is not supported for other field types, like <<semantic-text, semantic_text>>, boolean, date, or numeric types.
 
+            MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
+            match_phrase query.
+            All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
+
+            `MATCH_PHRASE` returns true if the provided query matches the row.
+
+            **`MATCH_PHRASE` on expressions**
+
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,
             such as computed columns produced by `EVAL`, `STATS`, or other commands.
@@ -106,12 +114,6 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             (match_phrase query options) are not supported.
             Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
             when using `METADATA _score`.
-
-            MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
-            match_phrase query.
-            All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
-
-            `MATCH_PHRASE` returns true if the provided query matches the row.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

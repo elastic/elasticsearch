@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -230,7 +231,9 @@ public class InternalEngine extends Engine {
     private final String historyUUID;
 
     /**
-     * UUID value that is updated every time the engine is force merged.
+     * UUID value that is updated on force merge and on other Lucene-only content changes
+     * that do not advance max seqno (e.g. reshard cleanup via {@link #onShardContentChanged()}).
+     * Included in snapshot shard-state identity via {@link Engine#FORCE_MERGE_UUID_KEY}.
      */
     @Nullable
     private volatile String forceMergeUUID;
@@ -814,6 +817,14 @@ public class InternalEngine extends Engine {
     @Nullable
     public String getForceMergeUUID() {
         return forceMergeUUID;
+    }
+
+    /**
+     * Records a Lucene-only content change (e.g. reshard cleanup) so the next Lucene commit
+     * includes a new {@link Engine#FORCE_MERGE_UUID_KEY} and snapshot shard-state identity changes.
+     */
+    protected final void onShardContentChanged() {
+        this.forceMergeUUID = UUIDs.randomBase64UUID();
     }
 
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */

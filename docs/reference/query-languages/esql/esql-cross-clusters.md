@@ -116,7 +116,7 @@ FROM cluster_one:my-index-000001
 
 ### Query local and remote clusters [esql-ccs-query-local-remote]
 
-Similarly, this {{esql}} request queries the `my-index-000001` index from three clusters:
+This {{esql}} request queries the `my-index-000001` index from three clusters:
 
 * The local ("querying") cluster
 * Two remote clusters, `cluster_one` and `cluster_two`

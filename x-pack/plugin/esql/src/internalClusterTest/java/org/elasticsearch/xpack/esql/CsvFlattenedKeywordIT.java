@@ -1319,6 +1319,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "DATE_DIFF:unit is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
+        "FILTER:field is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
         "GREATEST:first is missing",

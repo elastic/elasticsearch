@@ -289,8 +289,7 @@ public final class CsvTestUtils {
     ) {
         if (Build.current().isSnapshot()) {
             assertThat(
-                "Capability not declared in EsqlCapabilities — caught by second-layer check in CsvIT."
-                    + " The standalone EsqlCapabilitiesLintTests should have caught this first.",
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                 requiredCapabilities,
                 everyItem(in(allCapabilities.capabilities()))
             );

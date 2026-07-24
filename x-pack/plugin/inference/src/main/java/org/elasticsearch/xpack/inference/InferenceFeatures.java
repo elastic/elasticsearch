@@ -82,6 +82,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+    public static final NodeFeature INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION = new NodeFeature(
+        "inference.internal_delete_endpoints_action"
+    );
     public static final NodeFeature INFERENCE_ELASTIC_REASONING_TASK_SETTINGS = new NodeFeature(
         "inference.elastic.reasoning_task_settings"
     );
@@ -99,6 +102,7 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
+            INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
             INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
             INFERENCE_INFERENCE_INDEX_DOC_TYPE,
             INFERENCE_CLEAR_PREFERENCES_CACHE

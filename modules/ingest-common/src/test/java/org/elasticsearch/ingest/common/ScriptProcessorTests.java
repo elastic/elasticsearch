@@ -97,7 +97,7 @@ public class ScriptProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSource().get("_ingest"), equalTo("source-value"));
+        assertThat(ingestDocument.getSource().get("_ingest"), equalTo(Map.of("_value", "source-value")));
         assertThat(ingestDocument.getSource().get("ingest_value_before_assignment"), equalTo("metadata-value"));
         assertThat(ingestDocument.getSource().get("ingest_value_after_assignment"), equalTo("source-value"));
         assertThat(ingestDocument.getIngestMetadata(), not(hasKey("_ingest")));

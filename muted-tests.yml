@@ -739,3 +739,9 @@ tests:
 - class: org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramTDigestConverterAccuracyTests
   method: testUniformDistribution
   issue: https://github.com/elastic/elasticsearch/issues/154819
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=synonyms/110_synonyms_invalid/Reload index with an invalid synonym rule with lenient set to false}
+  issue: https://github.com/elastic/elasticsearch/issues/154907
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:unmapped-load.loadViewWithSubqueryBody_EvalNonExistent}
+  issue: https://github.com/elastic/elasticsearch/issues/154921

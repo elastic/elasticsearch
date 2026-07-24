@@ -28,10 +28,6 @@ By default, if the cluster state encryption key is not available when you create
 Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
 :::
 
-:::{warning}
-Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
-:::
-
 <!-- TODO: uncomment once https://github.com/elastic/elasticsearch/pull/152731 merges
 Learn more about the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md). -->
 
@@ -53,7 +49,6 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Create or replace a data source | `global.data_source` `create` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
-| Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 

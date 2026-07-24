@@ -328,8 +328,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
                 new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
             return null;
-        }).when(mockService)
-            .infer(any(), any(), any(), any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
+        }).when(mockService).infer(any(), any(), any(), any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
     }
 
     private void stubStoreModelToFail(Exception e) {

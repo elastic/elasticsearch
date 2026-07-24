@@ -276,9 +276,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
             assertSemanticField(mapperService, fieldName, false, oldModel, null, null);
-            if (oldModel != null) {
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
-            }
 
             String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
             TestModel newModel = null;
@@ -291,9 +288,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
             assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
             assertSemanticField(mapperService, fieldName, false, newModel, null, null);
-            if (newModel != null) {
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
-            }
         }
     }
 
@@ -312,7 +306,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             );
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
             assertSemanticField(mapperService, fieldName, true, oldModel, null, null);
-            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
 
             final CheckedRunnable<IOException> mergeRunner = () -> merge(mapperService, semanticMapping(fieldName, newInferenceId));
 
@@ -325,7 +318,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                 mergeRunner.run();
                 assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
                 assertSemanticField(mapperService, fieldName, true, newModel, null, null);
-                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
             } else {
                 final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
                 final String expectedErrorMessage;
@@ -516,8 +508,17 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     /**
      * Asserts the structural invariants of a semantic field mapping: the concrete mapper and field type classes, the nested chunks
-     * field, the chunks text/offsets sub-fields (see {@link #assertChunksTextField}), the embeddings sub-mapper when model settings
-     * are expected (see {@link #assertEmbeddingsField}), and the chunking settings.
+     * field, the chunks text/offsets sub-fields, the embeddings sub-mapper, model settings, chunking settings, and index options.
+     *
+     * @param mapperService The mapper service.
+     * @param fieldName The name of the field to check.
+     * @param expectedModelSettings Whether model settings are expected. If true, {@code model} is required.
+     * @param model The model used to validate the embeddings sub-mapper. When null, verifies that the embeddings sub-mapper is not
+     *             configured.
+     * @param expectedChunkingSettings The expected chunking settings.
+     * @param expectedIndexOptions The expected index options. When null and {@code model} is provided, the expected default index options
+     *                             are automatically determined and validated. When non-null, they must specify the complete index options
+     *                             expected, including any element type override.
      */
     protected void assertSemanticField(
         MapperService mapperService,
@@ -562,7 +563,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
         if (expectedModelSettings) {
             if (model == null) {
-                throw new IllegalArgumentException("model must be provided to check model settings");
+                throw new AssertionError("model must be provided to check model settings");
             }
             assertModelSettings(semanticFieldType, model);
         } else {
@@ -636,60 +637,13 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         MinimalServiceSettings actual = fieldType.getModelSettings();
         assertNotNull(actual);
 
-        // TODO: Use canMergeWith
         assertEquals(model.getTaskType(), actual.taskType());
         assertEquals(model.getServiceSettings().dimensions(), actual.dimensions());
         assertEquals(model.getServiceSettings().similarity(), actual.similarity());
         assertEquals(model.getServiceSettings().elementType(), actual.elementType());
-    }
 
-    // TODO: Try to remove
-    protected static DenseVectorFieldMapper.ElementType getExpectedElementType(
-        IndexVersion indexVersion,
-        DenseVectorFieldMapper.ElementType modelElementType,
-        @Nullable SemanticIndexOptions semanticIndexOptions
-    ) {
-        if (semanticIndexOptions != null && semanticIndexOptions.indexOptions() instanceof ExtendedDenseVectorIndexOptions edvio) {
-            if (edvio.getElementType() != null) {
-                return edvio.getElementType();
-            }
-        }
-
-        DenseVectorFieldMapper.ElementType expectedElementType = modelElementType;
-        if (indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16) && expectedElementType == DenseVectorFieldMapper.ElementType.FLOAT) {
-            expectedElementType = DenseVectorFieldMapper.ElementType.BFLOAT16;
-        }
-        return expectedElementType;
-    }
-
-    /**
-     * Asserts that the generated embeddings sub-mapper (sparse or dense) matches the task type and service settings of the
-     * referenced {@link Model}, including dimensions, element type, and similarity for dense models.
-     */
-    // TODO: Remove
-    protected void assertEmbeddingsFieldMapperMatchesModel(MapperService mapperService, String fieldName, Model model) {
-        Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
-        switch (model.getTaskType()) {
-            case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
-            case TEXT_EMBEDDING, EMBEDDING -> {
-                T semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
-                DenseVectorFieldMapper.ElementType expectedElementType = getExpectedElementType(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
-                    model.getServiceSettings().elementType(),
-                    semanticFieldMapper.fieldType().getIndexOptions()
-                );
-                assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
-                DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;
-                ServiceSettings modelServiceSettings = model.getConfigurations().getServiceSettings();
-                assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
-                assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(expectedElementType));
-                assertThat(
-                    denseVectorFieldMapper.fieldType().getSimilarity(),
-                    equalTo(modelServiceSettings.similarity().vectorSimilarity())
-                );
-            }
-            default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
-        }
+        MinimalServiceSettings modelServiceSettings = new MinimalServiceSettings(model);
+        assertTrue(modelServiceSettings.canMergeWith(actual));
     }
 
     protected static void assertInferenceEndpoints(

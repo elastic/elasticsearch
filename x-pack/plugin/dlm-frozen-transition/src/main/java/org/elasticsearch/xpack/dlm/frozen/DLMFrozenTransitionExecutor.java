@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.logging.Logger;
 
@@ -82,11 +82,11 @@ class DLMFrozenTransitionExecutor {
 
     /**
      * Returns the current execution status of the frozen tier transition for the given index, as tracked by this
-     * executor. An index with no submitted transition is reported as {@link ExplainIndexFrozenTransition.Status#NOT_STARTED}.
+     * executor. An index with no submitted transition is reported as {@link FrozenTransitionInfoProvider.Status#NOT_STARTED}.
      */
-    public ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName) {
+    public FrozenTransitionInfoProvider.Status getTransitionStatus(ProjectId projectId, String indexName) {
         TransitionTracker tracker = submittedTransitions.get(new TransitionKey(projectId, indexName));
-        return tracker == null ? ExplainIndexFrozenTransition.Status.NOT_STARTED : tracker.status;
+        return tracker == null ? FrozenTransitionInfoProvider.Status.NOT_STARTED : tracker.status;
     }
 
     // We need the thread to be interrupted to prevent concurrent transitions on multiple nodes,
@@ -163,7 +163,7 @@ class DLMFrozenTransitionExecutor {
      * starts) and the future used to cancel it on {@link #stop()}.
      */
     static final class TransitionTracker {
-        volatile ExplainIndexFrozenTransition.Status status = ExplainIndexFrozenTransition.Status.QUEUED;
+        volatile FrozenTransitionInfoProvider.Status status = FrozenTransitionInfoProvider.Status.QUEUED;
         volatile Future<?> future;
     }
 
@@ -200,7 +200,7 @@ class DLMFrozenTransitionExecutor {
         @Override
         public void run() {
             final String indexName = getIndexName();
-            tracker.status = ExplainIndexFrozenTransition.Status.RUNNING;
+            tracker.status = FrozenTransitionInfoProvider.Status.RUNNING;
             try {
                 logger.debug("Starting transition for index [{}]", indexName);
                 task.run();

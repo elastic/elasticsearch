@@ -41,7 +41,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField GENERATION_TIME = new ParseField("generation_time");
     private static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
     private static final ParseField ERROR_FIELD = new ParseField("error");
-    private static final ParseField FROZEN_FIELD = new ParseField("frozen");
+    private static final ParseField FROZEN_TRANSITION_STATUS_FIELD = new ParseField("frozen_transition_status");
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
 
@@ -59,7 +59,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Nullable
     private final ErrorEntry error;
     @Nullable
-    private final ExplainIndexFrozenTransition frozenTransition;
+    private final FrozenTransitionStatus frozenTransitionStatus;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     public ExplainIndexDataStreamLifecycle(
@@ -84,7 +84,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
-        @Nullable ExplainIndexFrozenTransition frozenTransition
+        @Nullable FrozenTransitionStatus frozenTransitionStatus
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -94,7 +94,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.generationDateMillis = generationDate == null ? null : generationDate.millis();
         this.lifecycle = lifecycle;
         this.error = error;
-        this.frozenTransition = frozenTransition;
+        this.frozenTransitionStatus = frozenTransitionStatus;
     }
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
@@ -107,8 +107,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             this.error = in.readOptionalWriteable(ErrorEntry::new);
-            this.frozenTransition = in.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)
-                ? in.readOptionalWriteable(ExplainIndexFrozenTransition::new)
+            this.frozenTransitionStatus = in.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)
+                ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
         } else {
             this.indexCreationDate = null;
@@ -116,7 +116,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.generationDateMillis = null;
             this.lifecycle = null;
             this.error = null;
-            this.frozenTransition = null;
+            this.frozenTransitionStatus = null;
         }
     }
 
@@ -169,8 +169,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                     builder.field(ERROR_FIELD.getPreferredName(), error.error());
                 }
             }
-            if (this.frozenTransition != null) {
-                builder.field(FROZEN_FIELD.getPreferredName(), frozenTransition);
+            if (this.frozenTransitionStatus != null) {
+                builder.field(FROZEN_TRANSITION_STATUS_FIELD.getPreferredName(), frozenTransitionStatus.toString());
             }
         }
         builder.endObject();
@@ -189,7 +189,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalWriteable(lifecycle);
             out.writeOptionalWriteable(error);
             if (out.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)) {
-                out.writeOptionalWriteable(frozenTransition);
+                out.writeOptionalEnum(frozenTransitionStatus);
             }
         }
     }
@@ -258,8 +258,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     }
 
     @Nullable
-    public ExplainIndexFrozenTransition getFrozenTransition() {
-        return frozenTransition;
+    public FrozenTransitionStatus getFrozenTransitionStatus() {
+        return frozenTransitionStatus;
     }
 
     // public for testing purposes only
@@ -282,11 +282,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             && Objects.equals(rolloverDate, that.rolloverDate)
             && Objects.equals(lifecycle, that.lifecycle)
             && Objects.equals(error, that.error)
-            && Objects.equals(frozenTransition, that.frozenTransition);
+            && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByLifecycle, indexCreationDate, rolloverDate, lifecycle, error, frozenTransition);
+        return Objects.hash(index, managedByLifecycle, indexCreationDate, rolloverDate, lifecycle, error, frozenTransitionStatus);
     }
 }

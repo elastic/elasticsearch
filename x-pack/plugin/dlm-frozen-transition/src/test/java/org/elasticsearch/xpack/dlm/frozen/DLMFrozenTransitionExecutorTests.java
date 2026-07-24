@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -147,7 +147,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
     public void testGetTransitionStatusNotStartedForUnknownIndex() throws Exception {
         try (var handle = newExecutor(2, 10)) {
             assertEquals(
-                ExplainIndexFrozenTransition.Status.NOT_STARTED,
+                FrozenTransitionInfoProvider.Status.NOT_STARTED,
                 handle.executor().getTransitionStatus(ProjectId.DEFAULT, "never-submitted")
             );
         }
@@ -174,14 +174,14 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             queuedTask.blockUntil = block;
             Future<?> queuedFuture = executor.submit(queuedTask); // sits in the queue; has not started
 
-            assertEquals(ExplainIndexFrozenTransition.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
-            assertEquals(ExplainIndexFrozenTransition.Status.QUEUED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.QUEUED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
 
             block.countDown();
             queuedFuture.get(10, TimeUnit.SECONDS);
 
-            assertEquals(ExplainIndexFrozenTransition.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
-            assertEquals(ExplainIndexFrozenTransition.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
         }
     }
 
@@ -193,10 +193,10 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
 
             executor.submit(task);
             safeAwait(task.started);
-            assertEquals(ExplainIndexFrozenTransition.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
 
             executor.stop();
-            assertEquals(ExplainIndexFrozenTransition.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
         }
     }
 

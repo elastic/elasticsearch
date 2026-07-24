@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
+import org.elasticsearch.action.datastreams.lifecycle.FrozenTransitionStatus;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ProjectState;
@@ -129,7 +129,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 generationDate,
                 lifecycle,
                 errorStore.getError(state.projectId(), index),
-                buildFrozenTransitionExplain(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
+                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }
@@ -146,12 +146,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     }
 
     /**
-     * Builds the frozen tier transition explanation for the given index, or {@code null} if frozen tier transition
+     * Computes the frozen tier transition status for the given index, or {@code null} if frozen tier transition
      * state should not be reported: no frozen transition implementation is installed, the index is a failure-store
      * index (DLM frozen transitions only ever apply to backing indices), its lifecycle does not configure
      * {@code frozen_after}, or the transition has already completed.
      */
-    private ExplainIndexFrozenTransition buildFrozenTransitionExplain(
+    private FrozenTransitionStatus computeFrozenTransitionStatus(
         ProjectState state,
         DataStream parentDataStream,
         IndexMetadata idxMetadata,
@@ -168,18 +168,25 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             return null;
         }
 
-        boolean markedForTransition = DataStreamLifecycleService.indexMarkedForFrozen(idxMetadata);
+        if (DataStreamLifecycleService.indexMarkedForFrozen(idxMetadata)) {
+            // Only marked indices are ever submitted to the transition executor, so an unmarked index can never be
+            // QUEUED or RUNNING; skip the (synchronized) status lookup entirely for the common unmarked case.
+            FrozenTransitionInfoProvider.Status executorStatus = frozenTransitionInfoProvider.getTransitionStatus(
+                state.projectId(),
+                idxMetadata.getIndex().getName()
+            );
+            return switch (executorStatus) {
+                case QUEUED -> FrozenTransitionStatus.QUEUED;
+                case RUNNING -> FrozenTransitionStatus.RUNNING;
+                case NOT_STARTED -> FrozenTransitionStatus.MARKED;
+            };
+        }
+
         Set<Index> pastFrozenAfter = pastFrozenAfterByDataStream.computeIfAbsent(
             parentDataStream.getName(),
             name -> DataStreamLifecycleService.indicesPastFrozenAfter(state.metadata(), parentDataStream, nowSupplier)
         );
-        boolean eligible = pastFrozenAfter.contains(idxMetadata.getIndex());
-        // Only marked indices are ever submitted to the transition executor, so an unmarked index can never be
-        // QUEUED or RUNNING; skip the (synchronized) status lookup entirely for the common unmarked case.
-        ExplainIndexFrozenTransition.Status status = markedForTransition
-            ? frozenTransitionInfoProvider.getTransitionStatus(state.projectId(), idxMetadata.getIndex().getName())
-            : ExplainIndexFrozenTransition.Status.NOT_STARTED;
-        return new ExplainIndexFrozenTransition(eligible, markedForTransition, status);
+        return pastFrozenAfter.contains(idxMetadata.getIndex()) ? FrozenTransitionStatus.ELIGIBLE : FrozenTransitionStatus.WAITING;
     }
 
     @Override

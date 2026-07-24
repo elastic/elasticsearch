@@ -83,7 +83,7 @@
       indices.explain_data_lifecycle:
         index: $backing_index_no_frozen
   - match: { indices.$backing_index_no_frozen.managed_by_lifecycle: true }
-  - is_false: indices.$backing_index_no_frozen.frozen
+  - is_false: indices.$backing_index_no_frozen.frozen_transition_status
 
 ---
 "Explain includes frozen transition state":
@@ -135,6 +135,5 @@
       indices.explain_data_lifecycle:
         index: $backing_index_frozen
   - match: { indices.$backing_index_frozen.managed_by_lifecycle: true }
-  - match: { indices.$backing_index_frozen.frozen.eligible: false }
-  - match: { indices.$backing_index_frozen.frozen.marked_for_transition: false }
-  - match: { indices.$backing_index_frozen.frozen.status: 'not_started' }
+  - match: { indices.$backing_index_frozen.frozen_transition_status: 'waiting' }
+  - is_false: indices.$backing_index_frozen.frozen

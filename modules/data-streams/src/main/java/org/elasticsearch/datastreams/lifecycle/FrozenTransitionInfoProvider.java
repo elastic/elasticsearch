@@ -9,9 +9,10 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
+
+import java.util.Locale;
 
 /**
  * Extension point implemented by the DLM frozen tier transition plugin to expose the execution status of an index's
@@ -32,11 +33,11 @@ public interface FrozenTransitionInfoProvider {
      * transition executor, or {@code null} if no implementation is installed (callers must gate on {@link #infoAvailable()}).
      * <p>
      * This status is best-effort: it reflects only the in-process state of whichever node is currently the elected
-     * master, and resets to {@link ExplainIndexFrozenTransition.Status#NOT_STARTED} across a master failover, even
-     * for an index whose transition was genuinely in progress on the previous master.
+     * master, and resets to {@link Status#NOT_STARTED} across a master failover, even for an index whose transition
+     * was genuinely in progress on the previous master.
      */
     @Nullable
-    ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName);
+    Status getTransitionStatus(ProjectId projectId, String indexName);
 
     /**
      * Returns a provider used when no frozen tier transition implementation is installed.
@@ -49,9 +50,29 @@ public interface FrozenTransitionInfoProvider {
             }
 
             @Override
-            public ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName) {
+            public Status getTransitionStatus(ProjectId projectId, String indexName) {
                 return null;
             }
         };
+    }
+
+    /**
+     * The executor-level status of a frozen tier transition as tracked by the transition executor on the current
+     * master node. This is an internal status used only to feed the public
+     * {@link org.elasticsearch.action.datastreams.lifecycle.FrozenTransitionStatus} reported by the explain API;
+     * the two enums are kept separate so the executor layer has no dependency on the API layer.
+     * <p>
+     * This status is best-effort: it resets to {@link #NOT_STARTED} across a master failover even for transitions
+     * that were genuinely in progress on the previous master.
+     */
+    enum Status {
+        NOT_STARTED,
+        QUEUED,
+        RUNNING;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

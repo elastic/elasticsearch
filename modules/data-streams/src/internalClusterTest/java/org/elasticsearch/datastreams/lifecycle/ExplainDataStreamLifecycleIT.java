@@ -129,7 +129,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
                 // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
-                assertThat(explainIndex.getFrozenTransition(), nullValue());
+                assertThat(explainIndex.getFrozenTransitionStatus(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -306,7 +306,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
                 // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
-                assertThat(explainIndex.getFrozenTransition(), nullValue());
+                assertThat(explainIndex.getFrozenTransitionStatus(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -586,7 +586,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         assertThat(response.getIndices().size(), is(2));
         for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
             assertThat(explainIndex.isManagedByLifecycle(), is(true));
-            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransition(), nullValue());
+            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransitionStatus(), nullValue());
         }
     }
 

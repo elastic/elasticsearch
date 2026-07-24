@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 
@@ -31,8 +30,8 @@ public class DLMFrozenTransitionInfoProvider implements FrozenTransitionInfoProv
     }
 
     @Override
-    public ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName) {
+    public FrozenTransitionInfoProvider.Status getTransitionStatus(ProjectId projectId, String indexName) {
         DLMFrozenTransitionExecutor executor = plugin.getTransitionExecutor();
-        return executor == null ? ExplainIndexFrozenTransition.Status.NOT_STARTED : executor.getTransitionStatus(projectId, indexName);
+        return executor == null ? FrozenTransitionInfoProvider.Status.NOT_STARTED : executor.getTransitionStatus(projectId, indexName);
     }
 }

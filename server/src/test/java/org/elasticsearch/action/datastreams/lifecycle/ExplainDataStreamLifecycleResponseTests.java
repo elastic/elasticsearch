@@ -249,16 +249,12 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void assertFrozenTransitionXContent(ExplainIndexDataStreamLifecycle explainIndex, Map<String, Object> explainIndexMap) {
-        ExplainIndexFrozenTransition frozenTransition = explainIndex.getFrozenTransition();
-        if (frozenTransition != null) {
-            Map<String, Object> frozenMap = (Map<String, Object>) explainIndexMap.get("frozen");
-            assertThat(frozenMap.get("eligible"), is(frozenTransition.eligible()));
-            assertThat(frozenMap.get("marked_for_transition"), is(frozenTransition.markedForTransition()));
-            assertThat(frozenMap.get("status"), is(frozenTransition.status().toString()));
+        FrozenTransitionStatus frozenTransitionStatus = explainIndex.getFrozenTransitionStatus();
+        if (frozenTransitionStatus != null) {
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(frozenTransitionStatus.toString()));
         } else {
-            assertThat(explainIndexMap.get("frozen"), is(nullValue()));
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(nullValue()));
         }
     }
 
@@ -302,13 +298,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     randomIntBetween(0, 30)
                 )
                 : null,
-            randomBoolean()
-                ? new ExplainIndexFrozenTransition(
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomFrom(ExplainIndexFrozenTransition.Status.values())
-                )
-                : null
+            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null
         );
     }
 

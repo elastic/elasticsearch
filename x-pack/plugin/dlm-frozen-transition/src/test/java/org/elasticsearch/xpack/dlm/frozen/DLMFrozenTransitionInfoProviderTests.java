@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
-import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,7 +39,7 @@ public class DLMFrozenTransitionInfoProviderTests extends DLMFrozenTransitionExe
         DLMFrozenTransitionPlugin plugin = new DLMFrozenTransitionPlugin();
         DLMFrozenTransitionInfoProvider provider = new DLMFrozenTransitionInfoProvider(plugin);
 
-        assertThat(provider.getTransitionStatus(ProjectId.DEFAULT, "some-index"), equalTo(ExplainIndexFrozenTransition.Status.NOT_STARTED));
+        assertThat(provider.getTransitionStatus(ProjectId.DEFAULT, "some-index"), equalTo(FrozenTransitionInfoProvider.Status.NOT_STARTED));
     }
 
     public void testDelegatesToExecutorOnceCreated() throws Exception {
@@ -51,7 +51,7 @@ public class DLMFrozenTransitionInfoProviderTests extends DLMFrozenTransitionExe
 
             assertThat(
                 provider.getTransitionStatus(ProjectId.DEFAULT, "never-submitted"),
-                equalTo(ExplainIndexFrozenTransition.Status.NOT_STARTED)
+                equalTo(FrozenTransitionInfoProvider.Status.NOT_STARTED)
             );
 
             CountDownLatch started = new CountDownLatch(1);
@@ -64,7 +64,7 @@ public class DLMFrozenTransitionInfoProviderTests extends DLMFrozenTransitionExe
 
             assertThat(
                 provider.getTransitionStatus(ProjectId.DEFAULT, "running-index"),
-                equalTo(ExplainIndexFrozenTransition.Status.RUNNING)
+                equalTo(FrozenTransitionInfoProvider.Status.RUNNING)
             );
 
             block.countDown();

@@ -90,7 +90,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -1316,15 +1315,7 @@ class NodeConstruction {
             compatibilityVersions
         );
 
-        final boolean otelMetricsEnabled = Booleans.parseBoolean(
-            System.getProperty(TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")
-        );
-        final TimeValue metricsInterval = otelMetricsEnabled
-            ? settings.getAsTime(
-                "telemetry.export.interval",
-                settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(60))
-            )
-            : settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final TimeValue metricsInterval = TelemetryProvider.getMetricsInterval(settings);
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(
             telemetryProvider.getMeterRegistry(),

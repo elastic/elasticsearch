@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -25,19 +31,63 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.EnumParser.parseFromStringInObjectParserContext;
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 public class ElasticsearchInternalTextEmbeddingServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "custom_eland_model_internal_text_embedding_service_settings";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createTextEmbeddingParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createTextEmbeddingParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+    private static final ObjectParser<Builder, Void> SIMILARITY_AND_ELEMENT_TYPE_PARSER = createSimilarityAndElementTypeParser();
+
     /**
-     * Parse the CustomElandServiceSettings from map and validate the setting values.
+     * Creates a parser for the text embedding service settings. The {@code dimensions} field is declared only in the
+     * {@link ConfigurationParseContext#PERSISTENT} context: dimensions are not accepted from user requests because validation
+     * determines them after performing a request to the model, whereas persisted configurations store the determined value.
+     *
+     * @param ignoreUnknownFields whether unknown fields are tolerated; {@code false} for user requests, {@code true} for persisted config
+     * @param context the parse context the returned parser is intended for
+     */
+    private static ObjectParser<Builder, ConfigurationParseContext> createTextEmbeddingParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context
+    ) {
+        var parser = ElasticsearchInternalServiceSettings.createParser(ignoreUnknownFields, Builder::new);
+        declareSimilarityAndElementType(parser);
+        if (context == ConfigurationParseContext.PERSISTENT) {
+            parser.declareField(Builder::setDimensions, p -> {
+                int value = p.intValue();
+                validatePositiveInteger(value, DIMENSIONS);
+                return value;
+            }, new ParseField(DIMENSIONS), ObjectParser.ValueType.INT);
+        }
+        return parser;
+    }
+
+    private static ObjectParser<Builder, Void> createSimilarityAndElementTypeParser() {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, true, Builder::new);
+        declareSimilarityAndElementType(parser);
+        return parser;
+    }
+
+    private static <C> void declareSimilarityAndElementType(ObjectParser<Builder, C> parser) {
+        parser.declareString(Builder::setSimilarity, new ParseField(SIMILARITY));
+        parser.declareString(Builder::setElementType, new ParseField(ELEMENT_TYPE));
+    }
+
+    /**
+     * Parse the text embedding service settings from map and validate the setting values.
      *
      * This method does not verify the model variant
      *
@@ -46,85 +96,102 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
      *
      * @param map Source map containing the config
      * @param context The parser context, whether it is from an HTTP request or from persistent storage
-     * @return The {@code CustomElandServiceSettings} builder
+     * @return The parsed and validated service settings
      */
     public static ElasticsearchInternalTextEmbeddingServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> forRequest(map);
-            case PERSISTENT -> forPersisted(map);
-        };
-    }
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
 
-    private static ElasticsearchInternalTextEmbeddingServiceSettings forRequest(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-        var commonFields = commonFieldsFromMap(map, validationException);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            var builder = parser.apply(xParser, context);
+            // TODO: remove once all elasticsearch internal service settings are parser-based and ElasticsearchInternalService no
+            // longer checks for unconsumed map entries. The object parser reads the map through an XContent view without consuming
+            // its entries, so the parsed fields must be removed explicitly to satisfy the caller's check that no unknown settings
+            // remain in the map.
+            map.remove(NUM_ALLOCATIONS);
+            map.remove(NUM_THREADS);
+            map.remove(MODEL_ID);
+            map.remove(DEPLOYMENT_ID);
+            map.remove(ADAPTIVE_ALLOCATIONS);
+            map.remove(SIMILARITY);
+            map.remove(ELEMENT_TYPE);
+            map.remove(DIMENSIONS);
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new ElasticsearchInternalTextEmbeddingServiceSettings(commonFields);
-    }
-
-    private static ElasticsearchInternalTextEmbeddingServiceSettings forPersisted(Map<String, Object> map) {
-        var commonFields = commonFieldsFromMap(map);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, new ValidationException());
-
-        return new ElasticsearchInternalTextEmbeddingServiceSettings(commonFields, dims);
+            ElasticsearchInternalServiceSettings.validateRequiredFields(builder);
+            return builder.build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
     }
 
     /**
      * Parse the similarity and element type from the request map, layering them onto a common settings
      * builder populated from another source (e.g. an existing ML deployment's assignment stats rather
      * than the map itself). Dimensions are left null; validation determines them after performing a
-     * request to the model.
+     * request to the model. Only the two parsed fields are consumed from the map so that any remaining
+     * entries still fail the caller's check for unknown settings.
      */
     public static ElasticsearchInternalTextEmbeddingServiceSettings fromMap(
         Map<String, Object> map,
         ElasticsearchInternalServiceSettings.Builder commonSettingsBuilder
     ) {
-        var validationException = new ValidationException();
-        var similarity = extractSimilarityOrDefault(map, validationException);
-        var elementType = extractElementTypeOrDefault(map, validationException);
-        validationException.throwIfValidationErrorsExist();
-
-        return new ElasticsearchInternalTextEmbeddingServiceSettings(commonSettingsBuilder.build(), null, similarity, elementType);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            var builder = SIMILARITY_AND_ELEMENT_TYPE_PARSER.apply(xParser, null);
+            map.remove(SIMILARITY);
+            map.remove(ELEMENT_TYPE);
+            return new ElasticsearchInternalTextEmbeddingServiceSettings(
+                commonSettingsBuilder.build(),
+                null,
+                builder.similarityOrDefault(),
+                builder.elementTypeOrDefault()
+            );
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
     }
 
-    private record CommonFields(
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        SimilarityMeasure similarityMeasure,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {}
+    /**
+     * Builder for the text embedding settings: extends the base builder with the similarity, element type and dimensions fields
+     * declared by {@link #createTextEmbeddingParser}. Similarity and element type default to cosine and float when absent.
+     */
+    public static class Builder extends ElasticsearchInternalServiceSettings.Builder {
+        private SimilarityMeasure similarityMeasure;
+        private DenseVectorFieldMapper.ElementType elementType;
+        private Integer dimensions;
 
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map) {
-        return commonFieldsFromMap(map, new ValidationException());
-    }
+        public void setSimilarity(String similarity) {
+            this.similarityMeasure = EnumParser.parseSimilarity(similarity);
+        }
 
-    private static CommonFields commonFieldsFromMap(Map<String, Object> map, ValidationException validationException) {
-        var internalSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
-        var similarity = extractSimilarityOrDefault(map, validationException);
-        var elementType = extractElementTypeOrDefault(map, validationException);
+        public void setElementType(String elementType) {
+            this.elementType = parseFromStringInObjectParserContext(
+                elementType,
+                DenseVectorFieldMapper.ElementType::fromString,
+                EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EnumSet.noneOf(DenseVectorFieldMapper.ElementType.class)
+            );
+        }
 
-        return new CommonFields(internalSettings.build(), similarity, elementType);
-    }
+        public void setDimensions(Integer dimensions) {
+            this.dimensions = dimensions;
+        }
 
-    private static SimilarityMeasure extractSimilarityOrDefault(Map<String, Object> map, ValidationException validationException) {
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        return Objects.requireNonNullElse(similarity, SimilarityMeasure.COSINE);
-    }
+        SimilarityMeasure similarityOrDefault() {
+            return Objects.requireNonNullElse(similarityMeasure, SimilarityMeasure.COSINE);
+        }
 
-    private static DenseVectorFieldMapper.ElementType extractElementTypeOrDefault(
-        Map<String, Object> map,
-        ValidationException validationException
-    ) {
-        DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
-            map,
-            ELEMENT_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            DenseVectorFieldMapper.ElementType::fromString,
-            EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
-            validationException
-        );
-        return Objects.requireNonNullElse(elementType, DenseVectorFieldMapper.ElementType.FLOAT);
+        DenseVectorFieldMapper.ElementType elementTypeOrDefault() {
+            return Objects.requireNonNullElse(elementType, DenseVectorFieldMapper.ElementType.FLOAT);
+        }
+
+        @Override
+        public ElasticsearchInternalTextEmbeddingServiceSettings build() {
+            return new ElasticsearchInternalTextEmbeddingServiceSettings(
+                super.build(),
+                dimensions,
+                similarityOrDefault(),
+                elementTypeOrDefault()
+            );
+        }
     }
 
     private final Integer dimensions;
@@ -164,23 +231,6 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
         this.dimensions = dimensions;
         this.similarityMeasure = Objects.requireNonNull(similarityMeasure);
         this.elementType = Objects.requireNonNull(elementType);
-    }
-
-    private ElasticsearchInternalTextEmbeddingServiceSettings(CommonFields commonFields) {
-        this(commonFields, null);
-    }
-
-    private ElasticsearchInternalTextEmbeddingServiceSettings(CommonFields commonFields, Integer dimensions) {
-        super(
-            commonFields.internalServiceSettings.getNumAllocations(),
-            commonFields.internalServiceSettings.getNumThreads(),
-            commonFields.internalServiceSettings.modelId(),
-            commonFields.internalServiceSettings.getAdaptiveAllocationsSettings(),
-            commonFields.internalServiceSettings.getDeploymentId()
-        );
-        this.dimensions = dimensions;
-        similarityMeasure = commonFields.similarityMeasure;
-        elementType = commonFields.elementType;
     }
 
     @Override

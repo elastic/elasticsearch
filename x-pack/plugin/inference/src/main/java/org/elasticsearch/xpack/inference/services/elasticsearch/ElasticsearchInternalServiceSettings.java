@@ -37,9 +37,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -184,45 +181,6 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         }
 
         validationException.throwIfValidationErrorsExist();
-    }
-
-    // TODO: remove once the subclasses with additional fields (reranker, E5, text embedding) declare their fields on a parser
-    // created via createParser instead of extracting them from the map.
-    protected static Builder fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
-            map,
-            ADAPTIVE_ALLOCATIONS,
-            validationException
-        );
-
-        // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        if (numAllocations == null && adaptiveAllocationsSettings == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
-            );
-        }
-
-        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a
-        // null pointer when doing unboxing
-        return new Builder().setNumAllocations(numAllocations)
-            .setNumThreads(Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE))
-            .setModelId(modelId)
-            .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings)
-            .setDeploymentId(deploymentId);
     }
 
     public ElasticsearchInternalServiceSettings(
@@ -433,8 +391,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         private String deploymentId;
 
         public ElasticsearchInternalServiceSettings build() {
-            // the failed-parse sentinel keeps the legacy map-extraction path building without a null pointer when the accumulated
-            // validation errors are thrown after this call; the parser-based paths validate before building
+            // the failed-parse sentinel avoids a null pointer when a builder is built without num_threads; the parser-based
+            // paths validate the field is present before building
             return new ElasticsearchInternalServiceSettings(
                 numAllocations,
                 Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE),

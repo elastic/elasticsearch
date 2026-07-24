@@ -794,18 +794,19 @@ public class SharedBlobCacheWarmingService {
                     SubscribableListener.<Map<BlobFile, WarmTarget>>newForked(l1 -> {
                         var executor = new Executor() {
                             @Override
-                            public void execute(Runnable command) {
+                            public void execute(Runnable runnable) {
                                 warmingTaskRunner.enqueueTask(new AbstractWarmingTask(type, threadPool.relativeTimeInNanos()) {
                                     @Override
                                     public void onResponse(Releasable releasable) {
                                         try (releasable) {
-                                            command.run();
+                                            runnable.run();
                                         }
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        // TODO ???
+                                        // Only rejections caused by the shutdown of the thread pool should be possible here.
+                                        logger.warn("Failed to submit task to warmingTaskRunner", e);
                                     }
                                 });
                             }

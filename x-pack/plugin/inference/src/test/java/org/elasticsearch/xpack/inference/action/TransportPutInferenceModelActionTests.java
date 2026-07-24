@@ -323,12 +323,13 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
 
     private void stubServiceInferToReturnDenseEmbedding() {
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(6);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(
                 new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
             return null;
-        }).when(mockService).infer(any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
+        }).when(mockService)
+            .infer(any(), any(), any(), any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
     }
 
     private void stubStoreModelToFail(Exception e) {

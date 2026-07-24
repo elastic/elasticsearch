@@ -61,7 +61,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
      * limit that guards against {@link StackOverflowError}s that would otherwise be thrown while recursively parsing a deeply
      * nested retriever tree.
      */
-    public static final int MAX_NESTED_DEPTH = 100;
+    public static final int MAX_NESTED_DEPTH = MAX_REWRITE_ROUNDS;
 
     protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(

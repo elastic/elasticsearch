@@ -24,6 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -297,16 +299,203 @@ public class AnthropicToolUtilsTests extends ESTestCase {
             """);
     }
 
-    public void testWriteMessages_toolResultWithNonTextContentThrows() {
-        var imageUrl = new ContentObject.ContentObjectImage.ContentObjectImageUrl("https://example.com/image.png", null);
+    public void testWriteMessages_translatesToolResultImageToImageBlock() throws IOException {
+        var imageUrl = new ContentObject.ContentObjectImage.ContentObjectImageUrl("data:image/png;base64,iVBORw==", null);
         var content = new ContentObjects(List.of(new ContentObject.ContentObjectImage(imageUrl)));
         var message = new Message(content, "tool", "call_1", null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_1",
+                                "content": [
+                                    {
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": "image/png",
+                                            "data": "iVBORw=="
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_translatesUserMultimodalContentToAnthropicBlocks() throws IOException {
+        // The non-standard "image/jpg" media type is normalized to "image/jpeg", which is what Anthropic accepts.
+        var text = new ContentObject.ContentObjectText("What do the image and the report show?");
+        var image = new ContentObject.ContentObjectImage(
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl("data:image/jpg;base64,iVBORw==", null)
+        );
+        var file = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields("data:application/pdf;base64,JVBERg==", null, "report.pdf")
+        );
+        var message = new Message(new ContentObjects(List.of(text, image, file)), "user", null, null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "What do the image and the report show?"
+                            },
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/jpeg",
+                                    "data": "iVBORw=="
+                                }
+                            },
+                            {
+                                "type": "document",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "application/pdf",
+                                    "data": "JVBERg=="
+                                },
+                                "title": "report.pdf"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_translatesHttpImageUrlToUrlSource() throws IOException {
+        var image = new ContentObject.ContentObjectImage(
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl("https://example.com/image.png", null)
+        );
+        var message = new Message(new ContentObjects(List.of(image)), "user", null, null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "url",
+                                    "url": "https://example.com/image.png"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_translatesPlainTextFileToTextSource() throws IOException {
+        // A text/plain document maps onto Anthropic's text source, which carries the decoded text rather than base64. The declared
+        // media type's RFC 2397 parameters (";charset=utf-8") are stripped.
+        var encoded = Base64.getEncoder().encodeToString("72F and sunny".getBytes(StandardCharsets.UTF_8));
+        var file = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields(
+                "data:text/plain;charset=utf-8;base64," + encoded,
+                null,
+                "weather.txt"
+            )
+        );
+        var message = new Message(new ContentObjects(List.of(file)), "user", null, null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "document",
+                                "source": {
+                                    "type": "text",
+                                    "media_type": "text/plain",
+                                    "data": "72F and sunny"
+                                },
+                                "title": "weather.txt"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_imageWithBareBase64Throws() {
+        // Bare base64 carries no media type, which Anthropic requires; the value must be a data URI declaring it.
+        var image = new ContentObject.ContentObjectImage(new ContentObject.ContentObjectImage.ContentObjectImageUrl("iVBORw==", null));
+        var message = new Message(new ContentObjects(List.of(image)), "user", null, null);
         var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            is("Unsupported content type [image_url] in a tool message for the Anthropic chat completion API.")
+            is(
+                "Image URLs must be HTTP(S) URLs or base64 data URIs with the format [data:{MIME-type};base64,...] "
+                    + "for the Anthropic chat completion API."
+            )
         );
+    }
+
+    public void testWriteMessages_fileWithoutDataUriThrows() {
+        var file = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields("JVBERg==", null, "report.pdf")
+        );
+        var message = new Message(new ContentObjects(List.of(file)), "user", null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "File data must be a base64 data URI with the format [data:{MIME-type};base64,...] "
+                    + "for the Anthropic chat completion API."
+            )
+        );
+    }
+
+    public void testWriteMessages_fileWithoutFileDataThrows() {
+        var file = new ContentObject.ContentObjectFile(new ContentObject.ContentObjectFile.ContentObjectFileFields(null, null, "a.pdf"));
+        var message = new Message(new ContentObjects(List.of(file)), "user", null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("File content requires [file_data] for the Anthropic chat completion API."));
+    }
+
+    public void testWriteMessages_fileWithUnsupportedMediaTypeThrows() {
+        var file = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields("data:image/png;base64,iVBORw==", null, "image.png")
+        );
+        var message = new Message(new ContentObjects(List.of(file)), "user", null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Unsupported file media type [image/png] for the Anthropic chat completion API; "
+                    + "supported types are [application/pdf, text/plain]."
+            )
+        );
+    }
+
+    public void testWriteMessages_fileWithInvalidBase64PayloadThrows() {
+        var file = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields("data:text/plain;base64,!!!", null, "notes.txt")
+        );
+        var message = new Message(new ContentObjects(List.of(file)), "user", null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("Invalid base64 payload in the file data URI."));
     }
 
     public void testWriteMessages_toolResultWithoutToolCallIdThrows() {

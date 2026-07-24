@@ -189,8 +189,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(XContentParser parser)
-        throws IOException {
+    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(XContentParser parser) throws IOException {
         var messageMap = extractInnerStringObjectMap(parser.map(), MESSAGE_FIELD);
         var model = extractMandatoryString(messageMap, MODEL_FIELD);
         var id = extractMandatoryString(messageMap, ID_FIELD);
@@ -377,8 +376,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
      * @throws IOException if parsing fails
      */
-    public Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(XContentParser parser)
-        throws IOException {
+    public Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var finishReason = convertStopReason(extractOptionalString(deltaMap, STOP_REASON_FIELD));

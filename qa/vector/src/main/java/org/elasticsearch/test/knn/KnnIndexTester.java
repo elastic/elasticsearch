@@ -16,13 +16,17 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
@@ -31,12 +35,14 @@ import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -73,6 +79,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.DoubleSummaryStatistics;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -537,6 +545,9 @@ public class KnnIndexTester {
                 }
             }
             numSegments(indexPath, indexResults, sharedDir);
+            if (testConfiguration.autoCalibrate() && testConfiguration.indexType() == IndexType.IVF) {
+                logAutoCalibrationSegmentReport(indexPath, sharedDir);
+            }
 
             boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
@@ -744,6 +755,104 @@ public class KnnIndexTester {
         }
     }
 
+    /**
+     * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
+     * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
+     * when {@code auto_calibrate} is {@code true} and the index type is IVF.
+     */
+    static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
+        Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);
+        boolean ownsDir = sharedDir == null;
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            List<LeafReaderContext> leaves = reader.leaves();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Auto-calibration segment distribution [field=")
+                .append(KnnIndexer.VECTOR_FIELD)
+                .append(", ")
+                .append(leaves.size())
+                .append(" segment(s)]\n");
+            sb.append(
+                String.format(Locale.ROOT, "  %4s  %7s  %-22s  %10s  %12s%n", "seg", "docs", "quantization", "oversample", "precondition")
+            );
+            sb.append(
+                String.format(
+                    Locale.ROOT,
+                    "  %4s  %7s  %-22s  %10s  %12s%n",
+                    "---",
+                    "-------",
+                    "----------------------",
+                    "----------",
+                    "------------"
+                )
+            );
+
+            Map<String, Integer> encodingCounts = new LinkedHashMap<>();
+            List<Double> oversamples = new ArrayList<>();
+            int preconditionTrue = 0;
+            int calibrated = 0;
+
+            for (LeafReaderContext ctx : leaves) {
+                var lr = ctx.reader();
+                FieldInfo fi = lr.getFieldInfos().fieldInfo(KnnIndexer.VECTOR_FIELD);
+                if (fi == null) {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no vector field)%n", ctx.ord, lr.numDocs()));
+                    continue;
+                }
+                SegmentReader sr = Lucene.tryUnwrapSegmentReader(lr);
+                KnnVectorsReader vr = sr != null ? sr.getVectorReader() : null;
+                if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
+                    vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
+                }
+                if (vr instanceof CalibrationAwareReader car) {
+                    QuantEncoding enc = car.getQuantEncoding(fi);
+                    float oversample = car.getOversampleFactor(fi);
+                    boolean precondition = car.shouldPrecondition(fi);
+                    String encName = enc != null ? enc.name() : "n/a";
+                    String oversampleStr = Float.isFinite(oversample) ? String.format(Locale.ROOT, "%.2f", oversample) : "n/a";
+                    sb.append(
+                        String.format(
+                            Locale.ROOT,
+                            "  %4d  %7d  %-22s  %10s  %12b%n",
+                            ctx.ord,
+                            lr.numDocs(),
+                            encName,
+                            oversampleStr,
+                            precondition
+                        )
+                    );
+                    encodingCounts.merge(encName, 1, Integer::sum);
+                    if (Float.isFinite(oversample)) {
+                        oversamples.add((double) oversample);
+                    }
+                    if (precondition) {
+                        preconditionTrue++;
+                    }
+                    calibrated++;
+                } else {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no calibration data)%n", ctx.ord, lr.numDocs()));
+                }
+            }
+
+            if (calibrated > 0) {
+                DoubleSummaryStatistics stats = oversamples.stream().mapToDouble(Double::doubleValue).summaryStatistics();
+                sb.append("  Summary: encodings=");
+                encodingCounts.forEach((enc, count) -> sb.append(enc).append("×").append(count).append(" "));
+                if (oversamples.isEmpty() == false) {
+                    sb.append(
+                        String.format(Locale.ROOT, " oversample=[%.2f, %.2f] avg=%.2f", stats.getMin(), stats.getMax(), stats.getAverage())
+                    );
+                }
+                sb.append(String.format(Locale.ROOT, "  precondition=%d/%d segments", preconditionTrue, calibrated));
+            }
+
+            logger.info("{}", sb);
+        } finally {
+            if (ownsDir) {
+                dir.close();
+            }
+        }
+    }
+
     static class FormattedResults {
         List<Results> indexResults = new ArrayList<>();
         List<Results> queryResults = new ArrayList<>();
@@ -786,6 +895,7 @@ public class KnnIndexTester {
                 "oversampling_factor",
                 "num_candidates",
                 "early_termination",
+                "post_filter",
                 "exact",
                 "exact_quantized"
             );
@@ -833,6 +943,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
                     Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter),
                     Boolean.toString(queryResult.exact),
                     Boolean.toString(queryResult.exactQuantized)
                 );
@@ -933,6 +1044,7 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
         boolean exact;
         boolean exactQuantized;
         int numCandidates;
@@ -1076,6 +1188,7 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "post_filter",
         "exact",
         "exact_quantized",
         "filter_selectivity",
@@ -1190,6 +1303,7 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
                             Boolean.toString(sp.exact()),
                             Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),

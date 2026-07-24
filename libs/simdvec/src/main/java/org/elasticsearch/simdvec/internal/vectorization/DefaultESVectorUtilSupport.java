@@ -161,6 +161,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return sum;
     }
 
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        float dist = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            dist += diff * diff;
+        }
+        return dist;
+    }
+
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {

@@ -103,61 +103,61 @@ public record UnassignedInfo(
         /**
          * Unassigned as a result of an API creation of an index.
          */
-        INDEX_CREATED(true),
+        INDEX_CREATED(true, false),
         /**
          * Unassigned as a result of a full cluster recovery.
          */
-        CLUSTER_RECOVERED(false),
+        CLUSTER_RECOVERED(false, true),
         /**
          * Unassigned as a result of opening a closed index.
          */
-        INDEX_REOPENED(true),
+        INDEX_REOPENED(true, true),
         /**
          * Unassigned as a result of importing a dangling index.
          */
-        DANGLING_INDEX_IMPORTED(true),
+        DANGLING_INDEX_IMPORTED(true, true),
         /**
          * Unassigned as a result of restoring into a new index.
          */
-        NEW_INDEX_RESTORED(true),
+        NEW_INDEX_RESTORED(true, false),
         /**
          * Unassigned as a result of restoring into a closed index.
          */
-        EXISTING_INDEX_RESTORED(true),
+        EXISTING_INDEX_RESTORED(true, true),
         /**
          * Unassigned as a result of explicit addition of a replica.
          */
-        REPLICA_ADDED(true),
+        REPLICA_ADDED(true, false),
         /**
          * Unassigned as a result of a failed allocation of the shard.
          */
-        ALLOCATION_FAILED(false),
+        ALLOCATION_FAILED(false, true),
         /**
          * Unassigned as a result of the node hosting it leaving the cluster.
          */
-        NODE_LEFT(false),
+        NODE_LEFT(false, true),
         /**
          * Unassigned as a result of explicit cancel reroute command.
          */
-        REROUTE_CANCELLED(true),
+        REROUTE_CANCELLED(true, true),
         /**
          * A replica shard which restarted initialization either because the primary changed or because it was previously a relocation
          * target whose relocation source has failed; the "source" of a replica relocation isn't the source of its data, that's the primary,
          * but we represent the movement of a STARTED replica shard as if it was.
          */
-        REINITIALIZED(false),
+        REINITIALIZED(false, true),
         /**
          * A better replica location is identified and causes the existing replica allocation to be cancelled.
          */
-        REALLOCATED_REPLICA(false),
+        REALLOCATED_REPLICA(false, true),
         /**
          * Unassigned as a result of a failed primary while the replica was initializing.
          */
-        PRIMARY_FAILED(false),
+        PRIMARY_FAILED(false, true),
         /**
          * Unassigned after forcing an empty primary
          */
-        FORCED_EMPTY_PRIMARY(true),
+        FORCED_EMPTY_PRIMARY(true, true),
         /**
          * Manual allocation via the cluster reroute API, to force allocation of a shard and/or to reset the
          * allocation failure counter.
@@ -166,33 +166,35 @@ public record UnassignedInfo(
          * cluster topology changes (e.g., new node joining).
          * See https://github.com/elastic/elasticsearch-team/issues/4064 for more details
          */
-        MANUAL_ALLOCATION(true),
+        MANUAL_ALLOCATION(true, true),
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED(true),
+        INDEX_CLOSED(true, true),
         /**
          * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
          * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
-        NODE_RESTARTING(false),
+        NODE_RESTARTING(false, true),
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA(false),
+        UNPROMOTABLE_REPLICA(false, true),
         /**
          * New shard added as part of index re-sharding operation
          */
-        RESHARD_ADDED(true),
+        RESHARD_ADDED(true, false),
         /**
          * The master node deliberately direct cancelled an in-progress recovery (via `TransportCancelRecoveriesAction`).
          */
-        RECOVERY_CANCELLED(true);
+        RECOVERY_CANCELLED(true, true);
 
         private final boolean isExpectedTransient;
+        private final boolean isExistingShard;
 
-        Reason(boolean isExpectedTransient) {
+        Reason(boolean isExpectedTransient, boolean isExistingShard) {
             this.isExpectedTransient = isExpectedTransient;
+            this.isExistingShard = isExistingShard;
         }
 
         /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation,
@@ -411,6 +413,13 @@ public record UnassignedInfo(
             .orElse(indexLevelDelay);
         assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+    }
+
+    /// Returns the priority to use when recovering the unassigned shard.
+    public ShardRouting.RecoveryPriority recoveryPriority() {
+        return this.reason().isExistingShard
+            ? ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING
+            : ShardRouting.RecoveryPriority.UNASSIGNED_NEW;
     }
 
     /**

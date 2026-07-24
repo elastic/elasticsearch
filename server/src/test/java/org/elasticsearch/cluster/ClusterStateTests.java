@@ -617,7 +617,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "another-index",
                                   "recovery_source": { "type": "EMPTY_STORE" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -634,7 +634,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "another-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -657,7 +657,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "common-index",
                                   "recovery_source": { "type": "EMPTY_STORE" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -674,7 +674,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "common-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -691,7 +691,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "common-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -723,7 +723,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "common-index",
                                   "recovery_source": { "type": "EMPTY_STORE" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -740,7 +740,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 0,
                                   "index": "common-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -759,7 +759,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 1,
                                   "index": "common-index",
                                   "recovery_source": { "type": "EMPTY_STORE" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -776,7 +776,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 1,
                                   "index": "common-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -795,7 +795,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 2,
                                   "index": "common-index",
                                   "recovery_source": { "type": "EMPTY_STORE" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",
@@ -812,7 +812,7 @@ public class ClusterStateTests extends ESTestCase {
                                   "shard": 2,
                                   "index": "common-index",
                                   "recovery_source": { "type": "PEER" },
-                                  "recovery_priority": "UNASSIGNED_EXISTING",
+                                  "recovery_priority": "UNASSIGNED_NEW",
                                   "unassigned_info": {
                                     "reason": "INDEX_CREATED",
                                     "at": "_DATE_",

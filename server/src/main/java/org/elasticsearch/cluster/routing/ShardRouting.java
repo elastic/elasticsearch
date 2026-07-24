@@ -155,8 +155,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert recoverySource != null : state + " shard must be created with a recovery source" + this;
                 assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
                 assert recoveryPriority != null : state + " shard must be created with a recovery priority " + this;
-                assert !recoveryPriority.isRelocation()
-                    : state + " shard must be created with a recovery priority consistent with its relocation status " + this;
+                assert recoveryPriority == unassignedInfo.recoveryPriority()
+                    : state + " shard must be created with a recovery priority consistent with its unassigned info " + this;
             }
             case INITIALIZING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
@@ -164,8 +164,13 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert recoverySource != null : state + "shard must be created with a recovery source " + this;
                 assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
                 assert recoveryPriority != null : state + " shard must be created with a recovery priority " + this;
-                assert recoveryPriority.isRelocation() == (relocatingNodeId != null)
-                    : state + " shard must be created with a recovery priority consistent with its unassigned/relocation status " + this;
+                if (unassignedInfo != null) {
+                    assert recoveryPriority == unassignedInfo.recoveryPriority()
+                        : state + " shard must be created with a recovery priority consistent with its unassigned info " + this;
+                } else {
+                    assert recoveryPriority.isRelocation()
+                        : state + " shard must be created with a recovery priority consistent with its relocation status " + this;
+                }
             }
             case STARTED -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
@@ -229,9 +234,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.UNASSIGNED,
             recoverySource,
-            // TODO: Populate this with the correct priority. For now, we use the higher of the two choices for a recovery from unassigned.
-            // As long as master-side recovery throttling is in effect, the priority is not that important.
-            RecoveryPriority.UNASSIGNED_EXISTING,
+            unassignedInfo.recoveryPriority(),
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
@@ -497,7 +500,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
-            recoveryPriority,
+            unassignedInfo.recoveryPriority(),
             unassignedInfo,
             relocationFailureInfo,
             allocationId,
@@ -546,9 +549,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.UNASSIGNED,
             recoverySource,
-            state == ShardRoutingState.INITIALIZING && unassignedInfo != null
-                ? recoveryPriority // Shard was previously initializing from unassigned, so keep the same recovery priority
-                : RecoveryPriority.UNASSIGNED_EXISTING, // Shard must previously have been started or relocating, so must be existing
+            unassignedInfo.recoveryPriority(),
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
@@ -647,6 +648,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;
         assert unassignedInfo == null : this;
+        UnassignedInfo newUnassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -654,8 +656,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
-            RecoveryPriority.UNASSIGNED_EXISTING, // increase the recovery priority to reflect the fact that this is now unassigned
-            new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            newUnassignedInfo.recoveryPriority(), // increase the recovery priority to reflect the fact that this is now unassigned
+            newUnassignedInfo,
             relocationFailureInfo,
             AllocationId.finishRelocation(allocationId),
             expectedShardSize,

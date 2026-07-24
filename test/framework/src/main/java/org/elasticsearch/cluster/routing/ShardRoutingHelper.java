@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * A helper class that allows access to package private APIs for testing.
  */
@@ -41,6 +43,9 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
+        UnassignedInfo unassignedInfo = copy.relocatingNodeId() != null
+            ? null
+            : new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
         return new ShardRouting(
             copy.shardId(),
             copy.currentNodeId(),
@@ -48,10 +53,9 @@ public class ShardRoutingHelper {
             copy.primary(),
             ShardRoutingState.INITIALIZING,
             recoverySource,
-            copy.relocatingNodeId() != null
-                ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING, // for testing, use arbitrary (highest) allowed priority
-            copy.relocatingNodeId() != null ? null : new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            // If unassigned, use the correct priority for the info given; if relocating, arbitrarily use the highest valid priority:
+            unassignedInfo != null ? unassignedInfo.recoveryPriority() : ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
             copy.getExpectedShardSize(),
@@ -72,11 +76,11 @@ public class ShardRoutingHelper {
             routing.state(),
             recoverySource,
             switch (routing.state()) {
-                // for testing, use arbitrary (highest) priority
-                case INITIALIZING -> routing.relocatingNodeId() != null
-                    ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
-                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
+                // If unassigned, use the correct priority for the info given; if relocating, arbitrarily use the highest valid priority:
+                case INITIALIZING -> routing.unassignedInfo() != null
+                    ? routing.unassignedInfo().recoveryPriority()
+                    : ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+                case UNASSIGNED -> requireNonNull(routing.unassignedInfo()).recoveryPriority();
                 case RELOCATING -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                 case STARTED -> null;
             },

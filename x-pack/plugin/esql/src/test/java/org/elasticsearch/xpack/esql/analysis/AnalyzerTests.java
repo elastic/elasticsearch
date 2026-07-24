@@ -4673,13 +4673,7 @@ public class AnalyzerTests extends ESTestCase {
      * the scan path.
      */
     public void testWideOutputResolvesThroughNameIndex() {
-        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
-        for (int i = 0; i < 200; i++) {
-            String name = "f" + i;
-            mapping.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        }
-        EsIndex index = new EsIndex("wide", mapping, Map.of("wide", IndexMode.STANDARD), Map.of(), Map.of());
-        IndexResolution resolution = IndexResolution.valid(index);
+        IndexResolution resolution = keywordFieldsIndex("wide", 200);
 
         String query = """
             FROM wide
@@ -4715,6 +4709,177 @@ public class AnalyzerTests extends ESTestCase {
             () -> analyzer().addIndex(resolution).query("FROM wide | DROP does_not_exist")
         );
         assertThat(dropError.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
+    /**
+     * The same query resolved against a narrow (scan path, {@code <= NAME_INDEX_THRESHOLD}) and a wide
+     * (index path) output must produce identical resolution.
+     */
+    public void testWideAndNarrowOutputsResolveIdentically() {
+        IndexResolution narrow = keywordFieldsIndex("narrow", 50);
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> narrowKeep = Expressions.names(
+            analyzer().addIndex(narrow).query("FROM narrow | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        List<String> wideKeep = Expressions.names(
+            analyzer().addIndex(wide).query("FROM wide | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        assertThat(narrowKeep, contains("f0", "f5", "f10", "f40"));
+        assertThat(wideKeep, equalTo(narrowKeep));
+
+        List<String> narrowDrop = Expressions.names(analyzer().addIndex(narrow).query("FROM narrow | DROP f0, f5, f10, f40").output());
+        List<String> wideDrop = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f0, f5, f10, f40").output());
+        assertThat(narrowDrop, hasSize(46));
+        assertThat(wideDrop, hasSize(196));
+        for (int i = 0; i < 50; i++) {
+            String f = "f" + i;
+            assertThat(f + " parity", wideDrop.contains(f), equalTo(narrowDrop.contains(f)));
+        }
+    }
+
+    /**
+     * Resolution is identical right at the name-index threshold boundary (128 scans, 129 uses the index).
+     */
+    public void testNameIndexThresholdBoundary() {
+        IndexResolution atThreshold = keywordFieldsIndex("at_threshold", 128);
+        IndexResolution overThreshold = keywordFieldsIndex("over_threshold", 129);
+
+        List<String> atKeep = Expressions.names(
+            analyzer().addIndex(atThreshold).query("FROM at_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        List<String> overKeep = Expressions.names(
+            analyzer().addIndex(overThreshold).query("FROM over_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        assertThat(atKeep, contains("f0", "f1", "f127"));
+        assertThat(overKeep, equalTo(atKeep));
+
+        assertThat(analyzer().addIndex(atThreshold).query("FROM at_threshold | DROP f0").output(), hasSize(127));
+        assertThat(analyzer().addIndex(overThreshold).query("FROM over_threshold | DROP f0").output(), hasSize(128));
+    }
+
+    /**
+     * A no-match on the index path still scans the full output for "did you mean" suggestions,
+     * for both the {@code resolveExpressions} (WHERE) and {@code keepResolver} (KEEP) entry points.
+     */
+    public void testWideOutputUnknownColumnSuggestsSimilarThroughIndex() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        VerificationException whereErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | WHERE f100x == \"a\"")
+        );
+        assertThat(whereErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(whereErr.getMessage(), containsString("f100"));
+
+        VerificationException keepErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | KEEP f100x")
+        );
+        assertThat(keepErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(keepErr.getMessage(), containsString("f100"));
+    }
+
+    /**
+     * Explicit name (index path) and wildcard (scan path) combine in a single wide KEEP.
+     */
+    public void testWideKeepExactAndWildcardCombine() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+        LogicalPlan plan = analyzer().addIndex(wide).query("FROM wide | KEEP f5, f1*");
+        List<String> names = Expressions.names(plan.output());
+        assertThat(names, hasSize(112));
+        assertThat(names, hasItems("f5", "f1", "f10", "f19", "f100", "f199"));
+        assertThat(names, not(hasItem("f0")));
+        for (Attribute a : plan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    /**
+     * Wildcard DROP on a wide output, including overlapping patterns that re-match already-removed columns.
+     */
+    public void testWideDropWildcardAndOverlap() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> single = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*").output());
+        assertThat(single, hasSize(89));
+        assertThat(single, not(hasItems("f1", "f10", "f19", "f100", "f199")));
+        assertThat(single, hasItems("f0", "f2", "f9"));
+
+        List<String> overlap = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*, f1*").output());
+        assertThat(overlap, equalTo(single));
+
+        LogicalPlan mixedPlan = analyzer().addIndex(wide).query("FROM wide | DROP f0, f1*");
+        List<String> mixed = Expressions.names(mixedPlan.output());
+        assertThat(mixed, hasSize(88));
+        assertThat(mixed, not(hasItems("f0", "f1", "f10", "f199")));
+        for (Attribute a : mixedPlan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    /**
+     * Guards the {@code if (ua.customMessage()) return ua;} short-circuit in {@code ResolveRefs#maybeResolveAttribute}
+     * on the wide (name-index) resolution path.
+     * <p>
+     * {@code ResolveRefs} runs to a fixed point, and an {@link UnresolvedAttribute} that already failed to resolve keeps
+     * {@code resolved() == false}, so it is re-visited on every subsequent pass. If, on such a re-visit, the child output
+     * contains two same-name attributes, re-running resolution would reach {@code AnalyzerRules.resolveCollectedMatches},
+     * which throws "Found ambiguous reference" on 2+ non-pattern matches - clobbering the attribute's deliberate custom
+     * message. Notably, the downstream {@code customMessage()} check in {@code potentialCandidatesIfNoMatchesFound} cannot
+     * prevent this, because the ambiguity throw happens earlier, inside {@code resolveCollectedMatches}. Only the early
+     * guard does.
+     * <p>
+     * This reproduces that mid-fixed-point state directly - a wide ({@code > NAME_INDEX_THRESHOLD}) output with a
+     * duplicated name feeding a WHERE whose condition is an already-customized reference - and asserts the guard returns
+     * the reference unchanged. Removing the guard makes this throw a {@link VerificationException}.
+     */
+    public void testWideCustomMessageAttributeIsNotReResolvedToAmbiguity() {
+        // Wide output (> NAME_INDEX_THRESHOLD) so resolveExpressions takes the name-index path; "dup" appears twice so
+        // its index bucket is ambiguous.
+        List<Attribute> attrs = new ArrayList<>();
+        for (int i = 0; i < 129; i++) {
+            String f = "f" + i;
+            attrs.add(
+                new FieldAttribute(Source.EMPTY, f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+            );
+        }
+        EsField dupField = new EsField("dup", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "wide",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("wide", IndexMode.STANDARD),
+            attrs
+        );
+
+        // A reference that already failed to resolve on an earlier pass (customMessage == true), matching the
+        // duplicated name.
+        String customMessage = "Unknown column [dup]";
+        UnresolvedAttribute alreadyFailed = new UnresolvedAttribute(Source.EMPTY, "dup", customMessage);
+        assertTrue(alreadyFailed.customMessage());
+        Filter filter = new Filter(Source.EMPTY, relation, alreadyFailed);
+
+        LogicalPlan resolved = new Analyzer.ResolveRefs().apply(filter, analyzer().buildContext());
+
+        Filter resolvedFilter = as(resolved, Filter.class);
+        UnresolvedAttribute condition = as(resolvedFilter.condition(), UnresolvedAttribute.class);
+        assertTrue("custom message must be preserved, not re-resolved into an ambiguity error", condition.customMessage());
+        assertThat(condition.unresolvedMessage(), equalTo(customMessage));
+    }
+
+    private static IndexResolution keywordFieldsIndex(String name, int fieldCount) {
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < fieldCount; i++) {
+            String f = "f" + i;
+            mapping.put(f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        return IndexResolution.valid(new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of()));
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

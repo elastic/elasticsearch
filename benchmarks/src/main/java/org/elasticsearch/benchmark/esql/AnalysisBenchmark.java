@@ -98,6 +98,19 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
  *     does not touch wildcard {@code DROP}/{@code KEEP} (e.g. {@code drop_sort}), which still scan
  *     patterns.
  * </p>
+ * <p>
+ *     {@code drop_wildcard_overlap} isolates {@code dropResolver}'s projection filtering (not the name
+ *     index): two overlapping wildcard patterns make {@code resolvedProjections} shrink below the
+ *     match-set size, so {@code LinkedHashSet.removeAll(List)} would take its {@code O(remaining * matches)}
+ *     branch. Wrapping the match set in a {@code HashSet} only once {@code resolvedProjections} has shrunk
+ *     to {@code <=} the match count restores {@code O(fields + matches)} without taxing the common
+ *     single-wildcard case ({@code drop_sort}); measured with {@code -wi 2 -i 3 -f 1}, ms/op:
+ * </p>
+ * <pre>
+ *    shape                   50 000: guarded / unguarded    100 000: guarded / unguarded
+ *    drop_sort (control)      ~44 / ~42                      ~117 / ~120
+ *    drop_wildcard_overlap    51.1 / 311.8   (~6x)           136.9 / 1043.1  (~7.6x)
+ * </pre>
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
@@ -122,7 +135,7 @@ public class AnalysisBenchmark {
      * {@code drop_many} reference {@link #WIDE_REFERENCES} explicit fields to stress exact-name
      * resolution.
      */
-    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many", "where_many", "drop_many" })
+    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many", "where_many", "drop_many", "drop_wildcard_overlap" })
     public String query;
 
     /**
@@ -174,6 +187,9 @@ public class AnalysisBenchmark {
         // DROP <N explicit fields>: resolved in dropResolver, one lookup per removal, then a single
         // projection-filtering pass.
         queries.put("drop_many", fieldListQuery("FROM test | DROP ", "", WIDE_REFERENCES));
+        // Overlapping wildcard DROP: the second pattern re-matches columns the first removed, shrinking
+        // resolvedProjections below the match-set size to stress dropResolver's removeAll. See #154818.
+        queries.put("drop_wildcard_overlap", "FROM test | DROP otel.*, otel.*");
         return Map.copyOf(queries);
     }
 

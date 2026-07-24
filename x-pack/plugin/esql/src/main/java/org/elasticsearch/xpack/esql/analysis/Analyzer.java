@@ -2363,8 +2363,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the return list might contain either resolved elements or unresolved ones.
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
-                // so, remove things that are in common
-                resolvedProjections.removeAll(resolved);
+                // removeAll(List) rescans matches per element only once resolvedProjections has shrunk to <= the
+                // match count (AbstractSet.removeAll); wrap just that case in a HashSet. See #154818 / AnalysisBenchmark.
+                boolean wrapMatches = resolved.size() > 1 && resolvedProjections.size() <= resolved.size();
+                resolvedProjections.removeAll(wrapMatches ? new HashSet<>(resolved) : resolved);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {

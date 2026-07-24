@@ -377,7 +377,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             }
 
             synchronized (checkpoint) {
-                if (requestItemIterator.hasNext() == false) {
+                // Re-check under the lock: completeIfFinished() releases the request iterator (and its backing block) while holding
+                // this lock when a failure occurs. Without re-checking, a concurrent poller that passed the guard above could invoke
+                // requestItemIterator.next() on an already-released block.
+                if (hasFailure() || completed.get() || requestItemIterator.hasNext() == false) {
                     return null;
                 }
 

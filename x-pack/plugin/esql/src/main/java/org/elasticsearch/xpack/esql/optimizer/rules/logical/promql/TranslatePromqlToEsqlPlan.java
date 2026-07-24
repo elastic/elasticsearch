@@ -35,11 +35,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -67,11 +66,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -247,7 +248,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Configuration configuration
     ) {
         if (evalTime instanceof ReferenceAttribute ref && p.timestampColumnName().equals(ref.name())) {
-            var expr = new Add(p.source(), p.timestamp(), Literal.timeDuration(p.source(), p.offset(branch)), configuration);
+            Expression base = p.timestamp();
+            // A date_nanos @timestamp is normalized to datetime (epoch-millis) here, once, so the shared time bucket,
+            // the exposed step column, and the whole time-series windowing pipeline all operate in the millisecond
+            // domain (matching a plain date @timestamp). See PromqlCommand#timestamp(LogicalPlan).
+            if (base.dataType() == DataType.DATE_NANOS) {
+                base = new ToDatetime(base.source(), base, configuration);
+            }
+            var offset = p.offset(branch);
+            var expr = offset.isZero() ? base : new Add(p.source(), base, Literal.timeDuration(p.source(), offset), configuration);
             var time = new Alias(p.source(), p.timestampColumnName(), expr, ref.id());
             return plan.transformUp(node -> node == p.child(), node -> new Eval(p.source(), node, List.of(time)));
         }
@@ -1169,6 +1178,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         List<Attribute> extraPassthrough
     ) {
         PromqlCommand promqlCommand = ctx.promqlCommand();
+        // Across-series reductions such as {@code topk} pass the child value through unchanged (no ES|QL aggregate
+        // function of their own). Physical aggregate planning only registers real AggregateFunctions in the layout,
+        // so a bare Attribute here would be dropped and the ProjectExec that wraps AggregateExec would fail with
+        // "can't find input for [topk(...)]". Wrap in Values() - same as createInnermostAggregatePlan - so the
+        // passthrough is a proper aggregate. Identity grouping keeps one input row per group, so Values is a no-op
+        // semantically.
+        if (aggExpr instanceof AggregateFunction == false) {
+            aggExpr = new Values(aggExpr.source(), aggExpr);
+        }
         NamedExpression value = new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr);
 
         var translation = labels.translate(plan.output());
@@ -1183,7 +1201,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // then we re-pack them here. A TSA flag to skip its unpack would eliminate this redundant cycle.
 
             Source source = ctx.promqlCommand().source();
-            Attribute step = ctx.stepAttr();
 
             // Null-synthesize missing labels before packing
             List<Alias> nullAliases = new ArrayList<>();
@@ -1202,41 +1219,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 allToPack.add(na.toAttribute());
             }
 
-            List<Alias> packAliases = new ArrayList<>();
-            List<Expression> groupings = new ArrayList<>();
-            groupings.add(step);
-            List<NamedExpression> aggKeys = new ArrayList<>();
-            List<Alias> unpackAliases = new ArrayList<>();
-            var names = new TemporaryNameGenerator.Monotonic();
-
-            for (Attribute attr : allToPack) {
-                Alias pack = new Alias(source, names.next(attr.name()), new PackDimension(source, attr));
-                packAliases.add(pack);
-                groupings.add(pack.toAttribute());
-                aggKeys.add(pack.toAttribute());
-
-                unpackAliases.add(
-                    new Alias(source, attr.name(), new UnpackDimension(source, pack.toAttribute(), attr.dataType()), attr.id())
-                );
-            }
-
-            Eval packEval = new Eval(source, plan, packAliases);
-
-            var aggregates = new ArrayList<NamedExpression>(aggKeys.size() + 2);
-            aggregates.add(value);
-            aggregates.add(step);
-            aggregates.addAll(aggKeys);
-
-            Aggregate agg = new Aggregate(source, packEval, groupings, aggregates);
-            Eval unpackEval = new Eval(source, agg, unpackAliases);
-
-            List<NamedExpression> projections = new ArrayList<>();
-            projections.add(value.toAttribute());
-            projections.add(step);
-            for (Alias unpack : unpackAliases) {
-                projections.add(unpack.toAttribute());
-            }
-            return new Project(source, unpackEval, projections);
+            return aggregateWithPackedDims(source, plan, ctx.stepAttr(), value, allToPack);
         }
 
         // BY/NONE over already-aggregated child: group by concrete labels only.
@@ -1274,7 +1257,36 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(step);
         aggregates.addAll(keys);
 
-        return new Aggregate(ctx.promqlCommand().source(), plan, groupings, aggregates);
+        return new Aggregate(promqlCommand.source(), plan, groupings, aggregates);
+    }
+
+    private static LogicalPlan aggregateWithPackedDims(
+        Source source,
+        LogicalPlan plan,
+        Attribute step,
+        NamedExpression value,
+        List<Attribute> dims
+    ) {
+        List<NamedExpression> aggregates = new ArrayList<>(3);
+        List<Expression> groupings = new ArrayList<>();
+        aggregates.add(value);
+        aggregates.add(step);
+        groupings.add(step);
+        if (dims.isEmpty()) {
+            return new Aggregate(source, plan, groupings, aggregates);
+        }
+        Attribute packed = PackDims.newPackedAttribute(source);
+        var packDims = new PackDims(source, plan, List.copyOf(dims), packed);
+        var packedGrouping = PackDims.newPackedGrouping(source, packed);
+        groupings.add(packedGrouping);
+        aggregates.add(packedGrouping.toAttribute());
+        Aggregate agg = new Aggregate(source, packDims, groupings, aggregates);
+        UnpackDims unpackDims = new UnpackDims(source, agg, packedGrouping.toAttribute(), List.copyOf(dims));
+        List<NamedExpression> projections = new ArrayList<>(2 + dims.size());
+        projections.add(value.toAttribute());
+        projections.add(step);
+        projections.addAll(dims);
+        return new Project(source, unpackDims, projections);
     }
 
     private static Alias nullAlias(Attribute attribute) {

@@ -111,6 +111,14 @@ public final class OtelSdkSettings {
 
     // --- Metrics
 
+    /** When {@code true}, also emit the OTel semantic-convention JVM metric names alongside the legacy APM-agent names,
+     * to support migrating dashboards to the semconv names (ES-14386). */
+    public static final Setting<Boolean> NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING = Setting.boolSetting(
+        "node.metrics.otel_semconv.enabled",
+        false,
+        NodeScope
+    );
+
     /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
     public static final Setting<ByteSizeValue> TELEMETRY_METRICS_BUFFER_DISK_SIZE = Setting.byteSizeSetting(
         "telemetry.metrics.buffer.disk_size",
@@ -124,6 +132,27 @@ public final class OtelSdkSettings {
     public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.metrics.buffer.ttl",
         TimeValue.timeValueHours(12),
+        NodeScope
+    );
+
+    /**
+     * Instrument name patterns whose metrics are dropped.
+     * Patterns may contain the wildcards {@code *} (any run of characters) and {@code ?} (a single character).
+     */
+    public static final Setting<List<String>> TELEMETRY_METRICS_DISABLED = Setting.stringListSetting(
+        "telemetry.metrics.disabled",
+        NodeScope
+    );
+
+    /**
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
+     */
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
         NodeScope
     );
 

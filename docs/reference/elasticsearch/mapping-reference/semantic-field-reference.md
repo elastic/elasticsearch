@@ -364,6 +364,28 @@ The [`semantic` highlighter](/reference/elasticsearch/rest-apis/highlighting.md)
 
 Use `number_of_fragments` to limit the number of matches and `order: score` to return the most relevant matches first.
 
+The following example returns the two field values or text chunks that best match the query:
+
+```console
+POST my-semantic-index/_search
+{
+  "query": {
+    "match": {
+      "content": "lunar exploration"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "content": {
+        "number_of_fragments": 2,
+        "order": "score"
+      }
+    }
+  }
+}
+```
+% TEST[skip:Requires a configured semantic field]
+
 For text-specific options and examples, refer to [Highlight the most relevant `semantic_text` fragments](./semantic-text-search-retrieval.md#highlighting-fragments).
 
 ## Limitations [semantic-limitations]

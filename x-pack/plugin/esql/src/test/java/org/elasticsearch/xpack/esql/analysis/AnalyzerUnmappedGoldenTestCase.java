@@ -20,6 +20,7 @@ import java.util.List;
  * directly on each builder chain.
  */
 abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
+    protected static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
     AnalyzerUnmappedGoldenTestCase(String mode) {

@@ -27,7 +27,7 @@ You can also specify which plans you want to verify (all plans are output by def
 ```java
 public void testBasic() throws Exception {
   builder("FROM employees")
-      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL))
+      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
       .run();
 }
 ```
@@ -41,10 +41,10 @@ directory nesting.
 ```java
 public void testNested() throws Exception {
   for (String type : List.of("int", "long", "double")) {
-    runGoldenTest(
-        "FROM employees | eval emp_no = emp_no :: " + type,
-        EnumSet.allOf(Stage.class),
-        type); // Creates a nested directory per type.
+    builder("FROM employees | eval emp_no = emp_no :: " + type)
+        .stages(EnumSet.allOf(Stage.class))
+        .nestedPath(type)
+        .run(); // Creates a nested directory per type.
   }
 }
 ```
@@ -160,8 +160,14 @@ The existing suites are organized by behavior, in precedence order:
 
 For a new feature, add a focused `AnalyzerUnmapped<Feature>GoldenTests` class rather than growing
 the linear suite. Repeated capability assumptions may use a small, named static helper local to
-that suite. Do not extend the legacy optimizer `UnmappedGoldenTestCase`; it retains the older
-dual-mode resource layout only for existing optimizer suites.
+that suite. Do not extend the legacy optimizer `UnmappedGoldenTestCase`.
+
+Tests migrated out of the original `AnalyzerUnmappedGoldenTests` class keep their existing resource
+identity with `existingGoldenPath("AnalyzerUnmappedGoldenTests", "<old method>")` and an explicit
+`nestedPath("load")` or `nestedPath("nullify")`. This storage alias prevents a Java-only class split
+from obscuring reviews with hundreds of unchanged resource moves. It does not change query or
+version semantics. Use it only when reorganizing an existing golden test: new tests use the default
+class/method path shown below and must not call `existingGoldenPath(...)`.
 
 ```java
 public class AnalyzerUnmappedMyFeatureGoldenTests extends AnalyzerUnmappedGoldenTestCase {

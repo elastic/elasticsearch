@@ -36,7 +36,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             FROM employees
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testFork").nestedPath("nullify").run();
     }
 
     public void testForkLoad() throws Exception {
@@ -44,7 +44,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             FROM employees
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testFork").nestedPath("load").run();
     }
 
     public void testForkLoadsUnmappedFieldReferencedInOneBranchNullify() throws Exception {
@@ -54,7 +54,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message, unmapped_event_duration
             | SORT _fork, unmapped_event_duration
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldReferencedInOneBranch")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldReferencedInOneBranchLoad() throws Exception {
@@ -64,7 +66,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message, unmapped_event_duration
             | SORT _fork, unmapped_event_duration
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldReferencedInOneBranch")
+            .nestedPath("load")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumnNullify() throws Exception {
@@ -74,7 +78,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (EVAL branch_tag = "two")
             | KEEP _fork, message, unmapped_message, branch_tag
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumn")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumnLoad() throws Exception {
@@ -84,7 +90,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (EVAL branch_tag = "two")
             | KEEP _fork, message, unmapped_message, branch_tag
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumn")
+            .nestedPath("load")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldKeptInOneBranchOnlyNullify() throws Exception {
@@ -94,7 +102,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldKeptInOneBranchOnly")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldKeptInOneBranchOnlyLoad() throws Exception {
@@ -104,7 +114,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldKeptInOneBranchOnly")
+            .nestedPath("load")
+            .run();
     }
 
     // DROP of an unmapped field is a mention, so the sibling branch materializes it while the DROP branch null-fills it. #152843
@@ -114,7 +126,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (DROP unmapped_message)
                    (WHERE true)
             | SORT @timestamp, _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkDropsUnmappedFieldInOneBranchMaterializesSibling")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkDropsUnmappedFieldInOneBranchMaterializesSiblingLoad() throws Exception {
@@ -123,7 +137,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (DROP unmapped_message)
                    (WHERE true)
             | SORT @timestamp, _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkDropsUnmappedFieldInOneBranchMaterializesSibling")
+            .nestedPath("load")
+            .run();
     }
 
     // WHERE then DROP of an unmapped field is still a mention, so the sibling branch materializes it. #152843
@@ -133,7 +149,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
                    (WHERE true)
             | SORT @timestamp, _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWhereThenDropsUnmappedFieldInOneBranch")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkWhereThenDropsUnmappedFieldInOneBranchLoad() throws Exception {
@@ -142,7 +160,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
                    (WHERE true)
             | SORT @timestamp, _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWhereThenDropsUnmappedFieldInOneBranch")
+            .nestedPath("load")
+            .run();
     }
 
     // MV_EXPAND turns unmapped_message into a ReferenceAttribute in branch 1; the sibling branch still loads it by name. #142033
@@ -153,7 +173,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message
             | SORT _fork, message, unmapped_message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldExpandedInOneBranchOnly")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldExpandedInOneBranchOnlyLoad() throws Exception {
@@ -163,7 +185,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE message == "42")
             | KEEP _fork, message, unmapped_message
             | SORT _fork, message, unmapped_message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldExpandedInOneBranchOnly")
+            .nestedPath("load")
+            .run();
     }
 
     public void testForkRenamesUnmappedFieldInOneBranchNullify() throws Exception {
@@ -173,7 +197,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (RENAME unmapped_message AS msg)
             | KEEP _fork, message, unmapped_message, msg
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkRenamesUnmappedFieldInOneBranch").nestedPath("nullify").run();
     }
 
     public void testForkRenamesUnmappedFieldInOneBranchLoad() throws Exception {
@@ -183,7 +207,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (RENAME unmapped_message AS msg)
             | KEEP _fork, message, unmapped_message, msg
             | SORT _fork, message
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkRenamesUnmappedFieldInOneBranch").nestedPath("load").run();
     }
 
     // does_not_exist is referenced only in the WHERE branch; the LEFT LOOKUP JOIN branch still loads it into its left source and
@@ -196,7 +220,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE does_not_exist::KEYWORD == "x")
             | KEEP _fork, emp_no, language_name, does_not_exist
             | SORT _fork, emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldAcrossLookupJoinBranch")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldAcrossLookupJoinBranchLoad() throws Exception {
@@ -207,7 +233,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE does_not_exist::KEYWORD == "x")
             | KEEP _fork, emp_no, language_name, does_not_exist
             | SORT _fork, emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldAcrossLookupJoinBranch")
+            .nestedPath("load")
+            .run();
     }
 
     // The LOOKUP JOIN branch loads does_not_exist across (into its left source), the WHERE branch loads it directly, and the STATS branch
@@ -221,7 +249,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (STATS c = COUNT(*) BY emp_no)
             | KEEP _fork, emp_no, language_name, does_not_exist, c
             | SORT _fork, emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranches")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranchesLoad() throws Exception {
@@ -233,7 +263,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (STATS c = COUNT(*) BY emp_no)
             | KEEP _fork, emp_no, language_name, does_not_exist, c
             | SORT _fork, emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranches")
+            .nestedPath("load")
+            .run();
     }
 
     // gender is a two-legged PUNK (TEXT in employees_gender_text, unmapped in employees_no_gender); a FORK output must preserve its
@@ -246,7 +278,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, gender
             | SORT _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkKeepsSingleTypePartiallyUnmappedTextField")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkKeepsSingleTypePartiallyUnmappedTextFieldLoad() throws Exception {
@@ -257,7 +291,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, gender
             | SORT _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkKeepsSingleTypePartiallyUnmappedTextField")
+            .nestedPath("load")
+            .run();
     }
 
     // id is short in apps_short and unmapped in partial_mapping_sample_data, so it is a single-type partially-unmapped (two-legged PUNK)
@@ -270,7 +306,10 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, id
             | SORT _fork
-            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWidensSingleTypePartiallyUnmappedShortField")
+            .nestedPath("nullify")
+            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
+            .run();
     }
 
     public void testForkWidensSingleTypePartiallyUnmappedShortFieldLoad() throws Exception {
@@ -281,7 +320,10 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, id
             | SORT _fork
-            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWidensSingleTypePartiallyUnmappedShortField")
+            .nestedPath("load")
+            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
+            .run();
     }
 
     // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the
@@ -294,7 +336,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, short
             | SORT _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupportedLoad() throws Exception {
@@ -305,7 +349,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE true)
             | KEEP _fork, short
             | SORT _fork
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported")
+            .nestedPath("load")
+            .run();
     }
 
     public void testForkWithEvalNullify() throws Exception {
@@ -313,7 +359,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             FROM employees
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithEval").nestedPath("nullify").run();
     }
 
     public void testForkWithEvalLoad() throws Exception {
@@ -321,7 +367,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             FROM employees
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithEval").nestedPath("load").run();
     }
 
     public void testForkWithStatsNullify() throws Exception {
@@ -330,7 +376,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*) BY does_not_exist)
                    (STATS d = AVG(salary::DOUBLE))
             | SORT does_not_exist
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithStats").nestedPath("nullify").run();
     }
 
     public void testForkWithStatsLoad() throws Exception {
@@ -339,7 +385,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*) BY does_not_exist)
                    (STATS d = AVG(salary::DOUBLE))
             | SORT does_not_exist
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithStats").nestedPath("load").run();
     }
 
     public void testForkBranchesWithDifferentSchemasNullify() throws Exception {
@@ -352,7 +398,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (DISSECT first_name "%{d} %{e} %{f}"
                     | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE
                     | EVAL xyz = "abc")
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesWithDifferentSchemas").nestedPath("nullify").run();
     }
 
     public void testForkBranchesWithDifferentSchemasLoad() throws Exception {
@@ -365,7 +411,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (DISSECT first_name "%{d} %{e} %{f}"
                     | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE
                     | EVAL xyz = "abc")
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesWithDifferentSchemas").nestedPath("load").run();
     }
 
     public void testForkBranchesAfterStats2ndBranchNullify() throws Exception {
@@ -375,7 +421,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*))
                    (STATS d = AVG(salary) BY does_not_exist2)
             | SORT does_not_exist2
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesAfterStats2ndBranch").nestedPath("nullify").run();
     }
 
     public void testForkBranchesAfterStats2ndBranchLoad() throws Exception {
@@ -385,7 +431,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*))
                    (STATS d = AVG(salary) BY does_not_exist2)
             | SORT does_not_exist2
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesAfterStats2ndBranch").nestedPath("load").run();
     }
 
     public void testFuseNullify() throws Exception {
@@ -395,7 +441,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE emp_no > 0)
             | LIMIT 100
             | FUSE
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testFuse").nestedPath("nullify").run();
     }
 
     public void testFuseWithEvalNullify() throws Exception {
@@ -405,7 +451,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (EVAL y = emp_no + 1)
             | LIMIT 100
             | FUSE RRF
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testFuseWithEval").nestedPath("nullify").run();
     }
 
     public void testFuseLinearNullify() throws Exception {
@@ -415,7 +461,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
                    (WHERE emp_no > 0 | EVAL y = 2)
             | LIMIT 100
             | FUSE LINEAR
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testFuseLinear").nestedPath("nullify").run();
     }
 
     public void testForkBranchesAfterStats1stBranchNullify() throws Exception {
@@ -425,7 +471,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*) BY does_not_exist2)
                    (STATS d = AVG(salary))
             | SORT does_not_exist2
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesAfterStats1stBranch").nestedPath("nullify").run();
     }
 
     public void testForkBranchesAfterStats1stBranchLoad() throws Exception {
@@ -435,7 +481,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (STATS c = COUNT(*) BY does_not_exist2)
                    (STATS d = AVG(salary))
             | SORT does_not_exist2
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkBranchesAfterStats1stBranch").nestedPath("load").run();
     }
 
     public void testForkWithRowNullify() throws Exception {
@@ -444,7 +490,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | FORK (where true)
             | WHERE a == 1
             | KEEP bar
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithRow").nestedPath("nullify").run();
     }
 
     public void testForkWithFromNullify() throws Exception {
@@ -454,7 +500,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | WHERE _fork == "fork1"
             | DROP _fork
             | eval y = coalesce(bar, baz)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithFrom").nestedPath("nullify").run();
     }
 
     public void testForkWithUnmappedStatsEvalKeepNullify() throws Exception {
@@ -465,7 +511,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | stats emp_no = count(*)
             | eval x = least(emp_no, 52, 60)
             | keep emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithUnmappedStatsEvalKeep").nestedPath("nullify").run();
     }
 
     public void testForkWithUnmappedStatsEvalKeepTwoBranchesNullify() throws Exception {
@@ -477,7 +523,9 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | stats emp_no = count(*)
             | eval x = least(emp_no, 52, 60)
             | keep emp_no
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithUnmappedStatsEvalKeepTwoBranches")
+            .nestedPath("nullify")
+            .run();
     }
 
     public void testForkWithRowCoalesceAndDropNullify() throws Exception {
@@ -486,7 +534,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | fork (where true)
             | eval x = Coalesce(a, 5)
             | drop a
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithRowCoalesceAndDrop").nestedPath("nullify").run();
     }
 
     public void testForkWithSortNullify() throws Exception {
@@ -495,7 +543,7 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | WHERE does_not_exist1::LONG > 5
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
                    (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithSort").nestedPath("nullify").run();
     }
 
     public void testForkWithSortLoad() throws Exception {
@@ -504,6 +552,6 @@ public class AnalyzerUnmappedForkGoldenTests extends AnalyzerUnmappedGoldenTestC
             | WHERE does_not_exist1::LONG > 5
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
                    (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
-            """)).run();
+            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testForkWithSort").nestedPath("load").run();
     }
 }

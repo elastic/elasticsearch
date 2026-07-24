@@ -746,6 +746,20 @@ result:double | step:datetime
 2024.0        | 2024-05-10T01:00:00.000Z
 ;
 
+timestamp_of_vector
+required_capability: promql_command_v0
+required_capability: promql_timestamp
+required_capability: promql_time
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(timestamp(vector(1)));
+
+result:double    | step:datetime
+1.7152992E9      | 2024-05-10T00:00:00.000Z
+1.7153028E9      | 2024-05-10T01:00:00.000Z
+;
+
 month_scalar
 required_capability: promql_command_v0
 required_capability: promql_time_functions
@@ -1986,4 +2000,19 @@ result:double | step:datetime            | _timeseries:keyword
 8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
 7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+// topk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then topk
+// ranks those series - this is the shape that previously failed planning with "can't find input for [topk(...)]".
+topk_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+| SORT result DESC;
+
+result:double | step:datetime            | pod:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | two
+9969.0        | 2024-05-10T01:00:00.000Z | three
 ;

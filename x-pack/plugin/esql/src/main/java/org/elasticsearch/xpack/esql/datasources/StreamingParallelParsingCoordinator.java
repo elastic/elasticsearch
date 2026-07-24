@@ -149,8 +149,14 @@ public final class StreamingParallelParsingCoordinator {
     /**
      * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
      * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
-     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
-     * Pass {@code null} when no read schema is bound.
+     * globs over stream-only compressed inputs honor the planner's typing instead of re-inferring per
+     * file. Pass {@code null} when no read schema is bound.
+     * <p>
+     * Stream-only compressed means any non-splittable codec (gzip, zstd), plus a splittable or indexed
+     * codec whose reader binds declared names from the file start — see
+     * {@code AsyncExternalSourceOperatorFactory#resolveDispatchMode}. A splittable codec without that
+     * constraint (bzip2 over a self-describing format) is block-aligned into compressed-offset macro-splits
+     * read one at a time instead, and never reaches here.
      *
      * @param baseFileOffset file-global byte offset added to each chunk's decompressed start byte before it
      *                       is handed to the reader as {@link FormatReadContext#splitStartByte()}. Stream-only
@@ -357,6 +363,13 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /**
+         * The file's column names in file order, read from chunk 0 by {@link #captureFileHeaderColumns}.
+         * Written on the segmentator thread before any chunk is dispatched and read by parser threads;
+         * {@code volatile} for that publication. {@code null} whenever no chunk needs it.
+         */
+        @Nullable
+        private volatile List<String> fileHeaderColumns;
         /** Added to each chunk's decompressed start byte; see {@link #parallelRead}'s {@code baseFileOffset}. */
         private final long baseFileOffset;
         /**
@@ -717,7 +730,7 @@ public final class StreamingParallelParsingCoordinator {
                     if (lastNewline < 0) {
                         if (isEof) {
                             if (chunkIndex == 0) {
-                                bindSchemaFromFirstChunk(buf, totalBytes);
+                                prepareFromFirstChunk(buf, totalBytes);
                             }
                             if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true)) {
                                 chunkIndex++;
@@ -743,7 +756,7 @@ public final class StreamingParallelParsingCoordinator {
                             int grownNewline = result.boundary();
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
-                                    bindSchemaFromFirstChunk(grown, grown.length);
+                                    prepareFromFirstChunk(grown, grown.length);
                                 }
                                 if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true)) {
                                     chunkIndex++;
@@ -758,7 +771,7 @@ public final class StreamingParallelParsingCoordinator {
                                 carry = new byte[carryLen];
                                 System.arraycopy(grown, validLen, carry, 0, carryLen);
                                 if (chunkIndex == 0) {
-                                    bindSchemaFromFirstChunk(grown, validLen);
+                                    prepareFromFirstChunk(grown, validLen);
                                 }
                                 if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false)) {
                                     chunkIndex++;
@@ -782,7 +795,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
 
                     if (chunkIndex == 0) {
-                        bindSchemaFromFirstChunk(buf, validLen);
+                        prepareFromFirstChunk(buf, validLen);
                     }
                     if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, isEof)) {
                         chunkIndex++;
@@ -827,11 +840,32 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound
-         * variant returned by {@link FormatReader#withSchema(List)}; parser threads thereafter
-         * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
+         * Does the once-per-file work that needs the file's leading bytes, before any chunk is dispatched.
+         * <p>
+         * The file's schema is inferred and bound onto the reader so chunks 1..N parse against one answer
+         * rather than re-inferring per chunk (or, for CSV, reading a data row as a header). This runs whether
+         * or not the planner resolved a schema: where it did, the reader merges the two and the bound schema
+         * wins on type, so the inference cannot retype a column — it only contributes columns the projection
+         * does not name, which some readers need in order to decode the ones it does.
+         * <p>
+         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
+         * its columns are called, since only chunk 0 can see the header.
          */
-        private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
+        private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
+            // Capture before binding: the header names must come from the reader as the planner configured it,
+            // not from one already swapped for a schema inferred from this chunk.
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                captureFileHeaderColumns(buffer, length);
+            }
+            bindInferredSchema(buffer, length);
+        }
+
+        /**
+         * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound variant
+         * returned by {@link FormatReader#withSchema(List)}, so parser threads skip per-chunk inference.
+         * Same approach as ClickHouse / DuckDB / Spark.
+         */
+        private void bindInferredSchema(byte[] buffer, int length) throws IOException {
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
@@ -847,6 +881,40 @@ public final class StreamingParallelParsingCoordinator {
             } else {
                 throw new IllegalStateException(
                     "FormatReader#withSchema returned a non-SegmentableFormatReader: " + bound.getClass().getName()
+                );
+            }
+        }
+
+        /**
+         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * <p>
+         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
+         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
+         * Chunk 0 always reads its own header and ignores what is captured here.
+         * <p>
+         * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
+         * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
+         * binding by position, which would shift every column silently.
+         */
+        private void captureFileHeaderColumns(byte[] buffer, int length) {
+            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+                return;
+            }
+            try {
+                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
+                List<Attribute> schema = metadata == null ? null : metadata.schema();
+                if (schema != null && schema.isEmpty() == false) {
+                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
+                }
+            } catch (IOException | RuntimeException e) {
+                // Every later chunk will now fail with "no header columns", which says nothing about why they
+                // are missing. Log the real cause at WARN so the two can be connected — this is the only place
+                // it is visible.
+                logger.warn(
+                    () -> "could not read header columns from the first chunk of ["
+                        + (storageObject == null ? "<stream>" : storageObject.path())
+                        + "]",
+                    e
                 );
             }
         }
@@ -947,6 +1015,9 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    // Chunk 0 carries the file's header and reads it directly; later chunks cannot see it,
+                    // so hand them the names read from chunk 0 rather than leaving them to bind by position.
+                    .fileHeaderColumns(chunk.index == 0 ? null : fileHeaderColumns)
                     .splitStartByte(chunkFileGlobalStart)
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())

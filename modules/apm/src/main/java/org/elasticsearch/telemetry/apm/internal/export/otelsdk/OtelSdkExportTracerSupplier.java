@@ -24,6 +24,8 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import java.util.concurrent.TimeUnit;
@@ -37,15 +39,21 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
+    private static final Logger logger = LogManager.getLogger(OtelSdkExportTracerSupplier.class);
+
     private final SdkTracerProvider tracerProvider;
     private final OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException(
-                OTEL_TRACES_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.export.endpoint to be configured"
+            logger.warn(
+                "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK trace export is disabled",
+                OTEL_TRACES_ENABLED_SYSTEM_PROPERTY
             );
+            this.tracerProvider = null;
+            this.openTelemetrySdk = null;
+            return;
         }
 
         TimeValue interval = OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.get(settings);
@@ -94,16 +102,18 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     @Override
     public OpenTelemetry get() {
-        return openTelemetrySdk;
+        return openTelemetrySdk != null ? openTelemetrySdk : OpenTelemetry.noop();
     }
 
     @Override
     public CompletableResultCode attemptFlushTraces() {
-        return tracerProvider.forceFlush();
+        return tracerProvider == null ? CompletableResultCode.ofSuccess() : tracerProvider.forceFlush();
     }
 
     @Override
     public void close() {
-        tracerProvider.close();
+        if (tracerProvider != null) {
+            tracerProvider.close();
+        }
     }
 }

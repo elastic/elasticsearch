@@ -718,7 +718,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 b.startObject("fields");
                 addSemanticMapping(b, "semantic", "my_inference_id", null, null, null, null);
                 b.endObject();
-                b.endObject();
             })));
             assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
         } else {
@@ -727,7 +726,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 b.field("type", "text");
                 b.startObject("fields");
                 addSemanticMapping(b, "semantic", "my_inference_id", null, new MinimalServiceSettings(sparseModel), null, null);
-                b.endObject();
                 b.endObject();
             }));
             assertSemanticField(mapperService, "field.semantic", true, sparseModel, null, null);

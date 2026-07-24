@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 153331
+pr: 154931
+summary: Gate temporality templates on node support
+type: bug

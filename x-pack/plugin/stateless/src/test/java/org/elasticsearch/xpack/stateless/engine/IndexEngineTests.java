@@ -12,6 +12,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
@@ -73,6 +75,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -783,6 +786,36 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMerges.get());
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
+        }
+    }
+
+    public void testDeleteUnownedDocumentsBumpsForceMergeUUID() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(settings))) {
+            engine.index(randomDoc("doc-1"));
+            engine.flush(true, true);
+
+            assertNull(engine.getForceMergeUUID());
+            assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY));
+
+            IndexMetadata metadata = engine.config().getIndexSettings().getIndexMetadata();
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String firstUuid = engine.getForceMergeUUID();
+            assertNotNull(firstUuid);
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(firstUuid));
+
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String secondUuid = engine.getForceMergeUUID();
+            assertNotNull(secondUuid);
+            assertThat(secondUuid, not(equalTo(firstUuid)));
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(secondUuid));
         }
     }
 }

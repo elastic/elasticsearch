@@ -1526,6 +1526,18 @@ public class EsqlCapabilities {
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
+         * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
+         * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
+         * (1) a view used inside a {@code TS} command now raises a clear verification exception
+         * instead of crashing; (2) a {@code TS} relation nested inside a {@code FROM} subquery and
+         * combined with standard sources (e.g. {@code FROM (TS k8s), (FROM emp)}) now correctly
+         * produces a plain {@code Aggregate} rather than a {@code TimeSeriesAggregate}.
+         * See https://github.com/elastic/elasticsearch/issues/153030 and
+         * https://github.com/elastic/elasticsearch/issues/149619.
+         */
+        FIX_TS_MIXED_WITH_NON_TS_SOURCES,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

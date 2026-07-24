@@ -276,10 +276,8 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      *
-     * @return the outcome of the parse: {@link ParseResult.Indexed} on success,
-     *         {@link ParseResult.Malformed} when the value was malformed and {@code ignore_malformed} is enabled,
-     *         or {@link ParseResult.MultiValueViolation} when a {@code multi_value=false} constraint was violated
-     *         with {@code on_failure=ignore}.
+     * @return {@link ParseResult.Indexed} on success, {@link ParseResult.Malformed} with {@code ignore_malformed},
+     *         or {@link ParseResult.MultiValueViolation} with {@code multi_value=false, on_failure=ignore}.
      */
     public ParseResult parse(DocumentParserContext context) throws IOException {
         boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());

@@ -15,26 +15,14 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Single owner of fallback storage routing decisions.
- * <p>
- * When a field value cannot be indexed normally it is diverted to one of three destinations:
- * {@link Destination#IGNORED_SOURCE} ({@code _ignored_source}),
+ * Central routing for field values that cannot be indexed normally.
+ * Redirects to {@link Destination#IGNORED_SOURCE} ({@code _ignored_source}),
  * {@link Destination#IGNORE_MALFORMED} ({@code ._ignore_malformed}), or
- * {@link Destination#ON_FAILURE} ({@code ._on_failure}).
- * Callers supply a {@link Reason} — the router derives the {@link Destination} via {@link #route}.
- * <ul>
- *   <li>Immediate write: {@link #write} or {@link #writeParent}</li>
- *   <li>Pre-capture before parsing a sub-tree: {@link #preCapture} or {@link #preCaptureParent}</li>
- *   <li>Field-mapper parse entry point: {@link #parseField}</li>
- * </ul>
+ * {@link Destination#ON_FAILURE} ({@code ._on_failure}) based on a {@link Reason}.
  */
 public final class FallbackStorageRouter {
 
     private FallbackStorageRouter() {}
-
-    // -------------------------------------------------------------------------
-    // Destination enum — WHERE a redirected value is stored
-    // -------------------------------------------------------------------------
 
     /** The storage destination for a field value that cannot be indexed normally. */
     public enum Destination {
@@ -45,10 +33,6 @@ public final class FallbackStorageRouter {
         /** Per-field {@code ._on_failure} column; used with {@code multi_value: false, on_failure: ignore}. */
         ON_FAILURE;
     }
-
-    // -------------------------------------------------------------------------
-    // Reason enum — WHY a value is being redirected to fallback storage
-    // -------------------------------------------------------------------------
 
     /**
      * Why a field value is being redirected to fallback storage.
@@ -79,15 +63,9 @@ public final class FallbackStorageRouter {
         FIELD_NAME_TOO_LONG;
     }
 
-    // -------------------------------------------------------------------------
-    // FieldContext — plain-data snapshot for pre-capture routing decisions
-    // -------------------------------------------------------------------------
-
     /**
-     * Plain-data snapshot of the state needed to decide whether and why a field's XContent should be
-     * pre-captured to {@code _ignored_source} before parsing. Holding only primitives and enums means
-     * {@link #resolvePrecaptureReason} has no live-object dependencies and can be tested by
-     * constructing records directly. Use {@link #forField} or {@link #forArrayElements} in production.
+     * Plain-data snapshot used by {@link #resolvePrecaptureReason} to decide whether pre-capture is needed.
+     * Build with {@link #forField} or {@link #forArrayElements}.
      */
     public record FieldContext(
         boolean canAddIgnoredField,
@@ -155,11 +133,7 @@ public final class FallbackStorageRouter {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Routing decisions (pure, no I/O)
-    // -------------------------------------------------------------------------
-
-    /** Maps a {@link Reason} to its {@link Destination}. Single source of truth for this mapping. */
+    /** Maps a {@link Reason} to its {@link Destination}. */
     public static Destination route(Reason reason) {
         return switch (reason) {
             case MALFORMED -> Destination.IGNORE_MALFORMED;
@@ -192,26 +166,15 @@ public final class FallbackStorageRouter {
         return Optional.empty();
     }
 
-    // -------------------------------------------------------------------------
-    // Central parse entry point
-    // -------------------------------------------------------------------------
-
     /**
-     * Parses a field value through the fallback storage pipeline.
-     * <p>
-     * Tentatively pre-captures the value when the field participates in any {@code _ignored_source} fallback
-     * path, then delegates to the mapper. After the mapper returns, the pre-capture is committed on success,
-     * committed or discarded on malformed (committed for {@link FieldMapper.SyntheticSourceMode#FALLBACK} fields
-     * since they reconstruct from {@code _ignored_source}; discarded otherwise), or discarded and re-routed
-     * to {@code ._on_failure} on multi-value violation.
-     *
-     * @return the outcome of parsing the field value
+     * Pre-captures to {@code _ignored_source} if needed, delegates to the mapper, then commits or discards.
+     * {@link FieldMapper.SyntheticSourceMode#FALLBACK} fields commit even on malformed, since they
+     * reconstruct synthetic source from {@code _ignored_source}.
      */
     public static ParseResult parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         FieldContext fc = FieldContext.forField(context, fieldMapper);
         String fieldPath = fieldMapper.fullPath();
 
-        // Tentative pre-capture when the field participates in any ignored-source fallback path
         boolean precaptured = false;
         DocumentParserContext parseCtx = context;
         if (resolvePrecaptureReason(fc).isPresent()) {
@@ -231,8 +194,6 @@ public final class FallbackStorageRouter {
             case ParseResult.Malformed() -> {
                 if (precaptured) {
                     if (fc.syntheticFallback()) {
-                        // FALLBACK-mode fields reconstruct synthetic source from _ignored_source, so
-                        // commit the pre-capture even when the value was malformed (e.g. ignore_above).
                         context.commitPendingPreCapture(fieldPath);
                     } else {
                         context.discardPendingPreCapture(fieldPath);
@@ -248,12 +209,8 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Writes a field value captured in an explicit {@link XContentBuilder} to the
-     * appropriate fallback destination. Use this overload when the mapper has already copied the raw value
-     * into a builder before the exception was thrown (e.g. via {@code CopyingXContentParser}).
-     * <p>
-     * For cases where the value is still at the current parser position, use {@link #write(DocumentParserContext, String, Reason)}
-     * instead — it reads from {@code context.parser()} automatically.
+     * Like {@link #write(DocumentParserContext, String, Reason)} but uses a pre-built {@link XContentBuilder}
+     * instead of the current parser token (e.g. when the mapper captured via {@code CopyingXContentParser}).
      */
     public static boolean write(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
         throws IOException {
@@ -272,17 +229,10 @@ public final class FallbackStorageRouter {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Immediate writes — caller supplies WHY; router decides WHERE
-    // -------------------------------------------------------------------------
-
     /**
-     * Encodes the current parser token and writes it to the appropriate fallback destination for
-     * {@code fieldPath} (a child of {@code context.parent()}).
-     * <p>
-     * For {@link Destination#IGNORED_SOURCE} reasons: encodes via {@link DocumentParserContext#encodeFlattenedToken()}
-     * and returns {@code false} when {@link DocumentParserContext#canAddIgnoredField()} is false.
-     * For other destinations the write always succeeds and this method returns {@code true}.
+     * Writes the current parser token to the fallback destination for {@code fieldPath}.
+     * Returns {@code false} only for {@link Destination#IGNORED_SOURCE} when
+     * {@link DocumentParserContext#canAddIgnoredField()} is false; {@code true} otherwise.
      */
     public static boolean write(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
         return switch (route(reason)) {
@@ -301,12 +251,8 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Encodes the current parser token and writes {@code context.parent()} to the appropriate
-     * fallback destination. Use when {@code context.parent()} is the entity being stored
-     * (e.g. a disabled object), not merely a container for {@code fieldPath}.
-     * <p>
-     * Returns {@code false} when {@link DocumentParserContext#canAddIgnoredField()} is false
-     * and the reason routes to {@link Destination#IGNORED_SOURCE}; otherwise always {@code true}.
+     * Like {@link #write(DocumentParserContext, String, Reason)} but stores {@code context.parent()}
+     * as the captured entity (e.g. a disabled object), not a child field.
      */
     public static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
         return switch (route(reason)) {
@@ -324,14 +270,9 @@ public final class FallbackStorageRouter {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Pre-capture — caller supplies WHY; router decides WHERE
-    // -------------------------------------------------------------------------
-
     /**
-     * Pre-captures the current parser position for {@code fieldPath} (a child of {@code context.parent()})
-     * before the field is parsed, so its XContent can be reconstructed later in {@code _ignored_source}.
-     * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
+     * Pre-captures the current parser position for {@code fieldPath} so it can be reconstructed in
+     * {@code _ignored_source}. Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
     public static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath) throws IOException {
         if (context.canAddIgnoredField() == false) {
@@ -341,9 +282,8 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Pre-captures the current parser position for {@code context.parent()} before its content is parsed
-     * so its XContent can be reconstructed later in {@code _ignored_source}.
-     * Use when {@code context.parent()} is the object being captured, not a container.
+     * Like {@link #preCapture(DocumentParserContext, String)} but captures {@code context.parent()}
+     * as the entity (e.g. a disabled object), not a child field.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
     public static DocumentParserContext preCaptureParent(DocumentParserContext context) throws IOException {
@@ -355,10 +295,6 @@ public final class FallbackStorageRouter {
         int parentOffset = parentPath.lastIndexOf(parent.leafName());
         return context.addIgnoredFieldFromContext(new IgnoredSourceFieldMapper.NameValue(parentPath, parentOffset, null, context.doc()));
     }
-
-    // -------------------------------------------------------------------------
-    // Private _ignored_source helpers
-    // -------------------------------------------------------------------------
 
     private static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath) throws IOException {
         if (context.canAddIgnoredField() == false) {

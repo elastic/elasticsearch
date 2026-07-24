@@ -18,10 +18,6 @@ import static org.hamcrest.Matchers.is;
 
 public class FallbackStorageRouterTests extends ESTestCase {
 
-    // -------------------------------------------------------------------------
-    // route() — pure function, exhaustive coverage over every Reason value
-    // -------------------------------------------------------------------------
-
     public void testMalformedRoutesToIgnoreMalformed() {
         assertThat(
             FallbackStorageRouter.route(FallbackStorageRouter.Reason.MALFORMED),
@@ -57,14 +53,6 @@ public class FallbackStorageRouterTests extends ESTestCase {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // resolvePrecaptureReason() — one test per branch, using FieldContext directly.
-    //
-    // All routing decision logic lives in FallbackStorageRouter, so tests construct
-    // FieldContext records with specific plain values and assert on the returned
-    // Optional<Reason>. No real DocumentParserContext or FieldMapper is needed.
-    // -------------------------------------------------------------------------
-
     /** Early-out: canAddIgnoredField=false always returns empty, regardless of other flags. */
     public void testCannotAddIgnoredFieldReturnsEmpty() {
         var fc = ctx().canAddIgnoredField(false).syntheticFallback(true).build();
@@ -77,11 +65,7 @@ public class FallbackStorageRouterTests extends ESTestCase {
         assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
-    /**
-     * A multi_value=false+on_failure=ignore field that also uses synthetic-fallback mode IS pre-captured:
-     * parseField() commits on success and discards+routes to ._on_failure on violation, so there is no
-     * double-store risk and the guard that previously skipped pre-capture for these fields is gone.
-     */
+    /** multi_value=false + synthetic-fallback: pre-capture IS done (commit on success, discard+route on violation). */
     public void testSingleValueIgnoreWithSyntheticFallbackIsPreCaptured() {
         var fc = ctx().syntheticFallback(true).build();
         assertEquals(Optional.of(FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK), FallbackStorageRouter.resolvePrecaptureReason(fc));
@@ -93,28 +77,18 @@ public class FallbackStorageRouterTests extends ESTestCase {
         assertEquals(Optional.of(FallbackStorageRouter.Reason.COPY_TO_DESTINATION), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
-    /**
-     * The field is a copy_to destination, but we ARE inside a copy_to traversal — the copy_to
-     * condition is blocked. With no other reason active, pre-capture is skipped.
-     */
     public void testCopyToWithinCopyToReturnsEmpty() {
         var fc = ctx().isCopyToDestinationField(true).isWithinCopyTo(true).build();
         assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
-    /**
-     * copy_to destination + syntheticFallback both active, not inside a copy_to traversal:
-     * COPY_TO_DESTINATION takes priority over SYNTHETIC_FALLBACK.
-     */
+    /** COPY_TO_DESTINATION takes priority over SYNTHETIC_FALLBACK when both conditions match. */
     public void testCopyToDestinationBeatsSyntheticFallback() {
         var fc = ctx().isCopyToDestinationField(true).isWithinCopyTo(false).syntheticFallback(true).build();
         assertEquals(Optional.of(FallbackStorageRouter.Reason.COPY_TO_DESTINATION), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
 
-    /**
-     * copy_to destination + syntheticFallback both active, but isWithinCopyTo=true blocks the
-     * COPY_TO_DESTINATION branch; SYNTHETIC_FALLBACK is then the winning reason.
-     */
+    /** isWithinCopyTo=true blocks COPY_TO_DESTINATION; SYNTHETIC_FALLBACK wins instead. */
     public void testWithinCopyToFallsBackToSyntheticFallback() {
         var fc = ctx().isCopyToDestinationField(true).isWithinCopyTo(true).syntheticFallback(true).build();
         assertEquals(Optional.of(FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK), FallbackStorageRouter.resolvePrecaptureReason(fc));
@@ -141,10 +115,7 @@ public class FallbackStorageRouterTests extends ESTestCase {
         );
     }
 
-    /**
-     * source_keep: arrays, inside an array, but the mapper DOES parse arrays natively —
-     * the ARRAYS branch is skipped.
-     */
+    /** source_keep: arrays + parsesArrayValue=true → no pre-capture (mapper handles arrays natively). */
     public void testSourceKeepArraysMapperParsesArraysReturnsEmpty() {
         var fc = ctx().sourceKeepMode(Mapper.SourceKeepMode.ARRAYS).inArrayScope(true).parsesArrayValue(true).build();
         assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
@@ -161,11 +132,6 @@ public class FallbackStorageRouterTests extends ESTestCase {
         var fc = ctx().build();
         assertEquals(Optional.empty(), FallbackStorageRouter.resolvePrecaptureReason(fc));
     }
-
-    // -------------------------------------------------------------------------
-    // FieldContext builder — creates a baseline FieldContext that triggers no
-    // pre-capture, then lets individual tests override specific fields.
-    // -------------------------------------------------------------------------
 
     private static Builder ctx() {
         return new Builder();

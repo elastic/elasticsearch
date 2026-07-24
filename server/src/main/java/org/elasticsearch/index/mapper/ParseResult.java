@@ -12,18 +12,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 
 /**
- * The outcome of parsing a single field value, as observed by {@link FallbackStorageRouter}.
- * The router switches exhaustively on this to write to exactly one fallback location per field per document.
+ * The outcome of parsing a single field value.
+ * {@link FallbackStorageRouter} switches exhaustively on this to route to exactly one fallback destination.
  */
 public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Malformed, ParseResult.MultiValueViolation {
 
     /** The value was parsed and indexed successfully; no fallback write is needed. */
     record Indexed() implements ParseResult {}
 
-    /**
-     * The value was malformed and {@code ignore_malformed} is enabled. The mapper has already written
-     * the raw value to {@code ._ignore_malformed} before returning this result; no further write is needed.
-     */
+    /** Malformed with {@code ignore_malformed} enabled; the mapper already wrote to {@code ._ignore_malformed}. */
     record Malformed() implements ParseResult {}
 
     /**

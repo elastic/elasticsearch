@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Optional;
 
@@ -247,7 +249,7 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Writes a field value captured in an explicit {@link org.elasticsearch.xcontent.XContentBuilder} to the
+     * Writes a field value captured in an explicit {@link XContentBuilder} to the
      * appropriate fallback destination. Use this overload when the mapper has already copied the raw value
      * into a builder before the exception was thrown (e.g. via {@code CopyingXContentParser}).
      * <p>
@@ -258,7 +260,7 @@ public final class FallbackStorageRouter {
         DocumentParserContext context,
         String fieldPath,
         Reason reason,
-        org.elasticsearch.xcontent.XContentBuilder builder
+        XContentBuilder builder
     ) throws IOException {
         return switch (route(reason)) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
@@ -375,7 +377,7 @@ public final class FallbackStorageRouter {
     private static boolean writeToIgnoredSource(
         DocumentParserContext context,
         String fieldPath,
-        org.elasticsearch.xcontent.XContentBuilder builder
+        XContentBuilder builder
     ) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return false;

@@ -793,6 +793,12 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        // already initialized based on passed settings, no need for initializeAndWatch
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                cacheService::setEvictObsoleteRegionsEnabled
+            );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -1355,6 +1361,7 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
@@ -1404,10 +1411,10 @@ public class StatelessPlugin extends Plugin
                             }
                         }
                     );
-                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
+                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNos -> {
                         var engine = indexShard.getEngineOrNull();
                         if (engine != null && engine instanceof IndexEngine indexEngine) {
-                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNo);
+                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNos);
                             // The local checkpoint is updated as part of the post-replication actions of ReplicationOperation. However, if
                             // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
                             // may need to wait for the checkpoint to progress in order to send out a new VBCC commit notification. To

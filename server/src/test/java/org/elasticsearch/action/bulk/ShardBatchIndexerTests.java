@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,8 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardBatchIndexerTests extends IndexShardTestCase {
 
@@ -109,143 +106,17 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
-    public void testBatchIndexOnPrimarySingleDoc() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(1)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-        }
-
-        assertFalse(context.hasMoreOperationsToExecute());
-        BulkItemResponse response = items[0].getPrimaryResponse();
-        assertThat(response, notNullValue());
-        assertFalse(response.isFailed());
-        assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(response.getResponse().getSeqNo(), greaterThanOrEqualTo(0L));
-
-        closeShards(shard);
-    }
-
-    public void testBatchIndexOnPrimaryMultipleDocs() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        int numDocs = randomIntBetween(2, 20);
-        BulkItemRequest[] items = new BulkItemRequest[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(numDocs)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-        }
-
-        assertFalse(context.hasMoreOperationsToExecute());
-        for (int i = 0; i < numDocs; i++) {
-            BulkItemResponse response = items[i].getPrimaryResponse();
-            assertThat(response, notNullValue());
-            assertFalse(response.isFailed());
-            assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-        }
-
-        closeShards(shard);
-    }
-
-    public void testBatchIndexOnPrimaryChunking() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        int numDocs = ShardBatchIndexer.BATCH_CHUNK_SIZE + randomIntBetween(1, 32);
-        BulkItemRequest[] items = new BulkItemRequest[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(numDocs)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-        }
-
-        assertFalse(context.hasMoreOperationsToExecute());
-        for (int i = 0; i < numDocs; i++) {
-            BulkItemResponse response = items[i].getPrimaryResponse();
-            assertThat("doc " + i + " should have a response", response, notNullValue());
-            assertFalse("doc " + i + " should not have failed", response.isFailed());
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-        }
-
-        closeShards(shard);
-    }
-
-    public void testBatchIndexOnPrimaryDuplicateUids() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        BulkItemRequest[] items = new BulkItemRequest[] {
-            new BulkItemRequest(0, indexRequest("same-id")),
-            new BulkItemRequest(1, indexRequest("same-id")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(2)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-        }
-
-        // Both operations complete: duplicate UIDs are split across sub-batches, so the second
-        // overwrites the first rather than triggering a fallback to the sequential path.
-        assertFalse(context.hasMoreOperationsToExecute());
-        assertFalse(items[0].getPrimaryResponse().isFailed());
-        assertFalse(items[1].getPrimaryResponse().isFailed());
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
-        }
-
-        closeShards(shard);
-    }
-
+    // TODO(columnar): add tests for the following scenarios once FieldMapper#supportsColumnarParse()
+    // is implemented for real field mappers so that ShardBatchMapper.mapColumnBatch does not fall back:
+    // - testBatchIndexOnPrimarySingleDoc
+    // - testBatchIndexOnPrimaryMultipleDocs
+    // - testBatchIndexOnPrimaryChunking (batch exceeds BATCH_CHUNK_SIZE)
+    // - testBatchIndexOnPrimaryDuplicateUids (duplicate UIDs split across sub-batches)
+    // - testBatchIndexOnPrimaryStoredSource
+    // - testBatchIndexOnReplicaSingleDoc
+    // - testBatchIndexOnReplicaMultipleDocs
+    // - testBatchIndexOnReplicaFailedPrimaryResponse
+    // - testBatchIndexWithNestedFields
     public void testBatchIndexOnPrimaryAbortedItem() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
@@ -276,146 +147,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         assertFalse(context.hasMoreOperationsToExecute());
 
         closeShards(shard);
-    }
-
-    public void testBatchIndexOnPrimaryStoredSource() throws Exception {
-        IndexShard shard = newMappedPrimaryShard(STORED_SOURCE_SETTINGS);
-
-        int numDocs = randomIntBetween(2, 10);
-        BulkItemRequest[] items = new BulkItemRequest[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(numDocs)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-        }
-
-        assertFalse(context.hasMoreOperationsToExecute());
-        for (int i = 0; i < numDocs; i++) {
-            BulkItemResponse response = items[i].getPrimaryResponse();
-            assertThat(response, notNullValue());
-            assertFalse(response.isFailed());
-            assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        }
-
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-        }
-
-        closeShards(shard);
-    }
-
-    public void testBatchIndexOnReplicaSingleDoc() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(1)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-            assertFalse(context.hasMoreOperationsToExecute());
-
-            IndexShard replica = newMappedReplicaShard();
-
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            assertThat(result.processedItems(), equalTo(1));
-            assertThat(result.location(), notNullValue());
-
-            closeShards(shard, replica);
-        }
-    }
-
-    public void testBatchIndexOnReplicaMultipleDocs() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        int numDocs = randomIntBetween(2, 20);
-        BulkItemRequest[] items = new BulkItemRequest[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(numDocs)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-            assertFalse(context.hasMoreOperationsToExecute());
-
-            IndexShard replica = newMappedReplicaShard();
-
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            assertThat(result.processedItems(), equalTo(numDocs));
-            assertThat(result.location(), notNullValue());
-
-            replica.refresh("test");
-            try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
-                assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-            }
-
-            closeShards(shard, replica);
-        }
-    }
-
-    public void testBatchIndexOnReplicaFailedPrimaryResponse() throws Exception {
-        IndexShard shard = newMappedPrimaryShard();
-
-        BulkItemRequest[] items = new BulkItemRequest[] {
-            new BulkItemRequest(0, indexRequest("1")),
-            new BulkItemRequest(1, indexRequest("2")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(
-            shard.shardId(),
-            SplitShardCountSummary.IRRELEVANT,
-            RefreshPolicy.NONE,
-            items
-        );
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-        try (SourceBatch batch = buildBatch(2)) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-
-            // Override the second item's response with a failure
-            items[1].setPrimaryResponse(
-                BulkItemResponse.failure(
-                    1,
-                    DocWriteRequest.OpType.INDEX,
-                    new BulkItemResponse.Failure("index", "2", new RuntimeException())
-                )
-            );
-
-            IndexShard replica = newMappedReplicaShard();
-
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            assertThat(result.processedItems(), equalTo(1));
-
-            closeShards(shard, replica);
-        }
     }
 
     private static final String NESTED_MAPPING = """
@@ -466,56 +197,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         trackedShards.add(shard);
         recoverShardFromStore(shard);
         return shard;
-    }
-
-    public void testBatchIndexWithNestedFields() throws Exception {
-        IndexShard shard = newPrimaryShardWithMapping(NESTED_MAPPING);
-
-        int numDocs = randomIntBetween(2, 10);
-        BulkItemRequest[] items = new BulkItemRequest[numDocs];
-        List<BytesReference> sources = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
-            try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                b.startObject();
-                b.startObject("host");
-                b.field("name", "host-" + i);
-                b.field("ip", "10.0.0." + i);
-                b.endObject();
-                b.field("message", "hello from " + i);
-                b.endObject();
-                sources.add(BytesReference.bytes(b));
-            }
-        }
-
-        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                shard.shardId(),
-                SplitShardCountSummary.IRRELEVANT,
-                RefreshPolicy.NONE,
-                items
-            );
-            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
-            future.actionGet();
-
-            assertFalse(context.hasMoreOperationsToExecute());
-            for (int i = 0; i < numDocs; i++) {
-                BulkItemResponse response = items[i].getPrimaryResponse();
-                assertThat(response, notNullValue());
-                assertFalse("doc " + i + " should not have failed", response.isFailed());
-                assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-            }
-
-            shard.refresh("test");
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
-            }
-        }
-
-        closeShards(shard);
     }
 
     public void testBatchIndexWithArrayFieldsFallsBack() throws Exception {

@@ -175,6 +175,16 @@ public final class Messages {
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =
         "CPS migration: project_routing defaulted to [{0}] to preserve local search scope. Use the update API to change the scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB =
+        "Cannot update project_routing for datafeed [{0}] while job [{1}] is {2}."
+            + " Close the job so a rollback model snapshot can be retained.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT =
+        "Cannot update project_routing for datafeed [{0}] because job [{1}] has no model snapshot to use as a rollback point."
+            + " Open the job, ingest data, then close it before changing scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION =
+        "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
+        "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"

@@ -681,7 +681,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                     );
                 }
 
-                // TODO: Don't duplicate this logic
                 DenseVectorFieldMapper.ElementType elementTypeOverride = indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
                     && elementType == DenseVectorFieldMapper.ElementType.FLOAT ? DenseVectorFieldMapper.ElementType.BFLOAT16 : null;
 

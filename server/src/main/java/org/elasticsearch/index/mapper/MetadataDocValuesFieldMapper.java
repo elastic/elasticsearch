@@ -21,7 +21,7 @@ public abstract class MetadataDocValuesFieldMapper extends MetadataFieldMapper {
         super(requireMetadataField(mappedFieldType));
     }
 
-    private static MappedFieldType requireMetadataField(MappedFieldType mappedFieldType){
+    private static MappedFieldType requireMetadataField(MappedFieldType mappedFieldType) {
         if (mappedFieldType.typeName().startsWith("_")) {
             return mappedFieldType;
         }

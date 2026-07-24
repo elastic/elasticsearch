@@ -248,6 +248,8 @@ FROM data,-_origin:*    <1>
 - In CPS, `*:` resolves against all projects including the origin, the same as an unqualified expression.
 ::::
 
+#### Exclude specific indices from a project
+
 To exclude a specific index from a linked project, prefix the index with a minus sign after the project alias, such as `linked-project-1:-logs-archive`:
 
 ```esql
@@ -257,14 +259,19 @@ FROM logs*,linked-project-1:-logs-archive    <1>
 
 1. `logs*` is resolved across all projects. On `linked-project-1`, the `logs-archive` index is excluded.
 
-The form `-linked-project-1:logs-archive` is also accepted as an alternative for `linked-project-1:-logs-archive`. The following query is equivalent to the one above:
+You can also place the minus sign on the project alias. The following query is equivalent to the one above:
 
 ```esql
 FROM logs*,-linked-project-1:logs-archive
 | STATS COUNT(*)
 ```
 
-The two forms have different semantics. `-linked-project-1:*` is a *project-level* exclusion. It requires the project to have been included by a preceding expression, like the `-_origin:*` example above. `-linked-project-1:<index>` is an *index-level* exclusion, where `<index>` is any index name or wildcard pattern other than `*`. It is equivalent to `linked-project-1:-<index>` and can appear standalone. The same applies to the origin project, so `-_origin:logs` is equivalent to `_origin:-logs`.
+When the minus sign is on the project alias, the index part determines the meaning:
+
+* `-linked-project-1:<index>`, where `<index>` is any index name or wildcard pattern other than `*`, is an index-level exclusion. It is equivalent to `linked-project-1:-<index>` and can appear on its own.
+* `-linked-project-1:*`, with `*` as the index, is a project-level exclusion. It removes the entire project and requires a preceding inclusion pattern, like the `-_origin:*` example above.
+
+The index-level equivalence also applies to the origin project, so `-_origin:logs` is equivalent to `_origin:-logs`.
 
 Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
 

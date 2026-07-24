@@ -426,9 +426,6 @@ class StatelessIndexEventListener implements IndexEventListener {
             searchDirectory,
             indexShard.getOperationPrimaryTerm()
         );
-        if (batchedCompoundCommit != null) {
-            searchDirectory.backfillMetadataReadTimestamp(batchedCompoundCommit);
-        }
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
@@ -512,6 +509,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         entry.getValue().timestampMillis()
                                     );
                                 }
+                                // This backfill also handles the initial BCC read in readSearchShardState.
                                 searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })

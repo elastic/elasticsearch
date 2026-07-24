@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -80,15 +79,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     private final boolean timestampBackfillEnabled;
-
-    public SearchDirectory(
-        StatelessSharedBlobCacheService cacheService,
-        CacheBlobReaderService cacheBlobReaderService,
-        MutableObjectStoreUploadTracker objectStoreUploadTracker,
-        ShardId shardId
-    ) {
-        this(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, false);
-    }
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -146,27 +136,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public void backfillMetadataReadTimestamps(Map<FileCacheKey, Long> timestampByCacheKey) {
         backfillMetadataReadTimestamps(timestampByCacheKey, false);
-    }
-
-    /**
-     * Backfills the sentinel regions of the latest BCC blob described by {@code batchedCompoundCommit}, using the most recent
-     * timestamp among its compound commits (minimal as a fallback on this time-based shard).
-     */
-    public void backfillMetadataReadTimestamp(BatchedCompoundCommit batchedCompoundCommit) {
-        if (timestampBackfillEnabled() == false) {
-            return;
-        }
-        var termAndGen = batchedCompoundCommit.primaryTermAndGeneration();
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation());
-        // We are working with a time-based index here, so we use minimal timestamp as a fallback and not an unknown timestamp.
-        long timestampMillis = SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
-        for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
-            timestampMillis = BlobFileRanges.mostRecentKnownTimestamp(
-                timestampMillis,
-                BlobFileRanges.midpointMillisOrUnknownForCache(compoundCommit.getTimestampFieldValueRange())
-            );
-        }
-        backfillMetadataReadTimestamps(Map.of(new FileCacheKey(shardId, new BlobFile(blobName, termAndGen)), timestampMillis));
     }
 
     public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {

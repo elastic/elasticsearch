@@ -381,14 +381,19 @@ public class FileSplitProvider implements SplitProvider {
             if (executor != null && tasks.size() > 1) {
                 perFileSplits = BoundedParallelGather.gather(
                     tasks,
-                    task -> processFileForSplits(task, hoistedProvider, isCancelled),
+                    task -> processFileForSplits(task, hoistedProvider, isCancelled, null),
                     MAX_PARALLEL_SPLIT_DISCOVERY,
                     executor
                 );
             } else {
+                // Files are the usual unit of parallelism, but a dataset of one file gets none from that — and a
+                // single large file is exactly where boundary probing dominates planning. Lend the pool to the
+                // probes instead. The two branches are complements by construction, so probes never nest a
+                // second blocking gather inside a task already waiting on the first.
+                Executor probeExecutor = tasks.size() == 1 ? executor : null;
                 perFileSplits = new ArrayList<>(tasks.size());
                 for (FileTask task : tasks) {
-                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
+                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled, probeExecutor));
                 }
             }
         } catch (IOException e) {
@@ -456,18 +461,29 @@ public class FileSplitProvider implements SplitProvider {
      * otherwise falls back to the registry for per-call provider resolution.
      * This method is safe to call concurrently from multiple threads.
      */
-    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
-        throws IOException {
+    private List<ExternalSplit> processFileForSplits(
+        FileTask task,
+        @Nullable StorageProvider hoistedProvider,
+        BooleanSupplier isCancelled,
+        @Nullable Executor probeExecutor
+    ) throws IOException {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
         }
         // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
         // backoff inside the footer reads below can abort a parked sleep on cancel.
-        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> computeFileSplits(task, hoistedProvider, isCancelled));
+        return StorageRetryCancellation.callWithCancellation(
+            isCancelled,
+            () -> computeFileSplits(task, hoistedProvider, isCancelled, probeExecutor)
+        );
     }
 
-    private List<ExternalSplit> computeFileSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
-        throws IOException {
+    private List<ExternalSplit> computeFileSplits(
+        FileTask task,
+        @Nullable StorageProvider hoistedProvider,
+        BooleanSupplier isCancelled,
+        @Nullable Executor probeExecutor
+    ) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
@@ -558,7 +574,8 @@ public class FileSplitProvider implements SplitProvider {
             fileSplits,
             hoistedProvider,
             configuredReader,
-            isCancelled
+            isCancelled,
+            probeExecutor
         )) {
             return fileSplits;
         }
@@ -927,7 +944,8 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider,
         @Nullable FormatReader reader,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        @Nullable Executor probeExecutor
     ) throws IOException {
         if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
             return false;
@@ -954,7 +972,8 @@ public class FileSplitProvider implements SplitProvider {
             fileLength,
             targetStrideBytes,
             maxRecordBytes,
-            isCancelled
+            isCancelled,
+            probeExecutor
         );
         if (starts.size() <= 1) {
             return false;
@@ -1037,8 +1056,8 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Absolute byte offsets where each macro-split starts (always begins with {@code 0}), mirroring
-     * {@link ParallelParsingCoordinator#computeSegments} stride semantics with {@code targetStrideBytes}.
+     * Probes sequentially. See the overload taking a probe {@link Executor} for the boundary semantics, which
+     * are identical either way.
      */
     static List<Long> computeRecordAlignedMacroSplitStarts(
         SegmentableFormatReader reader,
@@ -1047,6 +1066,45 @@ public class FileSplitProvider implements SplitProvider {
         long targetStrideBytes,
         int maxRecordBytes,
         BooleanSupplier isCancelled
+    ) throws IOException {
+        return computeRecordAlignedMacroSplitStarts(
+            reader,
+            storageObject,
+            fileLength,
+            targetStrideBytes,
+            maxRecordBytes,
+            isCancelled,
+            null
+        );
+    }
+
+    /**
+     * Absolute byte offsets where each macro-split starts (always begins with {@code 0}), one per
+     * {@code targetStrideBytes} stride of the file.
+     * <p>
+     * A strided splitter can probe any offset directly, so its stride grid is fixed up front at multiples of
+     * {@code targetStrideBytes} and every probe is independent — which is what lets {@code probeExecutor}, when
+     * supplied, run them concurrently. Each probe still costs a network round trip, so on a single large file
+     * over a distant object store the serial version is the dominant cost of planning. Boundaries do not depend
+     * on whether an executor was supplied.
+     * <p>
+     * The grid replaces an earlier chain that advanced by {@code lastBoundary + stride}. Both emit true record
+     * starts and both tile the file; the grid simply does not accumulate drift, so a split can come out shorter
+     * than a stride by up to the length of the record straddling its grid point, where the chain was always at
+     * least a stride. A record long enough to span several grid points yields the same boundary from each, so
+     * repeats are dropped rather than emitted as empty splits.
+     * <p>
+     * A non-strided (but proven-probing) splitter is genuinely sequential — each probe's fallback walks from the
+     * previous proven record start — so it keeps the chained loop and ignores {@code probeExecutor}.
+     */
+    static List<Long> computeRecordAlignedMacroSplitStarts(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        long fileLength,
+        long targetStrideBytes,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        @Nullable Executor probeExecutor
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
@@ -1066,6 +1124,9 @@ public class FileSplitProvider implements SplitProvider {
                     + "] supports neither strided nor proven probing and cannot be macro-split"
             );
         }
+        if (strided) {
+            return stridedMacroSplitStarts(splitter, storageObject, fileLength, targetStrideBytes, minSegment, isCancelled, probeExecutor);
+        }
         // The last proven record start, i.e. the base offset the exact walk streams from when the probe is
         // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
         long exactCursor = 0L;
@@ -1076,19 +1137,7 @@ public class FileSplitProvider implements SplitProvider {
                 break;
             }
             long boundary;
-            if (strided) {
-                // Probe through bounded chunks: each is a closed range read to completion, so closing it
-                // releases a connection the provider can pool. Declaring the whole remainder instead (the
-                // previous shape) left abort as the only exit, and an abort destroys the connection, so every
-                // probe re-paid a connect and TLS handshake.
-                try (InputStream stream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
-                    long skipped = splitter.findNextRecordBoundary(stream);
-                    if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
-                        break;
-                    }
-                    boundary = pos + skipped;
-                }
-            } else {
+            {
                 long probed;
                 try (InputStream probeStream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
                     probed = splitter.findProvenRecordBoundary(probeStream);
@@ -1128,6 +1177,91 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         return boundaries;
+    }
+
+    /**
+     * Macro-split starts for a strided splitter: probe a fixed grid of stride multiples, concurrently when an
+     * executor is available. Probes are independent because a strided splitter can resolve a record boundary at
+     * any offset without knowing the previous one.
+     */
+    private static List<Long> stridedMacroSplitStarts(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long targetStrideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        @Nullable Executor probeExecutor
+    ) throws IOException {
+        List<Long> gridPositions = new ArrayList<>();
+        for (long pos = targetStrideBytes; pos < fileLength && fileLength - pos >= minSegment; pos += targetStrideBytes) {
+            gridPositions.add(pos);
+        }
+
+        List<Long> probed;
+        if (probeExecutor == null || gridPositions.size() <= 1) {
+            probed = new ArrayList<>(gridPositions.size());
+            for (long pos : gridPositions) {
+                probed.add(probeStridedBoundary(splitter, storageObject, fileLength, pos, isCancelled));
+            }
+        } else {
+            try {
+                probed = BoundedParallelGather.gather(
+                    gridPositions,
+                    pos -> probeStridedBoundary(splitter, storageObject, fileLength, pos, isCancelled),
+                    MAX_PARALLEL_SPLIT_DISCOVERY,
+                    probeExecutor
+                );
+            } catch (IOException | RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException("Failed to probe record-aligned macro-split boundaries", e);
+            }
+        }
+
+        List<Long> boundaries = new ArrayList<>();
+        boundaries.add(0L);
+        for (long boundary : probed) {
+            // A probe that found no boundary (end of data, or a record over the byte budget) stops the grid
+            // rather than skipping a point: the chained walk this replaced could never see past such a probe,
+            // and stopping leaves the rest of the file as one trailing split, which is correct if less parallel.
+            if (boundary < 0 || boundary >= fileLength || fileLength - boundary < minSegment) {
+                break;
+            }
+            // A record spanning several grid points answers each of them with its own end, so the same boundary
+            // arrives more than once. Emitting it twice would mean a zero-length split.
+            if (boundary <= boundaries.get(boundaries.size() - 1)) {
+                continue;
+            }
+            boundaries.add(boundary);
+        }
+        return boundaries;
+    }
+
+    /**
+     * Resolves the record boundary at or after one grid point, returning the splitter's negative sentinel
+     * unchanged when there is none. Probes must not throw for a missing boundary: a throw would fast-fail the
+     * whole gather and discard the boundaries its siblings already found. Cancellation is the deliberate
+     * exception — there, abandoning the remaining probes is the point.
+     */
+    private static long probeStridedBoundary(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long pos,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException("split discovery cancelled");
+        }
+        // Probe through bounded chunks: each is a closed range read to completion, so closing it releases a
+        // connection the provider can pool. Declaring the whole remainder instead (the previous shape) left
+        // abort as the only exit, and an abort destroys the connection, so every probe re-paid a connect and
+        // TLS handshake.
+        try (InputStream stream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
+            long skipped = splitter.findNextRecordBoundary(stream);
+            return skipped < 0 ? skipped : pos + skipped;
+        }
     }
 
     private boolean tryIndexedSplits(

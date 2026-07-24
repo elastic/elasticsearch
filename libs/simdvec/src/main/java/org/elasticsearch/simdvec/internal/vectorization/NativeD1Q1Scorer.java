@@ -12,10 +12,6 @@ import org.apache.lucene.store.IndexInput;
 
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q1;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q1Bulk;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q1BulkWithOffsets;
-
 /** Native scorer for symmetric 1-bit index / 1-bit query quantization (ESNext D1Q1). */
 final class NativeD1Q1Scorer extends NativeMemorySegmentScorer {
 
@@ -25,12 +21,12 @@ final class NativeD1Q1Scorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return dotProductD1Q1(dataset, query, length);
+        return DISTANCE_FUNCS.dotProductD1Q1(dataset, query, length);
     }
 
     @Override
     void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores) {
-        dotProductD1Q1Bulk(dataset, query, length, count, scores);
+        DISTANCE_FUNCS.dotProductD1Q1Bulk(dataset, query, length, count, scores);
     }
 
     @Override
@@ -43,7 +39,7 @@ final class NativeD1Q1Scorer extends NativeMemorySegmentScorer {
         int offsetsCount,
         MemorySegment scores
     ) {
-        dotProductD1Q1BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 
     @Override

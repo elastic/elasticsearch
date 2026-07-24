@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
@@ -567,14 +568,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
         String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
-        if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
-            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
-            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
-            // default strategy, but once materialized as a bitset on every execution they become
-            // significantly more expensive, making caching essential.
-            filterQuery = new CachingEnableFilterQuery(filterQuery);
-        }
-
+        // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
+        // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,
@@ -624,11 +619,13 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
-            builder.add(f, BooleanClause.Occur.FILTER);
+            // MatchAllDocsQuery adds no selectivity; skip to avoid materializing a full-index bitset via CachingEnableFilterQuery.
+            if (f.getClass() != MatchAllDocsQuery.class) {
+                builder.add(f, BooleanClause.Occur.FILTER);
+            }
         }
         BooleanQuery booleanQuery = builder.build();
-        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
-        return filterQuery;
+        return booleanQuery.clauses().isEmpty() ? null : booleanQuery;
     }
 
     @Override

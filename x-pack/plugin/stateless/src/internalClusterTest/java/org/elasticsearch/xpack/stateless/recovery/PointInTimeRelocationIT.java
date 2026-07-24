@@ -765,9 +765,11 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
         logger.info("Search node " + searchNodeCurrent + " excluded.");
 
-        // PIT id should have changed at some point, and all contexts on the source node should be closed
+        // All contexts on the source node should be closed once the shard has relocated away.
         waitForNoPITContextOnNode(searchNodeCurrent, 5);
-        assertFalse("pit1 should have changed.", isEquivalentId(pitId1.get(), testDataSetup.pitId1));
+        // pitId1 is updated asynchronously by the search threads, so it can briefly still hold the
+        // pre-relocation id even after the source node's contexts are gone; retry until it catches up.
+        assertBusy(() -> assertFalse("pit1 should have changed.", isEquivalentId(pitId1.get(), testDataSetup.pitId1)), 5, TimeUnit.SECONDS);
 
         thread1Running.set(false);
         thread2Running.set(false);

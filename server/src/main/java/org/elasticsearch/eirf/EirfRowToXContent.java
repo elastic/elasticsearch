@@ -16,6 +16,7 @@ import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 
@@ -121,7 +122,10 @@ public final class EirfRowToXContent {
             case SourceValueType.FLOAT -> builder.value((double) array.floatValue());
             case SourceValueType.LONG -> builder.value(array.longValue());
             case SourceValueType.DOUBLE -> builder.value(array.doubleValue());
-            case SourceValueType.STRING -> builder.value(array.stringValue());
+            case SourceValueType.STRING -> {
+                XContentString.UTF8Bytes bytes = array.textValue().bytes();
+                builder.utf8Value(bytes.bytes(), bytes.offset(), bytes.length());
+            }
             case SourceValueType.TRUE -> builder.value(true);
             case SourceValueType.FALSE -> builder.value(false);
             case SourceValueType.NULL -> builder.nullValue();

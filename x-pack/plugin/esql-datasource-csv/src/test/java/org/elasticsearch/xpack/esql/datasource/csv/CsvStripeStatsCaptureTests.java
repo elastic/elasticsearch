@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -57,9 +58,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -559,7 +559,6 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
@@ -1359,7 +1358,6 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Generic physical plan node for reading from external data sources (e.g., Iceberg tables, Parquet files).
@@ -483,6 +485,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     public Map<String, Object> sourceMetadata() {
         return sourceMetadata;
+    }
+
+    /**
+     * Names of the Hive-partition (path-derived) columns, read from the serialized stamp in
+     * {@link #sourceMetadata()} — never from {@link #fileList()}, so the answer is correct on any node (the
+     * fileList is {@code UNRESOLVED} on a data node). Empty when the source is not partitioned. This is the
+     * single chokepoint every node-agnostic consumer uses to recognize path-derived columns.
+     */
+    public Set<String> partitionColumnNames() {
+        return SourceStatisticsSerializer.partitionColumnNames(sourceMetadata);
     }
 
     /**

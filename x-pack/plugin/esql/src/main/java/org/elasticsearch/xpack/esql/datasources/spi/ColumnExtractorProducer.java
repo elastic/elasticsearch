@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
 import java.io.IOException;
+import java.util.function.Consumer;
 
 /**
  * Implemented by reader iterators that emit the synthetic
@@ -25,7 +28,7 @@ import java.io.IOException;
  * <h2>Encoding handshake</h2>
  * <ol>
  *   <li>The factory wraps the iterator's pages and calls
- *       {@link #createColumnExtractor()} to build a matching {@link ColumnExtractor}.</li>
+ *       {@link #createColumnExtractor(Consumer)} to build a matching {@link ColumnExtractor}.</li>
  *   <li>The factory registers the extractor with {@code SourceExtractors}, receiving an id.</li>
  *   <li>The factory calls {@link #setExtractorId(int)} <em>before</em> draining the first page,
  *       handing the iterator the id it must OR into every {@code _rowPosition} value it emits.</li>
@@ -39,7 +42,7 @@ import java.io.IOException;
  * step from the producer thread.
  * <p>
  * Implementations should construct the extractor lazily — typically on the first call to
- * {@link #createColumnExtractor()} — and may return the same instance on subsequent calls.
+ * {@link #createColumnExtractor(Consumer)} and may return the same instance on subsequent calls.
  * Lifetime is owned by the caller via {@code SourceExtractors} (the registry calls
  * {@link ColumnExtractor#close()} when the driver finishes).
  */
@@ -51,13 +54,21 @@ public interface ColumnExtractorProducer {
      * The iterator must already be positioned to emit pages with {@link ColumnExtractor#ROW_POSITION_COLUMN}
      * before this is called; implementations may capture iterator-internal state (such as a
      * range-restricted footer) at construction time.
+     *
+     * @param driverThreadWarningSink where the extractor relays per-value declared-coercion warnings
+     *                                (see {@link SkipWarnings}). The extractor runs on the driver
+     *                                thread, so this sink emits directly to the response headers; it
+     *                                is budget-gated so the whole source stays within one cap. May be
+     *                                {@code null}, in which case the extractor falls back to emitting
+     *                                warnings directly (per-instance cap only): the on-driver-thread
+     *                                default used by tests and benchmarks.
      */
-    ColumnExtractor createColumnExtractor() throws IOException;
+    ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException;
 
     /**
      * Hands the iterator the {@code SourceExtractors}-assigned id under which its matching
      * {@link ColumnExtractor} is registered. Must be called once, after
-     * {@link #createColumnExtractor()} and before the first page is drained. Every subsequent
+     * {@link #createColumnExtractor(Consumer)} and before the first page is drained. Every subsequent
      * page the iterator emits must carry {@code _rowPosition} values already encoded with this
      * id (typically by OR-ing {@code ((long) id << 48)} into each value as it is materialised).
      * <p>

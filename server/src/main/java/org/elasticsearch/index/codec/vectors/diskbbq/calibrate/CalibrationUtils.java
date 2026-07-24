@@ -36,7 +36,11 @@ import java.util.Random;
  */
 public final class CalibrationUtils {
 
-    static final int MAX_QUERY_SAMPLE = 1024;
+    // Query sample for calibration: a small query set (256) is sufficient to average rank distances and
+    // quantization-error statistics, and drives both the manifold fit and the residual error sweep, so it
+    // is the dominant lever on calibration cost. The corpus sample stays large (16384) to keep the manifold
+    // distance-scaling fit accurate.
+    static final int MAX_QUERY_SAMPLE = 256;
     static final int MAX_CORPUS_SAMPLE = 16384;
     static final long CALIBRATION_SEED = 215873873L;
 

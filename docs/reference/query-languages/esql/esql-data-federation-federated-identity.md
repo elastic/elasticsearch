@@ -2,12 +2,8 @@
 navigation_title: "AWS federated identity"
 description: "Set up Amazon S3 federated identity for ES|QL Data Federation so Elasticsearch reads your bucket without stored credentials."
 applies_to:
-  stack: preview =9.5
   deployment:
     ech: preview
-    ece: unavailable
-    eck: unavailable
-    self: unavailable
   serverless: preview
 products:
   - id: elasticsearch

@@ -1,11 +1,11 @@
 ---
-navigation_title: "Image search quickstart"
+navigation_title: "Quickstart: Image search"
 applies_to:
   stack: preview 9.5
   serverless: preview
 ---
 
-# Build image search with a `semantic` field [semantic-quickstart]
+# Build image search with a `semantic` field in {{es}} [semantic-quickstart]
 
 This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. It uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint, available through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
 

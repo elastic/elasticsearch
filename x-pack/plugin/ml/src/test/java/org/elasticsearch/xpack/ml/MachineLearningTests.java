@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -326,9 +327,15 @@ public class MachineLearningTests extends ESTestCase {
         }
     }
 
-    public static class TrialLicensedMachineLearning extends MachineLearning {
+    public void testGetSettingsShouldRegisterCapacityRetryBackoffSettings() throws Exception {
+        try (MachineLearning ml = createTrialLicensedMachineLearning(Settings.EMPTY)) {
+            List<Setting<?>> settings = ml.getSettings();
+            assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY));
+            assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY));
+        }
+    }
 
-        // A license state constructed like this is considered a trial license
+    public static class TrialLicensedMachineLearning extends MachineLearning {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0L);
 
         public TrialLicensedMachineLearning(Settings settings) {

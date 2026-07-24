@@ -89,6 +89,8 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
     }
@@ -120,6 +122,8 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
     }
@@ -151,32 +155,10 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
-    }
-
-    public void testDeleteResultsFromTimeShouldUseSingleSliceAndShortScrollKeepAlive() {
-        MockWritableIndexExpander.create(true);
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, randomBoolean());
-        jobDataDeleter.deleteResultsFromTime(0L, ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
-
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.getSlices(), equalTo(1));
-        assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
-        verify(client, times(1)).threadPool();
-    }
-
-    public void testDeleteAnnotationsShouldUseSingleSliceAndShortScrollKeepAlive() {
-        MockWritableIndexExpander.create(true);
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, randomBoolean());
-        jobDataDeleter.deleteAnnotations(null, null, null, ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
-
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.getSlices(), equalTo(1));
-        assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
-        verify(client, times(1)).threadPool();
     }
 
     public void testDeleteResultsFromTime() {
@@ -191,6 +173,8 @@ public class JobDataDeleterTests extends ESTestCase {
         assertThat(deleteRequest.indices(), is(arrayContaining(".ml-anomalies-my-job-id")));
         String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
         assertThat(dbqQueryString, containsString("{\"term\":{\"job_id\":{\"value\":\"my-job-id\"}}"));
+        assertThat(deleteRequest.getSlices(), equalTo(1));
+        assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         verify(client, times(1)).threadPool();
     }
 

@@ -176,6 +176,11 @@ public class ReopenScrollContextIT extends BaseMlIntegTestCase {
                 GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats = getDatafeedStats(datafeedId);
                 assertThat("datafeed [" + datafeedId + "] must resume", datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
                 assertThat("datafeed [" + datafeedId + "] must be reassigned", datafeedStats.getNode(), is(notNullValue()));
+                assertThat(
+                    "datafeed [" + datafeedId + "] must not remain on the stopped node",
+                    datafeedStats.getNode().getName(),
+                    not(equalTo(coLocatedMlNode))
+                );
             }
         }, 5, TimeUnit.MINUTES);
     }

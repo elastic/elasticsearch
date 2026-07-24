@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -160,6 +161,11 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
         assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
     }
 
+    public void testPermanentCircuitBreakerShouldNotBeCapacityConstrained() {
+        var e = new CircuitBreakingException("permanent", CircuitBreaker.Durability.PERMANENT);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
     public void testNonShutdownRejectionShouldBeCapacityConstrained() {
         var e = new EsRejectedExecutionException("pool full", false);
         assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
@@ -179,6 +185,23 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
         var inner = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
         var wrapped = new RemoteTransportException("remote", inner);
         assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedTransientCircuitBreakerShouldBeCapacityConstrained() {
+        var inner = new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedNonShutdownRejectionShouldBeCapacityConstrained() {
+        var inner = new EsRejectedExecutionException("pool full", false);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testTooManyScrollContextsExceptionShouldBeCapacityConstrained() {
+        var e = new TooManyScrollContextsException(10, "search.max_open_scroll_context");
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
     }
 
     // -------------------------------------------------------------------------

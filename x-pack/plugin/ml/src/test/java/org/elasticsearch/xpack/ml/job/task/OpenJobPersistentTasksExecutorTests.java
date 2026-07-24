@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml.job.task;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -134,7 +137,9 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
-                    MachineLearning.JOB_OPEN_RETRY_TIMEOUT
+                    MachineLearning.JOB_OPEN_RETRY_TIMEOUT,
+                    MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY,
+                    MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY
                 )
             )
         );
@@ -142,6 +147,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
+        when(client.threadPool()).thenReturn(tp);
         mlMemoryTracker = mock(MlMemoryTracker.class);
         licenseState = mock(XPackLicenseState.class);
     }
@@ -555,6 +561,28 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             capacityMax
         );
         assertThat(bound, equalTo(normalMax)); // min(4m*2, 5m) == 5m, unchanged from existing behavior
+    }
+
+    public void testOpenJobRetryableActionShouldUseCapacityAwareDelayBound() {
+        var executor = createExecutor(Settings.EMPTY);
+        var jobTask = mock(JobTask.class);
+        when(jobTask.isClosing()).thenReturn(false);
+        when(jobTask.isVacating()).thenReturn(false);
+        var jobTaskState = new JobTaskState(JobState.OPENING, 1L, null, Instant.now());
+        var params = new OpenJobAction.JobParams("test_job");
+
+        var action = executor.createOpenJobRetryableAction(
+            jobTask,
+            jobTaskState,
+            params,
+            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+        );
+
+        assertTrue(action.shouldRetry(new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS)));
+        assertThat(action.calculateDelayBound(TimeValue.timeValueSeconds(5).millis()), equalTo(TimeValue.timeValueSeconds(30).millis()));
+
+        assertTrue(action.shouldRetry(new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)));
+        assertThat(action.calculateDelayBound(TimeValue.timeValueSeconds(5).millis()), equalTo(TimeValue.timeValueSeconds(10).millis()));
     }
 
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {

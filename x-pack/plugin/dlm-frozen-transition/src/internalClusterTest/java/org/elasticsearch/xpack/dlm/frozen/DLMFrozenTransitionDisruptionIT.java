@@ -697,6 +697,17 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * master node while it is being stopped asynchronously by the disruption thread.
      */
     private void waitForStableCluster(int nodeCount) throws Exception {
+        // The disruption latch fires before the async disruption thread finishes stopping the
+        // node. If we probe cluster health while the node is still shutting down,
+        // ensureStableCluster can route the health request via the dying node's local client,
+        // whose response future is never completed (no transport disconnect fires for in-JVM
+        // client calls, and the node's scheduler that would enforce the request timeout is
+        // gone), hanging the test until the suite timeout. Wait for the disruption to actually
+        // finish first.
+        for (Thread t : disruptionThreadsToJoin) {
+            t.join(TimeUnit.SECONDS.toMillis(60));
+            assertFalse("disruption thread [" + t.getName() + "] did not finish in time", t.isAlive());
+        }
         assertBusy(() -> {
             try {
                 ensureStableCluster(nodeCount);
@@ -798,18 +809,21 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 ActionListener listener,
                 BiConsumer<ActionRequest, ActionListener> proceed
             ) {
-                if (latch.getCount() > 0) {
+                if (disruptionDone.compareAndSet(false, true)) {
                     logger.info("--> intercepted [{}], running disruption action now", actionName);
-                    latch.countDown();
-                    if (disruptionDone.compareAndSet(false, true)) {
-                        if (async) {
-                            Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
-                            disruptionThreadsToJoin.add(t);
-                            t.start();
-                        } else {
-                            disruptionAction.run();
-                        }
+                    if (async) {
+                        Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
+                        disruptionThreadsToJoin.add(t);
+                        t.start();
+                    } else {
+                        disruptionAction.run();
                     }
+                    // Count down only after the disruption thread is started (or the sync action
+                    // completed): waitForStableCluster joins threads in disruptionThreadsToJoin
+                    // after awaiting this latch. Thread.join on a not-yet-started thread returns
+                    // immediately, so counting down before t.start() would let the test race ahead
+                    // while the master node is still being stopped.
+                    latch.countDown();
                 }
                 proceed.accept(request, listener);
             }

@@ -1,0 +1,6 @@
+area: Recovery
+issues:
+ - 153497
+pr: 154195
+summary: Fixing `ReplicationTracker` behavior when a replica recovery is cancelled
+type: bug

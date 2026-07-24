@@ -16,8 +16,8 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 /** An ESCF column whose values are all {@code double}s (JSON floats and doubles upcast to 64-bit raw bits). */
 final class EscfDoubleColumn extends AbstractFixed64Column {
 
-    EscfDoubleColumn(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent, data);
+    EscfDoubleColumn(int docCount, FixedBitSet validity, BytesReference data) {
+        super(docCount, validity, data);
     }
 
     @Override
@@ -26,12 +26,22 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.DOUBLE;
     }
 
     @Override
-    double getDoubleValue(int d) {
-        return Double.longBitsToDouble(rawLong(d));
+    double getDoubleValue(int row) {
+        return Double.longBitsToDouble(rawLong(row));
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfDoubleColumn(count, windowValidity(validity, from, count), data.slice(from * 8, count * 8));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
     }
 }

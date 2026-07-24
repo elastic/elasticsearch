@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -698,7 +699,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = new ArrayList<>(expressions(ctx.booleanExpression()));
+        List<Expression> args = new ArrayList<>(expressions(ctx.functionParam()));
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -737,6 +738,27 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return last.getText();
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
+    }
+
+    @Override
+    public Expression visitFunctionParam(EsqlBaseParser.FunctionParamContext ctx) {
+        if (ctx.lambda() != null) {
+            return visitLambda(ctx.lambda());
+        }
+        // Use typedParsing (not expression()) to avoid charging a depth unit for the functionParam
+        // grammar rule, which is a grammar-level indirection for lambda support, not a user-visible
+        // nesting level. This preserves the pre-lambda depth-counting semantics.
+        return typedParsing(this, ctx.booleanExpression(), Expression.class);
+    }
+
+    @Override
+    public Lambda visitLambda(EsqlBaseParser.LambdaContext ctx) {
+        List<Expression> parametersAndBody = new ArrayList<>(ctx.identifier().size() + 1);
+        for (EsqlBaseParser.IdentifierContext identifierCtx : ctx.identifier()) {
+            parametersAndBody.add(new UnresolvedAttribute(source(identifierCtx), visitIdentifier(identifierCtx)));
+        }
+        parametersAndBody.add(expression(ctx.booleanExpression()));
+        return new Lambda(source(ctx), parametersAndBody);
     }
 
     @Override
@@ -1373,14 +1395,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-
-        final Expression matchFieldExpression;
-        if (ctx.fieldType != null) {
-            matchFieldExpression = castToType(source(ctx), ctx.fieldExp, ctx.fieldType);
-        } else {
-            matchFieldExpression = expression(ctx.fieldExp);
-        }
-
-        return new MatchOperator(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
+        return new MatchOperator(source(ctx), expression(ctx.fieldExp), expression(ctx.matchQuery));
     }
 }

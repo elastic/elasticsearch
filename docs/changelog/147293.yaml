@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 143697
+pr: 147293
+summary: Fix false-positive duplicate time-bucket in TS aggregate
+type: bug

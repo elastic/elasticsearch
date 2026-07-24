@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -72,6 +73,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     public Nullability nullable() {
         // Cannot fold null due to 3vl, constant folding will do any possible folding.
         return Nullability.UNKNOWN;
+    }
+
+    @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

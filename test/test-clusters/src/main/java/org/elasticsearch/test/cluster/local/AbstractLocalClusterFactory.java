@@ -724,13 +724,27 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .toList();
 
                 if (spec.getVersion().onOrAfter("7.6.0")) {
-                    runToolScript(
-                        "elasticsearch-plugin",
-                        null,
-                        Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
-                    );
+                    LOGGER.info("Installing {} plugins via single elasticsearch-plugin invocation", toInstall.size());
+                    try {
+                        runToolScript(
+                            "elasticsearch-plugin",
+                            null,
+                            Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
+                        );
+                    } catch (RuntimeException e) {
+                        LOGGER.error("Failed to install plugins: {}", toInstall, e);
+                        throw e;
+                    }
                 } else {
-                    toInstall.forEach(plugin -> runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin));
+                    for (String plugin : toInstall) {
+                        LOGGER.info("Installing plugin: {}", plugin);
+                        try {
+                            runToolScript("elasticsearch-plugin", null, "install", "--batch", plugin);
+                        } catch (RuntimeException e) {
+                            LOGGER.error("Failed to install plugin: {}", plugin, e);
+                            throw e;
+                        }
+                    }
                 }
             }
         }
@@ -954,7 +968,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     }
 
                     if (attempt >= TOOL_SCRIPT_RETRY_TIMES) {
-                        throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                        String argsDesc = "[" + String.join(", ", args) + "]";
+                        throw new RuntimeException(
+                            "Execution of "
+                                + tool
+                                + " failed with exit code "
+                                + exit
+                                + "; tool='"
+                                + tool
+                                + "', args='"
+                                + argsDesc
+                                + "'. Check test cluster logs for full stderr output from "
+                                + tool
+                                + ".bat on Windows."
+                        );
                     }
 
                     attempt++;

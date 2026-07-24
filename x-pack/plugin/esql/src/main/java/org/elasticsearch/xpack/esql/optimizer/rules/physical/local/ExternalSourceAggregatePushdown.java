@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -199,30 +198,6 @@ public final class ExternalSourceAggregatePushdown {
             }
         }
         return true;
-    }
-
-    /**
-     * The columns whose values are derived from the file's directory PATH (Hive-style partition keys), not its
-     * payload. They are absent from every file's column stats, so the implicit-nulls contract reads them as
-     * all-null — any {@code COUNT} over one would serve 0. Both the fold and the split-discovery gate feed this
-     * set to {@link #resolveFromStats} so a partition-column aggregate safe-misses on footer formats.
-     * <p>
-     * Read from the SERIALIZED {@code sourceMetadata} (stamped at resolution — see
-     * {@code SourceStatisticsSerializer#PARTITION_COLUMNS_KEY}), NOT the {@code FileList}: the fileList that carries
-     * {@code PartitionMetadata} is coordinator-only and deserializes to {@code UNRESOLVED} on a data node, so the
-     * data-node fold would otherwise see an empty set and fold {@code COUNT(partition_col)} to 0. Empty when the
-     * source is not partitioned (no {@code hive_partitioning}).
-     */
-    @SuppressWarnings("unchecked")
-    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
-        if (sourceMetadata == null) {
-            return Set.of();
-        }
-        Object names = sourceMetadata.get(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY);
-        if (names instanceof Collection<?> collection && collection.isEmpty() == false) {
-            return Set.copyOf((Collection<String>) collection);
-        }
-        return Set.of();
     }
 
     /**

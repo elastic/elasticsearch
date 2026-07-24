@@ -21,6 +21,8 @@ import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -38,17 +40,15 @@ public class BulkArrowAggregationTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BufferAllocator allocator;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
         allocator = blockFactory.arrowAllocator();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeAllocator() throws Exception {
         allocator.close();
-        super.tearDown();
     }
 
     public void testSumIntOverArrowBuffer() {

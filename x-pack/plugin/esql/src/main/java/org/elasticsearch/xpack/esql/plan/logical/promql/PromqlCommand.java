@@ -471,6 +471,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                 }
+                case AcrossSeriesReduction reduction -> {
+                    for (Attribute grouping : reduction.groupings()) {
+                        if (stepColumnName().equals(grouping.name())) {
+                            failures.add(
+                                fail(
+                                    reduction,
+                                    "label [{}] collides with the built-in [{}] output column [{}]",
+                                    stepColumnName(),
+                                    stepColumnName(),
+                                    reduction.sourceText()
+                                )
+                            );
+                        }
+                    }
+                }
                 case PromqlFunctionCall functionCall -> {
                     // ok — counter/gauge type mismatches are coerced during translation
                 }
@@ -662,11 +677,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public Expression timestamp(LogicalPlan fragment) {
         var offset = offset(fragment);
         var timestamp = timestamp();
-        if (offset.isZero() || timestamp == null || timestamp.resolved() == false) {
+        if (timestamp == null || timestamp.resolved() == false) {
+            return timestamp;
+        }
+        boolean normalizeToMillis = timestamp.dataType() == DataType.DATE_NANOS;
+        if (offset.isZero() && normalizeToMillis == false) {
             return timestamp;
         }
         // TODO: use unique names?
-        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, timestamp.dataType());
+        DataType type = normalizeToMillis ? DataType.DATETIME : timestamp.dataType();
+        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, type);
     }
 
     /**

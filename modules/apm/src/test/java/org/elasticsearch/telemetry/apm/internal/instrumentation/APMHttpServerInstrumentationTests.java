@@ -41,6 +41,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withScheme("https")
             .withPath("/my-index/_search")
             .withHeaders(Map.of("Accept-Encoding", List.of("gzip")))
             .build();
@@ -70,6 +71,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
                 request,
                 Attributes.builder()
                     .put(stringKey("http.request.method"), "GET")
+                    .put(stringKey("url.scheme"), "https")
                     .put(stringKey("http.route"), "/{index}/_search")
                     .put(stringKey("url.path"), "/my-index/_search")
                     .build()
@@ -79,6 +81,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
     public void test_start_setsRequestAttributes_full() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withScheme("http")
             .withPath("/my-index/_search?from=0")
             .withHeaders(
                 Map.ofEntries(

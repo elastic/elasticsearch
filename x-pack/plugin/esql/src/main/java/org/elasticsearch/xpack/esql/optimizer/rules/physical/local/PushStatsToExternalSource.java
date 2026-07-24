@@ -136,7 +136,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
         // Read the partition set from serialized sourceMetadata (not the coordinator-only fileList): on a data node
         // externalExec.fileList() is UNRESOLVED, so COUNT(partition_col) would otherwise fold to 0 there.
-        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(externalExec.sourceMetadata());
+        Set<String> pathDerivedColumns = externalExec.partitionColumnNames();
         if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
             return aggregateExec;
         }

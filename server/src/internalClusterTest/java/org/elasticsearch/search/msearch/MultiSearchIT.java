@@ -296,6 +296,34 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMrtDefaultsToFalseInCps() throws IOException {
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
+    public void testMrtParamIsIgnoredInCps() throws IOException {
+        String body = """
+            {"index": "index-1", "ccs_minimize_roundtrips": true }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2", "ccs_minimize_roundtrips": true }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
@@ -418,6 +446,16 @@ public class MultiSearchIT extends ESIntegTestCase {
             (ignored) -> true,
             // Disable CPS for these tests.
             Optional.of(false)
+        );
+    }
+
+    private MultiSearchRequest parseCpsRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            Optional.of(true)
         );
     }
 

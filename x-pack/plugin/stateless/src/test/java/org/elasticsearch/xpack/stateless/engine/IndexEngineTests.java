@@ -12,11 +12,15 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -24,14 +28,19 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -71,6 +80,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -430,6 +440,81 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testDocSizeIsReportedUponBatchIndex() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndex()),
+                eq(mapperService),
+                any(DocumentSizeAccumulator.class)
+            )
+        ).thenReturn(documentSizeReporter);
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                documentParsingProvider,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+            )
+        ) {
+            // Success case: all docs in the batch succeed.
+            List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
+            List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEscfBatch(ops));
+            for (int i = 0; i < results.size(); i++) {
+                assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                verify(documentSizeReporter).onParsingCompleted(eq(ops.get(i).parsedDoc()));
+                verify(documentSizeReporter).onIndexingCompleted(eq(ops.get(i).parsedDoc()));
+            }
+
+            // Failure case: a version-conflicting op does not get onIndexingCompleted.
+            Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
+            List<Engine.Index> failOps = List.of(conflictingOp);
+            List<Engine.IndexResult> failResults = engine.indexBatch(failOps, encodeAsEscfBatch(failOps));
+            assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            verify(documentSizeReporter).onParsingCompleted(eq(conflictingOp.parsedDoc()));
+            verify(documentSizeReporter, never()).onIndexingCompleted(eq(conflictingOp.parsedDoc()));
+        }
+    }
+
+    public void testHollowEngineCannotIngestBatch() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            var indexedDoc = randomDoc(String.valueOf(0));
+            engine.index(indexedDoc);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+            final var maxSeqNo = engine.getMaxSeqNo();
+
+            List<Engine.Index> batchOps = List.of(randomDoc(String.valueOf(1)));
+            expectThrows(IllegalStateException.class, () -> engine.indexBatch(batchOps, encodeAsEscfBatch(batchOps)));
+            assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
+        }
+    }
+
+    /**
+     * Encodes a list of index operations as an {@link EscfBatch}. All operations must share the same
+     * {@link XContentType}.
+     */
+    private static SourceBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            sources.add(op.source().originalBytes());
+        }
+        return EscfEncoder.encode(sources, xContentType);
+    }
+
     public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {
         TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
         when(mockTranslogReplicator.getMaxUploadedFile()).thenReturn(456L);
@@ -504,6 +589,32 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             verify(statelessCommitService, never()).ensureMaxGenerationToUploadForFlush(any(), anyLong());
             verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
             assertThat(safeGet(flushListener), equalTo(generation));
+        }
+    }
+
+    /**
+     * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
+     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
+     */
+    public void testStatelessMergeThrottleConfiguration() throws IOException {
+        int factor = randomIntBetween(1, 5);
+        Settings nodeSettings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+            var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
+
+            // threshold = factor × allocatedProcessors (= thread pool merge max)
+            int maxConcurrentMerges = engine.config().getThreadPool().info(ThreadPool.Names.MERGE).getMax();
+            assertThat(scheduler.getMaxMergeCount(), equalTo(factor * maxConcurrentMerges));
+
+            // callbacks wire through to the engine's throttle state
+            assertFalse(engine.isThrottled());
+            scheduler.enableIndexingThrottling(0, 1, factor * maxConcurrentMerges);
+            assertTrue(engine.isThrottled());
+            scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
+            assertFalse(engine.isThrottled());
         }
     }
 
@@ -755,6 +866,36 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMerges.get());
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
+        }
+    }
+
+    public void testDeleteUnownedDocumentsBumpsForceMergeUUID() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(settings))) {
+            engine.index(randomDoc("doc-1"));
+            engine.flush(true, true);
+
+            assertNull(engine.getForceMergeUUID());
+            assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY));
+
+            IndexMetadata metadata = engine.config().getIndexSettings().getIndexMetadata();
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String firstUuid = engine.getForceMergeUUID();
+            assertNotNull(firstUuid);
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(firstUuid));
+
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String secondUuid = engine.getForceMergeUUID();
+            assertNotNull(secondUuid);
+            assertThat(secondUuid, not(equalTo(firstUuid)));
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(secondUuid));
         }
     }
 }

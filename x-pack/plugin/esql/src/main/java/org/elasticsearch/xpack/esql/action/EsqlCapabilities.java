@@ -3505,6 +3505,13 @@ public class EsqlCapabilities {
          */
         FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
 
+        /**
+         * Experimental: {@code TO_DOUBLE} keyword/text overload now parses non-finite IEEE-754 values
+         * ({@code NaN}, {@code Infinity}, {@code -Infinity}) rather than converting them to {@code null}.
+         * This is an investigation capability — not intended to be merged or documented as a feature.
+         */
+        TO_DOUBLE_NON_FINITE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

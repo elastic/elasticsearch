@@ -787,6 +787,20 @@ public class EsqlDataTypeConverter {
         return StringUtils.parseDouble(field);
     }
 
+    /**
+     * Parses {@code field} as a double, accepting non-finite IEEE-754 values (NaN, Infinity, -Infinity)
+     * in addition to all regular finite values. Only a genuine parse failure (unrecognized format) throws
+     * {@link org.elasticsearch.xpack.esql.core.InvalidArgumentException}. This method is intentionally
+     * separate from {@link #stringToDouble} because allowing non-finite doubles in ES|QL is experimental.
+     */
+    public static double stringToDoubleAllowNonFinite(String field) {
+        try {
+            return Double.parseDouble(field);
+        } catch (NumberFormatException nfe) {
+            throw new org.elasticsearch.xpack.esql.core.InvalidArgumentException(nfe, "Cannot parse number [{}]", field);
+        }
+    }
+
     public static BytesRef unsignedLongToString(long number) {
         return new BytesRef(unsignedLongAsNumber(number).toString());
     }

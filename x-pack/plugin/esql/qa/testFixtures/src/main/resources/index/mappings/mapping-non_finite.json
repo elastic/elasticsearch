@@ -1,0 +1,16 @@
+{
+    "properties": {
+      "label": {
+        "type": "keyword"
+      },
+      "val_str": {
+        "type": "keyword"
+      },
+      "grp_str": {
+        "type": "keyword"
+      },
+      "n": {
+        "type": "integer"
+      }
+    }
+  }

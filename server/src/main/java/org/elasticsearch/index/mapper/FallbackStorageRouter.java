@@ -256,12 +256,8 @@ public final class FallbackStorageRouter {
      * For cases where the value is still at the current parser position, use {@link #write(DocumentParserContext, String, Reason)}
      * instead — it reads from {@code context.parser()} automatically.
      */
-    public static boolean write(
-        DocumentParserContext context,
-        String fieldPath,
-        Reason reason,
-        XContentBuilder builder
-    ) throws IOException {
+    public static boolean write(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
+        throws IOException {
         return switch (route(reason)) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
             case IGNORE_MALFORMED -> {
@@ -374,11 +370,8 @@ public final class FallbackStorageRouter {
         return true;
     }
 
-    private static boolean writeToIgnoredSource(
-        DocumentParserContext context,
-        String fieldPath,
-        XContentBuilder builder
-    ) throws IOException {
+    private static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)
+        throws IOException {
         if (context.canAddIgnoredField() == false) {
             return false;
         }

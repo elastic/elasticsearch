@@ -3522,6 +3522,12 @@ public class EsqlCapabilities {
          */
         FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
 
+        /**
+         * Constant folding of logical operators ({@code AND}, {@code OR}, {@code NOT}) applied to multivalue
+         * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
+         */
+        FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

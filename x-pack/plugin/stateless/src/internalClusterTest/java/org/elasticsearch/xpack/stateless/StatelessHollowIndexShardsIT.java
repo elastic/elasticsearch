@@ -2663,27 +2663,30 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         };
         assertDataStreamsActionResponse.run();
 
-        // Wait until the backing index is hollowable
-        final var backingIndices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
-        assertThat(backingIndices.size(), equalTo(2));
-        final var backingIndex = backingIndices.get(0);
+        // Wait until the backing index is hollowable. Use assertBusy because GetDataStreamAction runs
+        // on whichever node the client routes to, and that node may not have applied the rollover
+        // cluster state yet even though the node that coordinated DataStreamsStatsAction, in the above call, already has.
         final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNodeA);
+        final AtomicReference<String> backingHollowIndex = new AtomicReference<>();
         assertBusy(() -> {
-            final var indexShard = findIndexShard(backingIndex);
+            final var indices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
+            assertThat(indices.size(), equalTo(2));
+            final var indexShard = findIndexShard(indices.get(0));
             assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true));
+            backingHollowIndex.set(indices.get(0));
         });
 
         // Start a new indexing node and relocate the index from the first indexing node to this one so it is hollowed
         final var indexingNodeB = startIndexNode(lowTtlSettings);
         ensureStableCluster(4);
         assertNodeDoesNotReceiveAction.accept(indexingNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexingNodeA), backingIndex);
-        internalCluster().awaitNodeVacated(backingIndex, indexingNodeA);
-        ensureGreen(backingIndex);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexingNodeA), backingHollowIndex.get());
+        internalCluster().awaitNodeVacated(backingHollowIndex.get(), indexingNodeA);
+        ensureGreen(backingHollowIndex.get());
 
         // Ensure the shard was hollowed
         final var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexingNodeB);
-        final var indexShard = findIndexShard(backingIndex);
+        final var indexShard = findIndexShard(backingHollowIndex.get());
         assertThat(hollowShardsServiceB.isHollowShard(indexShard.shardId()), equalTo(true));
 
         // Assert the action again on the hollow shard

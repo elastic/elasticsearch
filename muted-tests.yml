@@ -615,6 +615,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.not enough buckets per group}
   issue: https://github.com/elastic/elasticsearch/issues/154932
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryGoldenTests
-  method: testTSSubqueryInFromWithOuterTimeSeriesAggregate
-  issue: https://github.com/elastic/elasticsearch/issues/154940

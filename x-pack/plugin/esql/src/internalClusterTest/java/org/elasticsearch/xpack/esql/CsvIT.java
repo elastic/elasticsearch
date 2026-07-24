@@ -267,8 +267,8 @@ public class CsvIT extends ESTestCase {
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not esential here.
-        Collections.shuffle(specs, new Random());
+        // Falling back to a new instance as repeatable scenario order is not essential here.
+        Collections.shuffle(specs, new Random(0));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }

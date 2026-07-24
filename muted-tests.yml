@@ -355,6 +355,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.LongFieldBlockLoaderTests
   method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=STORED]}
   issue: https://github.com/elastic/elasticsearch/issues/154914
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/154916
 
 # Examples:
 #

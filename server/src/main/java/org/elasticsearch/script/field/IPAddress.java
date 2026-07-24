@@ -26,7 +26,7 @@ import java.net.InetAddress;
  * IP address for use in scripting.
  */
 public class IPAddress implements ToXContentObject, GenericNamedWriteable {
-    static final String NAMED_WRITEABLE_NAME = "IPAddress";
+    public static final String NAMED_WRITEABLE_NAME = "IPAddress";
     protected final InetAddress address;
 
     IPAddress(InetAddress address) {

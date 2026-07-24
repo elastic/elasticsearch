@@ -10,6 +10,8 @@
 package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.processor.model.ArrayFieldModel;
+import org.elasticsearch.foreign.processor.model.InlineArrayFieldModel;
+import org.elasticsearch.foreign.processor.model.InlineStringFieldModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
@@ -36,6 +38,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayou
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
@@ -44,12 +47,16 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_allocate_l
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_asSlice;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_byteSize;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_groupElement;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_structLayout;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleSequenceWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.LayoutField;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.computeLayout;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLayoutArray;
+import static org.elasticsearch.foreign.processor.StructLayoutUtil.fieldSize;
 
 /**
  * Generates the {@code $Impl} class for a {@code @StructSpecification} interface. The class
@@ -64,6 +71,11 @@ final class StructImplWriter {
         return switch (field) {
             case ScalarFieldModel scalar -> scalar.name() + "$vh";
             case ArrayFieldModel array -> array.name() + "$ptr$vh";
+            case InlineArrayFieldModel inlineArray -> inlineArray.name() + "$vh";
+            // InlineStringFieldModel uses no VarHandle — callers must not invoke this for string fields
+            case InlineStringFieldModel inlineString -> throw new AssertionError(
+                "InlineStringFieldModel has no VarHandle: " + inlineString.name()
+            );
         };
     }
 
@@ -95,7 +107,7 @@ final class StructImplWriter {
             emitClinit(cb, structImplDesc, fields, layout);
             emitConstructor(cb, structImplDesc);
             emitSegmentAccessor(cb, structImplDesc);
-            emitFieldAccessors(cb, structImplDesc, model, prefix, fields);
+            emitFieldAccessors(cb, structImplDesc, model, prefix, fields, layout);
         });
 
         try (var os = filer.createClassFile(structImplQualifiedName, sourceElement).openOutputStream()) {
@@ -103,11 +115,13 @@ final class StructImplWriter {
         }
     }
 
-    /** Declares {@code LAYOUT}, one VarHandle per field, and the instance {@code segment} field. */
+    /** Declares {@code LAYOUT}, one VarHandle per field (except InlineStringField), and the instance {@code segment} field. */
     private static void declareFields(ClassBuilder cb, List<StructFieldModel> fields) {
         cb.withField("LAYOUT", CD_StructLayout, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
         for (StructFieldModel field : fields) {
-            cb.withField(varHandleFieldName(field), CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
+            if (field instanceof InlineStringFieldModel == false) {
+                cb.withField(varHandleFieldName(field), CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
+            }
         }
         cb.withField("segment", CD_MemorySegment, fb -> fb.withFlags(AccessFlag.FINAL));
     }
@@ -120,10 +134,18 @@ final class StructImplWriter {
             clinit.putstatic(structImplDesc, "LAYOUT", CD_StructLayout);
 
             for (StructFieldModel field : fields) {
+                if (field instanceof InlineStringFieldModel) {
+                    continue;
+                }
                 clinit.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
                 clinit.ldc(field.name());
                 clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
-                clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
+                if (field instanceof InlineArrayFieldModel) {
+                    clinit.invokestatic(CD_MemoryLayoutPathElement, "sequenceElement", MTD_sequenceElement, true);
+                    clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleSequenceWithoutOffset", MTD_varHandleSequenceWithoutOffset);
+                } else {
+                    clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
+                }
                 clinit.putstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
             }
             clinit.return_();
@@ -153,20 +175,44 @@ final class StructImplWriter {
         });
     }
 
-    /** Emits one accessor method per declared field (scalar getter or {@code @ArrayField} indexed getter). */
+    /** Emits one accessor method per declared field (scalar getter/setter or {@code @ArrayField} indexed getter). */
     private static void emitFieldAccessors(
         ClassBuilder cb,
         ClassDesc structImplDesc,
         LibraryModel model,
         String packPrefix,
-        List<StructFieldModel> fields
+        List<StructFieldModel> fields,
+        List<LayoutField> layout
     ) {
         for (StructFieldModel field : fields) {
             switch (field) {
-                case ScalarFieldModel scalar -> emitScalarFieldGetter(cb, structImplDesc, scalar);
+                case ScalarFieldModel scalar -> {
+                    if (scalar.hasGetter()) {
+                        emitScalarFieldGetter(cb, structImplDesc, scalar);
+                    }
+                    if (scalar.hasSetter()) {
+                        emitScalarFieldSetter(cb, structImplDesc, scalar);
+                    }
+                }
                 case ArrayFieldModel array -> {
                     List<StructFieldModel> elementFields = resolveElementFields(model, array.elementSimpleName());
                     emitArrayFieldGetter(cb, structImplDesc, packPrefix, array, elementFields);
+                }
+                case InlineArrayFieldModel inlineArray -> {
+                    if (inlineArray.hasGetter()) {
+                        emitInlineArrayFieldGetter(cb, structImplDesc, inlineArray);
+                    }
+                    if (inlineArray.hasSetter()) {
+                        emitInlineArrayFieldSetter(cb, structImplDesc, inlineArray);
+                    }
+                }
+                case InlineStringFieldModel inlineString -> {
+                    if (inlineString.hasGetter()) {
+                        emitInlineStringFieldGetter(cb, structImplDesc, inlineString, layout);
+                    }
+                    if (inlineString.hasSetter()) {
+                        emitInlineStringFieldSetter(cb, structImplDesc, inlineString, layout);
+                    }
                 }
             }
         }
@@ -183,6 +229,32 @@ final class StructImplWriter {
             code.invokevirtual(CD_VarHandle, "get", MethodTypeDesc.of(returnDesc, CD_MemorySegment));
             emitTypedReturnScalar(code, field.type());
         });
+    }
+
+    /** Emits a scalar-field setter: {@code void name(T v) { name$vh.set(segment, v); }}. */
+    private static void emitScalarFieldSetter(ClassBuilder cb, ClassDesc structImplDesc, ScalarFieldModel field) {
+        ClassDesc paramDesc = fieldClassDesc(field.type());
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_void, paramDesc);
+        cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.getstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
+            code.aload(0);
+            code.getfield(structImplDesc, "segment", CD_MemorySegment);
+            emitLoadParam(code, field.type(), 1);
+            code.invokevirtual(CD_VarHandle, "set", MethodTypeDesc.of(CD_void, CD_MemorySegment, paramDesc));
+            code.return_();
+        });
+    }
+
+    /** Loads a method parameter at the given slot index for the given scalar field type. */
+    private static void emitLoadParam(CodeBuilder code, NativeType type, int slot) {
+        switch (type) {
+            case INT, SHORT, BYTE, BOOLEAN -> code.iload(slot);
+            case LONG -> code.lload(slot);
+            case FLOAT -> code.fload(slot);
+            case DOUBLE -> code.dload(slot);
+            case ADDRESS -> code.aload(slot);
+            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("unexpected scalar field type: " + type);
+        }
     }
 
     /**
@@ -260,6 +332,103 @@ final class StructImplWriter {
             ctorParams.add(efDesc);
         }
         code.invokespecial(elementRecordDesc, "<init>", MethodTypeDesc.of(CD_void, ctorParams));
+    }
+
+    /** Emits a getter for an inline array field: {@code return (<type>) name$vh.get(segment, (long) index);}. */
+    private static void emitInlineArrayFieldGetter(ClassBuilder cb, ClassDesc structImplDesc, InlineArrayFieldModel field) {
+        ClassDesc elemDesc = primitiveClassDesc(field.elementType());
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(elemDesc, ClassDesc.ofDescriptor("I"));
+        cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.getstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
+            code.aload(0);
+            code.getfield(structImplDesc, "segment", CD_MemorySegment);
+            code.iload(1);
+            code.i2l();
+            code.invokevirtual(CD_VarHandle, "get", MethodTypeDesc.of(elemDesc, CD_MemorySegment, ClassDesc.ofDescriptor("J")));
+            emitTypedReturnScalar(code, field.elementType());
+        });
+    }
+
+    /**
+     * Emits a setter for an inline array field:
+     * {@code void name(int index, <type> value) { name$vh.set(segment, (long) index, value); }}.
+     */
+    private static void emitInlineArrayFieldSetter(ClassBuilder cb, ClassDesc structImplDesc, InlineArrayFieldModel field) {
+        ClassDesc elemDesc = primitiveClassDesc(field.elementType());
+        // slot 0=this, slot 1=index (int), slot 2+=value (primitive, may be wide)
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_void, ClassDesc.ofDescriptor("I"), elemDesc);
+        cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.getstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
+            code.aload(0);
+            code.getfield(structImplDesc, "segment", CD_MemorySegment);
+            code.iload(1);
+            code.i2l();
+            int valueSlot = 2;
+            emitLoadParam(code, field.elementType(), valueSlot);
+            code.invokevirtual(CD_VarHandle, "set", MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), elemDesc));
+            code.return_();
+        });
+    }
+
+    /** Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}. */
+    private static void emitInlineStringFieldGetter(
+        ClassBuilder cb,
+        ClassDesc structImplDesc,
+        InlineStringFieldModel field,
+        List<LayoutField> layout
+    ) {
+        long offset = fieldByteOffset(field, layout);
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_String);
+        cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.aload(0);
+            code.getfield(structImplDesc, "segment", CD_MemorySegment);
+            code.loadConstant(offset);
+            code.invokestatic(
+                CD_MemorySegmentAdapter,
+                "getString",
+                MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
+            );
+            code.areturn();
+        });
+    }
+
+    /**
+     * Emits a setter for an inline string field:
+     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }}.
+     */
+    private static void emitInlineStringFieldSetter(
+        ClassBuilder cb,
+        ClassDesc structImplDesc,
+        InlineStringFieldModel field,
+        List<LayoutField> layout
+    ) {
+        long offset = fieldByteOffset(field, layout);
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_void, CD_String);
+        cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.aload(0);
+            code.getfield(structImplDesc, "segment", CD_MemorySegment);
+            code.loadConstant(offset);
+            code.aload(1);
+            code.invokestatic(
+                CD_MemorySegmentAdapter,
+                "setString",
+                MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
+            );
+            code.return_();
+        });
+    }
+
+    /** Computes the byte offset of a field within the struct layout. */
+    private static long fieldByteOffset(StructFieldModel target, List<LayoutField> layout) {
+        long offset = 0;
+        for (LayoutField lf : layout) {
+            offset += lf.paddingBefore();
+            if (lf.field() == target) {
+                return offset;
+            }
+            offset += fieldSize(lf.field());
+        }
+        throw new AssertionError("field not found in layout: " + target.name());
     }
 
     /** Emits the appropriate typed return instruction for a scalar field. */

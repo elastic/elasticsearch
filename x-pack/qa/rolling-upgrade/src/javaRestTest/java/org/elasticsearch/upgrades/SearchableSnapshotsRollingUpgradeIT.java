@@ -62,11 +62,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractRollingUpgradeT
     }
 
     /**
-     * Verifies that a snapshot mounted as a searchable snapshot index before a rolling upgrade
-     * remains accessible and correct throughout all upgrade phases.
-     * <p>
-     * Each mixed/upgraded phase re-runs the old-cluster setup if the repository is absent, so
-     * the test is safe under per-test smart-retry where the old-cluster stage may be skipped.
+     * Test that a snapshot mounted as a searchable snapshot index in the previous version recovers correctly during rolling upgrade
      */
     private void executeMountAndRecoversCorrectlyTestCase(Storage storage, long numberOfDocs) throws Exception {
         final String suffix = storage.storageName().toLowerCase(Locale.ROOT);
@@ -123,25 +119,28 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractRollingUpgradeT
     }
 
     /**
-     * Verifies that blob-store cache entries written by one node version can be reused by nodes on
-     * a different version during a rolling upgrade.
-     * <p>
-     * Each mixed/upgraded phase re-runs the old-cluster setup if the repository is absent, so
-     * the test is safe under per-test smart-retry where the old-cluster stage may be skipped.
+     * Test the behavior of the blob store cache in mixed versions cluster. The idea is to mount a new snapshot as an index on a node with
+     * version X so that this node generates cached blobs documents in the blob cache system index, and then mount the snapshot again on
+     * a different node with version Y so that this other node is likely to use the previously generated cached blobs documents.
      */
     private void executeBlobCacheCreationTestCase(Storage storage, long numberOfDocs) throws Exception {
         final String suffix = "blob_cache_" + storage.storageName().toLowerCase(Locale.ROOT);
         final String repository = "repository_" + suffix;
 
-        final String[] snapshots = { "snapshot_0", "snapshot_1" };
-        final String[] indices = { "index_0", "index_1" };
+        final int numberOfSnapshots = 2;
+        final String[] snapshots = new String[numberOfSnapshots];
+        final String[] indices = new String[numberOfSnapshots];
+        for (int i = 0; i < numberOfSnapshots; i++) {
+            snapshots[i] = "snapshot_" + i;
+            indices[i] = "index_" + i;
+        }
 
         if (isOldCluster()) {
             registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
             // snapshots must be created from indices on the lowest version, otherwise we won't be able
             // to mount them again in the mixed version cluster (and we'll have IndexFormatTooNewException)
-            for (int i = 0; i < snapshots.length; i++) {
+            for (int i = 0; i < numberOfSnapshots; i++) {
                 createIndex(indices[i], indexSettings(randomIntBetween(1, 3), 0).build());
                 indexDocs(indices[i], numberOfDocs * (i + 1L));
                 createSnapshotOfIndex(repository, snapshots[i], indices[i]);

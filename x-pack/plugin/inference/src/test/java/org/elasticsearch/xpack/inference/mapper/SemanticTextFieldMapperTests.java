@@ -100,8 +100,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.defaultDenseVectorIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -1706,42 +1704,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
-    private static SemanticIndexOptions defaultDenseVectorSemanticIndexOptions(
-        IndexVersion indexVersionCreated,
-        License.OperationMode operationMode,
-        Integer dims,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean experimentalFeaturesEnabled
-    ) {
-        return new SemanticIndexOptions(
-            SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultDenseVectorIndexOptions(
-                indexVersionCreated,
-                operationMode == License.OperationMode.ENTERPRISE,
-                true,
-                dims,
-                elementType,
-                experimentalFeaturesEnabled
-            )
-        );
-    }
-
     private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
-    }
-
-    private static SemanticIndexOptions defaultBbqHnswSemanticIndexOptions() {
-        return new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultBbqHnswDenseVectorIndexOptions());
-    }
-
-    private static SemanticIndexOptions defaultSparseVectorIndexOptions(IndexVersion indexVersion) {
-        return new SemanticIndexOptions(
-            SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-            SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-        );
     }
 
     public void testDefaultIndexOptions() throws IOException {
@@ -1757,39 +1724,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             );
             assertSemanticField(mapperService, "field", true, model, null, null);
         }
-    }
-
-    // TODO: Remove
-    private SemanticIndexOptions getExpectedDefaultIndexOptions(
-        TaskType taskType,
-        DenseVectorFieldMapper.ElementType elementType,
-        Integer dimensions,
-        IndexVersion indexVersion,
-        boolean experimentalFeatures
-    ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING, EMBEDDING -> {
-                boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
-                    || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
-                if (floatFamilyElementType
-                    && SemanticTextFieldMapper.setExplicitIndexOptionsForSemanticText(indexVersion)
-                    && dimensions >= DenseVectorFieldMapper.BBQ_MIN_DIMS) {
-                    yield defaultBbqHnswSemanticIndexOptions();
-                } else if (floatFamilyElementType) {
-                    yield defaultDenseVectorSemanticIndexOptions(
-                        indexVersion,
-                        operationMode,
-                        dimensions,
-                        elementType,
-                        experimentalFeatures
-                    );
-                } else {
-                    yield null;
-                }
-            }
-            case SPARSE_EMBEDDING -> defaultSparseVectorIndexOptions(indexVersion);
-            default -> throw new AssertionError("Unexpected task type [" + taskType + "]");
-        };
     }
 
     public void testSpecifiedDenseVectorIndexOptions() throws IOException {
@@ -1934,15 +1868,9 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             b.endObject();
         }), indexVersion);
 
-        SemanticIndexOptions expectedDefaultIndexOptions = getExpectedDefaultIndexOptions(
-            TaskType.TEXT_EMBEDDING,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            100,
-            indexVersion,
-            DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings())
-        );
+        SemanticIndexOptions expectedDefaultIndexOptions = getDefaultIndexOptions(denseModel, mapperService);
         DenseVectorFieldMapper.DenseVectorIndexOptions expectedDenseVectorIndexOptions = expectedDefaultIndexOptions != null
-            ? (DenseVectorFieldMapper.DenseVectorIndexOptions) expectedDefaultIndexOptions.indexOptions()
+            ? ((ExtendedDenseVectorIndexOptions) expectedDefaultIndexOptions.indexOptions()).getBaseIndexOptions()
             : null;
 
         assertSemanticField(

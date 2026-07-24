@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
-
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
 
 public final class ElasticInferenceServiceSettingsUtils {
 
@@ -26,6 +23,7 @@ public final class ElasticInferenceServiceSettingsUtils {
 
     private ElasticInferenceServiceSettingsUtils() {}
 
+<<<<<<< HEAD
     public static Integer parseMaxBatchSize(Map<String, Object> serviceSettings, ValidationException validationException) {
         return extractOptionalPositiveIntegerLessThanOrEqualToMax(
             serviceSettings,
@@ -36,6 +34,8 @@ public final class ElasticInferenceServiceSettingsUtils {
         );
     }
 
+=======
+>>>>>>> origin/main
     public static void ensureEmptyTaskSettingsInRequestContext(
         @Nullable Map<String, Object> taskSettings,
         ConfigurationParseContext context

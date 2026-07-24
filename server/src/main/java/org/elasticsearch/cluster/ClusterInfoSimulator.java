@@ -9,12 +9,8 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -27,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -59,7 +54,12 @@ public class ClusterInfoSimulator {
         this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
         this.shardMoveNodeCacheCommitmentSimulator = new ShardMoveNodeCacheCommitmentSimulator(allocation.clusterInfo());
-        this.nodeHeapMemoryShardMovementSimulator = new NodeHeapMemoryShardMovementSimulator(allocation.clusterInfo().getNodeHeapMetrics());
+        this.nodeHeapMemoryShardMovementSimulator = new NodeHeapMemoryShardMovementSimulator(
+            allocation.clusterInfo().getNodeHeapMetrics(),
+            this.estimatedShardHeapUsages,
+            this.defaultShardHeapUsageForShardsWithoutMetrics,
+            allocation.routingNodes()
+        );
     }
 
     /**
@@ -234,142 +234,4 @@ public class ClusterInfoSimulator {
             );
     }
 
-    /**
-     * This class accumulates the heap usage deltas that result from shard movements
-     * then applies them to the initial heap estimates to produce a simulated result.
-     * The deltas are accumulated then the estimates updated with clamping applied
-     * so that we don't produce negative estimates. This prevents nonsense estimates
-     * while minimizing the error introduced by the clamping.
-     */
-    private class NodeHeapMemoryShardMovementSimulator {
-        private final ObjectLongMap<String> totalUsageDeltaByNode;
-        private final ObjectLongMap<String> hostedShardUsageDeltaByNode;
-        private final Map<String, NodeHeapMetrics> initialNodeHeapMetrics;
-
-        NodeHeapMemoryShardMovementSimulator(Map<String, NodeHeapMetrics> initialNodeHeapMetrics) {
-            this.initialNodeHeapMetrics = initialNodeHeapMetrics;
-            totalUsageDeltaByNode = new ObjectLongHashMap<>();
-            hostedShardUsageDeltaByNode = new ObjectLongHashMap<>();
-        }
-
-        public void simulateShardStarted(ShardRouting shard, boolean includeIndexUsage) {
-            // Started on, or relocate to, the current node assignment.
-            modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD, includeIndexUsage);
-
-            if (shard.relocatingNodeId() != null) {
-                // Shard relocation from another node, so remove the stats from the previous node.
-                modifyHeapUsage(
-                    allocation.routingNodes().node(shard.relocatingNodeId()),
-                    shard.shardId(),
-                    Modification.REMOVE,
-                    includeIndexUsage
-                );
-            }
-        }
-
-        public void simulateAddIndexToNode(String nodeId, Index index) {
-            // Don't simulate shard movement for nodes that we have no initial estimate for, we need the initial estimate to apply the
-            // deltas
-            if (initialNodeHeapMetrics.containsKey(nodeId) == false) {
-                return;
-            }
-            // Use any shard ID since index stats are the same.
-            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
-                new ShardId(index, 0),
-                defaultShardHeapUsageForShardsWithoutMetrics
-            );
-            totalUsageDeltaByNode.addTo(nodeId, shardAndIndexHeap.indexHeapUsageBytes());
-        }
-
-        public void simulateRemoveIndexFromNode(String nodeId, Index index) {
-            // Don't simulate shard movement for nodes that we have no initial estimate for, we need the initial estimate to apply the
-            // deltas
-            if (initialNodeHeapMetrics.containsKey(nodeId) == false) {
-                return;
-            }
-            // Use any shard ID since index stats are the same.
-            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
-                new ShardId(index, 0),
-                defaultShardHeapUsageForShardsWithoutMetrics
-            );
-            totalUsageDeltaByNode.addTo(nodeId, -1 * shardAndIndexHeap.indexHeapUsageBytes());
-        }
-
-        private enum Modification {
-            ADD,
-            REMOVE
-        }
-
-        private void modifyHeapUsage(
-            @Nullable RoutingNode routingNode,
-            ShardId shardId,
-            Modification modification,
-            boolean includeIndexUsage
-        ) {
-            // Don't simulate shard movement for nodes that we have no initial estimate for, we need the initial estimate to apply the
-            // deltas
-            if (routingNode == null || initialNodeHeapMetrics.containsKey(routingNode.nodeId()) == false) {
-                return;
-            }
-            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
-            var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
-            long indexUsageDelta = 0;
-            long shardUsageDelta = 0;
-            switch (modification) {
-                case ADD -> {
-                    if (includeIndexUsage && numberOfShardsForIndex == 1) {
-                        // This node's index only has the initializing shard, which is now being added in simulation. This is the node's
-                        // first
-                        // shard for the index, and the index-level heap usage overhead must be added.
-                        indexUsageDelta = shardAndIndexHeap.indexHeapUsageBytes();
-                    }
-                    shardUsageDelta = shardAndIndexHeap.shardHeapUsageBytes();
-                }
-                case REMOVE -> {
-                    if (includeIndexUsage && numberOfShardsForIndex == 0) {
-                        // This node only had one shard of the index, which is now being relocated away in simulation. The index-level heap
-                        // usage overhead must be subtracted, since the node will no longer have the index.
-                        indexUsageDelta = -1 * shardAndIndexHeap.indexHeapUsageBytes();
-                    }
-                    shardUsageDelta = -1 * shardAndIndexHeap.shardHeapUsageBytes();
-                }
-            }
-
-            // Update the deltas for the node
-            totalUsageDeltaByNode.addTo(routingNode.nodeId(), indexUsageDelta + shardUsageDelta);
-            hostedShardUsageDeltaByNode.addTo(routingNode.nodeId(), shardUsageDelta);
-        }
-
-        /**
-         * Apply the deltas to the initial estimates, clamping the results to 0 to avoid producing negative estimates
-         */
-        public Map<String, NodeHeapMetrics> getSimulatedHeapMetrics() {
-            // If there was no shard movement, just return the unchanged metrics
-            if (totalUsageDeltaByNode.isEmpty()) {
-                return initialNodeHeapMetrics;
-            }
-            return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-                if (totalUsageDeltaByNode.containsKey(entry.getKey())) {
-                    NodeHeapMetrics initialMetrics = entry.getValue();
-                    final var adjustedTotalUsage = Math.max(
-                        0,
-                        Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), totalUsageDeltaByNode.get(entry.getKey()))
-                    );
-                    final var adjustedHostedShardsUsage = Math.max(
-                        0,
-                        Math.addExact(
-                            initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(),
-                            hostedShardUsageDeltaByNode.get(entry.getKey())
-                        )
-                    );
-                    return new NodeHeapMetrics(
-                        initialMetrics.nodeId(),
-                        initialMetrics.totalBytes(),
-                        new NodeHeapEstimates(adjustedTotalUsage, adjustedHostedShardsUsage)
-                    );
-                }
-                return entry.getValue();
-            }));
-        }
-    }
 }

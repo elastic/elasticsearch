@@ -255,19 +255,10 @@ public final class FallbackStorageRouter {
      * as the captured entity (e.g. a disabled object), not a child field.
      */
     public static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
-        return switch (route(reason)) {
-            case IGNORED_SOURCE -> writeParentToIgnoredSource(context);
-            case IGNORE_MALFORMED -> {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, context.parent().fullPath(), context.parser());
-                yield true;
-            }
-            case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                    OnFailureStoredValues.storeValueForOnFailureIgnore(context, context.parent().fullPath(), context.parser());
-                }
-                yield true;
-            }
-        };
+        if (route(reason) == Destination.IGNORED_SOURCE) {
+            return writeParentToIgnoredSource(context);
+        }
+        return write(context, context.parent().fullPath(), reason);
     }
 
     /**

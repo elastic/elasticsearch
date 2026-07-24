@@ -119,13 +119,13 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
             assertContent(response, "World");
         }
         {
-            assertToolUseContentStartBlock(response);
+            assertToolUseContentStartBlock(response, 0, "toolu_vrtx_01GooUb1exnL7s8QrUgAQvQj", "get_weather");
         }
         {
-            assertToolUseArguments(response, "Hello");
+            assertToolUseArguments(response, 0, "Hello");
         }
         {
-            assertToolUseArguments(response, "World");
+            assertToolUseArguments(response, 0, "World");
         }
         {
             assertMessageDeltaBlock(response);
@@ -186,26 +186,35 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(choice.delta().role(), is("assistant"));
     }
 
-    private static void assertToolUseContentStartBlock(StreamingUnifiedChatCompletionResults.Results response) {
+    private static void assertToolUseContentStartBlock(
+        StreamingUnifiedChatCompletionResults.Results response,
+        int toolCallIndex,
+        String id,
+        String name
+    ) {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
-        assertThat(choices.getFirst().index(), is(1));
+        assertThat(choices.getFirst().index(), is(0));
         var toolCalls = choices.getFirst().delta().toolCalls();
         assertThat(toolCalls.size(), is(1));
-        assertThat(toolCalls.getFirst().index(), is(0));
-        assertThat(toolCalls.getFirst().id(), is("toolu_vrtx_01GooUb1exnL7s8QrUgAQvQj"));
+        assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
+        assertThat(toolCalls.getFirst().id(), is(id));
         var function = toolCalls.getFirst().function();
         assertThat(function.arguments(), is(""));
-        assertThat(function.name(), is("get_weather"));
+        assertThat(function.name(), is(name));
     }
 
-    private static void assertToolUseArguments(StreamingUnifiedChatCompletionResults.Results response, String arguments) {
+    private static void assertToolUseArguments(
+        StreamingUnifiedChatCompletionResults.Results response,
+        int toolCallIndex,
+        String arguments
+    ) {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
-        assertThat(choices.getFirst().index(), is(1));
+        assertThat(choices.getFirst().index(), is(0));
         var toolCalls = choices.getFirst().delta().toolCalls();
         assertThat(toolCalls.size(), is(1));
-        assertThat(toolCalls.getFirst().index(), is(0));
+        assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
         assertNull(toolCalls.getFirst().id());
         var function = toolCalls.getFirst().function();
         assertThat(function.arguments(), Matchers.is(arguments));
@@ -228,6 +237,82 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(usage.completionTokens(), is(completion));
         assertThat(usage.promptTokens(), is(prompt));
         assertThat(usage.totalTokens(), is(total));
+    }
+
+    public void testParseParallelToolCallsKeepsDistinctIndices() {
+        // Two tool_use blocks (Anthropic content block indices 1 and 2, after a text block at 0) must stream as tool calls
+        // with distinct monotonically increasing indices, so a client accumulating arguments by index does not merge them.
+        var item = events(List.of(Pair.of("content_block_start", """
+            {
+                "type": "content_block_start",
+                "index": 1,
+                "content_block": {"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {}}
+            }
+            """), Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"location\\": \\"San Francisco\\"}"}
+            }
+            """), Pair.of("content_block_start", """
+            {
+                "type": "content_block_start",
+                "index": 2,
+                "content_block": {"type": "tool_use", "id": "toolu_02", "name": "get_time", "input": {}}
+            }
+            """), Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 2,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"timezone\\": \\"PST\\"}"}
+            }
+            """)));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), equalTo(4));
+        {
+            assertToolUseContentStartBlock(response, 0, "toolu_01", "get_weather");
+        }
+        {
+            assertToolUseArguments(response, 0, "{\"location\": \"San Francisco\"}");
+        }
+        {
+            assertToolUseContentStartBlock(response, 1, "toolu_02", "get_time");
+        }
+        {
+            assertToolUseArguments(response, 1, "{\"timezone\": \"PST\"}");
+        }
+    }
+
+    public void testInputJsonDeltaForUnknownContentBlockIsSkipped() throws Exception {
+        // An input_json_delta whose content block index was never announced by a tool_use content_block_start cannot be
+        // attributed to a tool call, so it is dropped and more data is requested instead of emitting a chunk.
+        var item = events(List.of(Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 5,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"location\\": \\"San Francisco\\"}"}
+            }
+            """)));
+
+        var processor = new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        });
+
+        Flow.Subscriber<ChunkedToXContent> downstream = mock();
+        processor.subscribe(downstream);
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+
+        processor.next(item);
+
+        verify(upstream, times(1)).request(1);
+        verify(downstream, times(0)).onNext(any());
     }
 
     public void testStopReasonConvertedToOpenAiFinishReason() {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -29,7 +30,12 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 /**
- * Chat Completions Streaming Processor for Anthropic provider
+ * Chat Completions Streaming Processor for Anthropic provider.
+ *
+ * <p>Stateful: one instance handles exactly one response stream. Anthropic identifies streamed tool calls by their content
+ * block index, whereas the unified format expects each tool call to carry a monotonically increasing index of its own (the
+ * content block index also counts text blocks, so the two numberings diverge); the mapping between them is tracked across
+ * events.
  */
 public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcessor<
     Deque<ServerSentEvent>,
@@ -91,6 +97,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
+    private int toolCallCount = 0;
+    private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
+
     public AnthropicChatCompletionStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
     }
@@ -128,7 +137,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * @return a stream of ChatCompletionChunk
      * @throws IOException if parsing fails
      */
-    private static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {
@@ -243,8 +252,17 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             var id = extractMandatoryString(contentBlockMap, ID_FIELD);
             var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
             var input = extractOptionalField(contentBlockMap, INPUT_FIELD, Object.class);
+            var toolCallIndex = toolCallCount++;
+            contentBlockIndexToToolCallIndex.put(index, toolCallIndex);
+            // A tool_use content block start always carries an empty input object; the actual tool input arrives
+            // as input_json_delta fragments, which clients concatenate onto the arguments, so seed them empty.
             var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function("", name);
-            var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
+            var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                toolCallIndex,
+                id,
+                function,
+                null
+            );
             delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
         } else {
             logger.debug("Unknown content block start type [{}] for line [{}].", type, outerMap);

@@ -34,10 +34,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
@@ -271,13 +270,12 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
 
     private void stubServiceInferToReturnDenseEmbedding() {
         doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(6);
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
             listener.onResponse(
-                new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
+                new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
             return null;
-        }).when(mockService)
-            .infer(any(), any(), anyBoolean(), any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
+        }).when(mockService).infer(any(), any(), any(), any(), anyList(), anyBoolean(), anyMap(), any(InputType.class), any(), any());
     }
 
     private void stubStoreModelToFail(Exception e) {

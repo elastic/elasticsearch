@@ -332,7 +332,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
 
     public void testValidate_ElasticDeployedModel_TextEmbedding_RoutedThroughValidation() {
         var dimensions = randomIntBetween(1, 10);
-        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
+        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
         when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenReturn(dimensions);
         var elasticDeployedModel = createElasticDeployedModel(false, null);
         stubServiceStartSuccess();

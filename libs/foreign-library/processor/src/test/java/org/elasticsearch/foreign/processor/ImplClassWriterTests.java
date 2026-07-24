@@ -331,6 +331,448 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
+     * A {@code @StructFactory} method returning a struct with only scalar fields (no
+     * {@code @ArrayField}) must generate a simple factory that returns a fresh {@code $Impl}
+     * whose {@code segment()} is a live native segment with the expected layout byte size.
+     */
+    public void testSimpleStructFactoryGeneratesWorkingFactory() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface PointLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                    void x(int v);
+                    int y();
+                    void y(int v);
+                }
+
+                @StructFactory
+                Point newPoint();
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            public final class PointDriver {
+                public static long create(int x, int y) {
+                    PointLib lib = new PointLib$Impl();
+                    PointLib.Point p = lib.newPoint();
+                    p.x(x);
+                    p.y(y);
+                    PointLib$Point$Impl impl = (PointLib$Point$Impl) p;
+                    return impl.segment().byteSize();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.PointLib", libSource);
+        sources.put("test.PointDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        assertNotNull("Generated PointLib$Point$Impl not found", result.loadClass("test.PointLib$Point$Impl"));
+
+        // Factory method must exist on the $Impl with zero parameters
+        Class<?> implClass = result.loadClassNoInit("test.PointLib$Impl");
+        java.lang.reflect.Method factoryMethod = implClass.getMethod("newPoint");
+        assertEquals("newPoint must return PointLib.Point", "test.PointLib$Point", factoryMethod.getReturnType().getName());
+
+        // Invoke the driver: factory creates a fresh $Impl, sets x and y via setters, returns byteSize
+        Class<?> driver = result.loadClass("test.PointDriver");
+        long byteSize = (long) driver.getMethod("create", int.class, int.class).invoke(null, 3, 7);
+
+        // Two int fields = 8 bytes
+        assertEquals("Point segment must be 8 bytes (2 x int)", 8L, byteSize);
+    }
+
+    /**
+     * A {@code @StructSpecification} interface that does NOT declare {@code extends Addressable}
+     * must still compile cleanly, and its generated {@code $Impl} class must implement
+     * {@code Addressable} (guaranteeing the runtime cast in native call marshaling works).
+     */
+    public void testStructInterfaceWithoutAddressableCompilesAndImplIsAddressable() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface NoAddrLib {
+                @StructSpecification
+                interface Coord {
+                    int x();
+                    int y();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.NoAddrLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.NoAddrLib$Coord$Impl");
+        assertNotNull("Generated NoAddrLib$Coord$Impl class not found", implClass);
+
+        // Even though Coord does not extend Addressable, the generated $Impl must implement it
+        boolean implementsAddressable = false;
+        for (Class<?> iface : implClass.getInterfaces()) {
+            if (iface.getName().equals("org.elasticsearch.foreign.Addressable")) {
+                implementsAddressable = true;
+                break;
+            }
+        }
+        assertTrue("NoAddrLib$Coord$Impl must implement Addressable", implementsAddressable);
+    }
+
+    /**
+     * A {@code @Function} method whose parameter is a struct-typed interface (without
+     * {@code extends Addressable}) must generate a loadable {@code $Impl} class whose method
+     * accepts the struct interface type. Verified by compiling a driver class that calls
+     * {@code doWork} with a concrete {@code Point$Impl} instance — this exercises the generated
+     * checkcast-to-Addressable bytecode at runtime.
+     */
+    public void testStructParamWithoutAddressableGeneratesCorrectMethod() throws Exception {
+        String libSource = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.SymbolResolver;
+            @LibrarySpecification(symbolResolver = StructParamLib.FakeResolver.class)
+            public interface StructParamLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                    int y();
+                }
+
+                @Function("native_fn")
+                int doWork(Point p, int flags);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public MemorySegment resolve(String name, SymbolLookup lookup) {
+                        return MemorySegment.ofAddress(1L);
+                    }
+                }
+            }
+            """;
+        // A driver class that verifies: (a) Point$Impl can be constructed,
+        // (b) the generated $Impl.doWork(Point, int) compiles (accepts the struct interface type),
+        // (c) the generated checkcast-to-Addressable code is reachable at runtime.
+        String driverSource = """
+            package test;
+            public final class StructParamDriver {
+                public static Class<?> pointImplClass() {
+                    return StructParamLib$Point$Impl.class;
+                }
+                public static Class<?>[] doWorkParamTypes() throws Exception {
+                    return StructParamLib$Impl.class.getMethod("doWork", StructParamLib.Point.class, int.class).getParameterTypes();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.StructParamLib", libSource);
+        sources.put("test.StructParamDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // Load with init: <clinit> of $Impl runs downcallHandle (FakeResolver returns non-null)
+        assertNotNull("Generated StructParamLib$Impl not found", result.loadClass("test.StructParamLib$Impl"));
+        assertNotNull("Generated StructParamLib$Point$Impl not found", result.loadClass("test.StructParamLib$Point$Impl"));
+
+        // Driver confirms doWork takes (Point, int) via reflection on the generated $Impl
+        Class<?> driver = result.loadClass("test.StructParamDriver");
+        Class<?>[] paramTypes = (Class<?>[]) driver.getMethod("doWorkParamTypes").invoke(null);
+        assertEquals("doWork must take 2 parameters", 2, paramTypes.length);
+        assertEquals("first param must be StructParamLib.Point", "test.StructParamLib$Point", paramTypes[0].getName());
+        assertEquals("second param must be int", int.class, paramTypes[1]);
+    }
+
+    /**
+     * A {@code @StructSpecification} interface that explicitly declares {@code extends Addressable}
+     * must continue to compile and function correctly — backward compatibility.
+     */
+    public void testStructInterfaceExplicitAddressableStillWorks() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Addressable;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface ExplicitAddrLib {
+                @StructSpecification
+                interface Value extends Addressable {
+                    long val();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.ExplicitAddrLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.ExplicitAddrLib$Value$Impl");
+        assertNotNull("Generated ExplicitAddrLib$Value$Impl class not found", implClass);
+
+        // Must still implement Addressable
+        boolean implementsAddressable = false;
+        for (Class<?> iface : implClass.getInterfaces()) {
+            if (iface.getName().equals("org.elasticsearch.foreign.Addressable")) {
+                implementsAddressable = true;
+                break;
+            }
+        }
+        assertTrue("ExplicitAddrLib$Value$Impl must implement Addressable", implementsAddressable);
+
+        // Must have a long val() method
+        java.lang.reflect.Method valMethod = implClass.getMethod("val");
+        assertEquals("val() must return long", long.class, valMethod.getReturnType());
+    }
+
+    /**
+     * A struct interface with getter+setter for the same field name must generate both methods
+     * backed by a single VarHandle. A round-trip set-then-get must return the written value.
+     */
+    public void testScalarGetterSetterPairGeneratesRoundTrip() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface GetSetLib {
+                @StructSpecification
+                interface Counter {
+                    long value();
+                    void value(long v);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            public final class GetSetDriver {
+                public static long roundTrip(long x) {
+                    GetSetLib$Counter$Impl c = new GetSetLib$Counter$Impl();
+                    c.value(x);
+                    return c.value();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.GetSetLib", libSource);
+        sources.put("test.GetSetDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // The $Impl must have exactly one VarHandle field: value$vh (not two)
+        Class<?> implClass = result.loadClass("test.GetSetLib$Counter$Impl");
+        assertNotNull("Generated GetSetLib$Counter$Impl not found", implClass);
+        java.lang.reflect.Field vh = implClass.getDeclaredField("value$vh");
+        assertEquals("value$vh must be a VarHandle", java.lang.invoke.VarHandle.class, vh.getType());
+        assertTrue("value$vh must be static", java.lang.reflect.Modifier.isStatic(vh.getModifiers()));
+
+        // Both getter and setter methods must be present
+        java.lang.reflect.Method getter = implClass.getMethod("value");
+        assertEquals("getter must return long", long.class, getter.getReturnType());
+        java.lang.reflect.Method setter = implClass.getMethod("value", long.class);
+        assertEquals("setter must return void", void.class, setter.getReturnType());
+
+        // Round-trip: writing 42L and reading it back must return 42L
+        Class<?> driver = result.loadClass("test.GetSetDriver");
+        long result2 = (long) driver.getMethod("roundTrip", long.class).invoke(null, 42L);
+        assertEquals("Round-trip set/get must return the written value", 42L, result2);
+    }
+
+    /**
+     * A struct interface with a setter-only field must generate a setter method but no getter.
+     */
+    public void testSetterOnlyFieldGeneratesSetterNoGetter() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface SetOnlyLib {
+                @StructSpecification
+                interface Flags {
+                    void set_flags(int f);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.SetOnlyLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.SetOnlyLib$Flags$Impl");
+        assertNotNull("Generated SetOnlyLib$Flags$Impl not found", implClass);
+
+        // Setter must exist
+        java.lang.reflect.Method setter = implClass.getMethod("set_flags", int.class);
+        assertEquals("set_flags must return void", void.class, setter.getReturnType());
+
+        // No getter (set_flags() with no params) should exist
+        try {
+            implClass.getMethod("set_flags");
+            fail("set_flags() getter must not be generated for a setter-only field");
+        } catch (NoSuchMethodException expected) {
+            // expected
+        }
+    }
+
+    /**
+     * An {@code @InlineArrayField} getter+setter pair must generate indexed accessors backed by a
+     * single sequence-element VarHandle. A round-trip index-based write-then-read must return the
+     * written byte value. The struct layout must have the expected total byte size.
+     */
+    public void testInlineArrayFieldRoundTrip() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.InlineArrayField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface SockAddrLib {
+                @StructSpecification
+                interface SockAddr {
+                    short sa_family();
+                    void sa_family(short v);
+
+                    @InlineArrayField(length = 108)
+                    byte sun_path(int index);
+
+                    @InlineArrayField(length = 108)
+                    void sun_path(int index, byte value);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            public final class SockAddrDriver {
+                public static byte roundTrip(int index, byte value) {
+                    SockAddrLib$SockAddr$Impl impl = new SockAddrLib$SockAddr$Impl();
+                    impl.sun_path(index, value);
+                    return impl.sun_path(index);
+                }
+                public static long layoutByteSize() {
+                    SockAddrLib$SockAddr$Impl impl = new SockAddrLib$SockAddr$Impl();
+                    return impl.segment().byteSize();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.SockAddrLib", libSource);
+        sources.put("test.SockAddrDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        assertNotNull("Generated SockAddrLib$SockAddr$Impl not found", result.loadClass("test.SockAddrLib$SockAddr$Impl"));
+
+        // VarHandle field for the inline array must exist
+        Class<?> implClass = result.loadClass("test.SockAddrLib$SockAddr$Impl");
+        java.lang.reflect.Field vh = implClass.getDeclaredField("sun_path$vh");
+        assertEquals("sun_path$vh must be a VarHandle", java.lang.invoke.VarHandle.class, vh.getType());
+
+        // Both indexed getter and setter must exist on the $Impl
+        java.lang.reflect.Method getter = implClass.getMethod("sun_path", int.class);
+        assertEquals("sun_path getter must return byte", byte.class, getter.getReturnType());
+        java.lang.reflect.Method setter = implClass.getMethod("sun_path", int.class, byte.class);
+        assertEquals("sun_path setter must return void", void.class, setter.getReturnType());
+
+        // Round-trip: write 'A' at index 3, read it back
+        Class<?> driver = result.loadClass("test.SockAddrDriver");
+        byte got = (byte) driver.getMethod("roundTrip", int.class, byte.class).invoke(null, 3, (byte) 65);
+        assertEquals("Round-trip inline array write/read must return written value", (byte) 65, got);
+
+        // Layout: short(2) + sequence(108 x byte) = 110 bytes
+        long byteSize = (long) driver.getMethod("layoutByteSize").invoke(null);
+        assertEquals("SockAddr layout must be 110 bytes (short + 108 bytes)", 110L, byteSize);
+    }
+
+    /**
+     * An {@code @InlineStringField} getter+setter pair must generate String accessors that operate
+     * via {@code MemorySegmentAdapter.getString/setString}. A write-then-read must return the
+     * written string value.
+     */
+    public void testInlineStringFieldRoundTrip() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.InlineStringField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface UnixAddrLib {
+                @StructSpecification
+                interface UnixAddr {
+                    short sa_family();
+                    void sa_family(short v);
+
+                    @InlineStringField(length = 108)
+                    String sun_path();
+
+                    @InlineStringField(length = 108)
+                    void sun_path(String value);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            public final class UnixAddrDriver {
+                public static String roundTrip(String value) {
+                    UnixAddrLib$UnixAddr$Impl impl = new UnixAddrLib$UnixAddr$Impl();
+                    impl.sun_path(value);
+                    return impl.sun_path();
+                }
+                public static long layoutByteSize() {
+                    UnixAddrLib$UnixAddr$Impl impl = new UnixAddrLib$UnixAddr$Impl();
+                    return impl.segment().byteSize();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.UnixAddrLib", libSource);
+        sources.put("test.UnixAddrDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.UnixAddrLib$UnixAddr$Impl");
+        assertNotNull("Generated UnixAddrLib$UnixAddr$Impl not found", implClass);
+
+        // No VarHandle for string field — String accessors use direct segment operations
+        try {
+            implClass.getDeclaredField("sun_path$vh");
+            fail("InlineStringField must not generate a VarHandle field");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+
+        // Getter returns String; setter takes String
+        java.lang.reflect.Method getter = implClass.getMethod("sun_path");
+        assertEquals("sun_path getter must return String", String.class, getter.getReturnType());
+        java.lang.reflect.Method setter = implClass.getMethod("sun_path", String.class);
+        assertEquals("sun_path setter must return void", void.class, setter.getReturnType());
+
+        // Round-trip: write "/tmp/test.sock" and read it back
+        Class<?> driver = result.loadClass("test.UnixAddrDriver");
+        String got = (String) driver.getMethod("roundTrip", String.class).invoke(null, "/tmp/test.sock");
+        assertEquals("Round-trip inline string write/read must return written value", "/tmp/test.sock", got);
+
+        // Layout: short(2) + sequence(108 x byte) = 110 bytes
+        long byteSize = (long) driver.getMethod("layoutByteSize").invoke(null);
+        assertEquals("UnixAddr layout must be 110 bytes (short + 108 bytes)", 110L, byteSize);
+    }
+
+    /**
      * An abstract-class {@code @LibrarySpecification} must generate a {@code $Impl} that extends
      * the abstract class (not {@code Object}) and implements the abstract methods. The generated
      * {@code $Impl.getSuperclass()} must equal the abstract class, and a {@code protected abstract}

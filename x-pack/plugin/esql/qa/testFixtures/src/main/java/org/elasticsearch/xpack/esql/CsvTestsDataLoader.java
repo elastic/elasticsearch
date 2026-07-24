@@ -297,7 +297,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("employees_via_alias")
-        ).collect(toMap(ViewConfig::name, Function.identity()));
+    ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
      * Index aliases created unconditionally alongside the main test indices. These are not tied

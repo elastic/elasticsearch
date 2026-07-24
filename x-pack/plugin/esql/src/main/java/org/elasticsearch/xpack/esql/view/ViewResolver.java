@@ -853,7 +853,7 @@ public class ViewResolver {
         for (int i = 1; i < urKeys.size(); i++) {
             String key = urKeys.get(i);
             UnresolvedRelation ur = (UnresolvedRelation) flat.get(key);
-            UnresolvedRelation result = mergeIfPossible(merged, ur);
+            UnresolvedRelation result = mergeIfPossible(merged, ur, null);
             if (result != null) {
                 merged = result;
                 flat.remove(key);

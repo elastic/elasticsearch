@@ -23,6 +23,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -193,30 +194,41 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     }
 
     @Override
+    public boolean foldable() {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return true;
+        }
+        return super.foldable();
+    }
+
+    @Override
     public Object fold(FoldContext ctx) {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return false;
+        }
         return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var lefType = PlannerUtils.toElementType(left().dataType());
+        var leftType = PlannerUtils.toElementType(left().dataType());
         var rightType = PlannerUtils.toElementType(right().dataType());
 
-        if (lefType == ElementType.NULL || rightType == ElementType.NULL) {
+        if (leftType == ElementType.NULL || rightType == ElementType.NULL) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
-        if (lefType != rightType) {
+        if (leftType != rightType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for mv_intersects, left type({}) value({}) and right type({}) value({}) don't match.",
-                lefType,
+                leftType,
                 left(),
                 rightType,
                 right()
             );
         }
 
-        return switch (lefType) {
+        return switch (leftType) {
             case BOOLEAN -> new MvIntersectsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvIntersectsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvIntersectsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));

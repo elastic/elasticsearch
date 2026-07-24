@@ -15,8 +15,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -38,8 +38,7 @@ import java.util.List;
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
- * <p>Implements {@link SourceBatchEncoder} so it can be swapped for {@link EirfEncoder} at the
- * coordinating layer. Single-partition convenience: {@link #encode(List, XContentType)}.
+ * <p>Implements {@link SourceBatchEncoder}. Single-partition convenience: {@link #encode(List, XContentType)}.
  */
 public final class EscfEncoder implements SourceBatchEncoder {
 
@@ -218,7 +217,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    EirfEncoder.PackedArray arr = EirfEncoder.packArray(parser);
+                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser);
                     scratchType[colIdx] = arr.arrayType();
                     scratchVar[colIdx] = arr.packed();
                     if (firePathSink) {

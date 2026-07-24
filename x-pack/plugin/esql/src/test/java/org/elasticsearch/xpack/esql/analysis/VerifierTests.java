@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -2910,6 +2911,24 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
+    public void testMvLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
+        // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
+        // after constant folding, in postOptimizationVerification — see LogicalPlanOptimizerTests#testMvLike*.
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_like(first_name, 1)",
+            containsString("second argument of [mv_like(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
+    public void testMvRLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_rlike(first_name, \"Ann.*\")");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_rlike(first_name, 1)",
+            containsString("second argument of [mv_rlike(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 
@@ -4724,7 +4743,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json")
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.processing.Messager;
@@ -31,7 +32,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
-import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD_FQN;
+import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_FIELD_FQN;
 
 /**
  * Models a single method on a {@code @LibrarySpecification} interface or abstract class. The method
@@ -41,6 +42,11 @@ import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD
  * @param cSymbol the exact C symbol name; {@code null} for struct factory methods
  * @param returnType the return type; {@code null} for struct factory methods
  * @param paramTypes the parameter types in order; empty for struct factory methods
+ * @param paramStructSimpleNames parallel list to {@code paramTypes}: the simple name of the
+ *        enclosed struct interface for ADDRESSABLE parameters that are struct-typed (rather than
+ *        explicitly {@code Addressable}-typed), or {@code null} for all other parameters. Used by
+ *        code generation to emit the correct Java method descriptor when a struct does not declare
+ *        {@code extends Addressable}.
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
@@ -59,6 +65,7 @@ public record MethodModel(
     String cSymbol,
     NativeType returnType,
     List<NativeType> paramTypes,
+    List<String> paramStructSimpleNames,
     boolean isCritical,
     String fallbackAdapterClassName,
     boolean capturesErrno,
@@ -128,8 +135,17 @@ public record MethodModel(
         }
 
         List<NativeType> paramTypes = new ArrayList<>();
+        List<String> paramStructSimpleNames = new ArrayList<>();
         for (var param : method.getParameters()) {
             NativeType paramType = ModelUtil.classifyType(param.asType());
+            String structSimpleName = null;
+            if (paramType == null) {
+                // Check if it's an enclosed @StructSpecification interface
+                structSimpleName = resolveStructSimpleName(param.asType(), enclosingStructNames);
+                if (structSimpleName != null) {
+                    paramType = NativeType.ADDRESSABLE;
+                }
+            }
             if (paramType == null || paramType == NativeType.VOID) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -139,6 +155,7 @@ public record MethodModel(
                 return null;
             }
             paramTypes.add(paramType);
+            paramStructSimpleNames.add(structSimpleName);
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
@@ -160,6 +177,7 @@ public record MethodModel(
             function.value(),
             returnType,
             paramTypes,
+            Collections.unmodifiableList(new ArrayList<>(paramStructSimpleNames)),
             isCritical,
             fallbackAdapter,
             capturesErrno,
@@ -219,32 +237,36 @@ public record MethodModel(
             }
         }
         if (packedElementSimpleName == null) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@StructFactory method '"
-                    + methodName
-                    + "' return type '"
-                    + structReturnSimpleName
-                    + "' has no @ArrayField method; @StructFactory is only supported for "
-                    + "@StructSpecification interfaces with an @ArrayField accessor",
-                method
-            );
-            return null;
-        }
-        // Validate: must have exactly one parameter (the element array)
-        if (method.getParameters().size() != 1) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@StructFactory method '" + methodName + "' must declare exactly one parameter (the element array)",
-                method
-            );
-            return null;
+            // Simple factory: no @ArrayField, must have zero parameters
+            if (method.getParameters().isEmpty() == false) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@StructFactory method '"
+                        + methodName
+                        + "' return type '"
+                        + structReturnSimpleName
+                        + "' has no @ArrayField method; a simple factory must have zero parameters",
+                    method
+                );
+                return null;
+            }
+        } else {
+            // Array-backed factory: must have exactly one parameter (the element array)
+            if (method.getParameters().size() != 1) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@StructFactory method '" + methodName + "' must declare exactly one parameter (the element array)",
+                    method
+                );
+                return null;
+            }
         }
 
         return new MethodModel(
             methodName,
             null,
             null,
+            List.of(),
             List.of(),
             false,
             null,
@@ -318,6 +340,19 @@ public record MethodModel(
             return null;
         }
         return adapterFqn;
+    }
+
+    /**
+     * If {@code mirror} is a declared type whose simple name appears in {@code enclosingStructNames},
+     * returns that simple name (recognizing it as a struct-interface parameter). Otherwise returns null.
+     */
+    private static String resolveStructSimpleName(TypeMirror mirror, List<String> enclosingStructNames) {
+        if (mirror.getKind() != TypeKind.DECLARED) {
+            return null;
+        }
+        TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
+        String simpleName = typeElement.getSimpleName().toString();
+        return enclosingStructNames.contains(simpleName) ? simpleName : null;
     }
 
     private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {

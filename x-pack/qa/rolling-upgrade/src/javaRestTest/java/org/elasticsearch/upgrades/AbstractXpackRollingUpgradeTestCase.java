@@ -18,7 +18,7 @@ import org.junit.rules.TestRule;
 
 import java.util.function.Supplier;
 
-public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
+public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
@@ -54,7 +54,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
         return cluster.build();
     }
 
-    public AbstractRollingUpgradeTestCase(int upgradedNodes) {
+    public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {
         super(upgradedNodes);
     }
 

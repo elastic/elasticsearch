@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchableSnapshotsRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     public SearchableSnapshotsRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

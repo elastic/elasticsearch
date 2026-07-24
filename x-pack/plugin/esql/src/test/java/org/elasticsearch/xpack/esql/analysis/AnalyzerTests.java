@@ -5849,6 +5849,27 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue("inner body references inner param y", bodyRefs.stream().anyMatch(a -> a.id().equals(innerParam.id())));
     }
 
+    /**
+     * Regression test: lambda parameter names must not appear as output columns when
+     * {@code unmapped_fields=nullify} is active. When a lambda-accepting function's field
+     * argument is an unmapped field (and therefore remains unresolved in analyzer iteration 1),
+     * the function cannot type its lambda parameter yet, leaving that parameter as an
+     * {@link org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute} in the slot.
+     * {@code ResolveUnmapped} must not mistake such a parameter slot for an unmapped field
+     * reference and insert an {@code EVAL x = NULL} for it.
+     */
+    public void testLambdaParamNotTreatedAsUnmappedFieldWithUnmappedNullify() {
+        assumeTrue("lambda syntax requires snapshot build", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        // nonexistent_mv_field is not in the employees mapping; with unmapped_fields=nullify it
+        // is replaced with NULL. That leaves any_match's field unresolved in iteration 1, so
+        // the lambda param x cannot be typed yet. The old code treated x as another unmapped
+        // field and injected EVAL x = NULL, leaking x into the output.
+        var plan = basic().statement(
+            "SET unmapped_fields=\"nullify\"; FROM test | EVAL r = any_match(nonexistent_mv_field, x -> x == \"foo\")"
+        );
+        assertThat("lambda param x must not appear as an output column", Expressions.names(plan.output()), not(hasItem("x")));
+    }
+
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
         return fieldsInfoOnCurrentVersion(caps, false);
     }

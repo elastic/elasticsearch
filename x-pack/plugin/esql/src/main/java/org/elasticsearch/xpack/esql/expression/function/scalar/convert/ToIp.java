@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -73,6 +75,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIp.class).binary(ToIp::new).name("to_ip");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "ip",
         briefSummary = "Converts a string to an IP value.",
         description = "Converts an input string to an IP value.",

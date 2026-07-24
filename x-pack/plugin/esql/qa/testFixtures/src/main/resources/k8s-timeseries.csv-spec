@@ -1172,19 +1172,20 @@ max:double | inc:double | time_bucket:datetime   | cluster:keyword
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
+required_capability: fix_time_series_date_nanos_mixed_rounding
 
 TS datenanos-k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
 | EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
 | KEEP max, inc, time_bucket, cluster
-| SORT time_bucket DESC 
+| SORT time_bucket DESC
 | LIMIT 3;
 
 max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
-6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
-11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
-11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
+64.5       | 2287.441   | 2024-05-10T00:20:00.000Z | prod
+13.765     | 4129.556   | 2024-05-10T00:15:00.000Z | prod
+11.132     | 3339.653   | 2024-05-10T00:10:00.000Z | prod
 
 ;
 
@@ -1270,6 +1271,7 @@ required_capability: ts_command_v0
 required_capability: ts_linreg_derivative
 required_capability: ts_rate_datenanos_2
 required_capability: ts_deriv_datenanos
+required_capability: fix_time_series_date_nanos_mixed_rounding
 
 TS datenanos-k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -1280,11 +1282,11 @@ TS datenanos-k8s
 ;
 
 max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
-19.6162          | 8.1208          | 2024-05-10T00:00:00.000Z | prod
-4.9885           | 6.4517          | 2024-05-10T00:05:00.000Z | prod
-8.9937           | 11.5627         | 2024-05-10T00:10:00.000Z | prod
-16.0871          | 11.8608         | 2024-05-10T00:15:00.000Z | prod
-10.2206          | 6.9807          | 2024-05-10T00:20:00.000Z | prod
+19.6162          | 8.0475          | 2024-05-10T00:00:00.000Z | prod
+4.9885           | 5.7361          | 2024-05-10T00:05:00.000Z | prod
+8.9937           | 11.1322         | 2024-05-10T00:10:00.000Z | prod
+16.0871          | 13.7652         | 2024-05-10T00:15:00.000Z | prod
+10.2206          | 64.5            | 2024-05-10T00:20:00.000Z | prod
 ;
 
 derivative_of_gauge_metric_promql

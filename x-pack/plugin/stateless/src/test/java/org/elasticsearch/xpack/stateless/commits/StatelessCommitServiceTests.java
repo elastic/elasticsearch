@@ -97,6 +97,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -387,6 +388,243 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 uploadedFiles,
                 hasItems(compoundCommitFiles.toArray(String[]::new))
             );
+        }
+    }
+
+    /**
+     * Verifies that when a copy to a split target is slow, the next upload is not blocked: it starts
+     * and completes its local upload while the prior copy is still in flight. The fully-uploaded
+     * generation listener (used for flush) fires only after the copy completes.
+     */
+    public void testNextUploadProceedsWhileCopyToSplitTargetIsSlow() throws Exception {
+        try (var testHarness = new SplitCopyObservingNode()) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            StatelessCommitRef commit2 = commitRefs.get(1);
+            testHarness.bccWrittenRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            // Block commit1's copy. Commit2's copy cannot start until commit1's finishes (single-slot
+            // splitTargetCopyExecutor), so commit2 also stays blocked without needing an explicit guard.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+            testHarness.commitService.onCommitCreation(commit2);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2.getGeneration());
+
+            // Wait for commit2's BCC blob to be written. This means commit2's local upload finished
+            // concurrently with commit1's copy (which is blocked). The key property being tested: the
+            // second upload does not wait for the first copy to complete.
+            safeAwait(testHarness.bccWrittenLatch);
+
+            // The fully-uploaded listener for commit2 should not have fired yet — commit1's copy is blocked,
+            // and commit2's copy is serialised behind it so it cannot start either.
+            PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
+            assertFalse("commit2 should not be fully uploaded while copies are blocked", commit2FullyUploaded.isDone());
+
+            // Unblock copies; both commits should now become fully uploaded.
+            testHarness.copyBlocker.countDown();
+            safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Verifies that a shard's fully-uploaded listener does not fire until that shard's own copy to split
+     * targets has completed. With the ordering bug, a gen N+1 copy that completes before gen N's copy
+     * would call {@code fireUploadedGenerationListeners(gen_N+1.ccGen)}, which (since gen N &lt; gen N+1)
+     * would also satisfy gen N's listener prematurely. The fix serialises copies via a single-slot
+     * ThrottledTaskRunner so gen N+1's copy only starts after gen N's copy is done.
+     */
+    public void testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes() throws Exception {
+        CountDownLatch gen1ListenerFiredLatch = new CountDownLatch(1);
+        try (var testHarness = new SplitCopyObservingNode()) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            StatelessCommitRef commit2 = commitRefs.get(1);
+            testHarness.bccWrittenRef.set(blobNameFromGeneration(commit2.getGeneration()));
+            // Block only gen1's copy; gen2's copy is allowed to proceed so we can test ordering.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            // Register gen1's listener before submitting — it must only fire after gen1's own copy completes.
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                commit1.getGeneration(),
+                ActionListener.wrap(ignored -> gen1ListenerFiredLatch.countDown(), e -> gen1ListenerFiredLatch.countDown())
+            );
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+            testHarness.commitService.onCommitCreation(commit2);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2.getGeneration());
+
+            // Wait for gen2's BCC blob to be written (gen2 local upload done while gen1's copy is blocked).
+            safeAwait(testHarness.bccWrittenLatch);
+
+            try {
+                // check ordering
+                assertFalse(
+                    "gen1's fully-uploaded listener fired before its own copy completed",
+                    gen1ListenerFiredLatch.await(50, TimeUnit.MILLISECONDS)
+                );
+            } finally {
+                // Always unblock copy so background threads can exit cleanly.
+                testHarness.copyBlocker.countDown();
+            }
+
+            PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
+            safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Verifies that a copy failure causes a retry until successful, and the fully-uploaded generation
+     * listener fires only after the copy eventually succeeds. This ensures all required files are
+     * present at the split target even when early copy attempts fail.
+     */
+    public void testCopyToSplitTargetIsRetriedOnFailure() throws Exception {
+        int failuresBeforeSuccess = randomIntBetween(1, 5);
+        AtomicInteger copyAttempts = new AtomicInteger(0);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        int attempt = copyAttempts.incrementAndGet();
+                        if (attempt <= failuresBeforeSuccess) {
+                            throw new IOException("simulated copy failure (attempt " + attempt + ")");
+                        }
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+        }) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+
+            PlainActionFuture<Void> fullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit1.getGeneration(), fullyUploaded);
+            safeGet(fullyUploaded);
+
+            assertThat(copyAttempts.get(), equalTo(failuresBeforeSuccess + 1));
+        }
+    }
+
+    /**
+     * Verifies that when node shutdown begins while a copy to a split target is in-flight, the object store
+     * service blocks closing until the copy task completes and releases its permit. Without the permit, the
+     * blob store could close before the copy finishes, causing the copy to fail, potentially logging an
+     * unnecessary warning
+     */
+    public void testNodeShutdownWaitsForInFlightCopy() throws Exception {
+        CountDownLatch copyRunning = new CountDownLatch(1);
+        CountDownLatch copyCanProceed = new CountDownLatch(1);
+        AtomicReference<Exception> closeThreadException = new AtomicReference<>();
+        AtomicBoolean copySucceeded = new AtomicBoolean(false);
+
+        var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        copyRunning.countDown();
+                        safeAwait(copyCanProceed);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        copySucceeded.set(true);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+        };
+
+        Thread closeThread = null;
+        try {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(1);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+
+            // Wait for the async copy to start and block inside copyBlob.
+            safeAwait(copyRunning);
+
+            // Begin closing the node concurrently. commitService.close() marks the shard state as CLOSED,
+            // then objectStoreService.doClose() blocks on the copy permit until it is released.
+            closeThread = new Thread(() -> {
+                try {
+                    testHarness.close();
+                } catch (Exception e) {
+                    closeThreadException.set(e);
+                }
+            }, "close-thread");
+            closeThread.start();
+
+            // Wait until the close thread is blocked on the semaphore drain inside objectStoreService.doClose().
+            final var awaitedCloseThread = closeThread;
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, awaitedCloseThread.getState()));
+
+            // Unblock the copy. It completes copyBlob, sees commitState.isClosed() == true, calls
+            // cleanup() and returns — releasing the copy permit and unblocking objectStoreService.doClose().
+            copyCanProceed.countDown();
+            closeThread.join(10_000);
+            assertFalse("node close should complete once the copy releases its permit", closeThread.isAlive());
+            assertNull("node close should not throw", closeThreadException.get());
+            assertTrue("copy should have succeeded: blob store must remain open until the permit is released", copySucceeded.get());
+        } finally {
+            // Unblock the copy in case the test failed before doing so, then wait for any in-progress close.
+            copyCanProceed.countDown();
+            if (closeThread != null) {
+                closeThread.join(10_000);
+            } else {
+                testHarness.close();
+            }
         }
     }
 
@@ -842,6 +1080,41 @@ public class StatelessCommitServiceTests extends ESTestCase {
             future2.actionGet();
 
             assertThat(uploadedBlobs, empty());
+        }
+    }
+
+    public void testUploadedGenerationListenerFiresImmediatelyForRecoveredGeneration() throws Exception {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
+            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commitRef);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commitRef.getGeneration());
+
+            var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
+            testHarness.commitService.closeShard(testHarness.shardId);
+            testHarness.commitService.unregister(testHarness.shardId);
+
+            testHarness.commitService.register(
+                testHarness.shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> gcpListener.accept(Long.MAX_VALUE, null),
+                () -> {}
+            );
+            testHarness.commitService.markRecoveredBcc(
+                testHarness.shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.otherBlobs(),
+                Collections.emptyIterator()
+            );
+
+            // The recovered generation is already in the object store; the listener must fire
+            // immediately without waiting for a new upload.
+            long recoveredGeneration = indexingShardState.latestCommit().lastCompoundCommit().generation();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, recoveredGeneration, future);
+            future.actionGet();
         }
     }
 
@@ -3238,5 +3511,87 @@ public class StatelessCommitServiceTests extends ESTestCase {
         );
         assertThat(span.isPresent(), is(true));
         assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));
+    }
+
+    /**
+     * A {@link FakeStatelessNode} subclass shared by copy-blocking tests. It intercepts blob writes and
+     * copies to allow tests to observe and control copy timing without duplicating the anonymous-class
+     * boilerplate.
+     *
+     * <p>Fields the test body can configure (before calling {@code onCommitCreation}):
+     * <ul>
+     *   <li>{@link #bccWrittenRef} — set to the blob name to watch; {@link #bccWrittenLatch} counts
+     *       down once that blob is written atomically.</li>
+     *   <li>{@link #copyBlockedNameRef} — set to the blob name whose copy should block on
+     *       {@link #copyBlocker} until it is counted down.</li>
+     * </ul>
+     */
+    private class SplitCopyObservingNode extends FakeStatelessNode {
+        final AtomicReference<String> bccWrittenRef = new AtomicReference<>();
+        final CountDownLatch bccWrittenLatch = new CountDownLatch(1);
+        final AtomicReference<String> copyBlockedNameRef = new AtomicReference<>();
+        final CountDownLatch copyBlocker = new CountDownLatch(1);
+
+        SplitCopyObservingNode() throws IOException {
+            super(
+                StatelessCommitServiceTests.this::newEnvironment,
+                StatelessCommitServiceTests.this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm
+            );
+        }
+
+        @Override
+        public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+            class WrappedContainer extends FilterBlobContainer {
+                WrappedContainer(BlobContainer delegate) {
+                    super(delegate);
+                }
+
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    return new WrappedContainer(child);
+                }
+
+                @Override
+                public void writeBlobAtomic(
+                    OperationPurpose purpose,
+                    String blobName,
+                    InputStream inputStream,
+                    long blobSize,
+                    boolean failIfAlreadyExists
+                ) throws IOException {
+                    super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    if (blobName.equals(bccWrittenRef.get())) {
+                        bccWrittenLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+                    throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
+                }
+
+                @Override
+                public void copyBlob(
+                    OperationPurpose purpose,
+                    BlobContainer sourceBlobContainer,
+                    String sourceBlobName,
+                    String blobName,
+                    long blobSize
+                ) throws IOException {
+                    if (blobName.equals(copyBlockedNameRef.get())) {
+                        safeAwait(copyBlocker);
+                    }
+                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                }
+            }
+            return new WrappedContainer(innerContainer);
+        }
+
+        @Override
+        protected Settings nodeSettings() {
+            return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
+        }
     }
 }

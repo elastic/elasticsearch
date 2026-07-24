@@ -38,10 +38,14 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -297,7 +302,7 @@ public class InternalUsersTests extends ESTestCase {
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -306,7 +311,7 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream + "::failures", true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.FAILURES, true);
         // Also check failure index access
         checkIndexAccess(
             role,
@@ -316,7 +321,14 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
-            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.DATA,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -324,7 +336,14 @@ public class InternalUsersTests extends ESTestCase {
                 true
             );
 
-            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.FAILURES,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -370,7 +389,7 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -468,4 +487,52 @@ public class InternalUsersTests extends ESTestCase {
         );
     }
 
+    private static void checkDataStreamAccess(
+        SimpleRole role,
+        String action,
+        String dataStreamName,
+        boolean isSystem,
+        IndexComponentSelector selector,
+        boolean expectedValue
+    ) {
+        if (expectedValue) {
+            // Can't check this if "expectedValue" is false, because the role might grant the action for a different index
+            assertThat("Role " + role + " should grant " + action, role.indices().check(action), is(true));
+        }
+
+        final String combinedName = new IndexNameExpressionResolver.ResolvedExpression(dataStreamName, selector).combined();
+        final Automaton automaton = role.indices().allowedActionsMatcher(combinedName);
+        assertThat(
+            "Role " + role + ", action " + action + " access to " + combinedName,
+            new CharacterRunAutomaton(automaton).run(action),
+            is(expectedValue)
+        );
+
+        final IndexMetadata metadata = IndexMetadata.builder(".ds-" + dataStreamName)
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .build();
+
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            List.of(metadata.getIndex()),
+            randomLongBetween(0, 1000),
+            Map.of(),
+            isSystem || randomBoolean(),
+            false,
+            isSystem,
+            false,
+            IndexMode.STANDARD,
+            null,
+            DataStreamOptions.EMPTY,
+            List.of(),
+            false,
+            null
+        );
+
+        assertThat(
+            "Role " + role + ", action " + action + " access to " + combinedName,
+            role.allowedIndicesMatcher(action).test(dataStream, selector),
+            is(expectedValue)
+        );
+    }
 }

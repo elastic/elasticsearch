@@ -177,25 +177,36 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         // vs JIT-compiled mode (SIMD) due to fused multiply-add using higher intermediate precision
         // in SIMD lanes. Without warmup, the JIT compilation threshold can be crossed mid-SGD,
         // causing serial and concurrent runs to produce different centroid positions — not due to a
-        // concurrency bug, but due to different JIT compilation states between invocations. Three
-        // warmup passes force all SIMD paths to be fully compiled before the real runs.
-        for (int w = 0; w < 3; w++) {
-            HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood).cluster(vectors, targetSize);
-        }
-
-        HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood);
-        var serialResult = hkmeansSerial.cluster(vectors, targetSize);
-        var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
-        assertKMeansResultValid(serialResult.result(), serialOverspill, nVectors, nClusters);
-
-        int[] serialClusterSizes = new int[serialResult.centroids().length];
-        for (int k : serialResult.assignments()) {
-            serialClusterSizes[k]++;
-        }
-
+        // concurrency bug, but due to different JIT compilation states between invocations.
+        // We warm up both the serial path and the concurrent path on the same thread pool that will
+        // be used for the real comparison, because JIT compilation is triggered per-method by
+        // invocation counts — thread-pool threads that haven't executed the SIMD methods yet may
+        // still be running interpreted code while the main thread is fully compiled.
         int numWorker = randomIntBetween(2, 8);
         try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
             TaskExecutor executor = new TaskExecutor(service);
+            for (int w = 0; w < 3; w++) {
+                HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood).cluster(vectors, targetSize);
+                HierarchicalKMeans.ofConcurrent(ops, dims, executor, numWorker, maxIterations, sampleSize, clustersPerNeighborhood)
+                    .cluster(vectors, targetSize);
+            }
+
+            HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(
+                ops,
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood
+            );
+            var serialResult = hkmeansSerial.cluster(vectors, targetSize);
+            var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
+            assertKMeansResultValid(serialResult.result(), serialOverspill, nVectors, nClusters);
+
+            int[] serialClusterSizes = new int[serialResult.centroids().length];
+            for (int k : serialResult.assignments()) {
+                serialClusterSizes[k]++;
+            }
+
             HierarchicalKMeans<V> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
                 ops,
                 dims,

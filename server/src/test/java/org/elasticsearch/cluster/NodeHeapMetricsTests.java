@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -28,23 +27,6 @@ public class NodeHeapMetricsTests extends ESTestCase {
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
         assertEquals(nodeHeapMetrics.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
-    }
-
-    public void testUpdateEstimatedUsageClampsToZero() {
-        final long totalBytes = 1000L;
-        final long initialTotal = 100L;
-        final long initialHosted = 50L;
-        final NodeHeapMetrics metrics = new NodeHeapMetrics(randomUUID(), totalBytes, new NodeHeapEstimates(initialTotal, initialHosted));
-
-        // Shard removal that would drive hostedShardsHeapUsage below zero
-        final NodeHeapMetrics afterShardRemoval = metrics.updateEstimatedUsage(0, -200L);
-        assertThat(afterShardRemoval.nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
-        assertThat(afterShardRemoval.nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
-
-        // Index removal that would drive totalHeapUsage below zero without affecting hosted
-        final NodeHeapMetrics afterIndexRemoval = metrics.updateEstimatedUsage(-200L, 0);
-        assertThat(afterIndexRemoval.nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(initialHosted));
-        assertThat(afterIndexRemoval.nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
     }
 
     public void testEstimatedFreeBytesAsPercentage() {

@@ -495,10 +495,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         }
     }
 
-    // Recursive split: lower is itself split into lowerLower/lowerUpper. When lowerLower completes while lowerUpper is
-    // still progressing, lower's catch-up (running on the thread that completed lowerLower) and lowerUpper's forwards
-    // both drive lower.doOnProgress on different threads, so lower forwards to the parent from two threads. Because the
-    // forward happens outside lower's lock, those forwards can reach the parent out of order.
+    // Recursive split: lower is itself split into lowerLower/lowerUpper.
     public void testConcurrentNestedSplitProgressForwardingIsIdempotent() throws Exception {
         final int iterations = 100;
         for (int i = 0; i < iterations; i++) {

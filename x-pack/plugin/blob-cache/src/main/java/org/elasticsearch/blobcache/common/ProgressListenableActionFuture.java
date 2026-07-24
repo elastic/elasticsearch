@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
 /**
@@ -55,7 +56,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     private List<PositionAndListener> listeners;
     private long progress;
     private volatile boolean completed;
-    private volatile boolean success;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
@@ -87,7 +87,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         this.end = end;
         this.progress = start;
         this.completed = false;
-        this.success = false;
         this.unconditionalProgressConsumer = unconditionalProgressConsumer;
         this.progressConsumer = progressConsumer;
         assert invariant();
@@ -109,23 +108,39 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         assert splitPoint < end : splitPoint + " >= " + end;
 
         final LongConsumer originalProgressConsumer = this.progressConsumer;
-        // Splitting turns this future into a multi-producer sink: both lower's forward and upper's forward (plus the
-        // catch-up below) can deliver the same progress value, possibly out of order. Internal forwards therefore use
-        // the idempotent onProgressAtLeast rather than the strict onProgress
+        // Splitting turns this future into a multi-producer sink fed by lower, the catch-up below, and upper. Delivery is
+        // serialized so that the strict onProgress contract still holds on the forwards: lower forwards until it completes,
+        // then the catch-up forwards upper's current progress to this future and only afterwards opens the gate
+        // (lowerForwarding) that allows upper to forward. The single value that both the catch-up and upper can deliver
+        // (upper's progress at catch-up time) is routed through the idempotent onProgressAtLeast to absorb that duplicate.
         final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(
             start,
             splitPoint,
-            this::onProgressAtLeast,
+            this::onProgress,
             originalProgressConsumer
         );
+        final long lowerForwardingUnassigned = Long.MIN_VALUE;
+        final var lowerForwarding = new AtomicLong(lowerForwardingUnassigned);
         final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(splitPoint, end, p -> {
-            if (lower.success) onProgressAtLeast(p);
-        }, originalProgressConsumer == null ? null : p -> { if (lower.success) originalProgressConsumer.accept(p); });
+            final long captured = lowerForwarding.get();
+            if (captured != lowerForwardingUnassigned) {
+                if (p == captured) {
+                    // Avoid strict here as there is a possible race where lower's completion listener has already forwarded the same
+                    // progress value to this future.
+                    onProgressAtLeast(p);
+                } else {
+                    onProgress(p);
+                }
+            }
+        }, originalProgressConsumer == null ? null : p -> {
+            if (lowerForwarding.get() != lowerForwardingUnassigned) originalProgressConsumer.accept(p);
+        });
 
-        // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
-        // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),
-        // so passing it to onProgressAtLeast is always within the valid [start+1, end-1] range.
-        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(upper.getProgress()), e -> {}), splitPoint);
+        lower.addListener(ActionListener.wrap(ignored -> {
+            final long upperProgress = upper.getProgress();
+            onProgressAtLeast(upperProgress);
+            lowerForwarding.set(upperProgress);
+        }, e -> {}), splitPoint);
         try (var bothFiredRef = new RefCountingListener(ActionListener.wrap(v -> onResponse(end), this::onFailure))) {
             lower.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
             upper.addListener(bothFiredRef.acquire(l -> {}), end);
@@ -252,8 +267,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
-        assert this.success == false : "success cannot be set twice";
-        this.success = success;
         final List<PositionAndListener> listenersToExecute;
         assert invariant();
         synchronized (this) {

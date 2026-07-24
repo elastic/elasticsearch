@@ -1,0 +1,6 @@
+area: "ES|QL, ES|QL"
+issues:
+ - 111483
+pr: 154864
+summary: Include empty buckets
+type: feature

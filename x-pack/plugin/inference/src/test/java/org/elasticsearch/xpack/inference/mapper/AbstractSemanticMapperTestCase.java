@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
@@ -355,44 +356,84 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
     }
 
-    protected XContentBuilder semanticMapping(String fieldName, String inferenceId) throws IOException {
+    protected XContentBuilder semanticMapping(String fieldName, @Nullable String inferenceId) throws IOException {
         return semanticMapping(fieldName, inferenceId, null, null, null, null);
     }
 
-    protected XContentBuilder semanticMapping(String fieldName, String inferenceId, @Nullable String searchInferenceId) throws IOException {
+    protected XContentBuilder semanticMapping(String fieldName, @Nullable String inferenceId, @Nullable String searchInferenceId)
+        throws IOException {
         return semanticMapping(fieldName, inferenceId, searchInferenceId, null, null, null);
     }
 
-    protected XContentBuilder semanticMapping(String fieldName, String inferenceId, @Nullable MinimalServiceSettings modelSettings)
-        throws IOException {
+    protected XContentBuilder semanticMapping(
+        String fieldName,
+        @Nullable String inferenceId,
+        @Nullable MinimalServiceSettings modelSettings
+    ) throws IOException {
         return semanticMapping(fieldName, inferenceId, null, modelSettings, null, null);
     }
 
     protected XContentBuilder semanticMapping(
         String fieldName,
-        String inferenceId,
+        @Nullable String inferenceId,
         @Nullable String searchInferenceId,
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions
     ) throws IOException {
+        return semanticMapping(fieldName, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, null);
+    }
+
+    protected XContentBuilder semanticMapping(
+        String fieldName,
+        @Nullable String inferenceId,
+        @Nullable String searchInferenceId,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        @Nullable SemanticIndexOptions indexOptions,
+        @Nullable CheckedConsumer<XContentBuilder, IOException> additionalFields
+    ) throws IOException {
         return mapping(
-            b -> addSemanticMapping(b, fieldName, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions)
+            b -> addSemanticMapping(
+                b,
+                fieldName,
+                inferenceId,
+                searchInferenceId,
+                modelSettings,
+                chunkingSettings,
+                indexOptions,
+                additionalFields
+            )
         );
     }
 
     protected void addSemanticMapping(
         XContentBuilder mappingBuilder,
         String fieldName,
-        String inferenceId,
+        @Nullable String inferenceId,
         @Nullable String searchInferenceId,
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions
     ) throws IOException {
+        addSemanticMapping(mappingBuilder, fieldName, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, null);
+    }
+
+    protected void addSemanticMapping(
+        XContentBuilder mappingBuilder,
+        String fieldName,
+        @Nullable String inferenceId,
+        @Nullable String searchInferenceId,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        @Nullable SemanticIndexOptions indexOptions,
+        @Nullable CheckedConsumer<XContentBuilder, IOException> additionalFields
+    ) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", contentType());
-        mappingBuilder.field(INFERENCE_ID_FIELD, inferenceId);
+        if (inferenceId != null) {
+            mappingBuilder.field(INFERENCE_ID_FIELD, inferenceId);
+        }
         if (searchInferenceId != null) {
             mappingBuilder.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
         }
@@ -404,6 +445,9 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
         if (indexOptions != null) {
             mappingBuilder.field(INDEX_OPTIONS_FIELD, indexOptions);
+        }
+        if (additionalFields != null) {
+            additionalFields.accept(mappingBuilder);
         }
         mappingBuilder.endObject();
     }

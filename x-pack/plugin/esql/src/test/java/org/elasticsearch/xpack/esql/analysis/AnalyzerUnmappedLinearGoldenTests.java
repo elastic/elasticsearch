@@ -29,42 +29,42 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
         builder(nullify("""
             FROM employees
             | keep does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeep").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testKeepLoad() throws Exception {
         builder(load("""
             FROM employees
             | keep does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeep").nestedPath("load").run();
+            """)).run();
     }
 
     public void testKeepRepeatedNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | KEEP does_not_exist_field, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeepRepeated").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testKeepRepeatedLoad() throws Exception {
         builder(load("""
             FROM employees
             | KEEP does_not_exist_field, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeepRepeated").nestedPath("load").run();
+            """)).run();
     }
 
     public void testKeepAndMatchingStarNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | KEEP emp_*, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeepAndMatchingStar").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testKeepAndMatchingStarLoad() throws Exception {
         builder(load("""
             FROM employees
             | KEEP emp_*, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKeepAndMatchingStar").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalAndKeepNullify() throws Exception {
@@ -72,7 +72,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = does_not_exist_field1::INTEGER + 42
             | KEEP does_not_exist_field1, does_not_exist_field2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAndKeep").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testEvalAndKeepLoad() throws Exception {
@@ -80,7 +80,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = does_not_exist_field1::INTEGER + 42
             | KEEP does_not_exist_field1, does_not_exist_field2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAndKeep").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalAfterKeepStarNullify() throws Exception {
@@ -89,7 +89,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | KEEP *
             | EVAL x = emp_no + 1
             | EVAL y = does_not_exist_field::DOUBLE + 2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterKeepStar").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testEvalAfterKeepStarLoad() throws Exception {
@@ -98,7 +98,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | KEEP *
             | EVAL x = emp_no + 1
             | EVAL y = does_not_exist_field::DOUBLE + 2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterKeepStar").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalAfterMatchingKeepWithWildcardNullify() throws Exception {
@@ -107,7 +107,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | KEEP emp_no, *
             | EVAL x = emp_no + 1
             | EVAL y = emp_does_not_exist_field::DOUBLE + 2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterMatchingKeepWithWildcard").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testEvalAfterMatchingKeepWithWildcardLoad() throws Exception {
@@ -116,69 +116,69 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | KEEP emp_no, *
             | EVAL x = emp_no + 1
             | EVAL y = emp_does_not_exist_field::DOUBLE + 2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterMatchingKeepWithWildcard").nestedPath("load").run();
+            """)).run();
     }
 
     public void testDropAnotherFieldNullify() throws Exception {
         builder(nullify("""
-            FROM employees | DROP does_not_exist_field, does_not_exist_field2\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("nullify", "another_field").run();
+            FROM employees | DROP does_not_exist_field, does_not_exist_field2
+            """)).run();
     }
 
     public void testDropEmptyNullify() throws Exception {
         builder(nullify("""
-            FROM employees | DROP does_not_exist_field\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("nullify", "empty").run();
+            FROM employees | DROP does_not_exist_field
+            """)).run();
     }
 
     public void testDropExistsNullify() throws Exception {
         builder(nullify("""
-            FROM employees | DROP does_not_exist_field, emp_no\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("nullify", "exists").run();
+            FROM employees | DROP does_not_exist_field, emp_no
+            """)).run();
     }
 
     public void testDropSameFieldNullify() throws Exception {
         builder(nullify("""
-            FROM employees | DROP does_not_exist_field, does_not_exist_field\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("nullify", "same_field").run();
+            FROM employees | DROP does_not_exist_field, does_not_exist_field
+            """)).run();
     }
 
     public void testDropAnotherFieldLoad() throws Exception {
         builder(load("""
-            FROM employees | DROP does_not_exist_field, does_not_exist_field2\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("load", "another_field").run();
+            FROM employees | DROP does_not_exist_field, does_not_exist_field2
+            """)).run();
     }
 
     public void testDropEmptyLoad() throws Exception {
         builder(load("""
-            FROM employees | DROP does_not_exist_field\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("load", "empty").run();
+            FROM employees | DROP does_not_exist_field
+            """)).run();
     }
 
     public void testDropExistsLoad() throws Exception {
         builder(load("""
-            FROM employees | DROP does_not_exist_field, emp_no\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("load", "exists").run();
+            FROM employees | DROP does_not_exist_field, emp_no
+            """)).run();
     }
 
     public void testDropSameFieldLoad() throws Exception {
         builder(load("""
-            FROM employees | DROP does_not_exist_field, does_not_exist_field\
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDrop").nestedPath("load", "same_field").run();
+            FROM employees | DROP does_not_exist_field, does_not_exist_field
+            """)).run();
     }
 
     public void testDropWithMatchingStarNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | DROP emp_*, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDropWithMatchingStar").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testDropWithMatchingStarLoad() throws Exception {
         builder(load("""
             FROM employees
             | DROP emp_*, does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDropWithMatchingStar").nestedPath("load").run();
+            """)).run();
     }
 
     // A pattern DROP that doesn't match the missing field still lets nullify inject it for a later KEEP.
@@ -187,35 +187,35 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | DROP emp_*
             | KEEP does_not_exist_field
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDropPatternThenKeepMissing").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testRenameNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, emp_no AS employee_number
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testRename").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testRenameLoad() throws Exception {
         builder(load("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, emp_no AS employee_number
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testRename").nestedPath("load").run();
+            """)).run();
     }
 
     public void testRenameShadowedNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testRenameShadowed").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testRenameShadowedLoad() throws Exception {
         builder(load("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testRenameShadowed").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalAfterRenameNullify() throws Exception {
@@ -223,7 +223,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | RENAME emp_no AS employee_number
             | EVAL x = does_not_exist::DOUBLE + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterRename").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testEvalAfterRenameLoad() throws Exception {
@@ -231,30 +231,28 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | RENAME emp_no AS employee_number
             | EVAL x = does_not_exist::DOUBLE + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalAfterRename").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEval").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testEvalLoad() throws Exception {
         builder(load("""
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEval").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEvalReplacesUnmappedFieldFromEmptyMappingLoad() throws Exception {
         builder(load("""
             FROM no_mapping_date_extract_fields
             | EVAL date_string = date_string::date
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEvalReplacesUnmappedFieldFromEmptyMapping")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     public void testMultipleEvalNullify() throws Exception {
@@ -263,7 +261,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | EVAL a = 1
             | EVAL x = a + b::DOUBLE
             | EVAL y = b::DOUBLE + c::DOUBLE
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMultipleEval").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testMultipleEvalLoad() throws Exception {
@@ -272,35 +270,35 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | EVAL a = 1
             | EVAL x = a + b::DOUBLE
             | EVAL y = b::DOUBLE + c::DOUBLE
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMultipleEval").nestedPath("load").run();
+            """)).run();
     }
 
     public void testCastingNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | EVAL x = does_not_exist_field::LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCasting").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testCastingLoad() throws Exception {
         builder(load("""
             FROM employees
             | EVAL x = does_not_exist_field::LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCasting").nestedPath("load").run();
+            """)).run();
     }
 
     public void testCastingNoAliasingNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | EVAL does_not_exist_field::LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCastingNoAliasing").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testCastingNoAliasingLoad() throws Exception {
         builder(load("""
             FROM employees
             | EVAL does_not_exist_field::LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCastingNoAliasing").nestedPath("load").run();
+            """)).run();
     }
 
     public void testShadowingAfterEvalNullify() throws Exception {
@@ -308,7 +306,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
             | EVAL does_not_exist_field = 42
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testShadowingAfterEval").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testShadowingAfterEvalLoad() throws Exception {
@@ -316,7 +314,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
             | EVAL does_not_exist_field = 42
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testShadowingAfterEval").nestedPath("load").run();
+            """)).run();
     }
 
     public void testShadowingAfterKeepNullify() throws Exception {
@@ -324,7 +322,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | KEEP does_not_exist_field
             | EVAL does_not_exist_field = 42
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testShadowingAfterKeep").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testShadowingAfterKeepLoad() throws Exception {
@@ -332,105 +330,105 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | KEEP does_not_exist_field
             | EVAL does_not_exist_field = 42
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testShadowingAfterKeep").nestedPath("load").run();
+            """)).run();
     }
 
     public void testWhereNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | WHERE does_not_exist::LONG > 0
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhere").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testWhereLoad() throws Exception {
         builder(load("""
             FROM employees
             | WHERE does_not_exist::LONG > 0
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhere").nestedPath("load").run();
+            """)).run();
     }
 
     public void testWhereOrNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | WHERE does_not_exist::LONG > 0 OR emp_no > 0
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhereOr").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testWhereOrLoad() throws Exception {
         builder(load("""
             FROM employees
             | WHERE does_not_exist::LONG > 0 OR emp_no > 0
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhereOr").nestedPath("load").run();
+            """)).run();
     }
 
     public void testWhereComplexNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhereComplex").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testWhereComplexLoad() throws Exception {
         builder(load("""
             FROM employees
             | WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testWhereComplex").nestedPath("load").run();
+            """)).run();
     }
 
     public void testSortNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | SORT does_not_exist ASC
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSort").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testSortLoad() throws Exception {
         builder(load("""
             FROM employees
             | SORT does_not_exist ASC
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSort").nestedPath("load").run();
+            """)).run();
     }
 
     public void testSortExpressionNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | SORT does_not_exist::LONG + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSortExpression").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testSortExpressionLoad() throws Exception {
         builder(load("""
             FROM employees
             | SORT does_not_exist::LONG + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSortExpression").nestedPath("load").run();
+            """)).run();
     }
 
     public void testSortExpressionMultipleFieldsNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSortExpressionMultipleFields").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testSortExpressionMultipleFieldsLoad() throws Exception {
         builder(load("""
             FROM employees
             | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSortExpressionMultipleFields").nestedPath("load").run();
+            """)).run();
     }
 
     public void testMvExpandNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | MV_EXPAND does_not_exist
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMvExpand").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testMvExpandLoad() throws Exception {
         builder(load("""
             FROM employees
             | MV_EXPAND does_not_exist
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMvExpand").nestedPath("load").run();
+            """)).run();
     }
 
     public void testLookupJoinNullify() throws Exception {
@@ -438,7 +436,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL language_code = does_not_exist :: INTEGER
             | LOOKUP JOIN languages_lookup ON language_code
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testLookupJoin").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testLookupJoinWithFilterNullify() throws Exception {
@@ -447,7 +445,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE does_not_exist::LONG > 0
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testLookupJoinWithFilter").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testCoalesceNullify() throws Exception {
@@ -455,7 +453,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = COALESCE(does_not_exist::LONG, emp_no, 0)
             | KEEP emp_no, x
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCoalesce").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testCoalesceLoad() throws Exception {
@@ -463,7 +461,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = COALESCE(does_not_exist::LONG, emp_no, 0)
             | KEEP emp_no, x
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testCoalesce").nestedPath("load").run();
+            """)).run();
     }
 
     public void testEnrichNullify() throws Exception {
@@ -471,14 +469,14 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | EVAL x = does_not_exist::KEYWORD
             | ENRICH languages ON x
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testEnrich").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testSemanticTextNullify() throws Exception {
         builder(nullify("""
             FROM employees
             | WHERE KNN(does_not_exist, [0, 1, 2])
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSemanticText").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testRowNullify() throws Exception {
@@ -486,7 +484,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             ROW x = 1
             | EVAL y = does_not_exist_field1::INTEGER + x
             | KEEP *, does_not_exist_field2
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testRow").nestedPath("nullify").run();
+            """)).run();
     }
 
     /**
@@ -501,7 +499,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             FROM employees
             | WHERE kql("first_name: test")
             | EVAL x = does_not_exist_field + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testKqlWithUnmappedFieldInEval").nestedPath("nullify").run();
+            """)).run();
     }
 
     /**
@@ -514,7 +512,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | SORT first_name
             | WHERE qstr("first_name: test")
             | EVAL x = does_not_exist_field + 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testQstrAfterSortWithUnmappedField").nestedPath("nullify").run();
+            """)).run();
     }
 
     /**
@@ -529,9 +527,7 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
             | EVAL nanos = MV_MIN(nanos)
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDoNotResolveUnmappedFieldPresentInChildren")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testDoNotResolveUnmappedFieldPresentInChildrenLoad() throws Exception {
@@ -540,8 +536,6 @@ public class AnalyzerUnmappedLinearGoldenTests extends AnalyzerUnmappedGoldenTes
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
             | EVAL nanos = MV_MIN(nanos)
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testDoNotResolveUnmappedFieldPresentInChildren")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 }

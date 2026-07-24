@@ -137,17 +137,4 @@ public class GoldenVersionRangesTests extends ESTestCase {
         List<VersionRange> ranges = GoldenTestCase.deriveRanges(v(1000), List.of(), released);
         assertThat(ranges.getFirst().versions(), contains(v(1000), v(2000), v(3000), v(4000)));
     }
-
-    public void testExistingGoldenPathComponentsAreSingleSegments() {
-        GoldenTestCase.validateGoldenPathComponent("suite", "AnalyzerUnmappedGoldenTests");
-        GoldenTestCase.validateGoldenPathComponent("test", "testKeep");
-
-        for (String invalid : new String[] { "", " ", ".", "..", "suite/test", "suite\\test" }) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> GoldenTestCase.validateGoldenPathComponent("test", invalid)
-            );
-            assertThat(e.getMessage(), containsString("golden test path component"));
-        }
-    }
 }

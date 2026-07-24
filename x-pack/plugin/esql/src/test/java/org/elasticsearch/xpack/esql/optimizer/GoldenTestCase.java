@@ -83,7 +83,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -139,7 +138,6 @@ public abstract class GoldenTestCase extends ESTestCase {
         return List.of(new Object[] { MODE_CURRENT }, new Object[] { MODE_HISTORICAL });
     }
 
-    private final Path goldenTestsRoot;
     private final Path baseFile;
     private final String goldenMode;
 
@@ -155,16 +153,11 @@ public abstract class GoldenTestCase extends ESTestCase {
         try {
             String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            goldenTestsRoot = PathUtils.get(inSrc, "golden_tests").toAbsolutePath().normalize();
-            baseFile = goldenTestsRoot.resolve(getClass().getSimpleName());
+            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
 
-    }
-
-    final Path goldenTestsRoot() {
-        return goldenTestsRoot;
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {
@@ -216,8 +209,6 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private Map<String, String> views = Map.of();
-        private String existingGoldenSuite;
-        private String existingGoldenTest;
 
         private TestBuilder(
             String esqlQuery,
@@ -264,19 +255,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder nestedPath(String... nestedPath) {
             this.nestedPath = nestedPath;
-            return this;
-        }
-
-        /**
-         * Keeps an existing golden resource path stable while its Java test is reorganized. The suite and test must already exist
-         * below this test package's {@code golden_tests} directory; append any existing mode or variant directories with
-         * {@link #nestedPath}. New tests should use the class/method-derived default.
-         */
-        public TestBuilder existingGoldenPath(String suiteName, String testName) {
-            validateGoldenPathComponent("suite", suiteName);
-            validateGoldenPathComponent("test", testName);
-            this.existingGoldenSuite = suiteName;
-            this.existingGoldenTest = testName;
             return this;
         }
 
@@ -381,10 +359,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         public void run() {
-            String runtimeTestName = RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-            String runtimeTest = GoldenTestCase.this.getClass().getSimpleName() + "#" + runtimeTestName;
-            Path resourceBaseFile = resourceBaseFile(runtimeTest);
-            String testName = existingGoldenTest != null ? existingGoldenTest : runtimeTestName;
+            String testName = RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
             if (explicitTransportVersion && (since != null || labels.isEmpty() == false)) {
                 throw new IllegalStateException("since()/expectationChangesAt() describe a version window; a pinned version has none");
             }
@@ -393,22 +368,12 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             List<VersionRange> ranges = explicitTransportVersion
                 ? List.of(new VersionRange(null, transportVersion, List.of(transportVersion)))
-                : liveRanges(runtimeTestName);
+                : liveRanges(testName);
             try {
-                validateExistingGoldenPath(resourceBaseFile, testName, runtimeTest);
                 Set<String> written = new HashSet<>();
                 for (VersionRange range : ranges) {
-                    if (overwriteMode() || hasExpectedFiles(outputDir(resourceBaseFile, testName, range.dir())) == false) {
-                        if (existingGoldenTest != null && overwriteMode() == false) {
-                            throw new IllegalStateException(
-                                Strings.format(
-                                    "test [%s] aliases existing golden path [%s], but it has no expected files",
-                                    runtimeTest,
-                                    outputDir(resourceBaseFile, testName, range.dir())
-                                )
-                            );
-                        }
-                        writeReference(resourceBaseFile, testName, runtimeTest, range);
+                    if (overwriteMode() || hasExpectedFiles(outputDir(testName, range.dir())) == false) {
+                        writeReference(testName, range);
                         written.add(String.valueOf(range.dir()));
                     }
                 }
@@ -417,66 +382,16 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (written.contains(String.valueOf(check.v1().dir()))) {
                         continue; // just written from these same plans — nothing to compare yet
                     }
-                    List<Stage> failed = failedStages(
-                        test(resourceBaseFile, testName, runtimeTest, check.v1().dir(), check.v2(), false).doTests()
-                    );
+                    List<Stage> failed = failedStages(test(testName, check.v1().dir(), check.v2(), false).doTests());
                     if (failed.isEmpty() == false) {
                         failures.add(Strings.format("%sstages %s at version [%s]", rangePrefix(check.v1()), failed, check.v2()));
                     }
                 }
                 if (failures.isEmpty() == false) {
-                    fail(
-                        Strings.format(
-                            "Output for test [%s] at golden path [%s] does not match: %s",
-                            runtimeTest,
-                            outputDir(resourceBaseFile, testName, null),
-                            failures
-                        )
-                    );
+                    fail(Strings.format("Output for test '%s' does not match: %s", testName, failures));
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
-            }
-        }
-
-        private Path resourceBaseFile(String runtimeTest) {
-            if (existingGoldenSuite == null) {
-                return baseFile;
-            }
-            Path existingBaseFile = goldenTestsRoot.resolve(existingGoldenSuite).normalize();
-            if (existingBaseFile.startsWith(goldenTestsRoot) == false || Files.isDirectory(existingBaseFile) == false) {
-                throw new IllegalArgumentException(
-                    Strings.format("test [%s] aliases missing golden suite [%s]", runtimeTest, existingBaseFile)
-                );
-            }
-            return existingBaseFile;
-        }
-
-        private void validateExistingGoldenPath(Path resourceBaseFile, String testName, String runtimeTest) throws IOException {
-            if (existingGoldenTest == null) {
-                return;
-            }
-            for (String component : nestedPath) {
-                validateGoldenPathComponent("nested", component);
-            }
-            Path testRoot = resourceBaseFile.resolve(testName).toAbsolutePath().normalize();
-            Path testDir = outputDir(resourceBaseFile, testName, null).toAbsolutePath().normalize();
-            if (testRoot.startsWith(resourceBaseFile) == false
-                || testDir.startsWith(testRoot) == false
-                || Files.isDirectory(testDir) == false) {
-                throw new IllegalArgumentException(Strings.format("test [%s] aliases missing golden path [%s]", runtimeTest, testDir));
-            }
-            Path queryPath = testDir.resolve("query.esql");
-            if (Files.isRegularFile(queryPath) == false) {
-                throw new IllegalArgumentException(
-                    Strings.format("test [%s] aliases golden path without query [%s]", runtimeTest, queryPath)
-                );
-            }
-            if (overwriteMode() == false
-                && Arrays.equals(Files.readAllBytes(queryPath), esqlQuery.getBytes(StandardCharsets.UTF_8)) == false) {
-                throw new IllegalArgumentException(
-                    Strings.format("test [%s] query does not match existing golden path [%s]", runtimeTest, queryPath)
-                );
             }
         }
 
@@ -527,23 +442,23 @@ public abstract class GoldenTestCase extends ESTestCase {
          * Writes the range's files at its anchor, then re-plans at the opposite end of the sampled window and fails on a
          * mismatch: a fork inside the range must be declared, not regenerated over.
          */
-        private void writeReference(Path resourceBaseFile, String testName, String runtimeTest, VersionRange range) throws IOException {
+        private void writeReference(String testName, VersionRange range) throws IOException {
             TransportVersion anchor = explicitTransportVersion == false && undeclared() ? TransportVersion.current() : range.start();
-            test(resourceBaseFile, testName, runtimeTest, range.dir(), anchor, true).doTests();
+            test(testName, range.dir(), anchor, true).doTests();
             TransportVersion guard = undeclared() ? range.versions().getFirst() : range.versions().getLast();
             if (guard.equals(anchor)) {
                 return;
             }
-            List<Stage> mismatched = failedStages(test(resourceBaseFile, testName, runtimeTest, range.dir(), guard, false).doTests());
+            List<Stage> mismatched = failedStages(test(testName, range.dir(), guard, false).doTests());
             if (mismatched.isEmpty() == false) {
                 fail(
                     Strings.format(
-                        "test [%s] at golden path [%s]: files were written at [%s] but planning at [%s] disagrees for stages %s — "
-                            + "the plan forks inside the version window these files cover. "
-                            + "Declare expectationChangesAt(\"<version name>\") to keep the old shape covered, or "
-                            + "since(\"<version name>\") to drop coverage below the fork. See GoldenTestsReadme.MD.",
-                        runtimeTest,
-                        outputDir(resourceBaseFile, testName, range.dir()),
+                        "test [%s]: %sfiles were written at [%s] but planning at [%s] disagrees for stages %s — the plan forks "
+                            + "inside the version window these files cover. Declare expectationChangesAt(\"<version name>\") to keep "
+                            + "the old shape covered, or since(\"<version name>\") to drop coverage below the fork. "
+                            + "See GoldenTestsReadme.MD.",
+                        testName,
+                        rangePrefix(range),
                         anchor,
                         guard,
                         mismatched
@@ -569,18 +484,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             return List.of(randomFrom(union));
         }
 
-        private Test test(
-            Path resourceBaseFile,
-            String testName,
-            String runtimeTest,
-            String rangeDir,
-            TransportVersion version,
-            boolean writeReference
-        ) {
+        private Test test(String testName, String rangeDir, TransportVersion version, boolean writeReference) {
             return new Test(
-                resourceBaseFile,
+                baseFile,
                 testName,
-                runtimeTest,
                 nestedPath,
                 rangeDir,
                 esqlQuery,
@@ -592,19 +499,18 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
-                views,
-                existingGoldenTest != null
+                views
             );
         }
 
-        private Path outputDir(Path resourceBaseFile, String testName, String rangeDir) {
+        private Path outputDir(String testName, String rangeDir) {
             String[] parts = new String[nestedPath.length + (rangeDir == null ? 1 : 2)];
             parts[0] = testName;
             System.arraycopy(nestedPath, 0, parts, 1, nestedPath.length);
             if (rangeDir != null) {
                 parts[parts.length - 1] = rangeDir;
             }
-            return PathUtils.get(resourceBaseFile.toString(), parts);
+            return PathUtils.get(baseFile.toString(), parts);
         }
 
         private static List<Stage> failedStages(List<Tuple<Stage, Test.TestResult>> results) {
@@ -632,15 +538,6 @@ public abstract class GoldenTestCase extends ESTestCase {
      * directory. {@code versions} holds every supplied compatible version the range covers, ascending; checks draw from it.
      */
     record VersionRange(String dir, TransportVersion start, List<TransportVersion> versions) {}
-
-    static void validateGoldenPathComponent(String description, String component) {
-        if (component == null || component.isBlank()) {
-            throw new IllegalArgumentException("golden " + description + " path component must not be blank");
-        }
-        if (component.equals(".") || component.equals("..") || component.indexOf('/') >= 0 || component.indexOf('\\') >= 0) {
-            throw new IllegalArgumentException("invalid golden " + description + " path component [" + component + "]");
-        }
-    }
 
     /**
      * Splits the version window at the labels and assigns every candidate version to the range it belongs to,
@@ -732,7 +629,6 @@ public abstract class GoldenTestCase extends ESTestCase {
     private record Test(
         Path basePath,
         String testName,
-        String runtimeTest,
         String[] nestedPath,
         String rangeDir,
         String esqlQuery,
@@ -744,8 +640,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
-        Map<String, String> views,
-        boolean existingGoldenPath
+        Map<String, String> views
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -772,9 +667,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             queryPathParts[queryPathParts.length - 1] = "query.esql";
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
-            if (existingGoldenPath == false || writeReference) {
-                Files.writeString(queryPath, esqlQuery);
-            }
+            Files.writeString(queryPath, esqlQuery);
             if (rangeDir != null) {
                 Files.createDirectories(queryPath.getParent().resolve(rangeDir));
             }
@@ -947,10 +840,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             } else {
                 if (Files.exists(outputFile)) {
                     return verifyExisting(outputFile, plan);
-                } else if (existingGoldenPath) {
-                    throw new IllegalStateException(
-                        Strings.format("test [%s] is missing expected file at existing golden path [%s]", runtimeTest, outputFile)
-                    );
                 } else {
                     logger.debug("No output exists for file {}, writing new output", outputFile);
                     return createNewOutput(outputFile, plan);

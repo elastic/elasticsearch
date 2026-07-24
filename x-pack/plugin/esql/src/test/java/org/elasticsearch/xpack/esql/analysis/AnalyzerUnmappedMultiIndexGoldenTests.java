@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
  */
 public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGoldenTestCase {
 
+    private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
+
     private static void requireMatchOperator() {
         assumeTrue("Requires match operator", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
     }
@@ -43,48 +45,42 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM sample_data, partial_mapping_sample_data
             | KEEP @timestamp, message, unmapped_message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedField").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldLoad() throws Exception {
         builder(load("""
             FROM sample_data, partial_mapping_sample_data
             | KEEP @timestamp, message, unmapped_message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedField").nestedPath("load").run();
+            """)).run();
     }
 
     public void testMappedInOneIndexOnlyNullify() throws Exception {
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnly").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testMappedInOneIndexOnlyLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnly")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testMappedInOneIndexOnlyCastNullify() throws Exception {
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnlyCast").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testMappedInOneIndexOnlyCastLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnlyCast")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // message is keyword-mapped in sample_data and unmapped (loaded as keyword) in no_mapping_sample_data, so it
@@ -96,10 +92,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | EVAL message_text = TO_TEXT(message)
             | KEEP message_text
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnlyToText")
-            .nestedPath("nullify")
-            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
-            .run();
+            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testMappedInOneIndexOnlyToTextLoad() throws Exception {
@@ -107,27 +100,21 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | EVAL message_text = TO_TEXT(message)
             | KEEP message_text
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedInOneIndexOnlyToText")
-            .nestedPath("load")
-            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
-            .run();
+            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testMappedToNonKeywordInOneIndexOnlyNullify() throws Exception {
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedToNonKeywordInOneIndexOnly").nestedPath("nullify").run();
+            """)).run();
     }
 
     public void testMappedToNonKeywordInOneIndexOnlyLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testMappedToNonKeywordInOneIndexOnly")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testTypeConflictMappedAndUnmappedWithCastNullify() throws Exception {
@@ -135,9 +122,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testTypeConflictMappedAndUnmappedWithCast")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testTypeConflictMappedAndUnmappedWithCastLoad() throws Exception {
@@ -145,10 +130,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testTypeConflictMappedAndUnmappedWithCast")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // @timestamp is mapped with conflicting types across sample_data_ts_long and sample_data, and unmapped in
@@ -159,10 +141,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testTypeConflictMappedTimesTwoAndUnmapped")
-            .nestedPath("nullify")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testTypeConflictMappedTimesTwoAndUnmappedLoad() throws Exception {
@@ -170,10 +149,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testTypeConflictMappedTimesTwoAndUnmapped")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhereNullify() throws Exception {
@@ -181,9 +157,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testNoTypeConflictKeywordAndUnmappedWhere")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhereLoad() throws Exception {
@@ -191,10 +165,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testNoTypeConflictKeywordAndUnmappedWhere")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
@@ -203,18 +174,13 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
     public void testPartiallyMappedFieldsAutomaticallyFoundNullify() throws Exception {
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsAutomaticallyFound")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsAutomaticallyFoundLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsAutomaticallyFound")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
@@ -223,45 +189,35 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsAutomaticallyFoundKeepStar")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsAutomaticallyFoundKeepStarLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsAutomaticallyFoundKeepStar")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmappedNullify() throws Exception {
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmappedLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     public void testSingleTypeTextUnmappedNoCastLoad() throws Exception {
         builder(load("""
             FROM text_state_mapped, text_state_unmapped
             | KEEP txt
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedNoCastLoadOnly").nestedPath("load").run();
+            """)).run();
     }
 
     // The 'txt' field is text-mapped in text_state_mapped and unmapped (loaded as keyword) in text_state_unmapped.
@@ -274,10 +230,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped
             | EVAL txt_text = TO_TEXT(txt)
             | KEEP txt_text
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedToText")
-            .nestedPath("nullify")
-            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
-            .run();
+            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testSingleTypeTextUnmappedToTextLoad() throws Exception {
@@ -285,29 +238,21 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped
             | EVAL txt_text = TO_TEXT(txt)
             | KEEP txt_text
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedToText")
-            .nestedPath("load")
-            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
-            .run();
+            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testSingleTypeDenseVectorUnmappedNoCastLoad() throws Exception {
         builder(load("""
             FROM dense_vector, dense_vector_unmapped
             | KEEP float_vector
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeDenseVectorUnmappedNoCastLoadOnly")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     public void testSingleTypeAggregateMetricDoubleUnmappedNoCastLoad() throws Exception {
         builder(load("""
             FROM k8s-downsampled, k8s_unmapped
             | KEEP network.eth0.tx
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly")
-            .nestedPath("load")
-            .since(CompactMultiTypeEsField.CompactMultiTypeEsField)
-            .run();
+            """)).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testSingleTypeTextUnmappedWithMatchOperatorLoad() throws Exception {
@@ -316,9 +261,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped
             | WHERE txt:"Faulkner"
             | KEEP txt
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedWithMatchOperatorLoadOnly")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     public void testSingleTypeTextUnmappedWithMatchFunctionLoad() throws Exception {
@@ -327,9 +270,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped
             | WHERE match(txt, "Faulkner")
             | KEEP txt
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedWithMatchFunctionLoadOnly")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionLoad() throws Exception {
@@ -338,10 +279,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped, text_state_nonexistent
             | WHERE match(txt, "Faulkner") OR txt IS NULL
             | KEEP txt
-            """)).existingGoldenPath(
-            "AnalyzerUnmappedGoldenTests",
-            "testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionLoadOnly"
-        ).nestedPath("load").run();
+            """)).run();
     }
 
     public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeepLoad() throws Exception {
@@ -351,10 +289,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             | WHERE match(txt, "Faulkner") OR txt IS NULL
             | KEEP _index, doc_id, txt
             | SORT _index
-            """)).existingGoldenPath(
-            "AnalyzerUnmappedGoldenTests",
-            "testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeepLoadOnly"
-        ).nestedPath("load").run();
+            """)).run();
     }
 
     public void testSingleTypeTextUnmappedWithMatchPhraseFunctionLoad() throws Exception {
@@ -363,9 +298,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM text_state_mapped, text_state_unmapped
             | WHERE match_phrase(txt, "William Faulkner")
             | KEEP txt
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testSingleTypeTextUnmappedWithMatchPhraseFunctionLoadOnly")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
@@ -375,9 +308,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM employees, employees_no_names
             | SORT emp_no
             | LIMIT 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReferenceLoad() throws Exception {
@@ -385,9 +316,7 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
             FROM employees, employees_no_names
             | SORT emp_no
             | LIMIT 1
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
@@ -396,18 +325,14 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM employees, employees_no_names
             | KEEP first_name, gender
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testNonPartiallyMappedKeywordFieldNotLoadedFromSource")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testNonPartiallyMappedKeywordFieldNotLoadedFromSourceLoad() throws Exception {
         builder(load("""
             FROM employees, employees_no_names
             | KEEP first_name, gender
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testNonPartiallyMappedKeywordFieldNotLoadedFromSource")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     // gender is text in employees_gender_text but missing in employees_no_gender.
@@ -416,18 +341,14 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM employees_gender_text, employees_no_gender
             | KEEP gender
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedTextFieldMarkedAsPotentiallyUnmappedLoad() throws Exception {
         builder(load("""
             FROM employees_gender_text, employees_no_gender
             | KEEP gender
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 
     // DROP a single partially-mapped keyword field (message), leaving only non-keyword fields.
@@ -435,19 +356,14 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropOnePartiallyMapped")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsDropOnePartiallyMappedLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropOnePartiallyMapped")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
@@ -455,19 +371,14 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeywordLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
@@ -475,19 +386,14 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropNonKeywordWithWildcards")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsDropNonKeywordWithWildcardsLoad() throws Exception {
         builder(load("""
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropNonKeywordWithWildcards")
-            .nestedPath("load")
-            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
-            .run();
+            """)).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.
@@ -495,17 +401,13 @@ public class AnalyzerUnmappedMultiIndexGoldenTests extends AnalyzerUnmappedGolde
         builder(nullify("""
             FROM employees, employees_no_names
             | DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropKeywordWithWildcards")
-            .nestedPath("nullify")
-            .run();
+            """)).run();
     }
 
     public void testPartiallyMappedFieldsDropKeywordWithWildcardsLoad() throws Exception {
         builder(load("""
             FROM employees, employees_no_names
             | DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*
-            """)).existingGoldenPath("AnalyzerUnmappedGoldenTests", "testPartiallyMappedFieldsDropKeywordWithWildcards")
-            .nestedPath("load")
-            .run();
+            """)).run();
     }
 }

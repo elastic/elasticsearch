@@ -9,8 +9,10 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.DefaultMethodHandleResolver;
 import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.MethodHandleResolver;
 import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
@@ -48,6 +50,8 @@ import javax.tools.Diagnostic.Kind;
  * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
+ * @param methodHandleResolverClassName fully-qualified name of the {@link MethodHandleResolver} implementation
+ *        (defaults to {@code org.elasticsearch.foreign.DefaultMethodHandleResolver})
  * @param isAbstractClass {@code true} when the base type is an abstract class rather than an interface
  */
 public record LibraryModel(
@@ -59,6 +63,7 @@ public record LibraryModel(
     List<String> unavailableOn,
     List<StructModel> structs,
     String symbolResolverClassName,
+    String methodHandleResolverClassName,
     boolean isAbstractClass
 ) {
 
@@ -71,8 +76,10 @@ public record LibraryModel(
         "WINDOWS_X64"
     );
 
-    public static final String RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
-    public static final String DEFAULT_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
+    public static final String SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
+    public static final String DEFAULT_SYMBOL_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
+    public static final String MH_RESOLVER_INTERFACE_FQN = MethodHandleResolver.class.getName();
+    public static final String DEFAULT_MH_RESOLVER_FQN = DefaultMethodHandleResolver.class.getName();
     public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
     public static final String STRUCT_SPECIFICATION_FQN = org.elasticsearch.foreign.StructSpecification.class.getName();
 
@@ -128,6 +135,11 @@ public record LibraryModel(
 
         String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils());
         if (symbolResolverClassName == null) {
+            hasError = true;
+        }
+
+        String methodHandleResolverClassName = resolveAndValidateMethodHandleResolver(element, messager, env.getTypeUtils());
+        if (methodHandleResolverClassName == null) {
             hasError = true;
         }
 
@@ -214,6 +226,7 @@ public record LibraryModel(
                 unavailableOn,
                 structs,
                 symbolResolverClassName,
+                methodHandleResolverClassName,
                 isAbstractClass
             );
     }
@@ -229,12 +242,12 @@ public record LibraryModel(
     private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         if (specMirror == null) {
-            return DEFAULT_RESOLVER_FQN;
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "symbolResolver");
         if (resolverTypeMirror == null) {
-            return DEFAULT_RESOLVER_FQN;
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
         TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
@@ -247,15 +260,15 @@ public record LibraryModel(
         // dot-separated qualified name, since the generator emits this into bytecode.
         String resolverFqn = binaryName(resolverElement);
 
-        if (resolverFqn.equals(DEFAULT_RESOLVER_FQN)) {
-            return DEFAULT_RESOLVER_FQN;
+        if (resolverFqn.equals(DEFAULT_SYMBOL_RESOLVER_FQN)) {
+            return DEFAULT_SYMBOL_RESOLVER_FQN;
         }
 
-        TypeElement resolverInterface = findTypeElement(resolverElement, RESOLVER_INTERFACE_FQN);
+        TypeElement resolverInterface = findTypeElement(resolverElement, SYMBOL_RESOLVER_INTERFACE_FQN);
         if (resolverInterface == null) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class [" + resolverFqn + "] must implement [" + RESOLVER_INTERFACE_FQN + "]",
+                "symbolResolver class [" + resolverFqn + "] must implement [" + SYMBOL_RESOLVER_INTERFACE_FQN + "]",
                 element,
                 specMirror
             );
@@ -266,6 +279,59 @@ public record LibraryModel(
             messager.printMessage(
                 Kind.ERROR,
                 "symbolResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                element,
+                specMirror
+            );
+            return null;
+        }
+
+        return resolverFqn;
+    }
+
+    /**
+     * Resolves and validates the {@code methodHandleResolver} attribute from {@link LibrarySpecification}.
+     * Returns the default ({@link DefaultMethodHandleResolver}) when no custom resolver is specified.
+     * The resolver class must implement {@link MethodHandleResolver} and have a public no-arg constructor.
+     *
+     * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
+     *         (error already emitted).
+     */
+    private static String resolveAndValidateMethodHandleResolver(TypeElement element, Messager messager, Types types) {
+        AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
+        TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "methodHandleResolver");
+        if (resolverTypeMirror == null) {
+            return DEFAULT_MH_RESOLVER_FQN;
+        }
+
+        TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
+        if (resolverElement == null) {
+            messager.printMessage(Kind.ERROR, "methodHandleResolver must reference a class", element, specMirror);
+            return null;
+        }
+
+        // Use the JVM binary name (e.g. "pkg.Enclosing$Nested" for nested classes), not the
+        // dot-separated qualified name, since the generator emits this into bytecode.
+        String resolverFqn = binaryName(resolverElement);
+
+        if (resolverFqn.equals(DEFAULT_MH_RESOLVER_FQN)) {
+            return DEFAULT_MH_RESOLVER_FQN;
+        }
+
+        TypeElement resolverInterface = findTypeElement(resolverElement, MH_RESOLVER_INTERFACE_FQN);
+        if (resolverInterface == null) {
+            messager.printMessage(
+                Kind.ERROR,
+                "methodHandleResolver class [" + resolverFqn + "] must implement [" + MH_RESOLVER_INTERFACE_FQN + "]",
+                element,
+                specMirror
+            );
+            return null;
+        }
+
+        if (hasPublicNoArgConstructor(resolverElement) == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "methodHandleResolver class [" + resolverFqn + "] must have a public no-arg constructor",
                 element,
                 specMirror
             );

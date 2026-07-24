@@ -615,3 +615,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.not enough buckets per group}
   issue: https://github.com/elastic/elasticsearch/issues/154932
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: falls back to local gradle build when DRA manifest returns 404
+  issue: https://github.com/elastic/elasticsearch/issues/154979
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: builds distribution from branches via archives extractedAssemble
+  issue: https://github.com/elastic/elasticsearch/issues/154980
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: supports linux aarch distributions
+  issue: https://github.com/elastic/elasticsearch/issues/154982
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref
+  issue: https://github.com/elastic/elasticsearch/issues/154983
+- class: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPluginFuncTest
+  method: selects launcher when minimum runtime differs from current jvm
+  issue: https://github.com/elastic/elasticsearch/issues/154984

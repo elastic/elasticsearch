@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -64,19 +65,28 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
@@ -922,6 +932,584 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Concurrency budgets are per node, not per file: every deferred file's boundary probes share one budget, so
+     * the ceiling never multiplies by the number of files being probed. A configured concurrency of {@code 0}
+     * turns permit limiting off rather than meaning "no concurrency", so it must not collapse the budget.
+     */
+    public void testProbeConcurrencyIsClampedToBlobStoreConcurrency() {
+        assertEquals(4, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 4).build()));
+        int ceiling = FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
+        assertEquals(ceiling, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build()));
+        assertEquals(
+            FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
+            probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 200).build())
+        );
+        assertEquals(
+            "permit limiting disabled must not disable concurrency",
+            FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
+            probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 0).build())
+        );
+    }
+
+    private static int probeConcurrencyFor(Settings settings) {
+        return new FileSplitProvider(1024, new DecompressionCodecRegistry(), null, null, settings).probeConcurrency();
+    }
+
+    /**
+     * With a discovery executor the boundary probes of a multi-file query run concurrently, and they produce
+     * exactly the splits the serial path produces. The two must agree: probing fixed stride offsets makes each
+     * probe independent of the others, so the order they complete in cannot change the boundary set.
+     */
+    public void testStridedProbesRunConcurrentlyAndAgreeWithSerialDiscovery() throws Exception {
+        Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
+        // Two probes per file (stride and minimum segment are both 1 MiB against a ~3.5 MiB payload).
+        StreamTracking tracking = new StreamTracking(2);
+
+        List<ExternalSplit> serial = discoverPlainCsvSplits(payloads, CSV_MIN_SEGMENT_BYTES, null, null);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<ExternalSplit> parallel;
+        try {
+            parallel = discoverPlainCsvSplits(payloads, CSV_MIN_SEGMENT_BYTES, executor, tracking);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat("both files must macro-split", serial.size(), greaterThan(2));
+        assertEquals("parallel probing must not change the split set", describe(serial), describe(parallel));
+        assertThat("probes must overlap when an executor is available", tracking.peakInFlight.get(), greaterThan(1));
+    }
+
+    /**
+     * The motivating case is one very large file, not many files, so a single file's own boundary probes must run
+     * concurrently. This also checks the boundaries themselves against ground truth on a payload with varying line
+     * lengths, where an off-byte in the probe arithmetic would land a split mid-record: every emitted split must
+     * begin at a real record start, and the splits together must cover the file exactly once.
+     */
+    public void testSingleLargeFileProbesConcurrentlyOnTrueRecordStarts() throws Exception {
+        StringBuilder csv = new StringBuilder();
+        int row = 0;
+        while (csv.length() < 4 * CSV_MIN_SEGMENT_BYTES) {
+            // Line lengths cycle so stride offsets land at varying depths into a record.
+            csv.append(row).append(",value,").append("x".repeat(row % 37)).append('\n');
+            row++;
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        Set<Long> trueStarts = trueRecordStarts(stridedSplitter(), payload);
+        StreamTracking tracking = new StreamTracking(2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<ExternalSplit> splits;
+        try {
+            splits = discoverPlainCsvSplits(Map.of("big.csv", payload), 256 * 1024, executor, tracking);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat("one large file must still macro-split several ways", splits.size(), greaterThan(2));
+        assertThat("a single file's probes must overlap", tracking.peakInFlight.get(), greaterThan(1));
+        long expectedOffset = 0;
+        for (ExternalSplit split : splits) {
+            FileSplit fileSplit = (FileSplit) split;
+            assertEquals("splits must be contiguous", expectedOffset, fileSplit.offset());
+            assertTrue("split at " + fileSplit.offset() + " must begin on a record start", trueStarts.contains(fileSplit.offset()));
+            assertThat("no empty split", fileSplit.length(), greaterThan(0L));
+            expectedOffset += fileSplit.length();
+        }
+        assertEquals("splits must cover the whole file", payload.length, expectedOffset);
+    }
+
+    /**
+     * A probe that finds no boundary ends macro-splitting at its offset, so the offsets past it cannot contribute a
+     * split. Those reads must be skipped rather than issued and then discarded: a file whose records are larger
+     * than the probe window would otherwise pay one read per stride offset to arrive at a single whole-file split.
+     */
+    public void testProbesPastATerminatingOffsetAreNotRead() throws Exception {
+        // Every line exceeds the probe window, so the first probe finds no boundary within its window.
+        byte[] payload = ("y".repeat(3 * Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES)) + "\n").repeat(4)
+            .getBytes(StandardCharsets.UTF_8);
+        StreamTracking tracking = new StreamTracking(1);
+
+        // A single thread makes the ordering deterministic: the lowest offset is probed first, and every higher
+        // offset sees its result.
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        List<ExternalSplit> splits;
+        try {
+            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), 256 * 1024, executor, tracking);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertEquals("a file with no usable boundary is read whole", 1, splits.size());
+        assertEquals("only the first stride offset is read", 1, tracking.opens.get());
+    }
+
+    /**
+     * The offsets of one file are probed by different threads, so the knowledge that an offset terminated has to be
+     * shared between them. Once the budget's worth of probes have all terminated, the remaining offsets must not be
+     * read at all.
+     */
+    public void testTheTerminatingOffsetIsSharedAcrossConcurrentProbes() throws Exception {
+        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
+        byte[] payload = ("y".repeat(3 * window) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+        Settings budgetOfTwo = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        // A 256 KiB stride leaves 8 offsets to probe, of which the budget lets only 2 be read before the first
+        // results are in.
+        StreamTracking tracking = new StreamTracking(2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        List<ExternalSplit> splits;
+        try {
+            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), window, executor, tracking, budgetOfTwo);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertEquals("a file with no usable boundary is read whole", 1, splits.size());
+        assertEquals("the offsets past the first terminating one must not be read", 2, tracking.opens.get());
+    }
+
+    /**
+     * A record too long to be spanned by the probe window ends macro-splitting where it starts, keeping the
+     * boundaries found before it. Serial and concurrent discovery must agree on that: the serial walk stops probing
+     * at that offset, while the concurrent one may probe past it and has to discard those results.
+     */
+    public void testSerialAndConcurrentAgreeWhenARecordExceedsTheWindowMidFile() throws Exception {
+        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
+        long stride = 2L * window;
+        StringBuilder csv = new StringBuilder();
+        // Normal rows up to just short of the second stride offset, so the probe there falls inside the long row
+        // that follows and finds no boundary within its window.
+        while (csv.length() < 2 * stride - window) {
+            csv.append("a,b,c\n");
+        }
+        csv.append("z".repeat(3 * window)).append('\n');
+        while (csv.length() < 8 * stride) {
+            csv.append("a,b,c\n");
+        }
+        Map<String, byte[]> payloads = Map.of("mid-file.csv", csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        List<ExternalSplit> serial = discoverPlainCsvSplits(payloads, stride, null, null);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<ExternalSplit> parallel;
+        try {
+            parallel = discoverPlainCsvSplits(payloads, stride, executor, null);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertEquals("splitting stops at the long record, keeping the boundary before it", 2, serial.size());
+        assertEquals("discarding the probes past a terminating one must match stopping at it", describe(serial), describe(parallel));
+    }
+
+    /**
+     * Probe concurrency is a per-query budget, so more probes than the budget must not all be in flight at once.
+     * The budget follows the node's blob-store concurrency, which is what actually limits open streams.
+     */
+    public void testProbesInFlightStayWithinTheConcurrencyBudget() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        byte[] payload = delimitedPayload("a,b,c,d,e\n");
+        // A 128 KiB stride over a ~3.5 MiB payload leaves far more probe offsets than the budget of 2.
+        StreamTracking tracking = new StreamTracking(2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            discoverPlainCsvSplits(Map.of("wide.csv", payload), 128 * 1024, executor, tracking, settings);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat("more probes than the budget must have run", tracking.opens.get(), greaterThan(2));
+        assertEquals("in-flight probes must not exceed the budget", 2, tracking.peakInFlight.get());
+    }
+
+    /**
+     * The budget covers the whole query, so probing several files together must not multiply it. Probing one file
+     * at a time under its own budget would allow files times budget streams open at once, which is what pooling
+     * every deferred file's offsets into one batch prevents.
+     */
+    public void testProbesOfDifferentFilesShareOneConcurrencyBudget() throws Exception {
+        Settings budgetOfTwo = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
+        Map<String, byte[]> payloads = new HashMap<>();
+        for (int file = 0; file < 4; file++) {
+            payloads.put("f" + file + ".csv", delimitedPayload("a,b,c," + file + "\n"));
+        }
+        // A 128 KiB stride over ~3.5 MiB gives each file far more probe offsets than the budget of 2.
+        StreamTracking tracking = new StreamTracking(2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            discoverPlainCsvSplits(payloads, 128 * 1024, executor, tracking, budgetOfTwo);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat("every file must contribute probes", tracking.opens.get(), greaterThan(payloads.size() * 2));
+        assertEquals("one budget across all files, not one per file", 2, tracking.peakInFlight.get());
+    }
+
+    /**
+     * Planning a strided file reads nothing, so a cancel arriving while it runs is not seen by any read. It must be
+     * seen between the phases instead: a cancelled query must not even dispatch its probes, let alone read.
+     */
+    public void testCancellationBetweenPlanningAndProbingDispatchesNoProbe() throws Exception {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        StreamTracking tracking = new StreamTracking(1);
+        // Planning hands out the file's storage object without reading it, which is the window under test.
+        BooleanSupplier cancelOncePlanned = () -> tracking.objects.get() > 0;
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        AtomicInteger dispatched = new AtomicInteger();
+        Executor countingExecutor = command -> {
+            dispatched.incrementAndGet();
+            pool.execute(command);
+        };
+        try {
+            expectThrows(
+                TaskCancelledException.class,
+                () -> discoverPlainCsvSplits(
+                    Map.of("planned.csv", payload),
+                    256 * 1024,
+                    countingExecutor,
+                    tracking,
+                    Settings.EMPTY,
+                    cancelOncePlanned
+                )
+            );
+        } finally {
+            pool.shutdown();
+        }
+        // The single planned file is planned on the calling thread, so anything dispatched would be a probe.
+        assertEquals("a cancelled query must not dispatch probes", 0, dispatched.get());
+        assertEquals("a cancel seen before probing must not read", 0, tracking.opens.get());
+    }
+
+    /**
+     * A probe skipped because a lower offset already terminated does no read, and so observes no cancellation of
+     * its own. When the first probe terminates macro-splitting, every remaining probe is skipped, and a cancel
+     * arriving then must still fail the query instead of returning the splits found so far.
+     */
+    public void testCancellationIsSeenWhenEveryRemainingProbeIsSkipped() throws Exception {
+        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
+        // Lines longer than the probe window: the first probe finds no boundary and terminates the file.
+        byte[] payload = ("y".repeat(3 * window) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+        StreamTracking tracking = new StreamTracking(1);
+        // Cancelled once the first probe has finished with its stream, so the probes the cutoff skips are the only
+        // work left when the cancel lands.
+        BooleanSupplier cancelAfterFirstProbe = () -> tracking.closes.get() > 0;
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            expectThrows(
+                TaskCancelledException.class,
+                () -> discoverPlainCsvSplits(
+                    Map.of("long-lines.csv", payload),
+                    window,
+                    executor,
+                    tracking,
+                    Settings.EMPTY,
+                    cancelAfterFirstProbe
+                )
+            );
+        } finally {
+            executor.shutdown();
+        }
+        assertEquals("the skipped probes must not read", 1, tracking.opens.get());
+    }
+
+    /**
+     * A cancel arriving once probing has started stops the query rather than reading out every remaining offset.
+     */
+    public void testCancellationDuringProbingAbortsDiscovery() throws Exception {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        StreamTracking tracking = new StreamTracking(1);
+        // Cancelled as soon as the first probe opens its stream, so the cancel lands inside the probe phase
+        // rather than during planning.
+        BooleanSupplier cancelOnFirstRead = () -> tracking.opens.get() > 0;
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            expectThrows(
+                TaskCancelledException.class,
+                () -> discoverPlainCsvSplits(
+                    Map.of("cancelled.csv", payload),
+                    256 * 1024,
+                    executor,
+                    tracking,
+                    Settings.EMPTY,
+                    cancelOnFirstRead
+                )
+            );
+        } finally {
+            executor.shutdown();
+        }
+        assertEquals("discovery must stop at the probe that saw the cancel", 1, tracking.opens.get());
+    }
+
+    /**
+     * Splits are emitted in file order even though only some files' boundaries are probed in the deferred phase:
+     * a small file finishes during planning while a large one comes back later, and the large one's macro-splits
+     * must still land in its file's position rather than after every planned file.
+     */
+    public void testSplitOrderFollowsFileOrderWhenOnlySomeFilesAreProbed() throws Exception {
+        byte[] small = "x,y,z\n".repeat(4).getBytes(StandardCharsets.UTF_8);
+        Map<String, byte[]> payloads = Map.of("a-small.csv", small, "b-large.csv", delimitedPayload("a,b,c\n"), "c-small.csv", small);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<ExternalSplit> splits;
+        try {
+            splits = discoverPlainCsvSplits(payloads, CSV_MIN_SEGMENT_BYTES, executor, null);
+        } finally {
+            executor.shutdown();
+        }
+
+        List<String> objectOrder = new ArrayList<>();
+        for (ExternalSplit split : splits) {
+            String objectName = ((FileSplit) split).path().objectName();
+            if (objectOrder.isEmpty() || objectOrder.get(objectOrder.size() - 1).equals(objectName) == false) {
+                objectOrder.add(objectName);
+            }
+        }
+        assertEquals(List.of("a-small.csv", "b-large.csv", "c-small.csv"), objectOrder);
+        assertThat("the large file must contribute several macro-splits", splits.size(), greaterThan(3));
+    }
+
+    /** A plain-CSV payload of ~3.5 MiB: above two minimum segments, so it yields several macro-splits. */
+    private static byte[] delimitedPayload(String lineContent) {
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
+            sb.append(lineContent);
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Offsets, lengths, and position stamps of a split list, in order: enough to tell two split sets apart. */
+    private static List<String> describe(List<ExternalSplit> splits) {
+        List<String> described = new ArrayList<>(splits.size());
+        for (ExternalSplit split : splits) {
+            FileSplit fileSplit = (FileSplit) split;
+            described.add(
+                fileSplit.path()
+                    + "["
+                    + fileSplit.offset()
+                    + ","
+                    + fileSplit.length()
+                    + ",first="
+                    + FileSplitProvider.isFirstInFile(fileSplit)
+                    + ",last="
+                    + FileSplitProvider.isLastInFile(fileSplit)
+                    + "]"
+            );
+        }
+        return described;
+    }
+
+    private static List<ExternalSplit> discoverPlainCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking
+    ) {
+        return discoverPlainCsvSplits(payloads, targetStrideBytes, executor, tracking, Settings.EMPTY);
+    }
+
+    private static List<ExternalSplit> discoverPlainCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking,
+        Settings settings
+    ) {
+        return discoverPlainCsvSplits(payloads, targetStrideBytes, executor, tracking, settings, () -> false);
+    }
+
+    /**
+     * Runs full split discovery over one or more plain-mode CSV files, optionally on an executor and against a
+     * stream-tracking storage provider.
+     */
+    private static List<ExternalSplit> discoverPlainCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking,
+        Settings settings,
+        BooleanSupplier isCancelled
+    ) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "csv",
+            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".csv", "csv");
+        formatRegistry.byName("csv");
+
+        FileSplitProvider provider = new FileSplitProvider(
+            targetStrideBytes,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, tracking),
+            formatRegistry,
+            settings,
+            executor
+        );
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (String objectName : new TreeSet<>(payloads.keySet())) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + objectName), payloads.get(objectName).length, Instant.EPOCH));
+        }
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://b/*.csv");
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of("mode", "plain"),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            isCancelled,
+            DeclaredReadSpec.NONE
+        );
+        return provider.discoverSplits(ctx).splits();
+    }
+
+    /**
+     * Counts storage streams opened and how many were open at once. Each opened stream waits for
+     * {@code expectedOverlap} peers to arrive, bounded by a timeout so a serialized run still finishes and simply
+     * reports a peak of 1. Without that wait, in-memory reads finish so fast that an assertion about overlapping
+     * probes would depend on scheduling luck.
+     */
+    private static final class StreamTracking {
+        private static final long OVERLAP_WAIT_MILLIS = 5_000;
+
+        final AtomicInteger peakInFlight = new AtomicInteger();
+        final AtomicInteger opens = new AtomicInteger();
+        final AtomicInteger closes = new AtomicInteger();
+        /** Storage objects handed out, which planning does before any stream is opened. */
+        final AtomicInteger objects = new AtomicInteger();
+        private final AtomicInteger inFlight = new AtomicInteger();
+        private final CountDownLatch overlap;
+
+        StreamTracking(int expectedOverlap) {
+            this.overlap = new CountDownLatch(expectedOverlap);
+        }
+
+        void opened() throws InterruptedException {
+            opens.incrementAndGet();
+            int current = inFlight.incrementAndGet();
+            peakInFlight.accumulateAndGet(current, Math::max);
+            overlap.countDown();
+            overlap.await(OVERLAP_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+        }
+
+        void closed() {
+            closes.incrementAndGet();
+            inFlight.decrementAndGet();
+        }
+    }
+
+    /** Storage provider serving a distinct payload per object name, so a multi-file test can vary file sizes. */
+    private static StorageProviderRegistry createMultiFileStorageRegistry(Map<String, byte[]> payloads, @Nullable StreamTracking tracking) {
+        StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
+        StorageProvider provider = new StorageProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                return newObject(path, payloadFor(path).length);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length) {
+                return newObject(path, length, Instant.EPOCH);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                byte[] payload = payloadFor(path);
+                if (tracking != null) {
+                    tracking.objects.incrementAndGet();
+                }
+                return new StorageObject() {
+                    @Override
+                    public InputStream newStream() {
+                        return trackedStream(new ByteArrayInputStream(payload));
+                    }
+
+                    @Override
+                    public InputStream newStream(long position, long len) {
+                        return trackedStream(new ByteArrayInputStream(payload, Math.toIntExact(position), Math.toIntExact(len)));
+                    }
+
+                    @Override
+                    public long length() {
+                        return payload.length;
+                    }
+
+                    @Override
+                    public Instant lastModified() {
+                        return lastModified;
+                    }
+
+                    @Override
+                    public boolean exists() {
+                        return true;
+                    }
+
+                    @Override
+                    public StoragePath path() {
+                        return path;
+                    }
+                };
+            }
+
+            private InputStream trackedStream(InputStream delegate) {
+                if (tracking == null) {
+                    return delegate;
+                }
+                try {
+                    tracking.opened();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted while tracking stream", e);
+                }
+                return new FilterInputStream(delegate) {
+                    @Override
+                    public void close() throws IOException {
+                        tracking.closed();
+                        super.close();
+                    }
+                };
+            }
+
+            private byte[] payloadFor(StoragePath path) {
+                byte[] payload = payloads.get(path.objectName());
+                assertNotNull("no payload registered for " + path, payload);
+                return payload;
+            }
+
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists(StoragePath path) {
+                return payloads.containsKey(path.objectName());
+            }
+
+            @Override
+            public List<String> supportedSchemes() {
+                return List.of("s3");
+            }
+
+            @Override
+            public void close() {}
+        };
+        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> provider));
+        return registry;
+    }
+
+    /**
      * Full {@link FileSplitProvider#discoverSplits} path for a quoted CSV file whose quoted fields carry
      * embedded newlines and {@code ""}-escaped quotes: it emits multiple record-aligned macro-splits (proving
      * the {@code requiresSequentialWholeFileRead} gate lets a proven-capable quoted splitter through). Every
@@ -947,7 +1535,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * Quoted CSV (the default {@code .csv} mode, whose quoted fields may embed newlines) macro-splits via the
-     * proven-probe path: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} emits boundaries for
+     * proven-probe path: {@link FileSplitProvider#computeProvenMacroSplitStarts} emits boundaries for
      * a non-strided but proven-capable splitter. Every emitted boundary must be a true record start, checked
      * against the trusted sequential scanner {@link RecordSplitter#findNextRecordBoundary} looped from the file
      * start (its prefix sums are the true record starts), and the boundaries must be strictly increasing. The
@@ -982,12 +1570,12 @@ public class FileSplitProviderTests extends ESTestCase {
         Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
-            csvReader,
+        List<Long> starts = FileSplitProvider.computeProvenMacroSplitStarts(
+            csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             obj,
             fileLength,
             stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            csvReader.minimumSegmentSize(),
             () -> false
         );
 
@@ -1019,11 +1607,13 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} opens a
-     * range stream for each stride probe, reads only enough bytes to find the next record
-     * boundary, then must call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     * Each strided stride probe opens a bounded window (at most
+     * {@link FileSplitProvider#MACRO_SPLIT_PROBE_WINDOW_BYTES}), finds the next record boundary within it, then
+     * drains the window's remaining bytes and closes so the HTTP connection returns to the pool for the next
+     * probe to reuse. It must not abort (an aborted partial body drops the connection, forcing a fresh handshake
+     * per probe), and it must not open a range to end-of-file (which would drain far more than the window).
      */
-    public void testComputeRecordAlignedMacroSplitStartsDoesNotDrainStream() throws IOException {
+    public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -1036,26 +1626,229 @@ public class FileSplitProviderTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        // Plain mode: the drain contract is format-agnostic, but macro-split discovery now refuses non-strided
-        // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
+        // Plain mode keeps strided probing; macro-split discovery refuses non-strided (default/quoted) CSV,
+        // which is read whole-file instead.
         var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
-            csvReader,
-            object,
-            fileLength,
-            stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
-        );
+        List<Long> starts = serialStridedStarts(csvReader, object, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
-        assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertEquals("strided probes pool the connection by draining, never abort", 0, tracking.abortCalls.get());
+        assertTrue("probe streams must be closed", tracking.closed.get());
+        // Each successful probe drains its full window, so at least (boundaries) * window bytes are read: proof
+        // the window is drained (an abort-without-drain would read only the few bytes up to the first newline).
+        long window = FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES;
+        long probes = starts.size() - 1;
+        assertThat(tracking.bytesConsumed.get(), greaterThanOrEqualTo(probes * window));
+        // But far below the whole file: the probe reads a bounded window, never a range to end-of-file.
         assertThat(
-            "boundary probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            "boundary probes must read bounded windows; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
             lessThan(fileLength / 2)
         );
+    }
+
+    // -- strided macro-split discovery: fixed probe offsets, independent probes --
+
+    /**
+     * A strided (newline-terminated) record splitter. Plain-mode CSV turns quoting off, so every newline
+     * terminates a record and the splitter can be probed at any offset, exactly like NDJSON's.
+     */
+    private static RecordSplitter stridedSplitter() {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        return reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
+    }
+
+    /**
+     * A strided walk probes fixed multiples of the stride rather than re-anchoring on each boundary it finds.
+     * That independence is what lets the probes run concurrently: every position is known before any read.
+     */
+    public void testMacroSplitProbePositionsAreFixedStrideMultiples() {
+        assertEquals(List.of(100L, 200L, 300L, 400L), FileSplitProvider.macroSplitProbePositions(500, 100, 1));
+    }
+
+    /** A stride offset with less than a minimum segment behind it would produce a runt split, so it is not probed. */
+    public void testMacroSplitProbePositionsStopBeforeAShortTail() {
+        assertEquals(List.of(100L, 200L), FileSplitProvider.macroSplitProbePositions(500, 100, 250));
+        assertEquals(List.of(), FileSplitProvider.macroSplitProbePositions(500, 100, 500));
+    }
+
+    /** No offset is inside a file at or below one stride, which is the caller's "too small to split" case. */
+    public void testMacroSplitProbePositionsEmptyForFileWithinOneStride() {
+        assertEquals(List.of(), FileSplitProvider.macroSplitProbePositions(100, 100, 1));
+        assertEquals(List.of(), FileSplitProvider.macroSplitProbePositions(60, 100, 1));
+    }
+
+    /** The file start is always a split start, and each probed boundary follows in probe order. */
+    public void testReduceProbeOutcomesSeedsTheFileStart() {
+        List<Long> boundaries = FileSplitProvider.reduceProbeOutcomes(
+            List.of(FileSplitProvider.ProbeOutcome.at(120), FileSplitProvider.ProbeOutcome.at(240))
+        );
+        assertEquals(List.of(0L, 120L, 240L), boundaries);
+    }
+
+    /**
+     * A terminating probe ends the split set there: everything after it belongs to the preceding split, which
+     * extends to end-of-file. Probes past the terminating one are discarded even though they found boundaries,
+     * so the serial walk's early stop and the concurrent gather's full sweep agree.
+     */
+    public void testReduceProbeOutcomesStopsAtTheFirstTerminatingProbe() {
+        List<Long> boundaries = FileSplitProvider.reduceProbeOutcomes(
+            List.of(
+                FileSplitProvider.ProbeOutcome.at(120),
+                FileSplitProvider.ProbeOutcome.TERMINATE,
+                FileSplitProvider.ProbeOutcome.at(360)
+            )
+        );
+        assertEquals(List.of(0L, 120L), boundaries);
+    }
+
+    /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
+    public void testReduceProbeOutcomesDropsBoundariesThatDoNotAdvance() {
+        List<Long> boundaries = FileSplitProvider.reduceProbeOutcomes(
+            List.of(FileSplitProvider.ProbeOutcome.at(120), FileSplitProvider.ProbeOutcome.at(120), FileSplitProvider.ProbeOutcome.at(240))
+        );
+        assertEquals(List.of(0L, 120L, 240L), boundaries);
+    }
+
+    /**
+     * A record longer than the probe window leaves no boundary to split at, so the probe terminates rather than
+     * reading on to end-of-file. Bounding the read is what keeps a probe a small, predictable ranged GET.
+     */
+    public void testProbeStridedBoundaryTerminatesWhenNoBoundaryInWindow() throws IOException {
+        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
+        byte[] payload = new byte[4 * window];
+        Arrays.fill(payload, (byte) 'x');
+        payload[payload.length - 1] = '\n';
+        StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://long-line.ndjson"));
+
+        FileSplitProvider.ProbeOutcome outcome = FileSplitProvider.probeStridedBoundary(
+            stridedSplitter(),
+            object,
+            window,
+            payload.length,
+            1,
+            () -> false
+        );
+
+        assertTrue("a record spanning the whole window leaves nothing to split at", outcome.terminate());
+    }
+
+    /** A boundary too close to end-of-file would leave a runt split, so the probe terminates instead. */
+    public void testProbeStridedBoundaryTerminatesWhenTailIsBelowMinimumSegment() throws IOException {
+        byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://short.ndjson"));
+        RecordSplitter splitter = stridedSplitter();
+
+        assertEquals(
+            FileSplitProvider.ProbeOutcome.at(10),
+            FileSplitProvider.probeStridedBoundary(splitter, object, 5, payload.length, 5, () -> false)
+        );
+        // With a 6-byte minimum segment, the same boundary leaves only 5 of the 15 bytes behind it.
+        assertTrue(FileSplitProvider.probeStridedBoundary(splitter, object, 5, payload.length, 6, () -> false).terminate());
+    }
+
+    /**
+     * A probe that fails mid-read aborts its stream rather than draining it: the read is not going to be reused,
+     * so the connection (and the storage permit it holds) should be released at once instead of after pointlessly
+     * transferring the rest of the window.
+     */
+    public void testProbeStridedBoundaryAbortsAFailedRead() {
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject failing = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return newStream(0, 1);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new IOException("connection reset");
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                abortCalls.incrementAndGet();
+                stream.close();
+            }
+
+            @Override
+            public long length() {
+                return 4096;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://failing.ndjson");
+            }
+        };
+
+        expectThrows(
+            IOException.class,
+            () -> FileSplitProvider.probeStridedBoundary(stridedSplitter(), failing, 1024, 4096, 1, () -> false)
+        );
+        assertEquals("a failed probe must abort, not drain", 1, abortCalls.get());
+    }
+
+    /** A probe checks for cancellation before opening its stream, so a cancelled query issues no further reads. */
+    public void testProbeStridedBoundaryFailsFastOnCancellation() {
+        AtomicInteger streamsOpened = new AtomicInteger();
+        byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject counting = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                streamsOpened.incrementAndGet();
+                return new ByteArrayInputStream(payload);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                streamsOpened.incrementAndGet();
+                return new ByteArrayInputStream(payload, (int) position, (int) length);
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://cancelled.ndjson");
+            }
+        };
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> FileSplitProvider.probeStridedBoundary(stridedSplitter(), counting, 5, payload.length, 1, () -> true)
+        );
+        assertEquals("a cancelled probe must not read", 0, streamsOpened.get());
     }
 
     public void testRecordAlignedMacroSplitDiscoveryStopsOnMaxRecordSize() throws IOException {
@@ -1070,9 +1863,32 @@ public class FileSplitProviderTests extends ESTestCase {
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16, () -> false);
+        List<Long> starts = serialStridedStarts(csvReader, object, payload.length, 4, 16);
 
         assertEquals(List.of(0L), starts);
+    }
+
+    /**
+     * The serial form of the strided walk a node without a discovery executor falls back to: the fixed stride
+     * offsets of {@code reader}'s splitter, probed on the calling thread and reduced the same way the concurrent
+     * gather reduces them.
+     */
+    private static List<Long> serialStridedStarts(
+        SegmentableFormatReader reader,
+        StorageObject object,
+        long fileLength,
+        long targetStrideBytes,
+        int maxRecordBytes
+    ) throws IOException {
+        long minSegment = reader.minimumSegmentSize();
+        return FileSplitProvider.probeStridedBoundariesSerially(
+            reader.recordSplitter(maxRecordBytes),
+            object,
+            fileLength,
+            FileSplitProvider.macroSplitProbePositions(fileLength, targetStrideBytes, minSegment),
+            minSegment,
+            () -> false
+        );
     }
 
     private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {

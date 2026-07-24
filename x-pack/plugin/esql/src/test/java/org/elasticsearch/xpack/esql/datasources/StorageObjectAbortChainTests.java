@@ -88,12 +88,14 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
-     * Regression guard for {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts}: each
-     * macro-split boundary probe opens {@code newStream(pos, remaining)} and reads only a prefix,
-     * so cleanup must abort (not drain) through the same decorator chain used for uncompressed
-     * text files on object storage.
+     * Regression guard for {@link FileSplitProvider#probeStridedBoundary} through the same
+     * decorator chain used for uncompressed text files on object storage. A boundary probe deliberately does
+     * <em>not</em> abort: it opens a bounded window, then drains and closes it so the connection returns to the
+     * pool for the next probe (aborting would drop the connection and cost a handshake per probe). What the chain
+     * must preserve is the window's bound, so the total read stays a small fraction of the file rather than a
+     * range opened to end-of-file. A decorator that ignored the requested length would trip the upper bound here.
      */
-    public void testMacroSplitDiscoveryAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
+    public void testMacroSplitDiscoveryDrainsBoundedWindowsThroughDecoratorChain() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
         for (int i = 0; i < 200_000; i++) {
             csv.append(i).append(",value_").append(i).append('\n');
@@ -113,25 +115,30 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
-            csvReader,
+        long minSegment = csvReader.minimumSegmentSize();
+        List<Long> starts = FileSplitProvider.probeStridedBoundariesSerially(
+            csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             chain,
             fileLength,
-            stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            FileSplitProvider.macroSplitProbePositions(fileLength, stride, minSegment),
+            minSegment,
             () -> false
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
-        assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertEquals("a boundary probe pools its connection by draining, never aborts", 0, tracking.abortCalls.get());
+        assertTrue("probe streams must be closed through the chain", tracking.closed.get());
         assertThat(
-            "macro-split probes must not drain range streams; consumed "
+            "each probe drains its full window through the chain",
+            tracking.bytesConsumed.get(),
+            Matchers.greaterThanOrEqualTo((starts.size() - 1) * FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES)
+        );
+        assertThat(
+            "macro-split probes must read bounded windows, not ranges to end-of-file; consumed "
                 + tracking.bytesConsumed.get()
                 + " of "
                 + fileLength
-                + " bytes across "
-                + tracking.abortCalls.get()
-                + " probes",
+                + " bytes",
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );

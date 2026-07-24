@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -91,7 +93,7 @@ import java.util.function.BooleanSupplier;
  *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
  *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
  *       bytes.
- *       See {@link #tryNewlineAlignedMacroSplits}.</li>
+ *       See {@link #newlineMacroSplitCandidate} and {@link #buildNewlineMacroSplits}.</li>
  *   <li><b>Block-aligned splits</b> — for splittable compressed formats (e.g. bzip2) via
  *       {@link SplittableDecompressionCodec#findBlockBoundaries}. Splits land on compression
  *       block boundaries, not record boundaries. Readers receive {@code recordAligned=false}
@@ -143,7 +145,7 @@ public class FileSplitProvider implements SplitProvider {
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
 
     /**
-     * Macro-split starts on a newline-aligned record boundary (see {@link #tryNewlineAlignedMacroSplits}).
+     * Macro-split starts on a newline-aligned record boundary (see {@link #buildNewlineMacroSplits}).
      * Downstream readers set {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}
      * and pass this flag into {@link ParallelParsingCoordinator#parallelRead}
      * so single-threaded fallback paths do not skip or trim aligned ranges.
@@ -159,8 +161,24 @@ public class FileSplitProvider implements SplitProvider {
      */
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
-    /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
+    /**
+     * Ceiling on concurrent I/O tasks during split discovery, applied separately to the per-file planning pass
+     * (Parquet footer reads, etc.) and to the record-boundary probes that follow it. The two passes run one after
+     * the other, so this bounds in-flight reads at any instant rather than being multiplied between them.
+     */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
+
+    /**
+     * Bytes read from each stride offset when probing for the next record boundary during newline-aligned
+     * macro-split discovery. A row-oriented record (an NDJSON line, a CSV row) is far smaller than this, so its
+     * terminating newline is found well within the window. When no boundary is found within the window,
+     * macro-splitting stops at that offset (the preceding split then covers the rest of the file) rather than
+     * reading further. Bounding the probe to a fixed window keeps each boundary probe a small, predictable ranged
+     * GET instead of a range opened to end-of-file. A probe drains the window in full (see
+     * {@link #probeStridedBoundary}) so the connection is pooled for the next probe to reuse; the window is
+     * bounded so that drain stays cheap.
+     */
+    static final long MACRO_SPLIT_PROBE_WINDOW_BYTES = 256 * 1024;
 
     private static final String DISCOVERY_CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
 
@@ -374,22 +392,24 @@ public class FileSplitProvider implements SplitProvider {
             return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
         }
 
-        // Phase 2: I/O-bound split discovery — parallelize when executor is available.
+        // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
+        // whose record boundaries still need probing come back as deferred descriptors; everything else
+        // (Parquet footers, block-aligned compressed, range splits, whole-file) finishes here.
         final StorageProvider hoistedProvider = sharedProvider;
         final BooleanSupplier isCancelled = context.isCancelled();
-        List<List<ExternalSplit>> perFileSplits;
+        List<PlanResult> planResults;
         try {
             if (executor != null && tasks.size() > 1) {
-                perFileSplits = BoundedParallelGather.gather(
+                planResults = BoundedParallelGather.gather(
                     tasks,
                     task -> processFileForSplits(task, hoistedProvider, isCancelled),
                     MAX_PARALLEL_SPLIT_DISCOVERY,
                     executor
                 );
             } else {
-                perFileSplits = new ArrayList<>(tasks.size());
+                planResults = new ArrayList<>(tasks.size());
                 for (FileTask task : tasks) {
-                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
+                    planResults.add(processFileForSplits(task, hoistedProvider, isCancelled));
                 }
             }
         } catch (IOException e) {
@@ -400,14 +420,154 @@ public class FileSplitProvider implements SplitProvider {
             throw new RuntimeException("Failed to discover splits", e);
         }
 
-        // Flatten per-file split lists into a single ordered list.
+        // Phase 3: probe the deferred files' record boundaries. Every deferred file's stride offsets go into one
+        // flat batch under a single concurrency budget, so the number of in-flight probe reads is bounded by that
+        // budget no matter how many files are being probed. Probing per file instead would multiply the per-file
+        // budget by the number of files in flight.
+        Map<Integer, List<Long>> boundariesByPlan = probeDeferredBoundaries(planResults, isCancelled);
+
+        // Splits are emitted in file order: walking the plan results keeps a deferred file's macro-splits in the
+        // same position its file occupied in the file list.
         List<ExternalSplit> splits = new ArrayList<>();
-        for (List<ExternalSplit> fileSplits : perFileSplits) {
-            splits.addAll(fileSplits);
+        for (int i = 0; i < planResults.size(); i++) {
+            PlanResult planResult = planResults.get(i);
+            if (planResult.deferred() == null) {
+                splits.addAll(planResult.splits());
+            } else {
+                List<Long> starts = boundariesByPlan.get(i);
+                // A file is only deferred when it has offsets to probe, so the probe phase always answers for it.
+                assert starts != null : "no probed boundaries for deferred file " + planResult.deferred().filePath();
+                splits.addAll(buildNewlineMacroSplits(planResult.deferred(), starts));
+            }
         }
         // Each surviving task produces at least one split, so the task count is the number of
         // distinct files that are actually scanned after coordinator-side pruning.
         return new SplitDiscoveryResult(splits, tasks.size());
+    }
+
+    /**
+     * Probes the record boundaries of every deferred file, keyed by the file's index in {@code planResults}.
+     * <p>
+     * With an executor, all files' stride offsets are gathered into one flat batch so a single concurrency budget
+     * ({@link #probeConcurrency()}) bounds the in-flight probe reads across the whole query, rather than one budget
+     * per file multiplied by the files in flight. Without one, each file is walked serially. Both produce the same
+     * boundaries.
+     */
+    private Map<Integer, List<Long>> probeDeferredBoundaries(List<PlanResult> planResults, BooleanSupplier isCancelled) {
+        List<Integer> deferredIndices = new ArrayList<>();
+        int probeCount = 0;
+        for (int i = 0; i < planResults.size(); i++) {
+            DeferredNewlineSplits deferred = planResults.get(i).deferred();
+            if (deferred != null) {
+                deferredIndices.add(i);
+                probeCount += deferred.positions().size();
+            }
+        }
+        if (probeCount == 0) {
+            return Map.of();
+        }
+        // A cancel between planning and probing should be seen before any probe read is issued.
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+
+        try {
+            Map<Integer, List<Long>> boundariesByPlan;
+            if (executor == null) {
+                boundariesByPlan = new HashMap<>(deferredIndices.size());
+                for (int planIndex : deferredIndices) {
+                    DeferredNewlineSplits deferred = planResults.get(planIndex).deferred();
+                    boundariesByPlan.put(
+                        planIndex,
+                        probeStridedBoundariesSerially(
+                            deferred.splitter(),
+                            deferred.storageObject(),
+                            deferred.fileLength(),
+                            deferred.positions(),
+                            deferred.minSegment(),
+                            isCancelled
+                        )
+                    );
+                }
+            } else {
+                List<ProbeTask> probeTasks = new ArrayList<>(probeCount);
+                for (int planIndex : deferredIndices) {
+                    // One cutoff per file, shared by its probes so that a terminating offset suppresses the reads
+                    // at the offsets past it, the way the serial walk stops at the first terminating probe.
+                    AtomicLong cutoff = new AtomicLong(Long.MAX_VALUE);
+                    DeferredNewlineSplits deferred = planResults.get(planIndex).deferred();
+                    for (long position : deferred.positions()) {
+                        probeTasks.add(new ProbeTask(planIndex, deferred, position, cutoff));
+                    }
+                }
+                List<ProbeOutcome> outcomes = BoundedParallelGather.gather(
+                    probeTasks,
+                    probe -> runProbe(probe, isCancelled),
+                    probeConcurrency(),
+                    executor
+                );
+
+                // Results come back in input order, and each file's offsets were added in ascending order, so
+                // grouping by file preserves the ascending order the reduction requires.
+                Map<Integer, List<ProbeOutcome>> outcomesByPlan = new HashMap<>();
+                for (int i = 0; i < probeTasks.size(); i++) {
+                    outcomesByPlan.computeIfAbsent(probeTasks.get(i).planIndex(), k -> new ArrayList<>()).add(outcomes.get(i));
+                }
+                boundariesByPlan = new HashMap<>(outcomesByPlan.size());
+                for (Map.Entry<Integer, List<ProbeOutcome>> entry : outcomesByPlan.entrySet()) {
+                    boundariesByPlan.put(entry.getKey(), reduceProbeOutcomes(entry.getValue()));
+                }
+            }
+            // A probe that stops at the cutoff, or that never runs because an earlier one terminated, issues no
+            // read and so observes no cancellation of its own. Check once here so a cancel landing anywhere in
+            // the probe phase fails the query rather than returning a split set the caller will discard.
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+            }
+            return boundariesByPlan;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to discover splits", e);
+        }
+    }
+
+    /**
+     * Runs one probe unless a lower offset in the same file has already terminated. Reading past a terminating
+     * offset is pure waste: the reduction discards those outcomes, so a file whose records exceed the probe window
+     * would otherwise pay a read at every one of its stride offsets to produce a single split. The cutoff only
+     * suppresses reads, never changes the boundary set, so the probes it skips can be reported as terminating.
+     */
+    private static ProbeOutcome runProbe(ProbeTask probe, BooleanSupplier isCancelled) throws IOException {
+        if (probe.position() > probe.cutoff().get()) {
+            return ProbeOutcome.TERMINATE;
+        }
+        DeferredNewlineSplits deferred = probe.deferred();
+        ProbeOutcome outcome = probeStridedBoundary(
+            deferred.splitter(),
+            deferred.storageObject(),
+            probe.position(),
+            deferred.fileLength(),
+            deferred.minSegment(),
+            isCancelled
+        );
+        if (outcome.terminate()) {
+            probe.cutoff().accumulateAndGet(probe.position(), Math::min);
+        }
+        return outcome;
+    }
+
+    /**
+     * How many boundary probes may be in flight at once across the whole query.
+     * <p>
+     * Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY}, but clamped to the node's blob-store concurrency: every
+     * probe holds one of those permits for as long as its stream is open, so submitting more probes than there
+     * are permits would only park discovery threads waiting to acquire one. A configured concurrency of {@code 0}
+     * disables permit limiting altogether rather than meaning "no concurrency", so the ceiling applies as-is.
+     */
+    int probeConcurrency() {
+        int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
+        return permits > 0 ? Math.min(MAX_PARALLEL_SPLIT_DISCOVERY, permits) : MAX_PARALLEL_SPLIT_DISCOVERY;
     }
 
     /**
@@ -444,6 +604,54 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes
     ) {}
 
+    /**
+     * A file that will be macro-split at record boundaries, carrying everything needed to probe those boundaries
+     * and then build its splits. Planning produces this without reading any file bytes so that the probes of
+     * every such file can be pooled into one bounded, concurrent batch instead of running per file.
+     * <p>
+     * {@code positions} holds the fixed stride offsets to probe, and is empty for a splitter that cannot be
+     * probed at a fixed offset (quoted/escaped CSV/TSV) and must use the sequential proven walk instead.
+     * <p>
+     * {@code splitter} is shared by every probe of this file, which is safe because record splitters hold no
+     * per-scan state (they are configured with a max record size and nothing else).
+     */
+    private record DeferredNewlineSplits(
+        StoragePath filePath,
+        long fileLength,
+        @Nullable String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        StorageObject storageObject,
+        RecordSplitter splitter,
+        long minSegment,
+        long targetStrideBytes,
+        int maxRecordBytes,
+        List<Long> positions
+    ) {}
+
+    /**
+     * The outcome of planning one file: either its final splits, or a descriptor whose record boundaries still
+     * need probing. Deferring the probing lets every candidate file's probes share a single concurrency budget.
+     */
+    private record PlanResult(List<ExternalSplit> splits, @Nullable DeferredNewlineSplits deferred) {
+        static PlanResult of(List<ExternalSplit> splits) {
+            return new PlanResult(splits, null);
+        }
+
+        static PlanResult needsProbing(DeferredNewlineSplits deferred) {
+            return new PlanResult(List.of(), deferred);
+        }
+    }
+
+    /**
+     * One stride offset to probe, tied back to the file (by plan index) whose boundaries it contributes to.
+     * {@code cutoff} is shared by all of that file's probes: it holds the lowest offset found to terminate
+     * macro-splitting, so probes at higher offsets can skip their read (see {@link #runProbe}).
+     */
+    private record ProbeTask(int planIndex, DeferredNewlineSplits deferred, long position, AtomicLong cutoff) {}
+
     private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
         Map<String, DataType> types = new HashMap<>(attributes.size());
         for (Attribute a : attributes) {
@@ -457,7 +665,7 @@ public class FileSplitProvider implements SplitProvider {
      * otherwise falls back to the registry for per-call provider resolution.
      * This method is safe to call concurrently from multiple threads.
      */
-    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+    private PlanResult processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
         throws IOException {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
@@ -467,7 +675,7 @@ public class FileSplitProvider implements SplitProvider {
         return StorageRetryCancellation.callWithCancellation(isCancelled, () -> computeFileSplits(task, hoistedProvider, isCancelled));
     }
 
-    private List<ExternalSplit> computeFileSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+    private PlanResult computeFileSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
         throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
@@ -500,7 +708,7 @@ public class FileSplitProvider implements SplitProvider {
                     task.readSchema()
                 )
             );
-            return fileSplits;
+            return PlanResult.of(fileSplits);
         }
 
         // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
@@ -517,7 +725,7 @@ public class FileSplitProvider implements SplitProvider {
             fileSplits,
             hoistedProvider
         )) {
-            return fileSplits;
+            return PlanResult.of(fileSplits);
         }
 
         if (tryRangeAwareSplits(
@@ -534,7 +742,7 @@ public class FileSplitProvider implements SplitProvider {
             fileSplits,
             hoistedProvider
         )) {
-            return fileSplits;
+            return PlanResult.of(fileSplits);
         }
 
         Map<String, Object> config = task.config();
@@ -546,7 +754,7 @@ public class FileSplitProvider implements SplitProvider {
         List<Attribute> readSchema = task.readSchema();
         long effectiveTargetSplitBytes = resolveTargetSplitSize(config);
 
-        if (tryNewlineAlignedMacroSplits(
+        DeferredNewlineSplits candidate = newlineMacroSplitCandidate(
             filePath,
             fileLength,
             format,
@@ -556,12 +764,20 @@ public class FileSplitProvider implements SplitProvider {
             readSchema,
             effectiveTargetSplitBytes,
             task.maxRecordBytes(),
-            fileSplits,
             hoistedProvider,
-            configuredReader,
-            isCancelled
-        )) {
-            return fileSplits;
+            configuredReader
+        );
+        if (candidate != null) {
+            // A strided candidate's probes are deferred so they can share one concurrency budget with every
+            // other file's probes. A provable-but-not-strided one must walk sequentially, so resolve it here.
+            if (candidate.positions().isEmpty() == false) {
+                return PlanResult.needsProbing(candidate);
+            }
+            if (candidate.splitter().supportsStridedProbing() == false) {
+                return PlanResult.of(buildNewlineMacroSplits(candidate, resolveProvenMacroSplitStarts(candidate, isCancelled)));
+            }
+            // Strided, but no stride offset is far enough from end-of-file to be worth splitting at.
+            return PlanResult.of(buildNewlineMacroSplits(candidate, List.of(0L)));
         }
 
         // Whole-file split when macro splitting does not apply (small files, unsupported formats, or single aligned span).
@@ -578,7 +794,34 @@ public class FileSplitProvider implements SplitProvider {
                 readSchema
             )
         );
-        return fileSplits;
+        return PlanResult.of(fileSplits);
+    }
+
+    /**
+     * Resolves a non-strided candidate's macro-split starts with the sequential proven walk.
+     * <p>
+     * A splitter that can be probed neither at a fixed offset nor by proving a record start must have been routed
+     * to a whole-file split upstream; if one arrives here that gate failed, so fail loud rather than emit
+     * mis-aligned macro-splits that silently mis-count rows.
+     */
+    private static List<Long> resolveProvenMacroSplitStarts(DeferredNewlineSplits deferred, BooleanSupplier isCancelled)
+        throws IOException {
+        RecordSplitter splitter = deferred.splitter();
+        if (splitter.supportsProvenProbing() == false) {
+            throw new IllegalStateException(
+                "record splitter ["
+                    + splitter.getClass().getName()
+                    + "] supports neither strided nor proven probing and cannot be macro-split"
+            );
+        }
+        return computeProvenMacroSplitStarts(
+            splitter,
+            deferred.storageObject(),
+            deferred.fileLength(),
+            deferred.targetStrideBytes(),
+            deferred.minSegment(),
+            isCancelled
+        );
     }
 
     /**
@@ -586,8 +829,8 @@ public class FileSplitProvider implements SplitProvider {
      * (no {@code formatRegistry}, no object name, or an unknown extension). Config-aware so a {@code WITH}
      * override (e.g. {@code mode=plain}, {@code quote=none}) selects the same reader/splitter the read path
      * will actually use: {@code byExtension} alone yields the extension default (quoted for {@code .csv}),
-     * whose non-strided splitter would trip {@link #computeRecordAlignedMacroSplitStarts}' guard for a
-     * plain-mode file. {@code withConfig} returns {@code null} only for test mocks; the base reader is used
+     * whose non-strided splitter would send a plain-mode file down the sequential proven walk instead of the
+     * strided one. {@code withConfig} returns {@code null} only for test mocks; the base reader is used
      * in that case. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the
      * inner text reader for compressed files (e.g. {@code .csv.bz2}) too.
      */
@@ -912,10 +1155,16 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Macro-splits supported line-oriented formats at record boundaries near {@code targetStrideBytes},
-     * enabling multiple workers per file without mid-record cuts.
+     * Decides whether a file can be macro-split at record boundaries near {@code targetStrideBytes} and, if so,
+     * returns everything needed to probe those boundaries and build the splits. Performs <b>no I/O</b>: for a
+     * strided splitter the probe positions are pure arithmetic, so the caller is free to run the probes later and
+     * concurrently with other files' probes. Returns {@code null} when the file is not a macro-split candidate.
+     * <p>
+     * A non-strided but provable splitter (quoted/escaped CSV/TSV) cannot defer: its walk is sequential, so the
+     * descriptor carries no positions and the caller must resolve it with the serial proven walk.
      */
-    private boolean tryNewlineAlignedMacroSplits(
+    @Nullable
+    private DeferredNewlineSplits newlineMacroSplitCandidate(
         StoragePath filePath,
         long fileLength,
         @Nullable String format,
@@ -925,41 +1174,76 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable List<Attribute> readSchema,
         long targetStrideBytes,
         int maxRecordBytes,
-        List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider,
-        @Nullable FormatReader reader,
-        BooleanSupplier isCancelled
+        @Nullable FormatReader reader
     ) throws IOException {
         if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
-            return false;
+            return null;
         }
         if (isNewlineMacroSplitCandidateExtension(format) == false) {
-            return false;
+            return null;
         }
         // Reuses the reader resolved once in processFileForSplits (config-aware; see resolveConfiguredReader).
         if (reader == null) {
-            return false;
+            return null;
         }
         if (reader instanceof CompressionDelegatingFormatReader) {
-            return false;
+            return null;
         }
         if (reader instanceof SegmentableFormatReader == false) {
-            return false;
+            return null;
         }
         SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
         StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
         StorageObject object = provider.newObject(filePath, fileLength);
-        List<Long> starts = computeRecordAlignedMacroSplitStarts(
-            segmentableReader,
-            object,
+        RecordSplitter splitter = segmentableReader.recordSplitter(maxRecordBytes);
+        long minSegment = segmentableReader.minimumSegmentSize();
+        // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
+        // Anything else keeps the sequential walk and carries no positions.
+        List<Long> positions = splitter.supportsStridedProbing()
+            ? macroSplitProbePositions(fileLength, targetStrideBytes, minSegment)
+            : List.of();
+        return new DeferredNewlineSplits(
+            filePath,
             fileLength,
+            format,
+            config,
+            partitionValues,
+            columnMapping,
+            readSchema,
+            object,
+            splitter,
+            minSegment,
             targetStrideBytes,
             maxRecordBytes,
-            isCancelled
+            positions
         );
+    }
+
+    /**
+     * Builds a candidate file's splits from its resolved macro-split starts: one contiguous split per boundary,
+     * the last extending to end-of-file, each stamped so the read side can tell where it sits in the file.
+     * Falls back to a single whole-file split when probing found no usable boundary.
+     */
+    private static List<ExternalSplit> buildNewlineMacroSplits(DeferredNewlineSplits deferred, List<Long> starts) {
+        long fileLength = deferred.fileLength();
+        Map<String, Object> config = deferred.config();
         if (starts.size() <= 1) {
-            return false;
+            return List.of(
+                FileSplit.withReadSchema(
+                    "file",
+                    deferred.filePath(),
+                    0,
+                    fileLength,
+                    deferred.format(),
+                    wholeFileSplitConfig(config),
+                    deferred.partitionValues(),
+                    deferred.columnMapping(),
+                    deferred.readSchema()
+                )
+            );
         }
+        List<ExternalSplit> splits = new ArrayList<>(starts.size());
         for (int i = 0; i < starts.size(); i++) {
             long start = starts.get(i);
             long end = (i + 1 < starts.size()) ? starts.get(i + 1) : fileLength;
@@ -973,10 +1257,20 @@ public class FileSplitProvider implements SplitProvider {
                 splitConfig.put(LAST_SPLIT_KEY, "true");
             }
             splits.add(
-                FileSplit.withReadSchema("file", filePath, start, length, format, splitConfig, partitionValues, columnMapping, readSchema)
+                FileSplit.withReadSchema(
+                    "file",
+                    deferred.filePath(),
+                    start,
+                    length,
+                    deferred.format(),
+                    splitConfig,
+                    deferred.partitionValues(),
+                    deferred.columnMapping(),
+                    deferred.readSchema()
+                )
             );
         }
-        return true;
+        return splits;
     }
 
     static boolean isNewlineMacroSplitCandidateExtension(@Nullable String format) {
@@ -987,7 +1281,7 @@ public class FileSplitProvider implements SplitProvider {
         return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f) || ".csv".equals(f) || ".tsv".equals(f);
     }
 
-    /** Whether this leaf split came from {@link #tryNewlineAlignedMacroSplits}. */
+    /** Whether this leaf split came from {@link #buildNewlineMacroSplits}. */
     public static boolean isRecordAlignedMacroSplit(FileSplit split) {
         return split != null && "true".equals(split.config().get(RECORD_ALIGNED_MACRO_SPLIT_KEY));
     }
@@ -1038,35 +1332,163 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Absolute byte offsets where each macro-split starts (always begins with {@code 0}), mirroring
-     * {@link ParallelParsingCoordinator#computeSegments} stride semantics with {@code targetStrideBytes}.
+     * The fixed stride offsets a strided macro-split walk probes: {@code k * targetStrideBytes} for
+     * {@code k = 1, 2, ...} while the offset is inside the file and leaves at least {@code minSegment} bytes
+     * behind it. Pure arithmetic and no I/O, so the planning phase can compute a file's probe positions before
+     * deciding how (or where) to run the probes.
+     * <p>
+     * Fixed offsets are what make the probes independent of one another. The read-time segmentation in
+     * {@link ParallelParsingCoordinator#computeSegments} re-anchors each stride on the boundary the previous probe
+     * found, so its offsets drift relative to these; both partition a file at record boundaries, they just do not
+     * pick the same ones.
      */
-    static List<Long> computeRecordAlignedMacroSplitStarts(
-        SegmentableFormatReader reader,
+    static List<Long> macroSplitProbePositions(long fileLength, long targetStrideBytes, long minSegment) {
+        List<Long> positions = new ArrayList<>();
+        for (long pos = targetStrideBytes; pos < fileLength; pos += targetStrideBytes) {
+            if (fileLength - pos < minSegment) {
+                break;
+            }
+            positions.add(pos);
+        }
+        return positions;
+    }
+
+    /**
+     * Reduces probe outcomes, which must be in ascending position order, to macro-split start offsets seeded
+     * with the file start. Stops at the first terminating outcome, so a file whose probes terminate part-way
+     * keeps only the boundaries before that point and its preceding split extends to EOF. A boundary that does
+     * not advance past the previous one is dropped, which is what adjacent stride offsets landing inside the
+     * same record produce.
+     */
+    static List<Long> reduceProbeOutcomes(List<ProbeOutcome> outcomes) {
+        List<Long> boundaries = new ArrayList<>();
+        boundaries.add(0L);
+        for (ProbeOutcome outcome : outcomes) {
+            if (outcome.terminate()) {
+                break;
+            }
+            if (outcome.boundary() > boundaries.get(boundaries.size() - 1)) {
+                boundaries.add(outcome.boundary());
+            }
+        }
+        return boundaries;
+    }
+
+    /**
+     * Probes each position on the calling thread, stopping early at the first terminating probe since the
+     * reduction would discard everything past it anyway. Produces the same boundaries as gathering the same
+     * positions concurrently and reducing the results, which is what lets a node without a discovery executor
+     * fall back to this walk without changing how a file is split.
+     */
+    static List<Long> probeStridedBoundariesSerially(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        List<Long> positions,
+        long minSegment,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        List<ProbeOutcome> outcomes = new ArrayList<>(positions.size());
+        for (long pos : positions) {
+            ProbeOutcome outcome = probeStridedBoundary(splitter, storageObject, pos, fileLength, minSegment, isCancelled);
+            outcomes.add(outcome);
+            if (outcome.terminate()) {
+                break;
+            }
+        }
+        return reduceProbeOutcomes(outcomes);
+    }
+
+    /**
+     * The result of probing one stride offset: either the record boundary to split at, or a signal that
+     * macro-splitting must stop at this offset (no boundary within the probe window, or the boundary would
+     * leave too little of the file behind it).
+     */
+    record ProbeOutcome(boolean terminate, long boundary) {
+        static final ProbeOutcome TERMINATE = new ProbeOutcome(true, -1L);
+
+        static ProbeOutcome at(long boundary) {
+            return new ProbeOutcome(false, boundary);
+        }
+    }
+
+    /**
+     * Finds the first record boundary at or after {@code pos} by reading a bounded window there.
+     * <p>
+     * The probe reads at most {@link #MACRO_SPLIT_PROBE_WINDOW_BYTES}, then drains the rest of that window and
+     * closes the stream rather than aborting it: a partially-read body is dropped by providers like S3 along
+     * with its pooled HTTP connection, so the next probe would pay a fresh connection setup. Draining a small
+     * bounded window instead returns the connection to the pool for the next probe to reuse, which is worth far
+     * more than the few extra bytes transferred. On failure or cancellation the stream is aborted instead, so
+     * the connection and its storage permit are released immediately rather than after a pointless drain.
+     * <p>
+     * Runs under a {@link StorageRetryCancellation} scope so a probe parked in retry/throttle backoff aborts on
+     * cancel instead of sleeping out its retry budget. The scope is thread-local, so it must be installed here,
+     * on whichever thread runs the probe, rather than once around the whole discovery.
+     */
+    static ProbeOutcome probeStridedBoundary(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long pos,
+        long fileLength,
+        long minSegment,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
+            long probeWindow = Math.min(MACRO_SPLIT_PROBE_WINDOW_BYTES, fileLength - pos);
+            InputStream stream = storageObject.newStream(pos, probeWindow);
+            long skipped;
+            // Not try-with-resources: close() drains on providers like S3, which is what we want after a
+            // successful scan but not on the failure path, where abortStream releases the connection at once.
+            boolean drained = false;
+            try {
+                skipped = splitter.findNextRecordBoundary(stream);
+                // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
+                // connection to, so there is nothing to buy by draining the rest of the window.
+                if (isCancelled.getAsBoolean()) {
+                    throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+                }
+                stream.transferTo(OutputStream.nullOutputStream());
+                drained = true;
+            } finally {
+                if (drained) {
+                    stream.close();
+                } else {
+                    storageObject.abortStream(stream);
+                }
+            }
+            // No boundary within the window: its end was reached, or the record exceeds the splitter's maximum.
+            // Either way stop macro-splitting here and let the preceding split cover the rest of the file.
+            if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
+                return ProbeOutcome.TERMINATE;
+            }
+            long boundary = pos + skipped;
+            if (boundary >= fileLength || fileLength - boundary < minSegment) {
+                return ProbeOutcome.TERMINATE;
+            }
+            return ProbeOutcome.at(boundary);
+        });
+    }
+
+    /**
+     * Macro-split starts for a splitter that cannot be probed at a fixed offset (quoted/escaped CSV/TSV) but can
+     * prove a record start ({@link RecordSplitter#supportsProvenProbing()}). Each iteration's position depends on
+     * the boundary the previous one found, and an {@code AMBIGUOUS} probe walks forward from the last proven
+     * record start, so this walk is inherently sequential and cannot be parallelized like the strided one.
+     */
+    static List<Long> computeProvenMacroSplitStarts(
+        RecordSplitter splitter,
         StorageObject storageObject,
         long fileLength,
         long targetStrideBytes,
-        int maxRecordBytes,
+        long minSegment,
         BooleanSupplier isCancelled
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
-        long minSegment = reader.minimumSegmentSize();
-        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
-        boolean strided = splitter.supportsStridedProbing();
-        boolean proven = splitter.supportsProvenProbing();
-        // A strided splitter (plain CSV/TSV, NDJSON) probes any stride offset directly. A non-strided splitter
-        // (quoted/escaped CSV/TSV) can still be macro-split when it supports proven probing: the file start is a
-        // known record start, so exactCursor seeds at 0 and every emitted boundary is a proven record start.
-        // A splitter that is neither must have been routed to a whole-file split upstream; if one arrives here
-        // that gate failed, so fail loud rather than emit mis-aligned macro-splits that silently mis-count.
-        if (strided == false && proven == false) {
-            throw new IllegalStateException(
-                "record splitter ["
-                    + splitter.getClass().getName()
-                    + "] supports neither strided nor proven probing and cannot be macro-split"
-            );
-        }
         // The last proven record start, i.e. the base offset the exact walk streams from when the probe is
         // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
         long exactCursor = 0L;
@@ -1077,43 +1499,30 @@ public class FileSplitProvider implements SplitProvider {
                 break;
             }
             long boundary;
-            if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                    long skipped = splitter.findNextRecordBoundary(stream);
-                    if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
-                        break;
-                    }
-                    boundary = pos + skipped;
+            long probed;
+            InputStream probeStream = storageObject.newStream(pos, remaining);
+            try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                probed = splitter.findProvenRecordBoundary(probeStream);
+            }
+            if (probed >= 0) {
+                boundary = pos + probed;
+            } else if (probed == RecordSplitter.AMBIGUOUS) {
+                // Bounded probe could not prove a boundary near pos; fall back to an exact walk from the last
+                // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
+                long walkRemaining = fileLength - exactCursor;
+                InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                long start;
+                try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                    start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
                 }
-            } else {
-                long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
-                    probed = splitter.findProvenRecordBoundary(probeStream);
-                }
-                if (probed >= 0) {
-                    boundary = pos + probed;
-                } else if (probed == RecordSplitter.AMBIGUOUS) {
-                    // Bounded probe could not prove a boundary near pos; fall back to an exact walk from the last
-                    // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
-                    long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
-                    }
-                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
-                        break;
-                    }
-                    boundary = exactCursor + start;
-                } else {
-                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
-                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
+                if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
                     break;
                 }
+                boundary = exactCursor + start;
+            } else {
+                // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
+                assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
+                break;
             }
             if (boundary >= fileLength) {
                 break;

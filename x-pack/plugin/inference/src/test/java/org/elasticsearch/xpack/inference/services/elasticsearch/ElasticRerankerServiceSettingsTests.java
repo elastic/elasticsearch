@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -80,7 +82,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.empty()
         );
 
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
         assertExpectedSettings(
             settings,
             Optional.of(numAllocations),
@@ -106,7 +108,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.empty()
         );
 
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
         assertExpectedSettings(
             settings,
             Optional.empty(),
@@ -133,7 +135,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
 
         ValidationException exception = Assert.assertThrows(
             ValidationException.class,
-            () -> ElasticRerankerServiceSettings.fromMap(settingsMap)
+            () -> ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
         assertTrue(
@@ -161,7 +163,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.empty()
         );
 
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
         assertExpectedSettings(
             settings,
             Optional.ofNullable(numAllocations),
@@ -195,7 +197,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
 
         ValidationException exception = Assert.assertThrows(
             ValidationException.class,
-            () -> ElasticRerankerServiceSettings.fromMap(settingsMap)
+            () -> ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
         assertTrue(
@@ -223,7 +225,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.of(maxChunksPerDoc)
         );
 
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
         assertExpectedSettings(
             settings,
             Optional.ofNullable(numAllocations),
@@ -255,7 +257,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.of(maxChunksPerDoc)
         );
 
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
         assertExpectedSettings(
             settings,
             Optional.ofNullable(numAllocations),
@@ -264,6 +266,88 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
             Optional.ofNullable(adaptiveAllocationsSettings),
             Optional.of(longDocumentStrategy),
             Optional.of(maxChunksPerDoc)
+        );
+    }
+
+    public void testFromMap_InvalidLongDocumentStrategy_ThrowsException() {
+        var settingsMap = buildServiceSettingsMap(
+            Optional.of(1),
+            1,
+            randomAlphaOfLength(8),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty()
+        );
+        settingsMap.put(LONG_DOCUMENT_STRATEGY, "invalid_strategy");
+
+        var exception = Assert.assertThrows(
+            XContentParseException.class,
+            () -> ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertTrue(exception.getCause().getMessage().contains("Invalid value [invalid_strategy]; expected one of [chunk, truncate]"));
+    }
+
+    public void testFromMap_InvalidMaxChunksPerDoc_ThrowsException() {
+        var settingsMap = buildServiceSettingsMap(
+            Optional.of(1),
+            1,
+            randomAlphaOfLength(8),
+            Optional.empty(),
+            Optional.of(ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK),
+            Optional.of(randomIntBetween(Integer.MIN_VALUE, 0))
+        );
+
+        var exception = Assert.assertThrows(
+            XContentParseException.class,
+            () -> ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertTrue(exception.getCause().getMessage().contains("[max_chunks_per_doc] must be a positive integer"));
+    }
+
+    public void testFromMap_UnknownField_ThrowsExceptionInRequestContext() {
+        var settingsMap = buildServiceSettingsMap(
+            Optional.of(1),
+            1,
+            randomAlphaOfLength(8),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty()
+        );
+        settingsMap.put("unknown_field", "value");
+
+        var exception = Assert.assertThrows(
+            XContentParseException.class,
+            () -> ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertTrue(exception.getMessage().contains("unknown field [unknown_field]"));
+    }
+
+    public void testFromMap_UnknownField_IgnoredInPersistentContext() {
+        var numAllocations = randomIntBetween(1, 10);
+        var numThreads = randomIntBetween(1, 10);
+        var modelId = randomAlphaOfLength(8);
+        var settingsMap = buildServiceSettingsMap(
+            Optional.of(numAllocations),
+            numThreads,
+            modelId,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty()
+        );
+        settingsMap.put("unknown_field_from_a_future_version", "value");
+
+        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
+        assertExpectedSettings(
+            settings,
+            Optional.of(numAllocations),
+            numThreads,
+            modelId,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty()
         );
     }
 

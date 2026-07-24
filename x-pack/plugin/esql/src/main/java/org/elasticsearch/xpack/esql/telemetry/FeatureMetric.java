@@ -174,7 +174,7 @@ public enum FeatureMetric {
     }
 
     private static boolean explicitlyExcluded(LogicalPlan plan) {
-        return excluded.stream().anyMatch(x -> x.isInstance(plan));
+        return plan.skipTelemetry() || excluded.stream().anyMatch(x -> x.isInstance(plan));
     }
 
     public static boolean set(LogicalPlan plan, BitSet bitset, FeatureMetric metric) {

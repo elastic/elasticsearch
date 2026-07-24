@@ -42,7 +42,7 @@ Each [dataset](esql-data-federation-datasets.md) points at specific files in tha
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as any of them, which is why `FROM` works the same way for all of them.
 ::::::
 
-::::::{step} You query with FROM, just like a regular index
+::::::{step} You query your dataset like any index
 Once a dataset exists, you [query](esql-data-federation-querying.md) it the same way you query any {{es}} index. There is no special syntax for federated data. Use [`FROM`](/reference/query-languages/esql/commands/from.md) with the dataset name, and {{es}} handles file discovery, format detection, compression, and schema inference automatically. For example, to return the first 10 rows from a dataset named `my_s3_bucket_logs`:
 
 ```esql

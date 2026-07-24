@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/154858
+- class: org.elasticsearch.index.mapper.blockloader.LongFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=true, preference=NONE]}
+  issue: https://github.com/elastic/elasticsearch/issues/154912
 
 # Examples:
 #

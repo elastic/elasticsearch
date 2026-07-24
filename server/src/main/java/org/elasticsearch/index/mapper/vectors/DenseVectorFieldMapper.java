@@ -3697,7 +3697,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             cachedFilter,
                             parentFilter,
@@ -3707,7 +3707,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         : new IVFKnnFloatVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             cachedFilter,
                             visitRatio,

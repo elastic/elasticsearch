@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -281,7 +282,19 @@ public final class CsvTestUtils {
         return true;
     }
 
-    public static void checkTestCapabilities(EsqlCapabilities enabledCapabilities, List<String> requiredCapabilities) {
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability not declared in EsqlCapabilities — caught by second-layer check in CsvIT."
+                    + " The standalone EsqlCapabilitiesLintTests should have caught this first.",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+        }
         assumeTrueLogging(
             format(
                 "Capability not supported in this build: {}",

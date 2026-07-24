@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
@@ -66,6 +68,8 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
  * with its explicit gates only.</p>
  */
 public final class CsvSpecCapabilityInferrer {
+
+    private static final Logger LOGGER = LogManager.getLogger(CsvSpecCapabilityInferrer.class);
 
     /**
      * Shared instance.  Initialised once from the full capability set (including snapshot-only
@@ -283,7 +287,7 @@ public final class CsvSpecCapabilityInferrer {
             }
             return List.of();
         } catch (Exception e) {
-            // Inference is best-effort: if we cannot determine the type, return no caps.
+            LOGGER.warn("Failed to infer capabilities for enrich policy [{}]; skipping inference for this policy", config, e);
             return List.of();
         }
     }

@@ -1112,6 +1112,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (DataType dt : DataType.UNDER_CONSTRUCTION) {
+            if (dt == DataType.LAMBDA) {
+                // LAMBDA is a structural type for lambda expressions, not a value type; the function's
+                // preview/snapshot_only flags already gate the feature, so don't hide the signature.
+                continue;
+            }
             if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
                 return true;
             }

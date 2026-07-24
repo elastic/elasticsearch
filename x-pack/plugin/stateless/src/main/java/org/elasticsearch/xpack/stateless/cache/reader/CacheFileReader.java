@@ -398,19 +398,20 @@ public class CacheFileReader {
         return cacheFile.withMemorySegmentSlice(offset, length, action, advice);
     }
 
-    public final boolean withMemorySegmentSlices(
+    public final boolean withSliceAddresses(
         long[] offsets,
         int length,
         int count,
-        CheckedConsumer<MemorySegment[], IOException> action
+        MemorySegment addrsOut,
+        CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withMemorySegmentSlices(offsets, length, count, action);
+            return cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action);
         }
         // For top-level files the entire range is exclusive, so a single advice applies.
         // For compound sub-files, individual regions could differ, but the bulk path is
         // only used for vector data which is always in a top-level .vec file.
-        return cacheFile.withMemorySegmentSlices(offsets, length, count, action, desiredMAdvice);
+        return cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action, desiredMAdvice);
     }
 
     /**

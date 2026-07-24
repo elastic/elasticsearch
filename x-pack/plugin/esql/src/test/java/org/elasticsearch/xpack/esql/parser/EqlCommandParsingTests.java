@@ -11,14 +11,20 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -64,11 +70,61 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         assertThat(eql.indexPattern().indexPattern(), equalTo("logs-a,logs-b"));
     }
 
-    public void testMetadataIsRejected() {
+    public void testMetadataParsesIntoRelation() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where true\" METADATA _index"));
-        assertThat(e.getMessage(), containsString("METADATA is not supported on the EQL command"));
+        var plan = query("EQL logs-* \"process where true\" METADATA _index");
+
+        UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.metadataFields(), hasSize(1));
+        NamedExpression index = eql.metadataFields().get(0);
+        assertThat(index, instanceOf(MetadataAttribute.class));
+        assertThat(index.name(), equalTo("_index"));
+        assertThat(index.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testMetadataMultipleFieldsKeepDeclaredOrder() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        var plan = query("EQL logs-* \"process where true\" METADATA _source, _id, _index");
+
+        UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.metadataFields().stream().map(NamedExpression::name).toList(), contains("_source", "_id", "_index"));
+    }
+
+    public void testMetadataDuplicateFieldRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where true\" METADATA _id, _id"));
+        assertThat(e.getMessage(), containsString("metadata field [_id] already declared"));
+    }
+
+    public void testMetadataUnknownNameParsesUnresolved() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // The parser accepts any name; the analyzer decides what the EQL delegate can populate (message parity with FROM).
+        var plan = query("EQL logs-* \"process where true\" METADATA _bogus");
+
+        UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.metadataFields(), hasSize(1));
+        assertThat(eql.metadataFields().get(0), instanceOf(UnresolvedMetadataAttributeExpression.class));
+    }
+
+    public void testMetadataWithOptionsCombined() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        var plan = query("EQL logs-* \"process where true\" METADATA _id WITH { \"size\": 5 }");
+
+        UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
+        assertThat(eql.metadataFields().stream().map(NamedExpression::name).toList(), contains("_id"));
+        assertThat(eql.options().get("size"), equalTo(5));
+    }
+
+    public void testMetadataAfterWithFailsToParse() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Grammar order is METADATA before WITH; the reverse must not parse.
+        expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where true\" WITH { \"size\": 5 } METADATA _id"));
     }
 
     public void testWithOptions() {

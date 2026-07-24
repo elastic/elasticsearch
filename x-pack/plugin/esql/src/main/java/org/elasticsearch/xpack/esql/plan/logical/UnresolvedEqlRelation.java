@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -31,7 +32,9 @@ import java.util.Objects;
  * <p>Resolution happens in the analyzer ({@code ResolveEqlRelation}): the index pattern rides the shared
  * field-caps path (the same {@code IndexResolver}/{@code IndexResolution} {@code FROM} uses) to a typed output
  * schema, and the EQL query string is parsed to determine the result mode (event / sequence / sample), which
- * prepends the sequence synthetics.
+ * prepends the sequence synthetics. {@code metadataFields} carries the declared {@code METADATA} attributes
+ * (e.g. {@code _index}, {@code _id}, {@code _source}); the analyzer validates which ones the EQL delegate can
+ * populate and appends them to the output, last.
  *
  * @see EqlRelation the resolved counterpart carrying the typed output schema.
  */
@@ -40,10 +43,17 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
     private final IndexPattern indexPattern;
     private final Expression query;
     private final Map<String, Object> options;
+    private final List<NamedExpression> metadataFields;
     private final String unresolvedMsg;
 
-    public UnresolvedEqlRelation(Source source, IndexPattern indexPattern, Expression query, Map<String, Object> options) {
-        this(source, indexPattern, query, options, "Unresolved EQL query [" + query.sourceText() + "]");
+    public UnresolvedEqlRelation(
+        Source source,
+        IndexPattern indexPattern,
+        Expression query,
+        Map<String, Object> options,
+        List<NamedExpression> metadataFields
+    ) {
+        this(source, indexPattern, query, options, metadataFields, "Unresolved EQL query [" + query.sourceText() + "]");
     }
 
     public UnresolvedEqlRelation(
@@ -51,12 +61,14 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
         IndexPattern indexPattern,
         Expression query,
         Map<String, Object> options,
+        List<NamedExpression> metadataFields,
         String unresolvedMsg
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.query = query;
         this.options = options;
+        this.metadataFields = metadataFields;
         this.unresolvedMsg = unresolvedMsg;
     }
 
@@ -72,7 +84,7 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
 
     @Override
     protected NodeInfo<UnresolvedEqlRelation> info() {
-        return NodeInfo.create(this, UnresolvedEqlRelation::new, indexPattern, query, options, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedEqlRelation::new, indexPattern, query, options, metadataFields, unresolvedMsg);
     }
 
     public IndexPattern indexPattern() {
@@ -85,6 +97,10 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
 
     public Map<String, Object> options() {
         return options;
+    }
+
+    public List<NamedExpression> metadataFields() {
+        return metadataFields;
     }
 
     @Override
@@ -110,7 +126,7 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
     @Override
     public int hashCode() {
         // No source(): equals() below ignores it, and equal nodes must hash equal.
-        return Objects.hash(indexPattern, query, options, unresolvedMsg);
+        return Objects.hash(indexPattern, query, options, metadataFields, unresolvedMsg);
     }
 
     @Override
@@ -125,6 +141,7 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(query, other.query)
             && Objects.equals(options, other.options)
+            && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

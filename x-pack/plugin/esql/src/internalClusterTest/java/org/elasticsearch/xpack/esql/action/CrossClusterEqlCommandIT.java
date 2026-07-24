@@ -86,5 +86,15 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
+
+        // METADATA _index over a remote pattern must render the cluster-qualified index (matching FROM's CCS _index).
+        String metadataQuery = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where true\" METADATA _index | KEEP _index | SORT _index";
+        try (EsqlQueryResponse resp = runQuery(metadataQuery, false)) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            String qualified = REMOTE_CLUSTER_1 + ":eql_events";
+            assertThat(rows.get(0).get(0).toString(), equalTo(qualified));
+            assertThat(rows.get(1).get(0).toString(), equalTo(qualified));
+        }
     }
 }

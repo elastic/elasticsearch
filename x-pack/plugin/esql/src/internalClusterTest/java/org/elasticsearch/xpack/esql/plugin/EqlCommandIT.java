@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -25,6 +26,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -36,8 +38,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * End-to-end integration test for the {@code EQL <indexPattern> "<query>"} source command. Loads the EQL plugin
@@ -157,6 +161,48 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             assertEquals("network", Objects.toString(rows.get(1).get(4)));
             assertNull(rows.get(1).get(5));
         }
+    }
+
+    public void testEventQueryMetadataColumns() {
+        String query = "EQL " + INDEX + " \"process where true\" METADATA _index, _id, _source | KEEP process.name, _index, _id, _source";
+        try (EsqlQueryResponse resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("process.name", "_index", "_id", "_source"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword", "keyword", "_source"));
+
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            for (List<Object> row : rows) {
+                assertEquals("eql_events", Objects.toString(row.get(1))); // _index — the concrete index, both rows
+            }
+            List<Object> cmd = rows.stream().filter(r -> "cmd.exe".equals(Objects.toString(r.get(0)))).findFirst().orElseThrow();
+            assertEquals("p1", Objects.toString(cmd.get(2)));                 // _id matches the seeded doc id
+            assertThat(cmd.get(3), instanceOf(Map.class));                    // _source parses to a map
+            assertThat(((Map<?, ?>) cmd.get(3)).get("process.name"), equalTo("cmd.exe"));
+        }
+    }
+
+    public void testSequenceQueryMetadataColumns() {
+        String query = "EQL "
+            + INDEX
+            + " \"sequence by process.pid [process where true] [network where true]\" METADATA _id | KEEP _sequence_stage, _id";
+        try (EsqlQueryResponse resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_sequence_stage", "_id"));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            // _id tracks the per-event envelope through unnesting: stage 0 is the process event, stage 1 the network one.
+            assertEquals(0, rows.get(0).get(0));
+            assertEquals("p1", Objects.toString(rows.get(0).get(1)));
+            assertEquals(1, rows.get(1).get(0));
+            assertEquals("n1", Objects.toString(rows.get(1).get(1)));
+        }
+    }
+
+    public void testUnsupportedMetadataFieldFailsE2E() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("EQL " + INDEX + " \"process where true\" METADATA _score").close()
+        );
+        assertThat(e.getMessage(), containsString("metadata field [_score] is not supported by the EQL command"));
     }
 
     public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {

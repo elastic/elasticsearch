@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -77,6 +78,20 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(fields.get(0).format, nullValue());
         assertThat(fields.get(1).field, equalTo("@timestamp"));
         assertThat(fields.get(1).format, equalTo("epoch_millis"));
+    }
+
+    public void testMetadataAttributesCarryNoFetchFields() {
+        // Metadata values come from the response envelope, not the fields API, so they must not add fetch entries.
+        List<Attribute> schema = List.of(
+            fieldAttribute("process.name", KEYWORD),
+            MetadataAttribute.create(EMPTY, "_index").toAttribute(),
+            MetadataAttribute.create(EMPTY, "_id").toAttribute(),
+            MetadataAttribute.create(EMPTY, "_source").toAttribute()
+        );
+        EqlSearchRequest request = build("process where true", "logs", schema, Map.of());
+        List<FieldAndFormat> fields = request.fetchFields();
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).field, equalTo("process.name"));
     }
 
     public void testNoFetchFieldsWhenSchemaHasNoMappedFields() {

@@ -117,3 +117,55 @@ EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"
 events:long | sequences:long
 4           | 2
 ;
+
+eventQueryMetadataIndexColumn
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+// METADATA is declared before WITH (grammar: pattern, query, METADATA, then the WITH tuning).
+EQL eql_test "process where true" METADATA _index WITH {"event_category_field": "category"}
+| KEEP name, _index
+| SORT name
+;
+
+name:keyword   | _index:keyword
+cmd.exe        | eql_test
+powershell.exe | eql_test
+;
+
+eventQueryMetadataAggregates
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _index, _id WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), idx = COUNT_DISTINCT(_index), ids = COUNT_DISTINCT(_id)
+;
+
+n:long | idx:long | ids:long
+2      | 1        | 2
+;
+
+eventQueryMetadataSourceIsNeverNull
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _source WITH {"event_category_field": "category"}
+| WHERE _source IS NOT NULL
+| STATS n = COUNT(*)
+;
+
+n:long
+2
+;
+
+sequenceQueryMetadataComposesWithSynthetics
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "sequence by pid [process where true] [network where true]" METADATA _index WITH {"event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY _index
+;
+
+events:long | sequences:long | _index:keyword
+4           | 2              | eql_test
+;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
@@ -26,9 +27,16 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
         String indices = randomAlphaOfLength(8);
         Map<String, Object> options = randomOptions();
         EqlRelation.Mode mode = randomFrom(EqlRelation.Mode.values());
-        List<Attribute> attributes = randomList(1, 10, () -> randomReferenceAttribute(true));
+        List<Attribute> attributes = randomList(1, 10, EqlSourceExecSerializationTests::randomEqlAttribute);
         Integer pushedLimit = randomBoolean() ? null : between(0, 10_000);
         return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit);
+    }
+
+    /** A schema attribute: usually a reference attribute (mapped field / synthetic), sometimes a metadata attribute. */
+    private static Attribute randomEqlAttribute() {
+        return randomBoolean()
+            ? randomReferenceAttribute(true)
+            : MetadataAttribute.create(randomSource(), randomFrom("_index", "_id", "_source")).toAttribute();
     }
 
     private static Map<String, Object> randomOptions() {
@@ -60,7 +68,10 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
             case 1 -> indices = randomValueOtherThan(indices, () -> randomAlphaOfLength(8));
             case 2 -> options = randomValueOtherThan(options, EqlSourceExecSerializationTests::randomOptions);
             case 3 -> mode = randomValueOtherThan(mode, () -> randomFrom(EqlRelation.Mode.values()));
-            case 4 -> attributes = randomValueOtherThan(attributes, () -> randomList(1, 10, () -> randomReferenceAttribute(true)));
+            case 4 -> attributes = randomValueOtherThan(
+                attributes,
+                () -> randomList(1, 10, EqlSourceExecSerializationTests::randomEqlAttribute)
+            );
             case 5 -> pushedLimit = randomValueOtherThan(pushedLimit, () -> randomBoolean() ? null : between(0, 10_000));
             default -> throw new IllegalStateException();
         }

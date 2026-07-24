@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -31,9 +32,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Unit tests for analysis of the {@code EQL <indexPattern> "<query>"} source command, which delegates execution to
@@ -107,6 +111,116 @@ public class AnalyzerEqlTests extends ESTestCase {
 
         assertThat(names(output), contains("name", "ts_nanos"));
         assertThat(types(output), contains(KEYWORD, UNSUPPORTED));
+    }
+
+    public void testEventQuerySchemaWithMetadata() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(analyze("EQL eql_test \"process where true\" METADATA _index, _id, _source"));
+
+        assertThat(names(output), contains("@timestamp", "category", "ingested", "name", "pid", "_index", "_id", "_source"));
+        assertThat(types(output), contains(DATETIME, KEYWORD, DATETIME, KEYWORD, LONG, KEYWORD, KEYWORD, DataType.SOURCE));
+        // The trailing three are metadata attributes, not mapped fields.
+        output.subList(5, 8).forEach(a -> assertThat(a, instanceOf(MetadataAttribute.class)));
+    }
+
+    public void testSequenceQuerySchemaWithMetadata() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(analyze("EQL eql_test \"sequence [process where true] [network where true]\" METADATA _id"));
+
+        // Synthetics first, mapped fields in the middle, metadata last.
+        assertThat(
+            names(output),
+            contains("_sequence", "_sequence_stage", "join_keys", "@timestamp", "category", "ingested", "name", "pid", "_id")
+        );
+        assertThat(output.get(8), instanceOf(MetadataAttribute.class));
+    }
+
+    public void testMetadataDeclaredOrderPreserved() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(analyze("EQL eql_test \"process where true\" METADATA _source, _index"));
+
+        // Declared order, not registry or alphabetical order.
+        assertThat(names(output.subList(output.size() - 2, output.size())), contains("_source", "_index"));
+    }
+
+    public void testUnsupportedMetadataFieldFails() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .error(
+                "EQL eql_test \"process where true\" METADATA _score",
+                containsString("metadata field [_score] is not supported by the EQL command")
+            );
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .error(
+                "EQL eql_test \"process where true\" METADATA _version",
+                containsString("metadata field [_version] is not supported by the EQL command")
+            );
+    }
+
+    public void testSampleQuerySchemaWithMetadata() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"sample by category [process where true] [network where true]\" METADATA _id")
+        );
+
+        assertThat(output.get(output.size() - 1).name(), equalTo("_id"));
+        assertThat(output.get(output.size() - 1), instanceOf(MetadataAttribute.class));
+    }
+
+    public void testMultipleMetadataErrorsReported() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .error(
+                "EQL eql_test \"process where true\" METADATA _score, _bogus",
+                allOf(
+                    containsString("metadata field [_score] is not supported by the EQL command"),
+                    containsString("unknown metadata field [_bogus]")
+                )
+            );
+    }
+
+    public void testUnknownMetadataFieldFails() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .error("EQL eql_test \"process where true\" METADATA _bogus", containsString("unknown metadata field [_bogus]"));
+    }
+
+    public void testWildcardMetadataFails() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // The EQL delegate resolves no custom tags, so a wildcard cannot match anything.
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .error("EQL eql_test \"process where true\" METADATA _i*", containsString("unknown metadata field [_i*]"));
+    }
+
+    public void testUnknownIndexWinsOverBadMetadata() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // Index resolution is validated before metadata, so the "Unknown index" message takes precedence.
+        analyzer().addIndex("missing_index", IndexResolution.invalid("Unknown index [missing_index]"))
+            .error("EQL missing_index \"process where true\" METADATA _score", containsString("Unknown index [missing_index]"));
+    }
+
+    public void testEmptyMappingWithMetadataYieldsMetadataOnlySchema() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // An empty mapping plus a METADATA clause must yield the real metadata column, not the NULL NO_FIELDS placeholder.
+        IndexResolution resolution = indexWith("eql_empty", Map.of());
+        LogicalPlan analyzed = analyzer().addIndex("eql_empty", resolution)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery("EQL eql_empty \"process where true\" METADATA _id"));
+        List<Attribute> output = eqlLeafOutput(analyzed);
+
+        assertThat(names(output), contains("_id"));
+        assertThat(types(output), contains(KEYWORD));
+        assertThat(output.get(0), instanceOf(MetadataAttribute.class));
     }
 
     public void testEmptyMappingYieldsNoFields() {

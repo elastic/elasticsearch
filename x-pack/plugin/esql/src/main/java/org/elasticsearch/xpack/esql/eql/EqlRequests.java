@@ -84,7 +84,11 @@ public final class EqlRequests {
         return options.get("size") instanceof Number;
     }
 
-    /** One fetch entry per mapped field column; synthetics ({@code ReferenceAttribute}) and unsupported columns are skipped. */
+    /**
+     * One fetch entry per mapped field column. Synthetics ({@code ReferenceAttribute}), metadata columns
+     * ({@code MetadataAttribute} — their values come from the response envelope, not the fields API) and unsupported
+     * columns are skipped: only real {@code FieldAttribute}s (excluding the {@code UnsupportedAttribute} subtype) fetch.
+     */
     private static List<FieldAndFormat> fetchFields(List<Attribute> schema) {
         List<FieldAndFormat> fields = new ArrayList<>();
         for (Attribute attribute : schema) {

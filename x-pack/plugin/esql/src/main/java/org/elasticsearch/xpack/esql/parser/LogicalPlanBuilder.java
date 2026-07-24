@@ -1024,13 +1024,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (config.containsKey("indices")) {
             throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
         }
-        // The grammar tolerates a trailing METADATA clause for symmetry with FROM, but the EQL command does not
-        // wire metadata columns yet. Reject it loudly rather than parse-and-drop it (the columns would silently
-        // not appear now that the schema is the field-caps mapping, not a fixed _index/_id/_source triple).
+        // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
+        // ones the EQL delegate can populate and appends them to the output. Same duplicate-declaration guard as FROM.
+        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            throw new ParsingException(source(ctx.metadata()), "METADATA is not supported on the EQL command");
+            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
+                String id = c.getText();
+                Source src = source(c);
+                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                if (a != null) {
+                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
+                }
+            }
         }
-        return new UnresolvedEqlRelation(source, indexPattern, query, config);
+        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, metadataFields);
     }
 
     /**

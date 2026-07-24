@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitIntoEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -20,6 +22,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.optimizer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -55,6 +58,18 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
     public void testSequenceModeIsNotPushed() {
         // Sequence rows are unnested per event, so a row limit does not map to the number of matches.
         assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\" | LIMIT 3", null);
+    }
+
+    public void testLimitPushdownPreservesMetadataColumns() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        LogicalPlan optimized = optimizer().addIndex("eql_test", "mapping-eql_test.json")
+            .coordinatorPlan("EQL eql_test \"process where true\" METADATA _id | LIMIT 5");
+        List<EqlRelation> leaves = new ArrayList<>();
+        optimized.forEachDown(EqlRelation.class, leaves::add);
+        assertThat(leaves, hasSize(1));
+        assertThat(leaves.get(0).pushedLimit(), equalTo(5));
+        Attribute id = leaves.get(0).output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        assertThat("_id must survive limit pushdown as a metadata column", id, instanceOf(MetadataAttribute.class));
     }
 
     private static void assertPushedLimit(String query, Integer expected) {

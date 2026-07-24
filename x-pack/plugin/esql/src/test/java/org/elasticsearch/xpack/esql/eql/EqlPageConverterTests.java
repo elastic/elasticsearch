@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.eql;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,7 +24,9 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for {@link EqlPageConverter}: they build an {@link EqlSearchResponse} (with fields-API values) by
@@ -259,6 +265,112 @@ public class EqlPageConverterTests extends ESTestCase {
         }
     }
 
+    public void testMetadataColumnsEventMode() {
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), metadata("_index"), metadata("_id"), metadata("_source"));
+        Event e0 = envelopeEvent("logs-2026", "abc", new BytesArray("{\"a\":1}"), Map.of("process.name", List.of("cmd.exe")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "cmd.exe");
+            assertBytesRefColumn(page, 1, "logs-2026");  // _index — from the envelope, not the fields API
+            assertBytesRefColumn(page, 2, "abc");         // _id
+            assertBytesRefColumn(page, 3, "{\"a\":1}");   // _source
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMetadataSourceDefaultsToEmptyObject() {
+        // The EQL Event constructor normalizes a null source to {}, so the _source column is never null in practice
+        // (the converter still null-guards defensively). Pin the normalized empty-object behavior.
+        List<Attribute> schema = List.of(metadata("_source"));
+        Event e0 = envelopeEvent("logs", "x", null, Map.of());
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "{}");
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMissingEventNullsMetadataButKeepsSynthetics() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, metadata("_id"));
+        Event present = envelopeEvent("logs", "p0", new BytesArray("{}"), Map.of());
+        Event missing = new Event("", "", null, null, true);
+        Sequence s0 = new Sequence(List.of("k"), List.of(present, missing));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            assertEquals(1, ((IntBlock) page.getBlock(1)).getInt(1)); // synthetic populated on the missing row
+            BytesRefBlock id = page.getBlock(3);
+            assertFalse(id.isNull(0));
+            assertTrue("missing event metadata must be null (not \"\")", id.isNull(1));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMappedFieldNamedLikeMetadataDispatchesByClass() {
+        // A mapped field named _index (a FieldAttribute) and the _index metadata column coexist; class dispatch keeps
+        // them distinct — the field takes the fields-API value, the metadata takes the envelope value.
+        List<Attribute> schema = List.of(fieldAttribute("_index", KEYWORD), metadata("_index"));
+        Event e0 = envelopeEvent("from-envelope", "x", new BytesArray("{}"), Map.of("_index", List.of("from-fields-api")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "from-fields-api");
+            assertBytesRefColumn(page, 1, "from-envelope");
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMetadataOnlySchema() {
+        List<Attribute> schema = List.of(metadata("_index"), metadata("_id"));
+        Event e0 = envelopeEvent("logs", "id1", new BytesArray("{}"), Map.of());
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertEquals(2, page.getBlockCount());
+            assertEquals(1, page.getPositionCount());
+            assertBytesRefColumn(page, 0, "logs");
+            assertBytesRefColumn(page, 1, "id1");
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testUnexpectedMetadataNameThrows() {
+        // _score is a valid FROM metadata field but not an EQL envelope field; the analyzer rejects it, and the
+        // converter is a defensive tripwire if one ever slips through.
+        List<Attribute> schema = List.of(metadata("_score"));
+        EqlSearchResponse response = eventResponse(List.of(envelopeEvent("logs", "x", new BytesArray("{}"), Map.of())));
+        try {
+            EsqlIllegalArgumentException e = expectThrows(
+                EsqlIllegalArgumentException.class,
+                () -> EqlPageConverter.toPage(response, EqlRelation.Mode.EVENT, schema, TestBlockFactory.getNonBreakingInstance())
+            );
+            assertThat(e.getMessage(), containsString("unexpected EQL metadata column"));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static MetadataAttribute metadata(String name) {
+        return (MetadataAttribute) MetadataAttribute.create(EMPTY, name);
+    }
+
+    private static Event envelopeEvent(String index, String id, BytesReference source, Map<String, ? extends List<?>> fields) {
+        Map<String, DocumentField> fetched = new HashMap<>();
+        for (Map.Entry<String, ? extends List<?>> e : fields.entrySet()) {
+            @SuppressWarnings("unchecked")
+            List<Object> values = (List<Object>) e.getValue();
+            fetched.put(e.getKey(), new DocumentField(e.getKey(), values));
+        }
+        return new Event(index, id, source, fetched, false);
+    }
+
     private static Page convert(EqlSearchResponse response, EqlRelation.Mode mode, List<Attribute> schema) {
         Page page = EqlPageConverter.toPage(response, mode, schema, TestBlockFactory.getNonBreakingInstance());
         response.decRef();
@@ -266,7 +378,7 @@ public class EqlPageConverterTests extends ESTestCase {
     }
 
     private static Event event(Map<String, ? extends List<?>> fields) {
-        Map<String, DocumentField> fetched = new java.util.HashMap<>();
+        Map<String, DocumentField> fetched = new HashMap<>();
         for (Map.Entry<String, ? extends List<?>> e : fields.entrySet()) {
             @SuppressWarnings("unchecked")
             List<Object> values = (List<Object>) e.getValue();

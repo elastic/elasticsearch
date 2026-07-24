@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
@@ -855,8 +856,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
      * it into the standard "Unknown index" failure). If the query string is not yet a folded literal (e.g. an unbound
      * parameter), the node is left unresolved.
+     *
+     * <p>A {@code METADATA} clause appends provenance columns (last, after the mapped fields). Only the fields the EQL
+     * response envelope carries — {@code _index}, {@code _id}, {@code _source} — are supported; anything else is rejected.
      */
     private static class ResolveEqlRelation extends ParameterizedAnalyzerRule<UnresolvedEqlRelation, AnalyzerContext> {
+
+        /** The metadata fields the EQL response envelope can populate ({@code Event.index()/id()/source()}). */
+        private static final Set<String> SUPPORTED_EQL_METADATA = Set.of(
+            MetadataAttribute.INDEX,
+            IdFieldMapper.NAME,
+            SourceFieldMapper.NAME
+        );
+        private static final String SUPPORTED_METADATA_HINT = "supported metadata fields are [_id, _index, _source]";
 
         @Override
         protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
@@ -886,13 +898,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (resolution == null || resolution.isValid() == false) {
                 // Mirror ResolveTable's invalid branch, including the equal-message short-circuit that avoids a rule loop.
                 String message = resolution == null ? "[none specified]" : resolution.toString();
-                return plan.unresolvedMessage().equals(message)
-                    ? plan
-                    : new UnresolvedEqlRelation(plan.source(), plan.indexPattern(), plan.query(), plan.options(), message);
+                return unresolvedWith(plan, message);
+            }
+
+            // Validate METADATA against the fields the EQL response envelope can populate. "Unknown index" above keeps
+            // precedence; metadata errors fail the query through the verifier, like FROM's unresolved-metadata path.
+            String metadataError = validateEqlMetadata(plan.metadataFields());
+            if (metadataError != null) {
+                return unresolvedWith(plan, metadataError);
             }
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
-            List<Attribute> output = new ArrayList<>(mapped.size() + 3);
+            List<Attribute> output = new ArrayList<>(mapped.size() + 3 + plan.metadataFields().size());
             if (mode != EqlRelation.Mode.EVENT) {
                 output.add(new ReferenceAttribute(plan.source(), "_sequence", LONG));
                 output.add(new ReferenceAttribute(plan.source(), "_sequence_stage", INTEGER));
@@ -901,10 +918,52 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attr : mapped) {
                 output.add(gateUnconvertibleType(plan.source(), attr));
             }
-            // Event mode against an empty mapping would leave no columns; mirror FROM and emit NO_FIELDS so the
-            // relation always has at least one column (non-event modes always carry the three synthetics).
+            // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
+            // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
+            for (NamedExpression metadata : plan.metadataFields()) {
+                output.add(metadata.toAttribute());
+            }
+            // Only now, after metadata is appended, fall back to NO_FIELDS: an empty mapping with a METADATA clause
+            // still yields real metadata columns (mirror FROM, which always has at least one column).
             List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
             return new EqlRelation(plan.source(), plan.indexPattern(), plan.query(), plan.options(), mode, finalOutput);
+        }
+
+        /** Rebuilds the unresolved node with a message, short-circuiting to avoid a rule loop (mirrors ResolveTable). */
+        private static LogicalPlan unresolvedWith(UnresolvedEqlRelation plan, String message) {
+            return plan.unresolvedMessage().equals(message)
+                ? plan
+                : new UnresolvedEqlRelation(
+                    plan.source(),
+                    plan.indexPattern(),
+                    plan.query(),
+                    plan.options(),
+                    plan.metadataFields(),
+                    message
+                );
+        }
+
+        /**
+         * Returns an error message if any declared METADATA field cannot be populated by the EQL delegate, else null.
+         * The EQL response envelope carries only {@code _index}, {@code _id} and {@code _source} per event; FROM-known
+         * fields outside that set (e.g. {@code _score}, {@code _version}) and unknown names/wildcards are rejected.
+         */
+        private static String validateEqlMetadata(List<NamedExpression> metadataFields) {
+            List<String> errors = new ArrayList<>();
+            for (NamedExpression metadata : metadataFields) {
+                if (metadata instanceof MetadataAttribute ma) {
+                    if (SUPPORTED_EQL_METADATA.contains(ma.name()) == false) {
+                        errors.add("metadata field [" + ma.name() + "] is not supported by the EQL command; " + SUPPORTED_METADATA_HINT);
+                    }
+                } else if (metadata instanceof UnresolvedMetadataAttributeExpression um) {
+                    // MetadataAttribute.create returned an unresolved expression: unknown name or a wildcard (the EQL
+                    // delegate resolves no custom tags). Read pattern(), not name() — name() throws on an unresolved node.
+                    errors.add("unknown metadata field [" + um.pattern() + "]; " + SUPPORTED_METADATA_HINT);
+                } else {
+                    errors.add("unknown metadata field; " + SUPPORTED_METADATA_HINT);
+                }
+            }
+            return errors.isEmpty() ? null : String.join("; ", errors);
         }
 
         /**

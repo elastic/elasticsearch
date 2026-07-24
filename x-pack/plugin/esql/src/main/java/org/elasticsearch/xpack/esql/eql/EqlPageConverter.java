@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -15,12 +16,15 @@ import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -60,6 +64,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
  * every convertible field (see {@link EqlRequests}). A field absent from an event, or an event that the EQL
  * engine reported as {@code missing}, yields a null in that column. Types ES|QL cannot yet extract were turned
  * into {@link UnsupportedAttribute}s at resolve time and render as all-null columns, matching {@code FROM}.
+ *
+ * <p>{@code METADATA} columns ({@code _index}, {@code _id}, {@code _source}) are appended last and come from the
+ * event envelope ({@link Event#index()}/{@link Event#id()}/{@link Event#source()}), not the fields API.
  */
 public final class EqlPageConverter {
 
@@ -144,7 +151,11 @@ public final class EqlPageConverter {
         return rows;
     }
 
-    /** The value for one column of one row: a synthetic derived from the match, or a field pulled from the event. */
+    /**
+     * The value for one column of one row: a synthetic derived from the match, a {@code METADATA} provenance value
+     * from the event envelope, or a field pulled from the event's fields API. Dispatch is by attribute class, so a
+     * mapped field literally named {@code _index}/{@code _id}/{@code _source} takes the field path, not the metadata one.
+     */
     private static Object valueFor(Attribute attr, Row row) {
         if (attr instanceof ReferenceAttribute) {
             return switch (attr.name()) {
@@ -154,10 +165,35 @@ public final class EqlPageConverter {
                 default -> throw new EsqlIllegalArgumentException("unexpected EQL synthetic column [{}]", attr.name());
             };
         }
+        if (attr instanceof MetadataAttribute) {
+            return metadataValue(attr.name(), row.event());
+        }
         if (attr instanceof FieldAttribute fa) {
             return fieldValue(fa, row.event());
         }
         throw new EsqlIllegalArgumentException("unexpected EQL column [{}] of type [{}]", attr.name(), attr.getClass().getName());
+    }
+
+    /**
+     * The value of a {@code METADATA} column for one event, from the response envelope. {@code null} for a missing
+     * event (checked before the accessors so {@code MISSING_EVENT}'s empty index/id/source do not leak).
+     */
+    private static Object metadataValue(String name, Event event) {
+        if (event == null || event.missing()) {
+            return null;
+        }
+        if (MetadataAttribute.INDEX.equals(name)) {
+            return event.index();
+        }
+        if (IdFieldMapper.NAME.equals(name)) {
+            return event.id();
+        }
+        if (SourceFieldMapper.NAME.equals(name)) {
+            BytesReference source = event.source();
+            // appendBytesRef copies into the block, so we do not retain the ref-counted response's bytes.
+            return source == null ? null : source.toBytesRef();
+        }
+        throw new EsqlIllegalArgumentException("unexpected EQL metadata column [{}]", name);
     }
 
     /** Join keys as a single keyword value: {@code null} when empty, one value, or a multivalue entry. Nulls are dropped. */

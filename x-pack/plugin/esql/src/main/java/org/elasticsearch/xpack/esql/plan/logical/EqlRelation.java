@@ -32,8 +32,12 @@ import java.util.Objects;
  * _sequence} reconstructs a match. The result mode is a shallow parse of the query string; no per-stage
  * analysis is required.
  *
- * <p>A mapped field literally named {@code _sequence}/{@code _sequence_stage}/{@code join_keys} would collide
- * by name with a synthetic (the converter dispatches by attribute class, so values stay correct).
+ * <p>A declared {@code METADATA} clause appends provenance columns last (after the mapped fields): only
+ * {@code _index}, {@code _id} and {@code _source}, populated from the EQL response envelope.
+ *
+ * <p>A mapped field literally named {@code _sequence}/{@code _sequence_stage}/{@code join_keys} (or a metadata
+ * name) would collide by name with a synthetic or metadata column (the converter dispatches by attribute
+ * class, so values stay correct).
  */
 public class EqlRelation extends LeafPlan implements TelemetryAware {
 

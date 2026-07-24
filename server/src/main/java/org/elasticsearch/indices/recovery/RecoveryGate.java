@@ -18,12 +18,12 @@ import java.util.Objects;
 /// [#evaluate] is on the recovery dispatch path: it must be fast, non-blocking, and must not call back into recovery scheduling.
 public interface RecoveryGate {
 
-    /// Evaluates whether new recoveries may start now on this node. See [Decision].
+    /// Evaluates whether new recoveries may start now on this node.
     Decision evaluate();
 
     /// Registers a handler the gate invokes whenever its [#evaluate] decision may have changed, so the scheduler re-checks promptly. A
-    /// gate whose decision depends on an external signal MUST invoke it when that signal changes; gates that never block can leave this
-    /// no-op. This handler should never be invoked by [#evaluate].
+    /// gate whose decision depends on an external signal MUST invoke it when that signal changes.
+    /// This handler should never be invoked by [#evaluate].
     default void setGateChangeHandler(Runnable gateChangeHandler) {}
 
     /// The outcome of evaluating a [RecoveryGate].
@@ -41,7 +41,6 @@ public interface RecoveryGate {
             Objects.requireNonNull(reason, "reason");
         }
 
-        /// Creates a node-wide block decision (`mayRun == false`) by the named gate, with a human-readable reason (for logging only).
         public static Decision block(String gateName, String reason) {
             return new Decision(false, gateName, reason);
         }

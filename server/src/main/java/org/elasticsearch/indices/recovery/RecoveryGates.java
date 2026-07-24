@@ -17,7 +17,7 @@ import java.util.function.ObjLongConsumer;
 
 /// The data node's registered [RecoveryGate]s, combined into one node-wide decision and monitored for transitions.
 ///
-/// Used by [ThrottlingRecoveryService] via [#check]: it aggregates the gates most-restrictive-wins, reports each blocked↔may-run
+/// Used by [ThrottlingRecoveryService] via [#check]: it aggregates the gates most-restrictive-wins, reports each blocked ↔ may-run
 /// transition through the block/unblock callbacks, and returns the current decision. A gate signals a possible change through the
 /// re-check handler forwarded to it on [#addGate], which re-runs [#check]. Thread-safe.
 final class RecoveryGates {

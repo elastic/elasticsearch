@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154135
+summary: "Gate `field_extract` pushdown, use RECHECK"
+type: enhancement

@@ -706,7 +706,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
-     * @param listeners new listerns to use for the newly created shard
+     * @param listeners new listeners to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
@@ -825,7 +825,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
-            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
+            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
         }
@@ -1202,7 +1202,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.sync(); // advance local checkpoint
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getLocalCheckpoint());
         } else {
-            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            final long seqNo = shard.getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyIndexOperationOnReplica(
                 seqNo,
@@ -1244,7 +1244,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.sync(); // advance local checkpoint
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getLocalCheckpoint());
         } else {
-            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            final long seqNo = shard.getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
             shard.sync(); // advance local checkpoint

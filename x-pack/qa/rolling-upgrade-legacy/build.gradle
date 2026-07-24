@@ -42,9 +42,6 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
-  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
-
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
@@ -57,7 +54,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -118,11 +114,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
     }
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-
-    if (bwcVersion.onOrAfter('7.12.0')) {
-      setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
-      setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-    }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
@@ -131,12 +122,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {
       delete("${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}")
-      delete("${searchableSnapshotRepository}")
     }
 
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
 
@@ -158,7 +147,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     // We only need to run these tests once so we may as well do it when we're two thirds upgraded
     def excludeList = [
       'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
@@ -195,7 +183,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
@@ -214,7 +201,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {

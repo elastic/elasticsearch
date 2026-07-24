@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
@@ -101,6 +105,20 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         createIvfNestedIndex(indexName);
         indexNestedDocs(indexName);
         assertPostFilterNested(indexName, new float[] { 1, 1, 1, 20 });
+    }
+
+    /**
+     * Sliced (index-sorted) variant, exercising the {@link org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery}
+     * post-filter path that has no HNSW equivalent. Docs are routed into two slices; the search is scoped to a single
+     * slice and adds a term filter, so a filtered slice-restricted post-filter query is built. Every hit must both pass
+     * the filter ("common") and belong to the queried slice.
+     */
+    public void testIvfFloatSliced() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String indexName = "ivf_float_sliced_test";
+        createSlicedIvfIndex(indexName);
+        indexSlicedDocs(indexName);
+        assertPostFilterSliced(indexName, "s1", new float[] { 1, 1, 1, 20 });
     }
 
     /**
@@ -206,6 +224,86 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             .endObject();
         prepareCreate(indexName).setMapping(mapping).get();
         ensureGreen(indexName);
+    }
+
+    /**
+     * Creates a sliced {@code bbq_disk} index. Slicing routes docs into index-sorted slices, and combined with a term
+     * filter over a searched slice it drives the sliced IVF post-filter query. The post-filter threshold is lowered like
+     * the other indices so the ~0.8-selectivity filter takes the post-filter path.
+     */
+    private void createSlicedIvfIndex(String indexName) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
+            .build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("element_type", "float")
+            .field("dims", DIMS)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "bbq_disk")
+            .field("bits", 4)
+            .field("default_visit_percentage", 100)
+            .endObject()
+            .endObject()
+            .startObject(TAG_FIELD)
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        prepareCreate(indexName).setSettings(settings).setMapping(mapping).get();
+        ensureGreen(indexName);
+    }
+
+    /**
+     * Indexes 100 docs per slice ("s1", "s2") with a random 80/20 "common"/"rare" tag split and vectors
+     * {@code [1, 1, 1, i]}. Doc ids are prefixed with the slice name so slice membership can be asserted.
+     * Expected selectivity(common) ~ 0.8 &gt; 0.7 → post-filter path.
+     */
+    private void indexSlicedDocs(String indexName) {
+        for (String slice : List.of("s1", "s2")) {
+            for (int i = 0; i < 100; i++) {
+                String tag = randomFloat() < .8f ? "common" : "rare";
+                client().index(
+                    new IndexRequest(indexName).id(slice + "_" + i)
+                        .source(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
+                        .routing(slice)
+                        .setRoutingFromSlice(true)
+                ).actionGet();
+            }
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    /**
+     * Query vector is nearest to high-index docs, filter requires "common", and the search is scoped to a single slice.
+     * Post-filtering only returns filter-passing docs, and slice scoping only returns docs from the queried slice, so
+     * every hit must be "common" and carry the queried slice's id prefix.
+     */
+    private void assertPostFilterSliced(String indexName, String slice, float[] queryVector) {
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 20, null, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "common")
+        );
+        SearchRequestBuilder search = client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k);
+        search.request().searchSlice(slice);
+
+        assertResponse(search, response -> {
+            assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
+                assertTrue("Expected hit from queried slice", hit.getId().startsWith(slice + "_"));
+            }
+        });
     }
 
     /**

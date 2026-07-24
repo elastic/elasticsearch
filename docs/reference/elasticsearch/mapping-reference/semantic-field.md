@@ -18,8 +18,6 @@ The `semantic` field type simplifies semantic and multimodal search across text,
 - Indexes the generated embeddings using default index options that optimize for common use cases.
 - Searches the embeddings generated for each value or text chunk.
 
-<!-- TODO: When published, link to the semantic field release blog here. -->
-
 Elasticsearch refers to `semantic` and `semantic_text` as *inference fields*: mapped fields that use {{infer}} endpoints and store generated embeddings in internal subfields.
 
 Multiple `semantic` fields can use the same {{infer}} endpoint. For example, an index can use one field for image embeddings and another for description embeddings, then search either field or both.
@@ -101,3 +99,5 @@ Refer to the [`semantic` field reference](./semantic-field-reference.md) for the
 - [{{infer-cap}} endpoint requirements](./semantic-field-reference.md#semantic-inference-endpoint)
 - [Supported input types](./semantic-field-reference.md#semantic-input)
 - [Limitations](./semantic-field-reference.md#semantic-limitations)
+
+<!-- TODO: When published, link to the semantic field release blog here. -->

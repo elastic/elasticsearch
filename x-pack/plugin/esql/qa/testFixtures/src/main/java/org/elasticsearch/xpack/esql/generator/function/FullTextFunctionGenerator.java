@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
-import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -47,8 +46,7 @@ public final class FullTextFunctionGenerator {
         InlineStatsGenerator.INLINE_STATS,
         ChangePointGenerator.CHANGE_POINT,
         MvExpandGenerator.MV_EXPAND,
-        DedupGenerator.DEDUP,
-        HighlightGenerator.HIGHLIGHT
+        DedupGenerator.DEDUP
     );
 
     private static boolean isFullTextAllowed(List<CommandGenerator.CommandDescription> previousCommands) {

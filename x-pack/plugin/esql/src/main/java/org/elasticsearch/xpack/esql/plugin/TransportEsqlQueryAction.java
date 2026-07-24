@@ -508,7 +508,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
         var rawResult = versionedResult.inner();
-        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e. unmapped_fields="LOAD_ALL").
+        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e., unmapped_fields="LOAD_ALL").
         // expand() preserves completionInfo/executionInfo, so the partial-marking below applies to the expanded result.
         var result = ExpandUnmappedFieldsPostProcessor.expand(rawResult, services.blockFactoryProvider().blockFactory());
         // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer

@@ -60,7 +60,19 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("first_pet", "Rex").entry("first_toy", "ball"));
     }
 
+    public void testMultipleIncludesRequireAllToMatch() throws IOException {
+        // Includes use AND semantics: a key survives only if it matches every include. "first_name_suffix" matches
+        // both "first*" and "first_name*"; "first_pet" and "first_grade" match only "first*", so they are dropped.
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.includes(List.of("first*", "first_name*")),
+            Map.of("first_name_suffix", "Jr", "first_pet", "Rex", "first_grade", "A", "last_name", "Doe")
+        );
+        assertMap(filtered, matchesMap().entry("first_name_suffix", "Jr"));
+    }
+
     public void testExcludePatternRemovesMatchingSourceKeys() throws IOException {
+        // excludes(...) starts from an include of "*" and then drops keys matching any exclude, so every key
+        // outside the "secret*" family survives.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.excludes(List.of("secret*")),
             Map.of("secret_key", "abc", "secret_token", "xyz", "public_note", "hello")
@@ -68,8 +80,31 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("public_note", "hello"));
     }
 
+    public void testNestedSourceValuesArePreserved() throws IOException {
+        // Object- and array-valued keys pass through unchanged for surviving keys.
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.excludes(List.of("first_name")),
+            Map.of("address", Map.of("city", "Berlin", "zip", "10115"), "tags", List.of("a", "b"), "first_name", "John")
+        );
+        assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin", "zip", "10115")).entry("tags", List.of("a", "b")));
+    }
+
     public void testNonePatternKeepsNoSourceKeys() throws IOException {
         Map<String, Object> filtered = load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2"));
+        assertMap(filtered, matchesMap());
+    }
+
+    public void testActivePatternMatchingNothingKeepsNoSourceKeys() throws IOException {
+        // A non-NONE include pattern that matches no source key yields an empty object (distinct from the NONE sentinel).
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.includes(List.of("nomatch*")),
+            Map.of("first_name", "John", "hobby", "chess")
+        );
+        assertMap(filtered, matchesMap());
+    }
+
+    public void testEmptySourceKeepsNoSourceKeys() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of());
         assertMap(filtered, matchesMap());
     }
 
@@ -82,7 +117,10 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("first_pet", nullValue()).entry("hobby", "chess"));
     }
 
-    /** Runs the block loader over a single document whose {@code _source} is {@code sourceMap}; returns the parsed JSON object. */
+    /**
+     * Runs the block loader over a single document whose {@code _source} is {@code sourceMap} and returns the emitted
+     * JSON parsed back into a map. {@code convertToMap} returns a (content-type, map) tuple, so {@code v2()} is the map.
+     */
     private static Map<String, Object> load(UnmappedFieldsPattern pattern, Map<String, Object> sourceMap) throws IOException {
         UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(pattern);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
@@ -93,6 +131,7 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         }
     }
 
+    /** Minimal stub; the loader only calls {@code source()}. */
     private static BlockLoader.StoredFields storedFields(Source source) {
         return new BlockLoader.StoredFields() {
             @Override

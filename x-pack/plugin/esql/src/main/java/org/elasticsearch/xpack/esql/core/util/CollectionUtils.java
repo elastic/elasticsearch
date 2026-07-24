@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 
@@ -99,5 +100,17 @@ public abstract class CollectionUtils {
             }
         }
         return result;
+    }
+
+    /** Returns the index of the first element satifying the predicate, or -1 if none. */
+    public static <T> int findIndex(List<T> list, Predicate<T> p) {
+        int i = 0;
+        for (T t : list) {
+            if (p.test(t)) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
     }
 }

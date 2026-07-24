@@ -78,7 +78,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1019,11 +1019,13 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} opens a
-     * range stream for each stride probe, reads only enough bytes to find the next record
-     * boundary, then must call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     * Regression guard on the shape of the I/O, not just its result: each stride probe must read bounded
+     * chunks that it consumes in full, so the provider can pool the connection. Neither of the two failure
+     * modes is acceptable — draining a huge range wastes the transfer, and aborting to avoid the drain
+     * destroys the connection and makes the next probe re-handshake, which is what made cross-region
+     * discovery cost ~0.5s per probe.
      */
-    public void testComputeRecordAlignedMacroSplitStartsDoesNotDrainStream() throws IOException {
+    public void testComputeRecordAlignedMacroSplitStartsUsesPooledChunkReads() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -1050,11 +1052,12 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
-        assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertEquals("boundary probes must not abort — an aborted response is not a poolable connection", 0, tracking.abortCalls.get());
+        assertFalse("no probe may reach the abort path", tracking.aborted.get());
         assertThat(
-            "boundary probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            "boundary probes must read bounded chunks; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
-            lessThan(fileLength / 2)
+            lessThanOrEqualTo((long) starts.size() * ChunkedStorageInputStream.FIRST_CHUNK_SIZE)
         );
     }
 

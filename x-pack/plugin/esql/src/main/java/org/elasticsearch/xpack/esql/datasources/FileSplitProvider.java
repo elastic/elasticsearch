@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -1078,10 +1077,11 @@ public class FileSplitProvider implements SplitProvider {
             }
             long boundary;
             if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                // Probe through bounded chunks: each is a closed range read to completion, so closing it
+                // releases a connection the provider can pool. Declaring the whole remainder instead (the
+                // previous shape) left abort as the only exit, and an abort destroys the connection, so every
+                // probe re-paid a connect and TLS handshake.
+                try (InputStream stream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
                     long skipped = splitter.findNextRecordBoundary(stream);
                     if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
                         break;
@@ -1090,8 +1090,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
             } else {
                 long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                try (InputStream probeStream = new ChunkedStorageInputStream(storageObject, pos, fileLength)) {
                     probed = splitter.findProvenRecordBoundary(probeStream);
                 }
                 if (probed >= 0) {
@@ -1099,10 +1098,8 @@ public class FileSplitProvider implements SplitProvider {
                 } else if (probed == RecordSplitter.AMBIGUOUS) {
                     // Bounded probe could not prove a boundary near pos; fall back to an exact walk from the last
                     // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
                     long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                    try (InputStream walkStream = new ChunkedStorageInputStream(storageObject, exactCursor, fileLength)) {
                         start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
                     }
                     if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {

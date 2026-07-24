@@ -11,12 +11,14 @@ applies_to:
 The `semantic` field mapping can be added regardless of license state. However, it calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). Using a `semantic` field without the appropriate license causes operations such as indexing and reindexing to fail.
 :::::
 
-The `semantic` field type simplifies semantic and multimodal search across text, images, audio, video, and PDF files. With a compatible multimodal embedding model, you can search from any supported input type to any other supported input type. For multimodal search, Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings). The field automatically:
+The `semantic` field type simplifies semantic and multimodal search across text, images, audio, video, and PDF files. With a compatible multimodal embedding model, you can search from any supported input type to any other supported input type. The field automatically:
 
 - Generates embeddings when you index field values, without an ingest pipeline or {{infer}} processor.
 - Splits long text into smaller passages, called chunks.
 - Indexes the generated embeddings using default index options that optimize for common use cases.
 - Searches the embeddings generated for each value or text chunk.
+
+For multimodal search, Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings).
 
 Elasticsearch refers to `semantic` and `semantic_text` as *inference fields*: mapped fields that use {{infer}} endpoints and store generated embeddings in internal subfields.
 

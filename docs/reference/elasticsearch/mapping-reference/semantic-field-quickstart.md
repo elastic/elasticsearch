@@ -7,7 +7,9 @@ applies_to:
 
 # Build image search with a `semantic` field in {{es}} [semantic-quickstart]
 
-This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. It uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint for [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings), Elastic's recommended multimodal embedding option. The endpoint is available through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
+This quickstart maps a `semantic` field, indexes an image, and searches for the image using natural-language text. Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings) for multimodal search.
+
+The quickstart uses the preconfigured `.jina-embeddings-v5-omni-small` endpoint, available through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
 
 To run the curl examples, set your Elasticsearch URL and API key as environment variables:
 

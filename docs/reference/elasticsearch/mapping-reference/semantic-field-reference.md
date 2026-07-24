@@ -64,7 +64,9 @@ A `semantic` field requires an {{infer}} endpoint with the `embedding` task type
 - The vector dimensions, similarity measure, and element type.
 - The default text chunking settings.
 
-The following example creates an endpoint for [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings), Elastic's recommended multimodal embedding option, through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md). This configuration does not require a separate Jina API key:
+For multimodal search, Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings).
+
+The following example creates a Jina endpoint through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md). This configuration does not require a separate Jina API key:
 
 ```console
 PUT _inference/embedding/my-embedding-endpoint

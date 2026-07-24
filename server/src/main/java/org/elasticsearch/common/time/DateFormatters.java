@@ -1956,7 +1956,7 @@ public class DateFormatters {
      * <p>
      * These literal patterns are not registered format names, so {@link #forPattern(String)} parses them via the generic,
      * allocation-heavy {@code java.time} path. Routing is intentionally caller-driven (currently only
-     * {@link org.elasticsearch.index.mapper.DateFieldMapper}) so the behaviour of {@link #forPattern(String)} is unchanged.
+     * {@link org.elasticsearch.index.mapper.DateFieldMapper}) so the behavior of {@link #forPattern(String)} is unchanged.
      */
     public static DateFormatter fastDateFieldFormatterOrNull(String pattern) {
         if (FAST_DATE_TIME_PATTERN.equals(pattern)) {

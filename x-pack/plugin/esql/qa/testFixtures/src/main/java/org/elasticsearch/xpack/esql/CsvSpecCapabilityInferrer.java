@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,11 +49,15 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
  *       found in the query (by regex) is mapped to its {@code fn_} capability if one exists in
  *       the full registry.  Keywords such as {@code FROM}, {@code WHERE}, {@code STATS} etc.
  *       are silently ignored because they have no corresponding {@code fn_*} capability.</li>
- *   <li><strong>Enrich date-range capabilities</strong>: when a query issues
- *       {@code ENRICH &lt;policy&gt;} and that policy is backed by an index whose match field
- *       has type {@code date_range}, {@link EsqlCapabilities.Cap#DATE_RANGE_FIELD_TYPE_V6} is
- *       added automatically.  This covers the exact failure mode of the enrichDecadesStats BWC
- *       regression.</li>
+ *   <li><strong>Field-type capabilities</strong>: when a query issues
+ *       {@code ENRICH &lt;policy&gt;} and that policy's match field has a type that is gated by
+ *       a capability (e.g. {@code date_range} → {@code date_range_field_type_v6}), all matching
+ *       capabilities are added automatically.  The mapping is derived at runtime from capability
+ *       names following the convention {@code &lt;fieldtype&gt;_field_type_&lt;suffix&gt;}: any
+ *       {@link EsqlCapabilities.Cap} whose lowercased name contains {@code _field_type_} is
+ *       catalogued automatically — no hard-coded mapping in this class.  Adding a new
+ *       {@code *_field_type_*} cap to {@link EsqlCapabilities.Cap} therefore requires no change
+ *       here.</li>
  * </ul>
  *
  * <h2>What is NOT inferred</h2>
@@ -103,23 +108,36 @@ public final class CsvSpecCapabilityInferrer {
 
     /** Subset of allKnownCaps that start with {@code fn_}. */
     private final Set<String> functionCaps;
-    /** Full set of known capabilities, used for membership checks on enrich policy caps. */
-    private final Set<String> allKnownCaps;
     /**
-     * Mapping from lowercase policy name to the capabilities its index type requires.
-     * Computed once at class load from the enrich policy resource files.
+     * Field type string → set of cap names that gate that type, derived from capability names
+     * following the convention {@code <fieldtype>_field_type_<suffix>}.  Self-maintaining: any
+     * new {@code *_field_type_*} cap added to {@link EsqlCapabilities.Cap} is picked up here
+     * automatically without modifying this class.
      */
-    private static final Map<String, List<String>> POLICY_CAPS = buildPolicyCaps();
+    private final Map<String, Set<String>> fieldTypeToCaps;
+    /** Mapping from lowercase policy name to the capabilities its match-field type requires. */
+    private final Map<String, List<String>> policyCaps;
 
     public CsvSpecCapabilityInferrer(EsqlCapabilities allCaps) {
         Set<String> fnCaps = new HashSet<>();
+        Map<String, Set<String>> ftCaps = new HashMap<>();
+
         for (String cap : allCaps.capabilities()) {
             if (cap.startsWith("fn_")) {
                 fnCaps.add(cap);
             }
+            int idx = cap.indexOf("_field_type_");
+            if (idx > 0) {
+                String fieldType = cap.substring(0, idx);
+                ftCaps.computeIfAbsent(fieldType, k -> new TreeSet<>()).add(cap);
+            }
         }
+
         this.functionCaps = Collections.unmodifiableSet(fnCaps);
-        this.allKnownCaps = allCaps.capabilities();
+        Map<String, Set<String>> unmodifiable = new HashMap<>();
+        ftCaps.forEach((k, v) -> unmodifiable.put(k, Collections.unmodifiableSet(v)));
+        this.fieldTypeToCaps = Collections.unmodifiableMap(unmodifiable);
+        this.policyCaps = buildPolicyCaps(this.fieldTypeToCaps);
     }
 
     /**
@@ -160,17 +178,13 @@ public final class CsvSpecCapabilityInferrer {
             }
         }
 
-        // Enrich policy capabilities
+        // Enrich policy capabilities (field-type-gated)
         m = ENRICH_COMMAND.matcher(stripped);
         while (m.find()) {
             String policyName = m.group(1).toLowerCase(Locale.ROOT);
-            List<String> policyCaps = POLICY_CAPS.get(policyName);
-            if (policyCaps != null) {
-                for (String cap : policyCaps) {
-                    if (allKnownCaps.contains(cap)) {
-                        result.add(cap);
-                    }
-                }
+            List<String> caps = policyCaps.get(policyName);
+            if (caps != null) {
+                result.addAll(caps);
             }
         }
 
@@ -245,13 +259,13 @@ public final class CsvSpecCapabilityInferrer {
     }
 
     // -----------------------------------------------------------------------
-    // Static helpers for POLICY_CAPS initialisation
+    // Helpers for policyCaps initialisation
     // -----------------------------------------------------------------------
 
-    private static Map<String, List<String>> buildPolicyCaps() {
+    private static Map<String, List<String>> buildPolicyCaps(Map<String, Set<String>> fieldTypeToCaps) {
         Map<String, List<String>> result = new HashMap<>();
         for (Map.Entry<String, CsvTestsDataLoader.EnrichConfig> entry : ENRICH_POLICIES.entrySet()) {
-            List<String> caps = capsForPolicy(entry.getValue());
+            List<String> caps = capsForPolicy(entry.getValue(), fieldTypeToCaps);
             if (caps.isEmpty() == false) {
                 result.put(entry.getKey().toLowerCase(Locale.ROOT), caps);
             }
@@ -261,31 +275,39 @@ public final class CsvSpecCapabilityInferrer {
 
     /**
      * Determines which capabilities are required by the given enrich policy based on its
-     * source index field types.
+     * match-field type.
      *
-     * <p>Currently only {@code date_range} match fields are handled (→
-     * {@link EsqlCapabilities.Cap#DATE_RANGE_FIELD_TYPE_V6}).  Other range sub-types
-     * ({@code integer_range}, {@code double_range}, …) have always been supported and require
-     * no additional capability gate.</p>
+     * <p>The match field is extracted from the policy JSON regardless of policy type
+     * ({@code match}, {@code range}, {@code geo_match}, etc.).  The field type is then looked
+     * up in the index mapping, and any capability whose name follows the convention
+     * {@code <fieldtype>_field_type_<suffix>} is returned.  This lookup is driven entirely by
+     * the {@code fieldTypeToCaps} map built from the live capability set — no hard-coded
+     * mappings here.</p>
      */
-    private static List<String> capsForPolicy(CsvTestsDataLoader.EnrichConfig config) {
+    private static List<String> capsForPolicy(CsvTestsDataLoader.EnrichConfig config, Map<String, Set<String>> fieldTypeToCaps) {
         try {
             String policyJson = config.loadPolicy();
             JsonNode root = JSON.readTree(policyJson);
-            JsonNode rangeNode = root.get("range");
-            if (rangeNode == null) {
-                return List.of(); // match / geo_match policy — no type capability needed
+
+            // Extract match_field from any policy type node (match, range, geo_match, …)
+            String matchField = null;
+            for (JsonNode policyTypeNode : root) {
+                JsonNode matchFieldNode = policyTypeNode.get("match_field");
+                if (matchFieldNode != null) {
+                    matchField = matchFieldNode.asText();
+                    break;
+                }
             }
-            JsonNode matchFieldNode = rangeNode.get("match_field");
-            if (matchFieldNode == null) {
+            if (matchField == null) {
                 return List.of();
             }
-            String matchField = matchFieldNode.asText();
+
             String fieldType = loadFieldType(config.index(), matchField);
-            if ("date_range".equals(fieldType)) {
-                return List.of(EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.capabilityName());
+            if (fieldType == null) {
+                return List.of();
             }
-            return List.of();
+            Set<String> caps = fieldTypeToCaps.get(fieldType);
+            return caps != null ? List.copyOf(caps) : List.of();
         } catch (Exception e) {
             LOGGER.warn("Failed to infer capabilities for enrich policy [{}]; skipping inference for this policy", config, e);
             return List.of();

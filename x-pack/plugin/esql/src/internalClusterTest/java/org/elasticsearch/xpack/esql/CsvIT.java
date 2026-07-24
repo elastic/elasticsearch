@@ -352,8 +352,8 @@ public class CsvIT extends ESTestCase {
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         CAPABILITY_INFERRER.augmentRequiredCapabilities(testCase);
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkTestCapabilities(ENABLED_CAPS, testCase.requiredCapabilities);
+        CsvTestUtils.checkTestCapabilities(ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 

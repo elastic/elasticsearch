@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -282,18 +281,7 @@ public final class CsvTestUtils {
         return true;
     }
 
-    public static void checkTestCapabilities(
-        EsqlCapabilities allCapabilities,
-        EsqlCapabilities enabledCapabilities,
-        List<String> requiredCapabilities
-    ) {
-        if (Build.current().isSnapshot()) {
-            assertThat(
-                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
-                requiredCapabilities,
-                everyItem(in(allCapabilities.capabilities()))
-            );
-        }
+    public static void checkTestCapabilities(EsqlCapabilities enabledCapabilities, List<String> requiredCapabilities) {
         assumeTrueLogging(
             format(
                 "Capability not supported in this build: {}",

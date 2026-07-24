@@ -3152,6 +3152,11 @@ public class EsqlCapabilities {
         PROMQL_DAYS_IN_MONTH,
 
         /**
+         * Support for PromQL timestamp() function.
+         */
+        PROMQL_TIMESTAMP,
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -3486,12 +3491,24 @@ public class EsqlCapabilities {
         PROMQL_TOPK,
 
         /**
+         * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
+         * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
+         * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
+         */
+        FIX_PROMQL_TOPK_OVER_AGGREGATE,
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
          * lookup used by rate interpolation.
          */
         FIX_TIME_SERIES_DATE_NANOS_MIXED_ROUNDING,
+
+        /**
+         * Fix multi value unsigned long conversion to aggregate metric double
+         */
+        FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

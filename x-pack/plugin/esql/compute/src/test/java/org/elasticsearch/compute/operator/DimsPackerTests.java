@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.internal;
+package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +28,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalPacksTests extends ComputeTestCase {
+public class DimsPackerTests extends ComputeTestCase {
 
     private static List<BytesRef> randomBytesRefs(int count) {
         List<BytesRef> values = new ArrayList<>(count);
@@ -60,20 +59,10 @@ public class InternalPacksTests extends ComputeTestCase {
         }
     }
 
-    static boolean encodedRowEquals(BytesRefBlock b1, BytesRefBlock b2, int position) {
-        int count1 = b1.getValueCount(position);
-        int count2 = b2.getValueCount(position);
-        if (count1 == 0 && count2 == 0) {
-            return true;
-        }
-        if (count1 != count2) {
-            return false;
-        }
-        assertThat(count1, equalTo(1));
-        assertThat(count2, equalTo(1));
-        BytesRef v1 = b1.getBytesRef(b1.getFirstValueIndex(position), new BytesRef());
-        BytesRef v2 = b2.getBytesRef(b2.getFirstValueIndex(position), new BytesRef());
-        return v1.equals(v2);
+    static boolean encodedRowEquals(BytesRefVector v1, BytesRefVector v2, int position) {
+        BytesRef scratch1 = new BytesRef();
+        BytesRef scratch2 = new BytesRef();
+        return v1.getBytesRef(position, scratch1).equals(v2.getBytesRef(position, scratch2));
     }
 
     public void testKeyword() {
@@ -93,10 +82,10 @@ public class InternalPacksTests extends ComputeTestCase {
         }
         var block1 = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, values1);
         var block2 = (BytesRefBlock) buildBlock(blockFactory, ElementType.BYTES_REF, values2);
-        var encoded1 = InternalPacks.packBytesValues(driverContext, block1);
-        var encoded2 = InternalPacks.packBytesValues(driverContext, block2);
-        var decoded1 = InternalPacks.unpackBytesValues(driverContext, encoded1);
-        var decoded2 = InternalPacks.unpackBytesValues(driverContext, encoded2);
+        var encoded1 = DimsPacker.packBytesValues(driverContext, block1);
+        var encoded2 = DimsPacker.packBytesValues(driverContext, block2);
+        var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1);
+        var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -132,10 +121,10 @@ public class InternalPacksTests extends ComputeTestCase {
         }
         var block1 = (LongBlock) buildBlock(blockFactory, ElementType.LONG, values1);
         var block2 = (LongBlock) buildBlock(blockFactory, ElementType.LONG, values2);
-        var encode1 = InternalPacks.packLongValues(driverContext, block1);
-        var encode2 = InternalPacks.packLongValues(driverContext, block2);
-        var decoded1 = InternalPacks.unpackLongValues(driverContext, encode1);
-        var decoded2 = InternalPacks.unpackLongValues(driverContext, encode2);
+        var encode1 = DimsPacker.packLongValues(driverContext, block1);
+        var encode2 = DimsPacker.packLongValues(driverContext, block2);
+        var decoded1 = DimsPacker.unpackLongValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackLongValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -170,10 +159,10 @@ public class InternalPacksTests extends ComputeTestCase {
         }
         var block1 = (IntBlock) buildBlock(blockFactory, ElementType.INT, values1);
         var block2 = (IntBlock) buildBlock(blockFactory, ElementType.INT, values2);
-        var encode1 = InternalPacks.packIntValues(driverContext, block1);
-        var encode2 = InternalPacks.packIntValues(driverContext, block2);
-        var decoded1 = InternalPacks.unpackIntValues(driverContext, encode1);
-        var decoded2 = InternalPacks.unpackIntValues(driverContext, encode2);
+        var encode1 = DimsPacker.packIntValues(driverContext, block1);
+        var encode2 = DimsPacker.packIntValues(driverContext, block2);
+        var decoded1 = DimsPacker.unpackIntValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackIntValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -208,10 +197,10 @@ public class InternalPacksTests extends ComputeTestCase {
         }
         var block1 = (BooleanBlock) buildBlock(blockFactory, ElementType.BOOLEAN, values1);
         var block2 = (BooleanBlock) buildBlock(blockFactory, ElementType.BOOLEAN, values2);
-        var encode1 = InternalPacks.packBooleanValues(driverContext, block1);
-        var encode2 = InternalPacks.packBooleanValues(driverContext, block2);
-        var decoded1 = InternalPacks.unpackBooleanValues(driverContext, encode1);
-        var decoded2 = InternalPacks.unpackBooleanValues(driverContext, encode2);
+        var encode1 = DimsPacker.packBooleanValues(driverContext, block1);
+        var encode2 = DimsPacker.packBooleanValues(driverContext, block2);
+        var decoded1 = DimsPacker.unpackBooleanValues(driverContext, encode1);
+        var decoded2 = DimsPacker.unpackBooleanValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));
@@ -253,18 +242,98 @@ public class InternalPacksTests extends ComputeTestCase {
             }
             var block1 = builder.build();
             var block2 = new OrdinalBytesRefBlock(ordinals.build(), dict);
-            var encoded1 = InternalPacks.packBytesValues(driverContext, block1);
-            var encoded2 = InternalPacks.packBytesValues(driverContext, block2);
-            var decoded1 = InternalPacks.unpackBytesValues(driverContext, encoded1);
-            var decoded2 = InternalPacks.unpackBytesValues(driverContext, encoded2);
+            var encoded1 = DimsPacker.packBytesValues(driverContext, block1);
+            var encoded2 = DimsPacker.packBytesValues(driverContext, block2);
+            var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1);
+            var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2);
             try {
                 assertTrue(BytesRefBlock.equals(block1, block2));
-                assertTrue(BytesRefBlock.equals(encoded1, encoded2));
+                assertTrue(BytesRefVector.equals(encoded1, encoded2));
                 assertTrue(BytesRefBlock.equals(decoded1, decoded2));
             } finally {
                 Releasables.close(block1, encoded1, decoded1, block2, encoded2, decoded2);
             }
         }
 
+    }
+
+    public void testMultiColumns() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        ElementType[] types = randomFrom(
+            new ElementType[] { ElementType.BYTES_REF },
+            new ElementType[] { ElementType.LONG, ElementType.INT },
+            new ElementType[] { ElementType.BYTES_REF, ElementType.LONG, ElementType.INT, ElementType.BOOLEAN },
+            new ElementType[] { ElementType.BOOLEAN, ElementType.BYTES_REF },
+            new ElementType[] { ElementType.INT, ElementType.INT, ElementType.LONG }
+        );
+        int positionCount = between(1, 100);
+        List<List<List<?>>> columns1 = new ArrayList<>(types.length);
+        List<List<List<?>>> columns2 = new ArrayList<>(types.length);
+        for (ElementType type : types) {
+            List<List<?>> values1 = new ArrayList<>(positionCount);
+            List<List<?>> values2 = new ArrayList<>(positionCount);
+            for (int i = 0; i < positionCount; i++) {
+                List<?> v = randomValues(type);
+                values1.add(v);
+                if (randomBoolean()) {
+                    values2.add(v);
+                } else {
+                    values2.add(randomValueOtherThan(v, () -> randomValues(type)));
+                }
+            }
+            columns1.add(values1);
+            columns2.add(values2);
+        }
+
+        Block[] blocks1 = new Block[types.length];
+        Block[] blocks2 = new Block[types.length];
+        for (int i = 0; i < types.length; i++) {
+            blocks1[i] = buildBlock(blockFactory, types[i], columns1.get(i));
+            blocks2[i] = buildBlock(blockFactory, types[i], columns2.get(i));
+        }
+        BytesRefVector encoded1 = DimsPacker.packMultiColumns(driverContext, blocks1);
+        BytesRefVector encoded2 = DimsPacker.packMultiColumns(driverContext, blocks2);
+        Block[] decoded1 = DimsPacker.unpackMultiColumns(driverContext, encoded1, types);
+        Block[] decoded2 = DimsPacker.unpackMultiColumns(driverContext, encoded2, types);
+        try {
+            assertThat(decoded1.length, equalTo(types.length));
+            assertThat(decoded2.length, equalTo(types.length));
+            for (int i = 0; i < types.length; i++) {
+                assertThat(decoded1[i], equalTo(blocks1[i]));
+                assertThat(decoded2[i], equalTo(blocks2[i]));
+            }
+            for (int p = 0; p < positionCount; p++) {
+                boolean rowsEqual = true;
+                for (int c = 0; c < types.length; c++) {
+                    if (columns1.get(c).get(p).equals(columns2.get(c).get(p)) == false) {
+                        rowsEqual = false;
+                        break;
+                    }
+                }
+                if (rowsEqual) {
+                    assertTrue(encodedRowEquals(encoded1, encoded2, p));
+                } else {
+                    assertFalse(encodedRowEquals(encoded1, encoded2, p));
+                }
+            }
+        } finally {
+            Releasables.close(blocks1);
+            Releasables.close(blocks2);
+            Releasables.close(encoded1, encoded2);
+            Releasables.close(decoded1);
+            Releasables.close(decoded2);
+        }
+    }
+
+    private static List<?> randomValues(ElementType type) {
+        int count = between(0, 5);
+        return switch (type) {
+            case BYTES_REF -> randomBytesRefs(count);
+            case LONG -> randomLongs(count).boxed().toList();
+            case INT -> randomInts(count).boxed().toList();
+            case BOOLEAN -> IntStream.range(0, count).mapToObj(n -> randomBoolean()).toList();
+            default -> throw new IllegalStateException("unsupported element type [" + type + "]");
+        };
     }
 }

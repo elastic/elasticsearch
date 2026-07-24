@@ -162,12 +162,13 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
     /**
      * Reads the values of {@code docs[offset..offset+count)} (ascending doc ids) into {@code sink}.
-     * Returns {@code false} without touching the sink when this column is not dense single-valued, so
-     * the caller reads per document instead. A dense run within one block is handed to the sink in a
-     * single slice.
+     * Returns {@code false} without touching the sink — so the caller reads per document instead — when
+     * this column is not dense single-valued, or when {@code mayContainDuplicates} is set: the dense-run
+     * detection below identifies a run from its endpoints alone, which is only correct when the doc ids
+     * are unique. A dense run within one block is handed to the sink in a single slice.
      */
-    public boolean bulkLongs(int[] docs, int offset, int count, LongBlockSink sink) throws IOException {
-        if (vectorizable == false) {
+    public boolean bulkLongs(int[] docs, int offset, int count, boolean mayContainDuplicates, LongBlockSink sink) throws IOException {
+        if (vectorizable == false || mayContainDuplicates) {
             return false;
         }
         final int end = offset + count;

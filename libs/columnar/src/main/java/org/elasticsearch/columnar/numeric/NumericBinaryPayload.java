@@ -43,6 +43,10 @@ public final class NumericBinaryPayload {
     /**
      * Decodes a payload into {@code dest} (grown as needed) and returns the value count
      * ({@code payload.length / 8}). Values come back in the order they were written.
+     *
+     * <p>{@code dest} is a single-element array used only to pass the reusable buffer by mutable
+     * reference: when the buffer must grow, the larger array is written back to {@code dest[0]} so the
+     * caller sees it on the next call.
      */
     public static int decode(BytesRef payload, long[][] dest) {
         int count = payload.length / Long.BYTES;

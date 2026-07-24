@@ -87,6 +87,29 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
     }
 
+    public void testBulkLongsBailsWhenDuplicatesPossible() throws IOException {
+        long[] values = new long[64];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = between(0, 1000);
+        }
+        try (Directory dir = newDirectory()) {
+            try {
+                ColumnarNumericBinaryDocValues dv = writeAndOpen(dir, values, false).dv();
+                // {0, 1, 1, 3}: endpoints (0..3, count 4) look dense, but doc 1 repeats. Reading a contiguous
+                // slice would be wrong, so with mayContainDuplicates the bulk path must decline and never
+                // touch the sink, leaving the caller to read per document.
+                int[] docs = { 0, 1, 1, 3 };
+                boolean applied = dv.bulkLongs(docs, 0, docs.length, true, (block, from, length) -> {
+                    throw new AssertionError("sink must not be touched when duplicates are possible");
+                });
+                assertFalse("bulk path must decline when duplicates are possible", applied);
+            } finally {
+                IOUtils.close(opened);
+                opened.clear();
+            }
+        }
+    }
+
     public void testSkipperAwareRange() throws IOException {
         for (int iter = 0; iter < 20; iter++) {
             int maxDoc = randomFrom(200, between(4097, 20000), between(1, 130));
@@ -221,7 +244,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
 
             ColumnarNumericBinaryDocValues dv = open(dir, maxDoc).dv();
             long[] collected = new long[docs.length];
-            boolean applied = dv.bulkLongs(docs, 0, docs.length, new LongBlockSink() {
+            boolean applied = dv.bulkLongs(docs, 0, docs.length, false, new LongBlockSink() {
                 private int pos;
 
                 @Override

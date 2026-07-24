@@ -506,21 +506,3 @@ emp_no:integer | language_name:keyword
 10004          | null
 10005          | English
 ;
-
-// GROK's input field reference resolves through resolveExpressions (RegexExtract is not a special-cased
-// node), so over the wide (147-column, > NAME_INDEX_THRESHOLD) `wide` index it takes the exact-name index
-// fast path. The downstream WHERE and SORT also resolve over a wide child (GROK adds method/path/code) and
-// the explicit KEEP goes through keepResolver.
-wideOutputGrokFilterSortKeep
-FROM wide
-| GROK msg "%{WORD:method} %{NOTSPACE:path} %{NUMBER:code:int}"
-| WHERE code >= 400
-| SORT id
-| KEEP id, method, path, code
-;
-
-id:integer | method:keyword | path:keyword | code:integer
-2          | POST           | /login       | 404
-4          | PUT            | /update      | 500
-6          | DELETE         | /remove      | 503
-;

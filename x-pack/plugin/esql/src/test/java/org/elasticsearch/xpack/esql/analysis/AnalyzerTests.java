@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -4756,6 +4757,60 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(analyzer().addIndex(atThreshold).query("FROM at_threshold | DROP f0").output(), hasSize(127));
         assertThat(analyzer().addIndex(overThreshold).query("FROM over_threshold | DROP f0").output(), hasSize(128));
+    }
+
+    @After
+    public void resetNameIndexThreshold() {
+        // A few tests flip the mutable static Analyzer.ResolveRefs#nameIndexThreshold to force a specific
+        // resolution path. Restore the production default after every test so the setting can never leak across
+        // tests that share this JVM, even if a test were to change it without restoring.
+        Analyzer.ResolveRefs.nameIndexThreshold = Analyzer.ResolveRefs.NAME_INDEX_THRESHOLD_DEFAULT;
+    }
+
+    public void testIndexAndScanPathsResolveIdenticallyGenerative() {
+        int iterations = 100;
+        for (int iter = 0; iter < iterations; iter++) {
+            int width = randomIntBetween(1, 260);
+            IndexResolution index = keywordFieldsIndex("gen", width);
+            String query = randomResolutionQuery(width, randomInt(4) == 0);
+            String indexPath = resolveToComparable(index, query, 0);
+            String scanPath = resolveToComparable(index, query, Integer.MAX_VALUE);
+            assertEquals("index vs scan path divergence for query:\n" + query, scanPath, indexPath);
+        }
+    }
+
+    private String randomResolutionQuery(int width, boolean injectUnknown) {
+        String known1 = "f" + randomIntBetween(0, width - 1);
+        String known2 = "f" + randomIntBetween(0, width - 1);
+        String known3 = "f" + randomIntBetween(0, width - 1);
+        String absent = "f" + (width + randomIntBetween(1, 100)); // never present in the mapping
+        StringBuilder q = new StringBuilder("FROM gen");
+        q.append("\n| WHERE ").append(injectUnknown && randomBoolean() ? absent : known1).append(" == \"a\"");
+        q.append("\n| SORT ").append(known2).append(" ASC");
+        if (randomBoolean()) {
+            q.append("\n| KEEP ").append(known1).append(", ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        } else {
+            q.append("\n| DROP ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        }
+        return q.toString();
+    }
+
+    private String resolveToComparable(IndexResolution index, String query, int threshold) {
+        int previous = Analyzer.ResolveRefs.nameIndexThreshold;
+        Analyzer.ResolveRefs.nameIndexThreshold = threshold;
+        try {
+            return "names=" + Expressions.names(analyzer().addIndex(index).query(query).output());
+        } catch (VerificationException e) {
+            return "error=" + e.getMessage();
+        } finally {
+            Analyzer.ResolveRefs.nameIndexThreshold = previous;
+        }
     }
 
     /**

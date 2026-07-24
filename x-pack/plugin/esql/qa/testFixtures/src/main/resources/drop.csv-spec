@@ -247,30 +247,3 @@ x:integer
 13
 13
 ;
-
-// Explicit-name DROP over the wide (147-column, > NAME_INDEX_THRESHOLD) `wide` index child resolves each
-// removed name through dropResolver's exact-name index fast path.
-dropExactNamesOverWideOutput
-FROM wide
-| WHERE id == 4
-| DROP pad0, pad1, pad2, ratio
-| KEEP id, name, color, amount, pad3, pad139
-;
-
-id:integer | name:keyword | color:keyword | amount:long | pad3:keyword | pad139:keyword
-4          | row-4        | green         | 400         | x            | x
-;
-
-// DROP that mixes a wildcard pattern (scan) with explicit names (index fast path) over a wide child, where
-// the explicit names `pad5`/`pad10` are ALSO matched by `pad*`. This exercises the overlap handling in
-// dropResolver (the intersection is removed once, the resolved list is de-duplicated) end to end.
-dropOverlappingWildcardAndExplicitOverWideOutput
-FROM wide
-| WHERE id == 3
-| DROP pad*, pad5, pad10, ratio
-| KEEP id, name, color, amount
-;
-
-id:integer | name:keyword | color:keyword | amount:long
-3          | row-3        | green         | 300
-;

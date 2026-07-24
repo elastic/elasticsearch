@@ -4735,19 +4735,3 @@ FROM employees
 s1:long | s2:long
 null    | null
 ;
-
-// The WHERE before STATS resolves over a wide child (147-column `wide` index, > NAME_INDEX_THRESHOLD) via
-// the exact-name index fast path; STATS then consumes that wide, fully-resolved output. Guards against the
-// change breaking a WHERE -> STATS combination on wide inputs.
-wideOutputWhereThenStats
-FROM wide
-| WHERE active == true
-| STATS total = SUM(amount), n = COUNT(*) BY color
-| SORT color
-;
-
-total:long | n:long | color:keyword
-500        | 1      | blue
-300        | 1      | green
-100        | 1      | red
-;

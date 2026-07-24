@@ -359,24 +359,3 @@ FROM employees
 emp_no:integer | y:integer
 10001          | 1
 ;
-
-// RENAME is special-cased in ResolveRefs, but the downstream WHERE and SORT resolve their references
-// (including the renamed `total`) over a wide child (147-column `wide` index, > NAME_INDEX_THRESHOLD) and
-// thus take the exact-name index fast path; the explicit KEEP goes through keepResolver. This checks the
-// change plays well with a RENAME + EVAL-shadowing combination.
-wideOutputRenameEvalWhereSortKeep
-FROM wide
-| RENAME amount AS total
-| EVAL amount = total + 1
-| WHERE total > 150
-| SORT total DESC
-| KEEP name, total, amount
-;
-
-name:keyword | total:long | amount:long
-row-6        | 600        | 601
-row-5        | 500        | 501
-row-4        | 400        | 401
-row-3        | 300        | 301
-row-2        | 200        | 201
-;

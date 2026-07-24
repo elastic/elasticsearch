@@ -2058,11 +2058,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * instead of rescanning the whole output per reference, turning O(references * fields) into
          * O(fields + references). Below it, the per-reference scan is cheaper than building the map.
          */
-        private static final int NAME_INDEX_THRESHOLD = 128;
+        static final int NAME_INDEX_THRESHOLD_DEFAULT = 128;
+        static volatile int nameIndexThreshold = NAME_INDEX_THRESHOLD_DEFAULT;
+
+        /**
+         * Test-only hook to force the exact-name resolution path regardless of output width: {@code 0} always uses
+         * the name index, {@link Integer#MAX_VALUE} always uses the linear scan. Callers MUST restore the default
+         * with {@link #resetNameIndexThreshold()} afterwards.
+         */
+        public static void setNameIndexThresholdForTests(int threshold) {
+            nameIndexThreshold = threshold;
+        }
+
+        public static void resetNameIndexThreshold() {
+            nameIndexThreshold = NAME_INDEX_THRESHOLD_DEFAULT;
+        }
 
         // Resolve references for nodes without a dedicated resolver (WHERE, SORT, LIMIT, ...).
         private LogicalPlan resolveExpressions(LogicalPlan plan, List<Attribute> childrenOutput) {
-            if (childrenOutput.size() <= NAME_INDEX_THRESHOLD) {
+            if (childrenOutput.size() <= nameIndexThreshold) {
                 return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
             // Build the exact-name index lazily on first reference so ref-less wide nodes (e.g. LIMIT) don't pay for it.
@@ -2266,7 +2280,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // otherwise resolve them
             else {
                 // Build the exact-name index lazily and only for wide outputs; pattern/star projections don't use it.
-                boolean useIndex = childOutput.size() > NAME_INDEX_THRESHOLD;
+                boolean useIndex = childOutput.size() > nameIndexThreshold;
                 Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
                 for (var proj : projections) {
@@ -2335,7 +2349,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Only exact-name removals use the name index, built lazily on the first UnresolvedAttribute
             // (for wide outputs); wildcard removals still scan, as they can match many attributes at once.
             LinkedHashSet<NamedExpression> resolvedProjections = new LinkedHashSet<>(childOutput);
-            boolean useIndex = childOutput.size() > NAME_INDEX_THRESHOLD;
+            boolean useIndex = childOutput.size() > nameIndexThreshold;
             Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
 
             for (NamedExpression ne : removals) {

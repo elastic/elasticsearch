@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -305,7 +304,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
                 newVersion
             );
             assertNotNull(mapperService);
-            assertSemanticFieldMapper(mapperService, "my_field");
+            assertSemanticField(mapperService, "my_field", false, TEST_MODEL, null, null);
         }
     }
 
@@ -328,12 +327,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         // Should not throw; model_settings provided to avoid consulting the model registry
         merge(mapperService, semanticMapping("my_field", TEST_MODEL.getInferenceEntityId()));
 
-        assertSemanticFieldMapper(mapperService, "my_field");
-    }
-
-    private static void assertSemanticFieldMapper(MapperService mapperService, String fieldName) {
-        Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
-        assertThat(mapper, instanceOf(SemanticFieldMapper.class));
+        assertSemanticField(mapperService, "my_field", false, TEST_MODEL, null, null);
     }
 
     @Override

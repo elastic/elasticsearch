@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -74,7 +73,7 @@ public final class CsvSpecCapabilityInferrer {
      * current build flavour.
      */
     public static final CsvSpecCapabilityInferrer INSTANCE = new CsvSpecCapabilityInferrer(
-        EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), true)
+        EsqlCapabilities.capabilities(EsqlTestUtils.TEST_FUNCTION_REGISTRY, true)
     );
 
     /**

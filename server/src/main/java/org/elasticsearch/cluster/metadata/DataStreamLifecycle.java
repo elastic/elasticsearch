@@ -383,8 +383,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
             out.writeOptionalWriteable(downsamplingMethod);
         }
-        if (out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)
-            || (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))) {
+        if (out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV) || out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)) {
             out.writeOptionalTimeValue(frozenAfter);
         }
     }
@@ -405,8 +404,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
             : null;
-        frozenAfter = ((DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))
-            || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) ? in.readOptionalTimeValue() : null;
+        if (in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV) || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) {
+            frozenAfter = in.readOptionalTimeValue();
+        } else {
+            frozenAfter = null;
+        }
     }
 
     /**
@@ -790,8 +792,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
                 ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
             }
-            if ((DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-                || out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV))) {
+            if (out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
+                || out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) {
                 ResettableValue.write(out, frozenAfter, StreamOutput::writeTimeValue);
             }
         }
@@ -854,9 +856,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 .supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
                     ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
                     : ResettableValue.undefined();
-            ResettableValue<TimeValue> frozenAfter = (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()
-                && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-                || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV))
+            ResettableValue<TimeValue> frozenAfter = in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
+                || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)
                     ? ResettableValue.read(in, StreamInput::readTimeValue)
                     : ResettableValue.undefined();
             return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod, frozenAfter);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -74,6 +76,8 @@ public final class SearchCapabilities {
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
+    /** The {@code unmapped_fields} search body parameter. */
+    private static final String UNMAPPED_FIELDS_SEARCH_PARAM = "unmapped_fields_search_param";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -113,6 +117,9 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            capabilities.add(UNMAPPED_FIELDS_SEARCH_PARAM);
+        }
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

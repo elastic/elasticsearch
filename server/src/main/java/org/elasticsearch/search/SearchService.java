@@ -2717,12 +2717,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return findReaderContext.apply(request.readerId(), request, request.shardId());
         }
 
+        // Both contexts must honor unmapped_fields: load like DefaultSearchContext does, or can_match rewrites a query on an absorbed name
+        // to match_none and skips a shard that holds matches.
         QueryRewriteContext getQueryRewriteContext(IndexService indexService) {
-            return indexService.newQueryRewriteContext(request::nowInMillis, request.getRuntimeMappings(), request.getClusterAlias());
+            QueryRewriteContext context = indexService.newQueryRewriteContext(
+                request::nowInMillis,
+                request.getRuntimeMappings(),
+                request.getClusterAlias()
+            );
+            context.setIncludeUnmappedSink(request.includeUnmappedSink());
+            return context;
         }
 
         SearchExecutionContext getSearchExecutionContext(Engine.Searcher searcher) {
-            return getIndexService().newSearchExecutionContext(
+            SearchExecutionContext context = getIndexService().newSearchExecutionContext(
                 request.shardId().id(),
                 0,
                 searcher,
@@ -2732,6 +2740,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 null,
                 null
             );
+            context.setIncludeUnmappedSink(request.includeUnmappedSink());
+            return context;
         }
 
         IndexShard getShard() {

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,9 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
+    // The implicit _unmapped flattened sink, or null when the index has none.
+    private final DynamicFieldType unmappedSink;
+
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
         this(fieldMappers, fieldAliasMappers, List.of(), List.of(), Map.of());
     }
@@ -78,9 +82,17 @@ final class FieldTypeLookup {
         Map<String, Integer> ptAliasPriorities = new HashMap<>();
         Map<String, MappedFieldType> ptAliasTypes = new HashMap<>();
 
+        DynamicFieldType unmappedSink = null;
+
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
+            if (fieldMapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink()) {
+                // Internal storage rather than a mapped field, so it is kept out of the name maps: nothing that enumerates field names
+                // (field caps, wildcards in fields/stored_fields) reaches it. Unmapped names still do - see get(String, boolean).
+                unmappedSink = (DynamicFieldType) fieldType;
+                continue;
+            }
             fullNameToFieldType.put(fieldType.name(), fieldType);
             fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
@@ -115,6 +127,8 @@ final class FieldTypeLookup {
                 }
             }
         }
+
+        this.unmappedSink = unmappedSink;
 
         int maxParentPathDots = 0;
         for (String dynamicRoot : dynamicFieldTypes.keySet()) {
@@ -189,11 +203,24 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
+        return get(field, false);
+    }
+
+    /**
+     * Returns the mapped field type for the given field name. With {@code includeUnmappedSink} true, a name that is neither mapped nor
+     * dynamic falls back to the {@code _unmapped} catch-all, which resolves any name. Only searches that opt in with
+     * {@code unmapped_fields: load} pass true; every other caller must keep treating absorbed names as unmapped.
+     */
+    MappedFieldType get(String field, boolean includeUnmappedSink) {
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
         }
-        return getDynamicField(field);
+        fieldType = getDynamicField(field);
+        if (fieldType != null) {
+            return fieldType;
+        }
+        return (includeUnmappedSink && unmappedSink != null) ? unmappedSink.getChildFieldType(field) : null;
     }
 
     // for testing
@@ -237,12 +264,20 @@ final class FieldTypeLookup {
      * All field names in the returned set are guaranteed to resolve to a field
      */
     Set<String> getMatchingFieldNames(String pattern) {
+        return getMatchingFieldNames(pattern, false);
+    }
+
+    /**
+     * Like {@link #getMatchingFieldNames(String)} but, with {@code includeUnmappedSink} true, a wildcard-free name absorbed by the
+     * {@code _unmapped} sink matches itself, consistent with {@link #get(String, boolean)}. Wildcards never enumerate absorbed names.
+     */
+    Set<String> getMatchingFieldNames(String pattern, boolean includeUnmappedSink) {
         if (Regex.isMatchAllPattern(pattern)) {
             return fullNameToFieldType.keySet();
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
+            return get(pattern, includeUnmappedSink) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
         // If the pattern is field.*, try dynamic fields first
         if (dynamicFieldTypes.isEmpty() == false) {

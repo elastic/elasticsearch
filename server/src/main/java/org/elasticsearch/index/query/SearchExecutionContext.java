@@ -241,6 +241,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.includeUnmappedSink = source.includeUnmappedSink;
     }
 
     private SearchExecutionContext(

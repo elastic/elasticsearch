@@ -252,6 +252,7 @@ final class DefaultSearchContext extends SearchContext {
             if (searchExecutionContext != null) {
                 final String requestSliceRouting = request.sliceRouting();
                 searchExecutionContext.setSliceRouting(SliceIndexing.SLICE_ALL.equals(requestSliceRouting) ? null : requestSliceRouting);
+                searchExecutionContext.setIncludeUnmappedSink(request.includeUnmappedSink());
             }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;

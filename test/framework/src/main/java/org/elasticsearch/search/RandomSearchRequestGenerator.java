@@ -23,6 +23,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.UnmappedFields;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -390,6 +391,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.runtimeMappings(randomRuntimeMappings.get());
+        }
+        if (randomBoolean()) {
+            builder.unmappedFields(randomFrom(UnmappedFields.values()));
         }
         return builder;
     }

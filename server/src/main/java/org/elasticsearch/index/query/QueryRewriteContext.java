@@ -87,6 +87,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected boolean includeUnmappedSink;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -402,7 +403,7 @@ public class QueryRewriteContext {
         }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        return fieldType == null ? mappingLookup.getFieldType(fieldName, includeUnmappedSink) : fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {
@@ -440,6 +441,14 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    /**
+     * Whether names absorbed by the index's {@code _unmapped} sink resolve to field types. Off unless the search request asks for it with
+     * {@code unmapped_fields: load}, so absorbed names otherwise behave like any other unmapped name. A no-op on an index without a sink.
+     */
+    public void setIncludeUnmappedSink(boolean includeUnmappedSink) {
+        this.includeUnmappedSink = includeUnmappedSink;
     }
 
     /**
@@ -604,9 +613,9 @@ public class QueryRewriteContext {
         }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
-            matches = mappingLookup.getMatchingFieldNames(pattern);
+            matches = mappingLookup.getMatchingFieldNames(pattern, includeUnmappedSink);
         } else {
-            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern, includeUnmappedSink));
             if ("*".equals(pattern)) {
                 matches.addAll(runtimeMappings.keySet());
             } else if (Regex.isSimpleMatchPattern(pattern) == false) {

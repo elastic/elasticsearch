@@ -195,6 +195,34 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     /**
+     * A node that predates unmapped_fields cannot honor load, so sending it there fails instead of silently returning incomplete results.
+     * The default carries no information and is simply not sent.
+     */
+    public void testUnmappedFieldsSerializationBwc() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(SearchSourceBuilder.SEARCH_SOURCE_UNMAPPED_FIELDS);
+
+        SearchSourceBuilder load = new SearchSourceBuilder().unmappedFields(UnmappedFields.LOAD);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(load, oldVersion));
+        assertThat(e.getMessage(), containsString("[unmapped_fields] is not supported on all nodes"));
+
+        SearchSourceBuilder defaults = new SearchSourceBuilder().unmappedFields(UnmappedFields.DEFAULT);
+        assertEquals(defaults, copyBuilder(defaults, oldVersion));
+    }
+
+    public void testParseUnmappedFields() throws IOException {
+        for (String value : List.of("load", "LOAD", "Load")) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"unmapped_fields\": \"" + value + "\"}")) {
+                assertEquals(UnmappedFields.LOAD, new SearchSourceBuilder().parseXContent(parser, true, nf -> false).unmappedFields());
+            }
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> UnmappedFields.parse(randomFrom("nullify", "load_all", randomAlphaOfLength(8)))
+        );
+        assertThat(e.getMessage(), containsString("must be one of [default, load]"));
+    }
+
+    /**
      * Fetch fields and embeddings fields are resolved into the same fetch fields context, which is keyed on field name, so an overlap
      * between them is rejected. Fetch fields are patterns, so the overlap check must account for wildcards.
      */

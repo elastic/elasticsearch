@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -71,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -133,10 +135,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+    public static final ParseField UNMAPPED_FIELDS = new ParseField("unmapped_fields");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
     public static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
+    public static final TransportVersion SEARCH_SOURCE_UNMAPPED_FIELDS = TransportVersion.fromName("search_source_unmapped_fields");
 
     /**
      * A static factory method to construct a new search source.
@@ -220,6 +224,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, VectorType> fetchEmbeddingsFields = new LinkedHashMap<>();
 
+    private UnmappedFields unmappedFields = UnmappedFields.DEFAULT;
+
     /**
      * Constructs a new search source builder.
      */
@@ -285,6 +291,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             fetchEmbeddingsFields = new LinkedHashMap<>(
                 in.readOrderedMap(StreamInput::readString, i -> i.readOptionalEnum(VectorType.class))
             );
+        }
+        if (in.getTransportVersion().supports(SEARCH_SOURCE_UNMAPPED_FIELDS)) {
+            unmappedFields = in.readEnum(UnmappedFields.class);
         }
     }
 
@@ -362,6 +371,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(skipInnerHits);
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
             out.writeMap(fetchEmbeddingsFields, StreamOutput::writeOptionalEnum);
+        }
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_UNMAPPED_FIELDS)) {
+            out.writeEnum(unmappedFields);
+        } else if (unmappedFields != UnmappedFields.DEFAULT) {
+            // Fail rather than drop it: the older node would silently resolve absorbed names to nothing and return incomplete results.
+            throw new IllegalArgumentException(
+                "[" + UNMAPPED_FIELDS.getPreferredName() + "] is not supported on all nodes; all nodes must be upgraded to use it"
+            );
         }
     }
 
@@ -1329,6 +1346,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
         rewrittenBuilder.fetchEmbeddingsFields = fetchEmbeddingsFields;
+        rewrittenBuilder.unmappedFields = unmappedFields;
         return rewrittenBuilder;
     }
 
@@ -1485,13 +1503,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sorts.getLast().name());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation()
-                    );
-                }
+                } else if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()
+                    && UNMAPPED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        unmappedFields = UnmappedFields.parse(parser.text());
+                    } else {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
+                    }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
@@ -1830,6 +1851,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field("profile", true);
         }
 
+        if (unmappedFields != UnmappedFields.DEFAULT) {
+            builder.field(UNMAPPED_FIELDS.getPreferredName(), unmappedFields.name().toLowerCase(Locale.ROOT));
+        }
+
         if (fetchSourceContext != null) {
             builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext);
         }
@@ -1958,6 +1983,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public boolean skipInnerHits() {
         return this.skipInnerHits;
+    }
+
+    public SearchSourceBuilder unmappedFields(UnmappedFields unmappedFields) {
+        this.unmappedFields = Objects.requireNonNull(unmappedFields);
+        return this;
+    }
+
+    public UnmappedFields unmappedFields() {
+        return unmappedFields;
     }
 
     public static class IndexBoost implements Writeable, ToXContentObject {
@@ -2216,7 +2250,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             pointInTimeBuilder,
             runtimeMappings,
             skipInnerHits,
-            fetchEmbeddingsFields
+            fetchEmbeddingsFields,
+            unmappedFields
         );
     }
 
@@ -2263,7 +2298,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
             && Objects.equals(skipInnerHits, other.skipInnerHits)
-            && Objects.equals(fetchEmbeddingsFields, other.fetchEmbeddingsFields);
+            && Objects.equals(fetchEmbeddingsFields, other.fetchEmbeddingsFields)
+            && Objects.equals(unmappedFields, other.unmappedFields);
     }
 
     @Override

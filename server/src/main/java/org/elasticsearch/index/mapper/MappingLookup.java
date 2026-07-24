@@ -607,6 +607,14 @@ public final class MappingLookup {
     }
 
     /**
+     * Like {@link #getMatchingFieldNames(String)} but, with {@code includeUnmappedSink} true, also matches a wildcard-free name absorbed
+     * by the implicit {@code _unmapped} sink.
+     */
+    public Set<String> getMatchingFieldNames(String pattern, boolean includeUnmappedSink) {
+        return fieldTypeLookup.getMatchingFieldNames(pattern, includeUnmappedSink);
+    }
+
+    /**
      * @return A map from field name to the MappedFieldType
      */
     public Map<String, MappedFieldType> getFullNameToFieldType() {
@@ -618,6 +626,13 @@ public final class MappingLookup {
      */
     public MappedFieldType getFieldType(String field) {
         return fieldTypesLookup().get(field);
+    }
+
+    /**
+     * Like {@link #getFieldType} but, with {@code includeUnmappedSink} true, resolves names absorbed by the implicit {@code _unmapped} sink
+     */
+    public MappedFieldType getFieldType(String field, boolean includeUnmappedSink) {
+        return fieldTypesLookup().get(field, includeUnmappedSink);
     }
 
     /**

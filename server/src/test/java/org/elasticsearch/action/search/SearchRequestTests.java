@@ -24,6 +24,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
+import org.elasticsearch.search.builder.UnmappedFields;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -126,7 +127,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        TransportVersion version = TransportVersionUtils.randomVersion();
+        TransportVersion version = searchRequest.source() != null && searchRequest.source().unmappedFields() == UnmappedFields.LOAD
+            ? TransportVersionUtils.randomVersionSupporting(SearchSourceBuilder.SEARCH_SOURCE_UNMAPPED_FIELDS)
+            : TransportVersionUtils.randomVersion();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());

@@ -47,6 +47,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.UnmappedFields;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -720,6 +721,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Whether field lookups resolve names absorbed by the {@code _unmapped} sink, ie. whether the request set {@code unmapped_fields: load}
+     */
+    public final boolean includeUnmappedSink() {
+        return source != null && source.unmappedFields() == UnmappedFields.LOAD;
     }
 
     /**

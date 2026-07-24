@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
@@ -150,6 +151,129 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             }
         } finally {
             page.releaseBlocks();
+        }
+    }
+
+    /**
+     * TopN-into-count pushdown passes a subset of group ids to {@link BlockHash#getKeys}.
+     * Categorize must emit only those keys so the Page row count matches the truncated counts.
+     */
+    public void testGetKeysRespectsSelected() {
+        BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(null, BlockHash.CategorizeDef.OutputFormat.TOKENS, 70);
+
+        final Page page;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(7)) {
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Connection error"));
+            builder.appendBytesRef(new BytesRef("Disconnected"));
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
+            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+            page = new Page(builder.build());
+        }
+
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, categorizeDef, analysisRegistry)) {
+            hash.add(page, new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
+            });
+            try (
+                IntVector nonEmpty = hash.nonEmpty();
+                // Pick first and third category group ids (skip the middle one), mimicking selectTopN.
+                IntVector selected = blockFactory.newIntArrayVector(new int[] { nonEmpty.getInt(0), nonEmpty.getInt(2) }, 2)
+            ) {
+                assertThat(nonEmpty.getPositionCount(), equalTo(3));
+                Block[] allKeys = hash.getKeys(nonEmpty);
+                Block[] selectedKeys = hash.getKeys(selected);
+                try {
+                    assertThat(selectedKeys, arrayWithSize(1));
+                    assertThat(selectedKeys[0].getPositionCount(), equalTo(2));
+                    BytesRef scratch = new BytesRef();
+                    String selected0 = ((BytesRefBlock) selectedKeys[0]).getBytesRef(0, scratch).utf8ToString();
+                    String all0 = ((BytesRefBlock) allKeys[0]).getBytesRef(0, scratch).utf8ToString();
+                    String selected1 = ((BytesRefBlock) selectedKeys[0]).getBytesRef(1, scratch).utf8ToString();
+                    String all2 = ((BytesRefBlock) allKeys[0]).getBytesRef(2, scratch).utf8ToString();
+                    assertThat(selected0, equalTo(all0));
+                    assertThat(selected1, equalTo(all2));
+                } finally {
+                    Releasables.close(allKeys);
+                    Releasables.close(selectedKeys);
+                }
+            }
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * End-to-end: COUNT TopN pushdown must not emit a Page whose category keys outnumber the counts.
+     */
+    public void testHashAggregationTopNCountPushdown() {
+        BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(null, BlockHash.CategorizeDef.OutputFormat.TOKENS, 70);
+        BlockHash.GroupSpec groupSpec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef);
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+
+        LocalSourceOperator.BlockSupplier input = () -> {
+            try (BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(8)) {
+                textsBuilder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
+                textsBuilder.appendBytesRef(new BytesRef("Connection error"));
+                textsBuilder.appendBytesRef(new BytesRef("Connection error"));
+                textsBuilder.appendBytesRef(new BytesRef("Connection error"));
+                textsBuilder.appendBytesRef(new BytesRef("Disconnected"));
+                textsBuilder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
+                textsBuilder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+                textsBuilder.appendBytesRef(new BytesRef("System shutdown"));
+                return new Block[] { textsBuilder.build().asBlock() };
+            }
+        };
+
+        List<Page> finalOutput = new ArrayList<>();
+        int limit = 2;
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new LocalSourceOperator(input),
+            List.of(
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.SINGLE)
+                    .aggregators(List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.SINGLE, List.of())))
+                    .topAggregation(new HashAggregationOperator.TopAggregation(0, false, limit))
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
+            ),
+            new PageConsumerOperator(finalOutput::add)
+        );
+        new TestDriverRunner().run(driver);
+
+        assertThat(finalOutput, hasSize(1));
+        Page out = finalOutput.get(0);
+        try {
+            assertThat(out.getBlockCount(), equalTo(2));
+            BytesRefBlock keys = out.getBlock(0);
+            LongBlock counts = out.getBlock(1);
+            assertThat(keys.getPositionCount(), equalTo(limit));
+            assertThat(counts.getPositionCount(), equalTo(limit));
+            // Highest counts first from selectTopN(desc): Connection error (3), Connected to (3)
+            assertThat(counts.getLong(0), equalTo(3L));
+            assertThat(counts.getLong(1), equalTo(3L));
+        } finally {
+            out.releaseBlocks();
         }
     }
 

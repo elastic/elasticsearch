@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -114,8 +115,11 @@ public class CategorizeBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
-        // Select is always nonEmpty because we don't support splitting pages from Categorize
-        return new Block[] { aggregatorMode.isOutputPartial() ? buildIntermediateBlock() : buildFinalBlock() };
+        // Must respect selected: TopN-into-count pushdown passes a subset of group ids
+        // (see HashAggregationOperator.PreparedForEvaluation). Returning all keys while
+        // aggregators emit only the selected counts produces a mismatched Page.
+        return new Block[] {
+            aggregatorMode.isOutputPartial() ? buildIntermediateBlock(selected.getPositionCount()) : buildFinalBlock(selected) };
     }
 
     @Override
@@ -211,13 +215,13 @@ public class CategorizeBlockHash extends BlockHash {
 
     /**
      * Serializes the intermediate state into a single BytesRef block, or an empty Null block if there are no categories.
+     * {@code positionCount} is the number of selected groups so the Page row count matches aggregators.
      */
-    private Block buildIntermediateBlock() {
+    private Block buildIntermediateBlock(int positionCount) {
         if (categorizer.getCategoryCount() == 0) {
-            return blockFactory.newConstantNullBlock(seenNull ? 1 : 0);
+            return blockFactory.newConstantNullBlock(seenNull ? positionCount : 0);
         }
-        int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
-        // We're returning a block with N positions just because the Page must have all blocks with the same position count!
+        // Same serialized categorizer in every position; position count must match selected groups.
         return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
     }
 
@@ -235,28 +239,21 @@ public class CategorizeBlockHash extends BlockHash {
         }
     }
 
-    private Block buildFinalBlock() {
+    private Block buildFinalBlock(IntVector selected) {
+        List<SerializableTokenListCategory> categories = categorizer.toCategoriesById();
         BytesRefBuilder scratch = new BytesRefBuilder();
-
-        if (seenNull) {
-            try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
-                result.appendNull();
-                for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                    scratch.copyChars(getKeyString(category));
+        try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == NULL_ORD) {
+                    result.appendNull();
+                } else {
+                    scratch.copyChars(getKeyString(categories.get(groupId - 1)));
                     result.appendBytesRef(scratch.get());
                     scratch.clear();
                 }
-                return result.build();
             }
-        }
-
-        try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
-            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                scratch.copyChars(getKeyString(category));
-                result.appendBytesRef(scratch.get());
-                scratch.clear();
-            }
-            return result.build().asBlock();
+            return result.build();
         }
     }
 

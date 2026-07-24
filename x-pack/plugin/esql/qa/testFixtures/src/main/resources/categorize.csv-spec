@@ -882,3 +882,20 @@ count:long | category:keyword
 1          | Connected to 10.1.0.3
 1          | Disconnected
 ;
+
+// TopN-into-count pushdown truncates COUNT values; CATEGORIZE keys must honor the same selection
+// (see #154534). Single-key SORT on COUNT is required to trigger the pushdown.
+sortCountLimitLessThanCategories
+required_capability: categorize_v6
+
+FROM sample_data
+  | STATS c = COUNT(*) BY p = CATEGORIZE(message)
+  | SORT c DESC
+  | LIMIT 2
+;
+ignoreOrder:true
+
+c:long | p:keyword
+     3 | .*?Connected.+?to.*?
+     3 | .*?Connection.+?error.*?
+;

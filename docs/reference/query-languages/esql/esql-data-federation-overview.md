@@ -10,7 +10,7 @@ products:
 
 # {{esql}} Data Federation overview
 
-You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}.
+You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}. You query the files in place: nothing is copied into {{es}}, and there is no mapping to define up front: the schema is discovered from the files.
 
 ## Why use federated data
 
@@ -39,7 +39,7 @@ A [data source](esql-data-federation-sources.md) tells {{es}} where the storage 
 ::::::{step} You create datasets (what to read)
 Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage. One data source can serve many datasets. When credentials rotate, you update the data source in one place without touching the datasets that reference it.
 
-Datasets share the same namespace as indices, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as an existing index, which is why `FROM` works the same way for both.
+Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as any of them, which is why `FROM` works the same way for all of them.
 ::::::
 
 ::::::{step} You query with FROM, just like a regular index
@@ -81,9 +81,9 @@ For details on type-specific settings and format options, refer to [select exter
 
 ## Capabilities and limitations
 
-Most {{esql}} processing commands and functions work on datasets. The execution engine is the same one used for native indices. Some capabilities that depend on Lucene or specialized data structures are not currently available.
+Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
-For the full list of limitations, refer to [query limitations](esql-data-federation-querying.md#limitations).
+The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring returns `_score` as null, and `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
 
 ## Next steps
 

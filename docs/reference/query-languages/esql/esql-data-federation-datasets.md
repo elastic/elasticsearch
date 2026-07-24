@@ -10,7 +10,7 @@ products:
 
 # Select external datasets for {{esql}} Data Federation
 
-A dataset points at specific files within a [data source](esql-data-federation-sources.md) and makes them queryable as a virtual index. It references a data source by name and specifies a resource path that identifies the files to read. Datasets share the same namespace as indices, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as an existing index.
+Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as any of them.
 
 ## Supported file formats
 
@@ -107,7 +107,7 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 `PUT` creates a new dataset or replaces an existing one entirely.
 
 :::{important}
-A dataset cannot have the same name as an existing index, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
+A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
 :::
 
 ::::{tab-set}
@@ -190,7 +190,9 @@ The `mappings` block supports:
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}
-With `dynamic: false`, declared columns in CSV and TSV files bind by position. For self-describing columnar formats such as Parquet, declared column names and types must match the file schema unless you use `path` to rename a column.
+With `dynamic: false`, declared columns bind to file columns by name. In CSV and TSV files with a header row, each declared column binds to the header column of the same name (or the name given in `path`). A declared column absent from a file reads as null with a warning, not an error. Headerless files bind by position. 
+
+For self-describing columnar formats such as Parquet, names bind to the file schema the same way, and a declared type is accepted when the file's type can be coerced to it. Only incompatible type pairs are rejected.
 :::
 
 ### Get a dataset
@@ -278,6 +280,9 @@ The following settings apply to all file-based data sources:
 | `format` | Auto-detect from extension | Override format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. |
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"none"`. |
 | `schema_resolution` | `union_by_name` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. Refer to [schema merge strategies](#schema-merge-strategies). |
+| `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. |
+| `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
+| `max_error_ratio` | `0.0` | Fraction of malformed rows allowed (0.0–1.0). Ignored when `error_mode` is `fail_fast`. |
 
 ### CSV and TSV settings
 
@@ -295,8 +300,8 @@ The following settings apply to all file-based data sources:
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `quote` | `"` / `"` | The quote character. Subsumed by `mode`. |
-| `escape` | `\` / `\` | The escape character. Subsumed by `mode`. |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `schema_sample_size` | `20000` | Rows sampled to infer column types. |
@@ -304,9 +309,6 @@ The following settings apply to all file-based data sources:
 | `trim_spaces` | `false` | Whether to remove surrounding ASCII whitespace from string field values. |
 | `multi_value_syntax` | `none` | Whether bracketed multi-values are recognized. Valid values: `"none"`, `"brackets"`. |
 | `max_field_size` | `10485760` (10 MB) | The maximum size of a single field. `0` is unlimited. |
-| `error_mode` | `fail_fast` | How a malformed row is handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. |
-| `max_errors` | unbounded | Bad rows tolerated. Not valid with `fail_fast`. |
-| `max_error_ratio` | `0.0` | Fraction of bad rows tolerated (0.0–1.0). Not valid with `fail_fast`. |
 
 ### NDJSON settings
 
@@ -346,7 +348,7 @@ For **CSV, TSV, and NDJSON**, schemas are inferred by sampling rows from the dat
 
 When a dataset spans multiple files, the files might have different schemas. Set `schema_resolution` in the dataset's `settings` object to choose a strategy:
 
-- `union_by_name` (default): Merges schemas from all files by column name. Lossless type widening is applied where possible; incompatible types cause an error. This is safer when files can vary, at the cost of reading and merging more file metadata.
+- `union_by_name` (default): Merges schemas from all files by column name. Types are widened where possible: when two files disagree with no common type, the column falls back to `keyword` and the response carries a warning suggesting `strict` if you want the conflict to fail instead. `union_by_name` never fails on a type conflict. This is safer when files can vary, at the cost of reading and merging more file metadata.
 - `first_file_wins`: Uses the first file alphabetically to define the schema and assumes later files match it. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
 

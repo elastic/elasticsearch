@@ -67,7 +67,7 @@ PUT /_query/data_source/ookla_speedtest
   }
 }
 ```
-1. Enables anonymous access for public buckets. For private data, supply `access_key` and `secret_key` instead.
+1. Enables anonymous access for public buckets. For private data, use `auth: 'static_credentials'` with `access_key` and `secret_key` instead.
 
 A successful request returns `{"acknowledged": true}`.
 :::

@@ -121,7 +121,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 
 ### Get a data source
 
-Retrieves a data source by name. Credential values are replaced by `::es_redacted::` in the response.
+Retrieves a data source by name. You can pass a comma-separated list of names and use `*` wildcards. A concrete name that does not exist returns a `404`; a wildcard that matches nothing returns an empty list. Credential values are replaced by `::es_redacted::` in the response.
 
 ::::{tab-set}
 :group: api-ref
@@ -169,7 +169,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source" \
 
 ### Delete a data source
 
-Deletes a data source by name.
+Deletes one or more data sources by name. You can pass a comma-separated list. The request is all-or-nothing: if any named data source does not exist, the request returns a `404` and nothing is deleted.
 
 ::::{tab-set}
 :group: api-ref
@@ -208,7 +208,7 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `region` | No | The bucket's AWS region, for example `us-east-1`. Defaults to `us-east-1` if omitted. Set it to match the bucket's region, otherwise requests to the bucket fail. |
-| `endpoint` | No | An explicit Amazon S3 endpoint override. |
+| `endpoint` | No | An explicit Amazon S3 endpoint override. Setting it switches requests to path-style addressing. |
 
 :::{tip}
 A data source connects to a single region. To query buckets in more than one region, create a separate data source for each region.
@@ -220,12 +220,11 @@ A data source connects to a single region. To query buckets in more than one reg
 |---|---|---|
 | `access_key` | No | AWS access key ID. Used with `auth: static_credentials`. |
 | `secret_key` | No | AWS secret access key. Used with `auth: static_credentials`. |
-| `session_token` | No | Session token, when using temporary credentials. Use with `access_key` and `secret_key`. |
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
-| `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Used with `auth: federated_identity`. |
-| `role_session_name` | No | A label for the assumed-role session. Used with `auth: federated_identity`. |
+| `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
+| `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
 | `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity`. |
-| `sts_region` | No | The AWS region of the STS endpoint. Used with `auth: federated_identity`. |
+| `sts_region` | No | The AWS region of the STS endpoint. Defaults to the bucket's region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 
 ## Authentication
@@ -234,7 +233,7 @@ A data source authenticates to its store with one of the following models. The m
 
 | Model | `auth` value | Description |
 |---|---|---|
-| Static credentials | `static_credentials` | A fixed access key and secret key, optionally with a session token for temporary credentials. The common form for a service account. To set one up, refer to [connect with static credentials](esql-data-federation-static-credentials.md). |
+| Static credentials | `static_credentials` | A fixed access key and secret key. The common form for a service account. To set one up, refer to [connect with static credentials](esql-data-federation-static-credentials.md). |
 | Anonymous | `anonymous` | For public data that needs no credentials. The [quickstart](esql-data-federation-quickstart.md) walks through this method. |
 | Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. Available on Elastic Cloud Hosted and serverless only. Operator-gated (`esql.datasource.federated_identity.enabled`). To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
 | Managed identity | `managed_identity` | Keyless. Uses the {{es}} node's own cloud identity, for example an EC2 instance IAM role. Operator-only and API-only, and not available in serverless. Requires `esql.datasource.managed_identity.enabled`. |

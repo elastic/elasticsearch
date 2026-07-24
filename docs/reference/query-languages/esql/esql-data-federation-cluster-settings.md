@@ -10,7 +10,7 @@ products:
 
 # Configure cluster settings for {{esql}} Data Federation
 
-The data sources feature adds the following cluster settings. All are node-scoped. The file-discovery limits and `esql.source.cache.enabled` are dynamic. The object-count limits and authentication gates are operator-managed. The remaining settings require a node restart.
+The object-count limits and authentication gates are operator-managed and take effect without a restart. The remaining settings require a node restart.
 
 ## Object limits
 
@@ -29,10 +29,11 @@ These settings control how many concurrent requests each node sends to external 
 |---|---|---|
 | `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 16 and maximum 100 | Maximum concurrent cloud API requests per storage scheme, per node. `0` removes the limit. Range 0–500. |
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
+| `esql.external.max_concurrent_segmentators` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 
 ## Glob and file-discovery limits
 
-These settings limit how many files glob patterns can match before a query aborts.
+These settings bound file discovery for glob patterns. Exceeding the file cap aborts the query; exceeding the brace-expansion cap falls back to listing the storage.
 
 | Setting | Default | Description |
 |---|---|---|

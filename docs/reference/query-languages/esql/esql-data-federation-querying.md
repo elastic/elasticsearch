@@ -26,13 +26,15 @@ In practice, this can make a significant difference. A filtered query over a Par
 
 When a dataset's resource path uses Hive-style partitioning (for example, `year=2024/month=3/`), the engine detects partition keys automatically and promotes them to queryable columns. A `WHERE` condition on a partition column evaluates during file discovery, before any data is read. On a two-year monthly-partitioned dataset, `WHERE year = 2024 AND month = 3` skips 23 out of 24 partitions at zero I/O cost.
 
+Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
+
 For details on partition detection modes, refer to [dataset settings](esql-data-federation-datasets.md#common-settings).
 
 ### Filter and limit pushdown
 
-[`WHERE`](/reference/query-languages/esql/commands/where.md) conditions and [`LIMIT`](/reference/query-languages/esql/commands/limit.md) push down to the file scan. For Parquet files, the engine uses row-group statistics and page indexes to skip data that cannot match the filter. Only row groups whose statistics overlap the filter condition are read, and within those row groups, late materialization reads predicate columns first and materializes other columns only for rows that survive the filter.
+[`WHERE`](/reference/query-languages/esql/commands/where.md) conditions and [`LIMIT`](/reference/query-languages/esql/commands/limit.md) reduce how much data a query reads, but how far they push down depends on the format. For Parquet files, filters push down into the reader itself: the engine uses row-group statistics and page indexes to skip data that cannot match the filter. Only row groups whose statistics overlap the filter condition are read, and within those row groups, late materialization reads predicate columns first and materializes other columns only for rows that survive the filter.
 
-For CSV and NDJSON, every row must be read and parsed, but rows that fail the filter are discarded before further processing.
+For CSV and NDJSON, filters do not reach the reader: every row must be read and parsed, but rows that fail the filter are discarded before further processing.
 
 ```esql
 FROM access_logs
@@ -45,20 +47,20 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cache TTLs are configurable through [cluster settings](esql-data-federation-cluster-settings.md). The default schema cache TTL is 5 minutes and the default listing cache TTL is 30 seconds.
+{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (30 seconds by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
 
 ### File discovery limits
 
 A dataset's resource path can use glob patterns to match many files. Two cluster settings bound file discovery:
 
 - `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset can resolve to.
-- `esql.external.max_glob_expansion` (default 100): the maximum number of glob expansions per query.
+- `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
 
 ## Query across datasets and indices
 
-Datasets share the same namespace as indices, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently. You can query a dataset and an index together in a single `FROM`:
+Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
 
 ```esql
 FROM speedtest_data, network_incidents METADATA _index
@@ -76,7 +78,7 @@ When sources have different schemas, columns that do not exist in a given source
 |---|---|
 | `_index` | The dataset name. |
 | `_id` | A stable per-row identifier. |
-| `_version` | The source file's modification time. |
+| `_version` | The source file's modification time as a `long` in epoch milliseconds, or null when storage reports no modification time. |
 | `_source` | The row as a JSON object. |
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
 | `_score` | null |
@@ -96,6 +98,8 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 [Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index and does not contribute to `_score`. `_score` remains null for dataset rows.
 
 Because there is no inverted index, search functions on a dataset evaluate by scanning values row by row. For large datasets where search is the primary access pattern, consider ingesting the data into {{es}} for indexed search performance.
+
+Runtime `MATCH` on a dataset does not accept function options, requires the query value's type to match the field's type, and analyzes text with a fixed standard analyzer.
 
 The following search functions are available for datasets:
 
@@ -119,7 +123,9 @@ The operations below require structures that only exist in an {{es}} index, such
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets` |
 | Search functions | Not all search functions are available immediately on all deployment types. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping` |
-| Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. | `Datasets with document or field level security restrictions are not supported` |
+| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
+| Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). The error tells you to remove the DLS/FLS restrictions or exclude the affected names from the request. | `Datasets with document or field level security restrictions are not supported` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) and [cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md) | Datasets on a remote cluster or project cannot be queried. Only local datasets are supported. | `remote datasets are not supported` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
 | Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |

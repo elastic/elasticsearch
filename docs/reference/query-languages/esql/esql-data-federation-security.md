@@ -24,6 +24,10 @@ The cluster state encryption key is available automatically in most environments
 
 By default, if the cluster state encryption key is not available when you create a data source, a `PUT /_query/data_source` request that includes credentials returns a `503` error. On upgraded self-managed clusters, the encryption password is not configured automatically. Add `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` to the keystore on every node, then call `POST /_nodes/reload_secure_settings`.
 
+:::{warning}
+Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
+:::
+
 <!-- TODO: uncomment once https://github.com/elastic/elasticsearch/pull/152731 merges
 Learn more about the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md). -->
 
@@ -45,13 +49,14 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Create or replace a data source | `global.data_source` `create` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
+| Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 
 Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.
 
-The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does.
+The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md).
 
-`superuser` has full access to data sources and datasets. Data source management is reached only through `superuser` or a role explicitly granted `global.data_source`.
+`superuser` has full access to data sources and datasets. Data source management is reached through the cluster `manage` (or `all`) privilege, or through a role explicitly granted `global.data_source` for fine-grained control.
 
 A role configures these privileges as follows. The example grants querying `sales` and `clicks`, dataset administration over `acme_*`, and management of the `acme_*` data sources:
 

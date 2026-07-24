@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -218,7 +219,7 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
-    private final List<IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues;
+    private final LinkedHashMap<String, IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues;
     private final Set<String> singleValuedFields;
     private final Map<String, BytesRef> pendingMultiValueViolations;
     private Scope currentScope;
@@ -261,7 +262,7 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
-        List<IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues,
+        LinkedHashMap<String, IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues,
         Scope currentScope,
         Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
@@ -354,7 +355,7 @@ public abstract class DocumentParserContext {
             source,
             new HashSet<>(),
             new ArrayList<>(),
-            new ArrayList<>(),
+            new LinkedHashMap<>(),
             Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
@@ -582,7 +583,10 @@ public abstract class DocumentParserContext {
         assert ignoredFieldWithNoSource != null;
         assert ignoredFieldWithNoSource.value() == null;
         Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
-        pendingIgnoredFieldValues.add(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+        pendingIgnoredFieldValues.put(
+            ignoredFieldWithNoSource.name(),
+            ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2()))
+        );
         return tuple.v1();
     }
 
@@ -590,19 +594,15 @@ public abstract class DocumentParserContext {
      * Moves the pending pre-capture entry for {@code fieldPath} into the committed ignored-field list.
      */
     final void commitPendingPreCapture(String fieldPath) {
-        for (int i = 0; i < pendingIgnoredFieldValues.size(); i++) {
-            if (pendingIgnoredFieldValues.get(i).name().equals(fieldPath)) {
-                ignoredFieldValues.add(pendingIgnoredFieldValues.remove(i));
-                return;
-            }
-        }
+        IgnoredSourceFieldMapper.NameValue nv = pendingIgnoredFieldValues.remove(fieldPath);
+        if (nv != null) ignoredFieldValues.add(nv);
     }
 
     /**
      * Removes the pending pre-capture entry for {@code fieldPath} without committing it.
      */
     final void discardPendingPreCapture(String fieldPath) {
-        pendingIgnoredFieldValues.removeIf(nv -> nv.name().equals(fieldPath));
+        pendingIgnoredFieldValues.remove(fieldPath);
     }
 
     /**

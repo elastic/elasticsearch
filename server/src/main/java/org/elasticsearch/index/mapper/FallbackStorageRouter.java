@@ -209,21 +209,22 @@ public final class FallbackStorageRouter {
      */
     public static ParseResult parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         FieldContext fc = FieldContext.forField(context, fieldMapper);
+        String fieldPath = fieldMapper.fullPath();
 
         // Tentative pre-capture when the field participates in any ignored-source fallback path
         boolean precaptured = false;
         DocumentParserContext parseCtx = context;
         if (resolvePrecaptureReason(fc).isPresent()) {
-            parseCtx = context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
+            parseCtx = context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null));
             precaptured = true;
         }
 
         ParseResult result = fieldMapper.parse(parseCtx);
         return switch (result) {
             case ParseResult.MultiValueViolation mvv -> {
-                if (precaptured) context.discardPendingPreCapture(fieldMapper.fullPath());
+                if (precaptured) context.discardPendingPreCapture(fieldPath);
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                    OnFailureStoredValues.storeEncoded(context, fieldMapper.fullPath(), mvv.capturedValue());
+                    OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
                 }
                 yield result;
             }
@@ -232,15 +233,15 @@ public final class FallbackStorageRouter {
                     if (fc.syntheticFallback()) {
                         // FALLBACK-mode fields reconstruct synthetic source from _ignored_source, so
                         // commit the pre-capture even when the value was malformed (e.g. ignore_above).
-                        context.commitPendingPreCapture(fieldMapper.fullPath());
+                        context.commitPendingPreCapture(fieldPath);
                     } else {
-                        context.discardPendingPreCapture(fieldMapper.fullPath());
+                        context.discardPendingPreCapture(fieldPath);
                     }
                 }
                 yield result;
             }
             case ParseResult.Indexed ignored -> {
-                if (precaptured) context.commitPendingPreCapture(fieldMapper.fullPath());
+                if (precaptured) context.commitPendingPreCapture(fieldPath);
                 yield result;
             }
         };
@@ -350,10 +351,9 @@ public final class FallbackStorageRouter {
             return context;
         }
         ObjectMapper parent = context.parent();
-        int parentOffset = parent.fullPath().lastIndexOf(parent.leafName());
-        return context.addIgnoredFieldFromContext(
-            new IgnoredSourceFieldMapper.NameValue(parent.fullPath(), parentOffset, null, context.doc())
-        );
+        String parentPath = parent.fullPath();
+        int parentOffset = parentPath.lastIndexOf(parent.leafName());
+        return context.addIgnoredFieldFromContext(new IgnoredSourceFieldMapper.NameValue(parentPath, parentOffset, null, context.doc()));
     }
 
     // -------------------------------------------------------------------------
@@ -384,9 +384,10 @@ public final class FallbackStorageRouter {
             return false;
         }
         ObjectMapper parent = context.parent();
-        int parentOffset = parent.fullPath().lastIndexOf(parent.leafName());
+        String parentPath = parent.fullPath();
+        int parentOffset = parentPath.lastIndexOf(parent.leafName());
         context.addIgnoredField(
-            new IgnoredSourceFieldMapper.NameValue(parent.fullPath(), parentOffset, context.encodeFlattenedToken(), context.doc())
+            new IgnoredSourceFieldMapper.NameValue(parentPath, parentOffset, context.encodeFlattenedToken(), context.doc())
         );
         return true;
     }

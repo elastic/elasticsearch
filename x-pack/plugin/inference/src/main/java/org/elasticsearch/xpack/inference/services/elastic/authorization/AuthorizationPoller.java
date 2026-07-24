@@ -308,7 +308,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             listener.onResponse(SkipAndLogAction.REGISTRY_NOT_READY_ACTION);
             return;
         }
-        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
             listener.onResponse(SkipAndLogAction.MISSING_REQUIRED_FEATURES);
             return;
         }

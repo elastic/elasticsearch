@@ -91,6 +91,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         taskQueue = new DeterministicTaskQueue();
         inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(true);
         mockRegistry = mock(ModelRegistry.class);
         mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         mockClient = mock(Client.class);
@@ -146,6 +147,32 @@ public class AuthorizationPollerTests extends ESTestCase {
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
+        var poller = createPoller();
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.sendAuthorizationRequest();
+
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterMissingInternalDeleteEndpointsFeature() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(false);
         var poller = createPoller();
 
         var persistentTaskId = "id";

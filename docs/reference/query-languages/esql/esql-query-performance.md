@@ -487,7 +487,7 @@ serverless: preview
 
 The advice on this page, particularly adding a [`WHERE`](/reference/query-languages/esql/commands/where.md), a [`KEEP`](/reference/query-languages/esql/commands/keep.md), and a [`LIMIT`](/reference/query-languages/esql/commands/limit.md), applies to [external datasets](/reference/query-languages/esql/esql-data-federation-querying.md) as well as indices. Because datasets read from object storage rather than local disk, every unnecessary column or row translates directly into additional network I/O.
 
-Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-queries-read-external-data).
+Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-external-data-is-read).
 
 ## Related pages
 

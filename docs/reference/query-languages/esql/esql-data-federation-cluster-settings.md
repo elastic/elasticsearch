@@ -62,6 +62,6 @@ These settings control the external-source cache, which stores inferred schemas 
 
 ## Next steps
 
-- If queries are slow or reading more data than expected, refer to [how queries read external data](esql-data-federation-querying.md#how-queries-read-external-data) for guidance on column selection, partition pruning, and filter pushdown.
+- If queries are slow or reading more data than expected, refer to [how external data is read](esql-data-federation-querying.md#how-external-data-is-read) for guidance on column selection, partition pruning, and filter pushdown.
 - To enable federated identity or managed identity after setting the authentication gates on this page, refer to [connect external data sources](esql-data-federation-sources.md#authentication) for setup instructions.
 - For details on how credential encryption interacts with data source creation, refer to [manage credentials and privileges](esql-data-federation-security.md).

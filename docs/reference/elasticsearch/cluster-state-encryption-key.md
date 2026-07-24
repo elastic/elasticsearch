@@ -15,8 +15,6 @@ These feature-managed secrets differ from [secure settings](docs-content://deplo
 
 {{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly. They call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
 
-The first feature to use this mechanism is [{{esql}} data federation](/reference/query-languages/esql/esql-data-federation.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.
-
 :::{note}
 Cluster state encryption is distinct from [customer-managed encryption keys](docs-content://deploy-manage/security/encrypt-deployment-with-customer-managed-encryption-key.md). Customer-managed keys protect an {{ech}} deployment's files and snapshots at the infrastructure layer. Cluster state encryption protects feature-managed secrets before {{es}} stores or replicates them in cluster state. The two mechanisms are complementary.
 :::
@@ -117,3 +115,15 @@ POST /_encryption/_reset?accept_data_loss=true
 ```
 
 The `accept_data_loss=true` query parameter is required. {{es}} generates a new cluster state encryption key on the next write.
+
+## Related topics [cluster-state-encryption-related-topics]
+
+The first Elastic feature to use cluster state encryption is [{{esql}} data federation](/reference/query-languages/esql/esql-data-federation.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.
+
+To learn more about the concepts and tools involved, refer to:
+
+* [Cluster state](docs-content://deploy-manage/distributed-architecture/discovery-cluster-formation/cluster-state-overview.md)
+* [Secure settings](docs-content://deploy-manage/security/secure-settings.md)
+* [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md)
+* [Automatic security setup](docs-content://deploy-manage/security/self-auto-setup.md)
+* [Health API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-health-report)

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154866
+pr: 154972
+summary: Addressing inference timeout issues on inference operator tests
+type: bug

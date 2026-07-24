@@ -6,6 +6,12 @@
 > (via `EsqlDataTypeConverter.stringToDoubleAllowNonFinite`), gated on capability
 > `to_double_non_finite`.  
 > **How to reproduce**: All CsvIT results are in `non_finite_doubles.csv-spec` and run green.
+>
+> **Policy context**: ES|QL's historical design goal was that non-finite doubles must not appear in
+> responses — the `asFiniteNumber` guards and null+warning pattern enforce this. SUM overflow
+> producing `Infinity` was considered a bug, not a feature. That policy is now under review:
+> ES|QL may move to fully supporting non-finite doubles. This investigation maps what would need
+> to change and what already works correctly.
 
 ---
 
@@ -47,9 +53,10 @@ All non-finite doubles are real, non-null values. Both predicates behave correct
 | `-Infinity IS NULL`         | `false` | `true` |
 | `-0.0 IS NULL`              | `false` | `true` |
 
-**Assessment**: correct, and consistent with every SQL-family database that admits non-finite floats
-(PostgreSQL `FLOAT8`, DuckDB, BigQuery `FLOAT64`, Spark SQL, ClickHouse, Trino). The databases that
-don't support non-finite floats at all (MySQL, SQL Server, Oracle) never face this question.
+**Assessment**: correct. Among databases that admit non-finite floats as first-class values
+(PostgreSQL `FLOAT8`, Snowflake `FLOAT`, BigQuery `FLOAT64` — all confirmed to support NaN/Inf),
+`IS NULL` correctly returns false for them; non-finite is not the same as absent. Databases that
+reject non-finite floats entirely (MySQL, SQL Server) never encounter this case.
 
 The only subtlety: ES|QL null semantics map to the absence of a value in a block slot, which is a
 separate concept from IEEE-754 "not a number". `NaN` occupies a real slot with a real bit pattern —
@@ -424,23 +431,23 @@ This is a **bug**: the range check happens to not catch NaN because `NaN > x` an
 both false in IEEE-754. The fix is to add an explicit `Double.isNaN(x)` check (or use
 `Double.isFinite(x)`) before the range comparison in `safeToInt(double)`.
 
-**Cross-database comparison**:
+**Cross-database comparison** (sourced):
 
-| Database | `CAST(NaN AS INTEGER)` | Notes |
+| Database | `CAST(NaN AS INTEGER)` | Source |
 |---|---|---|
-| PostgreSQL | **ERROR** | Explicit `isnan()` guard in `dtoi4`; same for int2/int8. Confirmed. |
-| DuckDB ≥v1.3.0 | **ERROR** (`TRY_CAST` → NULL) | Strict error introduced in v1.3.0; older DuckDB behavior may differ. |
-| ClickHouse ≥v21 | **ERROR** | Added explicit check after bug reports |
-| ClickHouse <v21 | INT32_MIN or 0 (UB) | C++ undefined behavior; acknowledged bug |
-| Spark SQL (ANSI / 4.0+) | **ERROR** (`TRY_CAST` → NULL) | Confirmed for ANSI mode. |
-| Spark SQL (non-ANSI) | **0 or NULL** (unverified) | Java `(int) Double.NaN` = 0; if Spark uses Java narrowing without an explicit NaN check, result is 0 not NULL. Requires source-level or empirical verification. |
-| Trino (current) | **ERROR** (`TRY_CAST` → NULL) | Silent-0 was the old behavior (shared with the Facebook Presto ancestor), fixed as a bug. Direct Trino-specific fix not confirmed; Presto PR #22917 corroborates. |
-| BigQuery | **Plausibly ERROR** (`SAFE_CAST` → NULL) | `SAFE_CAST → NULL` is confirmed for any failed cast; the NaN-specific CAST error path is unverified. |
-| **ES\|QL** | **0, no warning** | Matches the old Presto bug, now corrected in Trino |
+| PostgreSQL | **ERROR** — explicit `isnan()` guard in `dtoi4` (int4, int2, int8 all checked) | [PostgreSQL source: float8_to_int4](https://github.com/postgres/postgres/blob/master/src/backend/utils/adt/float.c) |
+| DuckDB | **ERROR** (`TRY_CAST` → NULL) — NaN/Inf to integer cast throws; open JSON serialization bug (#17329) separate issue | [DuckDB issue #17329](https://github.com/duckdb/duckdb/issues/17329); [DuckDB issue #14905](https://github.com/duckdb/duckdb/issues/14905) |
+| Spark SQL (ANSI / 4.0+) | **ERROR** (`TRY_CAST` → NULL) | [Spark JSON docs — allowNonNumericNumbers](https://spark.apache.org/docs/latest/sql-data-sources-json.html); [SPARK-38060](https://issues.apache.org/jira/browse/SPARK-38060) |
+| Spark SQL (non-ANSI) | **0 or NULL** (unverified — Java `(int) Double.NaN` = 0 without explicit guard) | No confirmed primary source for exact Spark non-ANSI behavior |
+| Trino | **ERROR** at Hive JSON file write (since release 469, Jan 2025); REST client API behavior for NaN in DOUBLE column not explicitly documented | [Trino PR #24558](https://github.com/trinodb/trino/pull/24558); [Trino release 469](https://trino.io/docs/current/release/release-469.html) |
+| Snowflake | FLOAT **supports** NaN/Inf natively; JSON API returns them as strings (exact format unspecified in docs) | [Snowflake numeric types](https://docs.snowflake.com/en/sql-reference/data-types-numeric); [Snowflake SQL API response format](https://docs.snowflake.com/en/developer-guide/sql-api/handling-responses) |
+| BigQuery | FLOAT64 **supports** NaN/Inf; REST API returns JSON strings `"NaN"`, `"+inf"`, `"-inf"` — confirmed by client library bug report | [google-cloud-ruby #3488](https://github.com/googleapis/google-cloud-ruby/issues/3488); [BigQuery FLOAT64 docs](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types) |
+| **ES\|QL** | **0, no warning** — NaN bypasses `> MAX \|\| < MIN` guard because NaN comparisons always return false | This investigation |
 
-The industry consensus is: strict CAST → error, TRY_CAST/SAFE_CAST → NULL. Silent zero is
-universally treated as a bug. ES|QL's behavior matches the historical Presto/Trino bug that Trino
-has since corrected and ClickHouse's pre-v21 undefined-behavior path.
+The consensus for `CAST(NaN AS INTEGER)` is error (strict) or NULL (safe cast). Silent zero is
+universally treated as a bug. ES|QL currently matches the class of pre-fix behavior seen in older
+database versions. Note that Snowflake and BigQuery take the opposite approach on non-finite floats
+generally: they treat NaN/Inf as first-class FLOAT values rather than errors.
 
 ### TO_LONG (double → long)
 
@@ -455,7 +462,7 @@ has since corrected and ClickHouse's pre-v21 undefined-behavior path.
 | `-0.0`     | `0`            | Correct |
 
 **Key finding**: `TO_LONG(NaN)` is the same bug as `TO_INTEGER(NaN)` — silently returns `0`.
-The cross-database picture is identical to TO_INTEGER: every modern database errors on this cast.
+The cross-database picture is identical to TO_INTEGER (see sourced table above).
 
 ### TO_UNSIGNED_LONG (double → unsigned_long)
 
@@ -667,14 +674,44 @@ correct answer (match-none), but for the wrong reason.
 
 ### D1 — Three output formats produce three different representations of the same non-finite value
 
-| Format | Output for `Infinity` in a `double` column | Parses back? |
-|---|---|---|
-| **JSON** | bare string `"Infinity"` (Jackson default, not in a JSON string literal) | No — invalid JSON number; clients parsing `double` get a string |
-| **CSV / TSV** | bare token `Infinity` | No — ES|QL's own CSV re-ingest would reject it |
-| **Arrow** | raw IEEE-754 bit pattern | Yes |
+Jackson's `JsonGenerator.Feature.QUOTE_NON_NUMERIC_NUMBERS` is **enabled by default**. Its Javadoc
+states: *"Feature that determines whether 'exceptional' (not real number) float/double values are
+output as quoted strings … Feature is enabled by default."* Elasticsearch's `JsonXContentImpl`
+does not override this default. As a result:
 
-The CsvIT test path (Arrow/binary) is unaffected, which is why this never surfaced in our test
-battery. Clients using the REST JSON response path silently receive a type mismatch.
+| Format | Output for `Infinity` in a `double` column | RFC 8259 compliant? |
+|---|---|---|
+| **JSON (REST)** | quoted string `"Infinity"` (Jackson default) | Yes — but type contract broken: column says `double`, wire value is a string |
+| **CSV / TSV** | bare token `Infinity` | N/A — not JSON; ES|QL's own CSV re-ingest would reject it |
+| **Arrow / binary** | raw IEEE-754 bit pattern | N/A — not JSON; fully round-trips |
+
+The JSON result is RFC 8259-compliant (JSON arrays are heterogeneous; `[1.234, "Infinity"]` is
+valid JSON). But the semantic type contract is broken: a client that trusts the column metadata
+(`"type":"double"`) and deserializes values accordingly will encounter a string where it expects a
+number. This is what caused the `CsvAssert.ValueTransformer` failure in the multi-node REST
+test — `new BigDecimal("Infinity")` throws, because the value arrived as a String rather than
+a Number.
+
+The CsvIT test path (Arrow/binary) is unaffected, which is why this never surfaced in the main
+test battery.
+
+**If ES|QL moves to full non-finite support, the wire-format question becomes a design decision.**
+All RFC-compliant options involve a type mismatch for clients that trust column metadata:
+
+| Approach | RFC valid? | Type contract? | Who uses this |
+|---|---|---|---|
+| Quoted strings `"Infinity"` (current Jackson default) | Yes | Broken | BigQuery (`"NaN"`, `"+inf"`, `"-inf"` — documented) |
+| Bare literals `Infinity` (Jackson feature disabled) | **No** | Intact | PostgreSQL `row_to_json`, DuckDB (both have open bugs; DuckDB #17329, PostgreSQL mailing-list discussion) |
+| `null` | Yes | Intact | Snowflake (errors instead, so no nulls) |
+| Typed wrapper | Yes | Intact if clients agree | MongoDB Extended JSON v2 |
+
+RFC 8259 § 6 states explicitly: *"Numeric values that cannot be represented in the grammar below
+(such as Infinity and NaN) are not permitted."* So bare literals are non-conformant regardless of
+parser tolerance.
+
+BigQuery's approach (document that FLOAT64 columns return JSON strings for special values, and
+require clients to handle them) is the most pragmatic precedent for a system that wants to keep
+RFC-compliant output while fully supporting non-finites.
 
 ### E2 — `histogram_quantile` converts internal NaN to null on output
 

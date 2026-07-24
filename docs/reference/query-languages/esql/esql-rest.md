@@ -391,12 +391,12 @@ The `approximation.type` value is `confidence_interval` or `certified`, and `app
 
 ```json
 {
-  "name": "approximate_count_distinct_confidence_interval(emp_no)",
+  "name": "_approximation_confidence_interval(count)",
   "type": "long",
   "_meta": {
     "approximation": {
       "type": "confidence_interval",
-      "column": "emp_no"
+      "column": "count"
     }
   }
 }

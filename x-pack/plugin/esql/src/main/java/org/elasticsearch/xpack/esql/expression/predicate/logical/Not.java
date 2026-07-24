@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -66,19 +65,7 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     @Override
     public Object fold(FoldContext ctx) {
-        return apply(field().fold(ctx));
-    }
-
-    private static Boolean apply(Object input) {
-        if (input == null) {
-            return null;
-        }
-
-        if ((input instanceof Boolean) == false) {
-            throw new QlIllegalArgumentException("A boolean is required; received {}", input);
-        }
-
-        return ((Boolean) input).booleanValue() ? Boolean.FALSE : Boolean.TRUE;
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

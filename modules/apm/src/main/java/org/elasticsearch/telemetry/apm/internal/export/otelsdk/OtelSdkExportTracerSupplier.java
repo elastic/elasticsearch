@@ -37,10 +37,46 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
-    private final SdkTracerProvider tracerProvider;
-    private final OpenTelemetrySdk openTelemetrySdk;
+    private final Settings settings;
+    private final Supplier<MeterProvider> meterProvider;
+    private final Object mutex = new Object();
+    private volatile OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
+        this.settings = settings;
+        this.meterProvider = meterProvider;
+    }
+
+    @Override
+    public OpenTelemetry get() {
+        synchronized (mutex) {
+            if (openTelemetrySdk == null) {
+                openTelemetrySdk = createOpenTelemetrySdk();
+            }
+            return openTelemetrySdk;
+        }
+    }
+
+    @Override
+    public CompletableResultCode attemptFlushTraces() {
+        OpenTelemetrySdk openTelemetrySdk;
+        synchronized (mutex) {
+            openTelemetrySdk = this.openTelemetrySdk;
+        }
+        return openTelemetrySdk == null ? CompletableResultCode.ofSuccess() : openTelemetrySdk.getSdkTracerProvider().forceFlush();
+    }
+
+    @Override
+    public void close() {
+        synchronized (mutex) {
+            if (openTelemetrySdk != null) {
+                openTelemetrySdk.getSdkTracerProvider().close();
+                openTelemetrySdk = null;
+            }
+        }
+    }
+
+    private OpenTelemetrySdk createOpenTelemetrySdk() {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
@@ -80,30 +116,15 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         // traces are subject to the ratio.
         Sampler sampler = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
 
-        this.tracerProvider = SdkTracerProvider.builder()
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
             .setResource(OtelSdkResource.get(settings))
             .setSampler(sampler)
             .addSpanProcessor(processor)
             .build();
 
-        this.openTelemetrySdk = OpenTelemetrySdk.builder()
+        return OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
-    }
-
-    @Override
-    public OpenTelemetry get() {
-        return openTelemetrySdk;
-    }
-
-    @Override
-    public CompletableResultCode attemptFlushTraces() {
-        return tracerProvider.forceFlush();
-    }
-
-    @Override
-    public void close() {
-        tracerProvider.close();
     }
 }

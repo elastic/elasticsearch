@@ -420,6 +420,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
             return true;
         }
 

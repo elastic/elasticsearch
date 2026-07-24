@@ -1,0 +1,445 @@
+{
+    "properties" : {
+        "id" : {
+            "type" : "integer"
+        },
+        "name" : {
+            "type" : "keyword"
+        },
+        "color" : {
+            "type" : "keyword"
+        },
+        "amount" : {
+            "type" : "long"
+        },
+        "ratio" : {
+            "type" : "double"
+        },
+        "active" : {
+            "type" : "boolean"
+        },
+        "msg" : {
+            "type" : "keyword"
+        },
+        "pad0" : {
+            "type" : "keyword"
+        },
+        "pad1" : {
+            "type" : "keyword"
+        },
+        "pad2" : {
+            "type" : "keyword"
+        },
+        "pad3" : {
+            "type" : "keyword"
+        },
+        "pad4" : {
+            "type" : "keyword"
+        },
+        "pad5" : {
+            "type" : "keyword"
+        },
+        "pad6" : {
+            "type" : "keyword"
+        },
+        "pad7" : {
+            "type" : "keyword"
+        },
+        "pad8" : {
+            "type" : "keyword"
+        },
+        "pad9" : {
+            "type" : "keyword"
+        },
+        "pad10" : {
+            "type" : "keyword"
+        },
+        "pad11" : {
+            "type" : "keyword"
+        },
+        "pad12" : {
+            "type" : "keyword"
+        },
+        "pad13" : {
+            "type" : "keyword"
+        },
+        "pad14" : {
+            "type" : "keyword"
+        },
+        "pad15" : {
+            "type" : "keyword"
+        },
+        "pad16" : {
+            "type" : "keyword"
+        },
+        "pad17" : {
+            "type" : "keyword"
+        },
+        "pad18" : {
+            "type" : "keyword"
+        },
+        "pad19" : {
+            "type" : "keyword"
+        },
+        "pad20" : {
+            "type" : "keyword"
+        },
+        "pad21" : {
+            "type" : "keyword"
+        },
+        "pad22" : {
+            "type" : "keyword"
+        },
+        "pad23" : {
+            "type" : "keyword"
+        },
+        "pad24" : {
+            "type" : "keyword"
+        },
+        "pad25" : {
+            "type" : "keyword"
+        },
+        "pad26" : {
+            "type" : "keyword"
+        },
+        "pad27" : {
+            "type" : "keyword"
+        },
+        "pad28" : {
+            "type" : "keyword"
+        },
+        "pad29" : {
+            "type" : "keyword"
+        },
+        "pad30" : {
+            "type" : "keyword"
+        },
+        "pad31" : {
+            "type" : "keyword"
+        },
+        "pad32" : {
+            "type" : "keyword"
+        },
+        "pad33" : {
+            "type" : "keyword"
+        },
+        "pad34" : {
+            "type" : "keyword"
+        },
+        "pad35" : {
+            "type" : "keyword"
+        },
+        "pad36" : {
+            "type" : "keyword"
+        },
+        "pad37" : {
+            "type" : "keyword"
+        },
+        "pad38" : {
+            "type" : "keyword"
+        },
+        "pad39" : {
+            "type" : "keyword"
+        },
+        "pad40" : {
+            "type" : "keyword"
+        },
+        "pad41" : {
+            "type" : "keyword"
+        },
+        "pad42" : {
+            "type" : "keyword"
+        },
+        "pad43" : {
+            "type" : "keyword"
+        },
+        "pad44" : {
+            "type" : "keyword"
+        },
+        "pad45" : {
+            "type" : "keyword"
+        },
+        "pad46" : {
+            "type" : "keyword"
+        },
+        "pad47" : {
+            "type" : "keyword"
+        },
+        "pad48" : {
+            "type" : "keyword"
+        },
+        "pad49" : {
+            "type" : "keyword"
+        },
+        "pad50" : {
+            "type" : "keyword"
+        },
+        "pad51" : {
+            "type" : "keyword"
+        },
+        "pad52" : {
+            "type" : "keyword"
+        },
+        "pad53" : {
+            "type" : "keyword"
+        },
+        "pad54" : {
+            "type" : "keyword"
+        },
+        "pad55" : {
+            "type" : "keyword"
+        },
+        "pad56" : {
+            "type" : "keyword"
+        },
+        "pad57" : {
+            "type" : "keyword"
+        },
+        "pad58" : {
+            "type" : "keyword"
+        },
+        "pad59" : {
+            "type" : "keyword"
+        },
+        "pad60" : {
+            "type" : "keyword"
+        },
+        "pad61" : {
+            "type" : "keyword"
+        },
+        "pad62" : {
+            "type" : "keyword"
+        },
+        "pad63" : {
+            "type" : "keyword"
+        },
+        "pad64" : {
+            "type" : "keyword"
+        },
+        "pad65" : {
+            "type" : "keyword"
+        },
+        "pad66" : {
+            "type" : "keyword"
+        },
+        "pad67" : {
+            "type" : "keyword"
+        },
+        "pad68" : {
+            "type" : "keyword"
+        },
+        "pad69" : {
+            "type" : "keyword"
+        },
+        "pad70" : {
+            "type" : "keyword"
+        },
+        "pad71" : {
+            "type" : "keyword"
+        },
+        "pad72" : {
+            "type" : "keyword"
+        },
+        "pad73" : {
+            "type" : "keyword"
+        },
+        "pad74" : {
+            "type" : "keyword"
+        },
+        "pad75" : {
+            "type" : "keyword"
+        },
+        "pad76" : {
+            "type" : "keyword"
+        },
+        "pad77" : {
+            "type" : "keyword"
+        },
+        "pad78" : {
+            "type" : "keyword"
+        },
+        "pad79" : {
+            "type" : "keyword"
+        },
+        "pad80" : {
+            "type" : "keyword"
+        },
+        "pad81" : {
+            "type" : "keyword"
+        },
+        "pad82" : {
+            "type" : "keyword"
+        },
+        "pad83" : {
+            "type" : "keyword"
+        },
+        "pad84" : {
+            "type" : "keyword"
+        },
+        "pad85" : {
+            "type" : "keyword"
+        },
+        "pad86" : {
+            "type" : "keyword"
+        },
+        "pad87" : {
+            "type" : "keyword"
+        },
+        "pad88" : {
+            "type" : "keyword"
+        },
+        "pad89" : {
+            "type" : "keyword"
+        },
+        "pad90" : {
+            "type" : "keyword"
+        },
+        "pad91" : {
+            "type" : "keyword"
+        },
+        "pad92" : {
+            "type" : "keyword"
+        },
+        "pad93" : {
+            "type" : "keyword"
+        },
+        "pad94" : {
+            "type" : "keyword"
+        },
+        "pad95" : {
+            "type" : "keyword"
+        },
+        "pad96" : {
+            "type" : "keyword"
+        },
+        "pad97" : {
+            "type" : "keyword"
+        },
+        "pad98" : {
+            "type" : "keyword"
+        },
+        "pad99" : {
+            "type" : "keyword"
+        },
+        "pad100" : {
+            "type" : "keyword"
+        },
+        "pad101" : {
+            "type" : "keyword"
+        },
+        "pad102" : {
+            "type" : "keyword"
+        },
+        "pad103" : {
+            "type" : "keyword"
+        },
+        "pad104" : {
+            "type" : "keyword"
+        },
+        "pad105" : {
+            "type" : "keyword"
+        },
+        "pad106" : {
+            "type" : "keyword"
+        },
+        "pad107" : {
+            "type" : "keyword"
+        },
+        "pad108" : {
+            "type" : "keyword"
+        },
+        "pad109" : {
+            "type" : "keyword"
+        },
+        "pad110" : {
+            "type" : "keyword"
+        },
+        "pad111" : {
+            "type" : "keyword"
+        },
+        "pad112" : {
+            "type" : "keyword"
+        },
+        "pad113" : {
+            "type" : "keyword"
+        },
+        "pad114" : {
+            "type" : "keyword"
+        },
+        "pad115" : {
+            "type" : "keyword"
+        },
+        "pad116" : {
+            "type" : "keyword"
+        },
+        "pad117" : {
+            "type" : "keyword"
+        },
+        "pad118" : {
+            "type" : "keyword"
+        },
+        "pad119" : {
+            "type" : "keyword"
+        },
+        "pad120" : {
+            "type" : "keyword"
+        },
+        "pad121" : {
+            "type" : "keyword"
+        },
+        "pad122" : {
+            "type" : "keyword"
+        },
+        "pad123" : {
+            "type" : "keyword"
+        },
+        "pad124" : {
+            "type" : "keyword"
+        },
+        "pad125" : {
+            "type" : "keyword"
+        },
+        "pad126" : {
+            "type" : "keyword"
+        },
+        "pad127" : {
+            "type" : "keyword"
+        },
+        "pad128" : {
+            "type" : "keyword"
+        },
+        "pad129" : {
+            "type" : "keyword"
+        },
+        "pad130" : {
+            "type" : "keyword"
+        },
+        "pad131" : {
+            "type" : "keyword"
+        },
+        "pad132" : {
+            "type" : "keyword"
+        },
+        "pad133" : {
+            "type" : "keyword"
+        },
+        "pad134" : {
+            "type" : "keyword"
+        },
+        "pad135" : {
+            "type" : "keyword"
+        },
+        "pad136" : {
+            "type" : "keyword"
+        },
+        "pad137" : {
+            "type" : "keyword"
+        },
+        "pad138" : {
+            "type" : "keyword"
+        },
+        "pad139" : {
+            "type" : "keyword"
+        }
+    }
+}

@@ -602,3 +602,28 @@ Europe                              | Netherlands               | Amsterdam     
 North America                       | United States of America  | San Francisco     | Earth
 Asia                                | Japan                     | Tokyo             | Earth
 ;
+
+// Explicit-name KEEP over the wide (147-column, > NAME_INDEX_THRESHOLD) `wide` index child resolves each
+// name through keepResolver's exact-name index fast path.
+keepExactNamesOverWideOutput
+FROM wide
+| WHERE id == 2
+| KEEP name, color, amount, pad0, pad139
+;
+
+name:keyword | color:keyword | amount:long | pad0:keyword | pad139:keyword
+row-2        | red           | 200         | x            | x
+;
+
+// KEEP that mixes explicit names (index fast path) with a wildcard pattern (scan) in a single projection,
+// over a wide child. `amount` is listed explicitly AND matched by `a*`, so this also checks that the
+// overlap is de-duplicated while preserving projection order.
+keepMixedWildcardAndExplicitOverWideOutput
+FROM wide
+| WHERE id == 1
+| KEEP amount, a*, name, color
+;
+
+amount:long | active:boolean | name:keyword | color:keyword
+100         | true           | row-1        | red
+;

@@ -87,3 +87,23 @@ FROM sample_data
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
+
+// The `wide` index is 147 columns wide (> the 128-column NAME_INDEX_THRESHOLD), so every command whose
+// child output is still wide resolves its references through ResolveRefs' exact-name index fast path.
+// This pipeline keeps the output wide across WHERE (Filter), DISSECT (RegexExtract) and SORT (OrderBy) -
+// all of which go through resolveExpressions - and then an explicit KEEP (keepResolver), with an EVAL in
+// the middle. Results must match the scan path used by narrow indices.
+wideOutputWhereEvalDissectSortKeep
+FROM wide
+| WHERE active == true
+| EVAL big = amount * 2
+| DISSECT msg "%{method} %{path} %{code}"
+| SORT id
+| KEEP id, name, color, big, method, path, code
+;
+
+id:integer | name:keyword | color:keyword | big:long | method:keyword | path:keyword | code:keyword
+1          | row-1        | red           | 200      | GET            | /home        | 200
+3          | row-3        | green         | 600      | GET            | /search      | 200
+5          | row-5        | blue          | 1000     | GET            | /admin       | 200
+;

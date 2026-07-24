@@ -336,7 +336,10 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
-        new TestDataset("trim_test")
+        new TestDataset("trim_test"),
+        // 147 columns (7 typed + pad0..pad139); wider than the > NAME_INDEX_THRESHOLD (128) cutoff, so reference
+        // resolution over its output exercises the exact-name index fast path in Analyzer.ResolveRefs.
+        new TestDataset("wide", "mapping-wide.json", "wide.csv")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

@@ -324,26 +324,18 @@ public class ComputeListenerTests extends ESTestCase {
     }
 
     /**
-     * Regression test for warnings being lost when the last {@link ComputeListener} ref is released
-     * on a transport thread that carries a stashed (blank) context.
+     * Regression test: the root delegate must fire in the {@link ComputeListener} construction-time
+     * context even when the last ref is an avoid listener that fires on a transport thread with a
+     * stashed (blank) context, as happens in {@code ExchangeSourceHandler.RemoteSinkFetcher}.
      * <p>
-     * The scenario: {@code computeSubListener} fires on a normal thread and collects a warning into
-     * {@code ResponseHeadersCollector}. {@code avoidSubListener} fires last on a transport thread
-     * whose context has been stashed (blank). Without the fix, {@code responseHeaders.finish()}
-     * and the root delegate both run inside the blank stash, so the delegate fires in the wrong
-     * context. The fix wraps the {@code EsqlRefCountingListener} delegate with
-     * {@link org.elasticsearch.action.support.ContextPreservingActionListener}, ensuring that both
-     * {@code finish()} and the root delegate always run in the construction-time context.
-     * <p>
-     * To detect which context the root delegate fires in, a sentinel request header is added to the
-     * test thread's context before {@link ComputeListener} is created. Request headers are part of
-     * the context snapshot captured by {@code ContextPreservingActionListener}. In the stashed blank
-     * context the sentinel is absent; in the restored construction-time context it is present. The
-     * sentinel check therefore fails without the fix and passes with it.
+     * A sentinel request header placed in the construction-time context lets the root listener
+     * detect which context it is running in. The sentinel is absent in a blank stash, so the test
+     * fails without the {@link org.elasticsearch.action.support.ContextPreservingActionListener}
+     * wrapping in {@link ComputeListener} and passes with it.
      */
     public void testCollectWarningsWhenLastRefIsAvoidOnBlankContext() throws Exception {
-        // Sentinel added to the construction-time context so rootListener can tell which context it
-        // fires in: construction-time (fix applied) or blank stash (no fix).
+        // Mark the construction-time context with a sentinel request header so the root listener
+        // can verify it fires in that context rather than in the blank stash.
         final String sentinelKey = "x-construction-time-sentinel";
         final String sentinelValue = "present";
         threadPool.getThreadContext().putHeader(sentinelKey, sentinelValue);
@@ -375,9 +367,8 @@ public class ComputeListenerTests extends ESTestCase {
             avoidSubListener = computeListener.acquireAvoid();
         }
 
-        // Fire the compute sub-listener first on a thread that adds a response header, simulating a
-        // driver sub-task that emits a warning. Wait until it finishes so that the avoid listener
-        // is guaranteed to be the final ref.
+        // Emit a warning from the compute sub-listener and wait for it to finish, so the avoid
+        // listener is guaranteed to be the last ref.
         CountDownLatch computeDone = new CountDownLatch(1);
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
             threadPool.getThreadContext().addResponseHeader(warningKey, warningValue);
@@ -386,10 +377,9 @@ public class ComputeListenerTests extends ESTestCase {
         });
         assertTrue(computeDone.await(10, TimeUnit.SECONDS));
 
-        // Fire the avoid sub-listener last on a thread with a stashed (blank) context, mimicking the
-        // transport response thread in ExchangeSourceHandler.RemoteSinkFetcher. Without the fix,
-        // responseHeaders.finish() and the root delegate run inside the blank stash: the sentinel
-        // request header is absent, so firedInConstructionContext remains false.
+        // Fire the avoid sub-listener on a thread with a blank (stashed) context, mimicking a
+        // transport response thread. Without the fix the root delegate fires inside the blank stash
+        // and the sentinel is absent.
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
                 avoidSubListener.onResponse(null);

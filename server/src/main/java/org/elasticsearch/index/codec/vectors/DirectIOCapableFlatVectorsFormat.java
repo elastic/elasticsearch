@@ -39,7 +39,8 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
 
     public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
         if (state.context.context() == IOContext.Context.DEFAULT && useDirectIO && canUseDirectIO(state)) {
-            // only override the context for the random-access use case
+            // only wrap readers opened for searching (DEFAULT context); the wrapper adds a
+            // lazily-created, merge-hinted direct I/O reader for merges
             SegmentReadState directIOState = new SegmentReadState(
                 state.directory,
                 state.segmentInfo,
@@ -47,8 +48,16 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
                 new DirectIOContext(state.context.hints()),
                 state.segmentSuffix
             );
-            // Use mmap for merges and direct I/O for searches.
-            return new MergeReaderWrapper(createReader(directIOState), createReader(state));
+            SegmentReadState mergeDirectIOState = new SegmentReadState(
+                state.directory,
+                state.segmentInfo,
+                state.fieldInfos,
+                new DirectIOContext(state.context.hints(), Set.of(DirectIOHint.INSTANCE, DirectIOMergeHint.INSTANCE)),
+                state.segmentSuffix
+            );
+            // Use direct I/O for merges too, so merge reads do not evict hotter data from the
+            // page cache. The merge hint makes those reads use a merge-sized buffer.
+            return new MergeReaderWrapper(createReader(directIOState), () -> createReader(mergeDirectIOState));
         } else {
             return createReader(state);
         }
@@ -56,11 +65,17 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
 
     protected static class DirectIOContext implements IOContext {
 
+        private final Set<FileOpenHint> stickyHints;
         final Set<FileOpenHint> hints;
 
         public DirectIOContext(Set<FileOpenHint> hints) {
-            // always add DirectIOHint to the hints given
-            this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
+            this(hints, Set.of(DirectIOHint.INSTANCE));
+        }
+
+        public DirectIOContext(Set<FileOpenHint> hints, Set<FileOpenHint> stickyHints) {
+            // the sticky hints are always added, and survive withHints() replacing the others
+            this.stickyHints = stickyHints;
+            this.hints = Sets.union(hints, stickyHints);
         }
 
         @Override
@@ -85,7 +100,7 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
 
         @Override
         public IOContext withHints(FileOpenHint... hints) {
-            return new DirectIOContext(Set.of(hints));
+            return new DirectIOContext(Set.of(hints), stickyHints);
         }
     }
 }

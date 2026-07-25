@@ -30,6 +30,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
+import org.elasticsearch.index.codec.vectors.DirectIOMergeHint;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.logging.LogManager;
@@ -184,8 +185,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
             DirectIODirectory directIO;
             try {
-                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
-                directIO = new AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, asyncPrefetchLimit);
+                directIO = new AlwaysDirectIODirectory(
+                    delegate,
+                    AlwaysDirectIODirectory.RANDOM_ACCESS_BUFFER_SIZE,
+                    DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
+                    asyncPrefetchLimit
+                );
             } catch (Exception e) {
                 // directio not supported
                 Log.warn("Could not initialize DirectIO access", e);
@@ -203,7 +208,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 try {
                     Log.debug("Opening {} with direct IO", name);
                     return directIODelegate.openInput(name, context);
-                } catch (FileSystemException e) {
+                } catch (FileSystemException | UnsupportedOperationException e) {
                     Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
                     directIOException = e;
                     // and fallthrough to normal opening below
@@ -306,6 +311,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     public static final class AlwaysDirectIODirectory extends DirectIODirectory {
+        // two pages, guaranteeing a single buffer can load all of an un-page-aligned 1024-dim float vector
+        public static final int RANDOM_ACCESS_BUFFER_SIZE = 8192;
+
         private final int blockSize;
         private final int asyncPrefetchLimit;
 
@@ -324,8 +332,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             ensureOpen();
-            if (asyncPrefetchLimit > 0) {
-                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, asyncPrefetchLimit);
+            // merge reads are long sequential streams, so they use a merge-sized buffer rather
+            // than the two-page buffer that random-access rescore reads use. They get no prefetch
+            // slots: the large buffer is their readahead, and per-slot prefetch buffers are sized
+            // by the read buffer, so slots would multiply the prefetch-limit setting's documented
+            // memory bound by the merge buffer size.
+            boolean forMerge = context.hints().contains(DirectIOMergeHint.INSTANCE);
+            int bufferSize = forMerge ? DEFAULT_MERGE_BUFFER_SIZE : RANDOM_ACCESS_BUFFER_SIZE;
+            int prefetchLimit = forMerge ? 0 : asyncPrefetchLimit;
+            if (asyncPrefetchLimit > 0 || forMerge) {
+                // merge-hinted opens always take this path, since the delegate's buffer size is
+                // fixed at construction and cannot honor the merge hint
+                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, bufferSize, prefetchLimit);
             } else {
                 return super.openInput(name, context);
             }

@@ -42,8 +42,8 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  */
 public class TencentCloudActionCreator implements TencentCloudActionVisitor {
 
-    public static final String COMPLETION_ERROR_PREFIX = "TencentCloud completions";
-    public static final String USER_ROLE = "user";
+    private static final String COMPLETION_ERROR_PREFIX = "TencentCloud completions";
+    private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new TencentCloudResponseHandler(
         "tencentcloud text embedding",

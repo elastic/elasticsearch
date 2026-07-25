@@ -55,8 +55,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -99,7 +99,6 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -115,10 +114,9 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     @Nullable
-    private StoreMetricsAwareExecutor metricsAwareExecutor;
-    @Nullable
-    private final Supplier<StoreMetrics> currentThreadStoreMetrics;
-    private long fetchThreadsBytesRead;
+    private DirectoryMetricsAwareExecutor metricsAwareExecutor;
+    private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
+    private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -188,12 +186,12 @@ final class DefaultSearchContext extends SearchContext {
         int minimumDocsPerSlice,
         long memoryAccountingBufferSize,
         @Nullable CircuitBreaker circuitBreaker,
-        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics
+        DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
-        this.currentThreadStoreMetrics = currentThreadStoreMetrics;
+        this.currentThreadDirectoryMetricsCapture = currentThreadDirectoryMetricsCapture;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -222,7 +220,7 @@ final class DefaultSearchContext extends SearchContext {
             } else {
                 boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
                 if (trackExecutorBytesRead) {
-                    this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+                    this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
                     executor = this.metricsAwareExecutor;
                 }
 
@@ -269,23 +267,25 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long getWorkerThreadsBytesRead() {
-        return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
+    public DirectoryMetrics getWorkerThreadsMetrics() {
+        return metricsAwareExecutor == null ? DirectoryMetrics.EMPTY : metricsAwareExecutor.workerMetrics();
     }
 
     @Override
-    public Supplier<StoreMetrics> currentThreadStoreMetrics() {
-        return currentThreadStoreMetrics;
+    public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
+        return currentThreadDirectoryMetricsCapture;
     }
 
     @Override
-    public long getFetchThreadsBytesRead() {
-        return fetchThreadsBytesRead;
+    public DirectoryMetrics getFetchThreadsMetrics() {
+        return fetchThreadsMetrics;
     }
 
     @Override
-    public void addFetchThreadsBytesRead(long bytesRead) {
-        fetchThreadsBytesRead += bytesRead;
+    public void addFetchThreadsMetrics(DirectoryMetrics metrics) {
+        if (metrics != null && metrics.isEmpty() == false) {
+            fetchThreadsMetrics = fetchThreadsMetrics.isEmpty() ? metrics : fetchThreadsMetrics.merge(metrics);
+        }
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

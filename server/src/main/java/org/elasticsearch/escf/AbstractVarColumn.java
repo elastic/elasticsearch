@@ -43,7 +43,7 @@ abstract class AbstractVarColumn extends EscfColumn {
      * the next {@link ObjectTupleCursor#nextDoc()} call.
      */
     @Override
-    final ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public final ObjectTupleCursor<BytesRef> bytesRefCursor() {
         return new BytesRefTupleCursor(this);
     }
 

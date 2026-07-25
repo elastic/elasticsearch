@@ -633,3 +633,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
+- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
+  method: testRandomMultipleColumns
+  issue: https://github.com/elastic/elasticsearch/issues/155019

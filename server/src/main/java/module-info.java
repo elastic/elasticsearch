@@ -232,6 +232,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.eirf;
     exports org.elasticsearch.escf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;

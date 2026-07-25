@@ -588,9 +588,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
-- class: org.elasticsearch.cluster.routing.ShardRoutingTests
-  method: testEqualsIgnoringVersion
-  issue: https://github.com/elastic/elasticsearch/issues/154886
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdateTests
   method: testIsUserInitiatedProjectRoutingChangeWhenRoutingNarrowsShouldReturnTrue
   issue: https://github.com/elastic/elasticsearch/issues/154908
@@ -633,3 +630,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search/160_exists_query/Test exists query on object inner field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/155016
+- class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
+  method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
+  issue: https://github.com/elastic/elasticsearch/issues/152599
+- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
+  method: testRandomMultipleColumns
+  issue: https://github.com/elastic/elasticsearch/issues/155019

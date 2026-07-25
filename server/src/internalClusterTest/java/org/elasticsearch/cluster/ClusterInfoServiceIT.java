@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,6 +66,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -411,6 +413,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
      * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
+    @TestIssueLogging(
+        value = "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/151837"
+    )
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
         var settings = Settings.builder()
             .put(
@@ -492,16 +498,23 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             }
             final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
-            // Wait until the WRITE thread pool is fully quiesced and the global checkpoint has been persisted on all
-            // shards. The persisted checkpoint condition closes the race where GlobalCheckpointSyncAction may still be
-            // in-flight: the action is only triggered when lastSyncedGlobalCheckpoint < lastKnownGlobalCheckpoint, so
-            // once they are equal any pending sync has completed or will be a no-op. active=0 ensures afterExecute()
-            // has been called (finalising utilization accounting); queue=0 ensures no task is about to be picked up.
+            // Wait until the WRITE thread pool is fully quiesced and GlobalCheckpointSyncAction can no longer be
+            // triggered. For REQUEST durability, syncGlobalCheckpoints is only called when
+            // trackedGlobalCheckpointsNeedSync() is true, i.e. some in-sync shard's tracked global checkpoint lags
+            // the primary's. Asserting all in-sync checkpoints equal getLastKnownGlobalCheckpoint() is equivalent to
+            // asserting !trackedGlobalCheckpointsNeedSync(), so any pending sync has completed and no future trigger
+            // can fire. active=0 ensures afterExecute() has been called (finalising utilization accounting); queue=0
+            // ensures no task is about to be picked up.
             assertBusy(() -> {
                 for (IndexService indexService : dataNodeIndicesService) {
                     if (indexService.index().getName().equals(indexName)) {
                         for (IndexShard shard : indexService) {
-                            assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.getLastKnownGlobalCheckpoint()));
+                            if (shard.routingEntry().primary()) {
+                                assertThat(
+                                    shard.getInSyncGlobalCheckpoints().values(),
+                                    everyItem(equalTo(shard.getLastKnownGlobalCheckpoint()))
+                                );
+                            }
                         }
                     }
                 }

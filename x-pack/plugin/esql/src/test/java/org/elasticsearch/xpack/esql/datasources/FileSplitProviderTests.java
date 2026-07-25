@@ -1019,61 +1019,39 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A probe that finds no boundary ends macro-splitting at its offset, so the offsets past it cannot contribute a
-     * split. Those reads must be skipped rather than issued and then discarded: a file whose records are larger
-     * than the probe window would otherwise pay one read per stride offset to arrive at a single whole-file split.
+     * A file whose every record spans the probe window offers no boundary at any offset, so it is read whole. The
+     * price of an offset that finds nothing is one read: it says nothing about the offsets after it, so none of
+     * their reads may be skipped on the strength of it.
      */
-    public void testProbesPastATerminatingOffsetAreNotRead() throws Exception {
-        // Every line exceeds the probe window, so the first probe finds no boundary within its window.
-        byte[] payload = ("y".repeat(3 * Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES)) + "\n").repeat(4)
-            .getBytes(StandardCharsets.UTF_8);
+    public void testAFileWithNoBoundaryInAnyProbeWindowIsReadWhole() throws Exception {
+        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
+        long stride = 2L * window;
+        // Records of four windows against a stride of two windows: each record terminator lands an odd number of
+        // windows into the file while every probe covers an even one, so no probe window holds a terminator.
+        byte[] payload = ("y".repeat(4 * window - 1) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
         StreamTracking tracking = new StreamTracking(1);
 
-        // A single thread makes the ordering deterministic: the lowest offset is probed first, and every higher
-        // offset sees its result.
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
         List<ExternalSplit> splits;
         try {
-            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), 256 * 1024, executor, tracking);
+            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), stride, executor, tracking);
         } finally {
             executor.shutdown();
         }
 
         assertEquals("a file with no usable boundary is read whole", 1, splits.size());
-        assertEquals("only the first stride offset is read", 1, tracking.opens.get());
+        int probes = FileSplitProvider.macroSplitProbePositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        assertThat("the payload must offer several offsets to probe", probes, greaterThan(1));
+        assertEquals("an offset that finds nothing must not suppress the others", probes, tracking.opens.get());
     }
 
     /**
-     * The offsets of one file are probed by different threads, so the knowledge that an offset terminated has to be
-     * shared between them. Once the budget's worth of probes have all terminated, the remaining offsets must not be
-     * read at all.
+     * A record too long for the probe window costs the one split its offset would have started, and no more: the
+     * offsets past it are probed as usual and their boundaries stand, so the splits either side of the record
+     * merge into one that spans it. Serial and concurrent discovery must agree, which they do because an offset's
+     * outcome depends on nothing but its own read.
      */
-    public void testTheTerminatingOffsetIsSharedAcrossConcurrentProbes() throws Exception {
-        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
-        byte[] payload = ("y".repeat(3 * window) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
-        Settings budgetOfTwo = Settings.builder().put("esql.external.max_concurrent_requests", 2).build();
-        // A 256 KiB stride leaves 8 offsets to probe, of which the budget lets only 2 be read before the first
-        // results are in.
-        StreamTracking tracking = new StreamTracking(2);
-
-        ExecutorService executor = Executors.newFixedThreadPool(8);
-        List<ExternalSplit> splits;
-        try {
-            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), window, executor, tracking, budgetOfTwo);
-        } finally {
-            executor.shutdown();
-        }
-
-        assertEquals("a file with no usable boundary is read whole", 1, splits.size());
-        assertEquals("the offsets past the first terminating one must not be read", 2, tracking.opens.get());
-    }
-
-    /**
-     * A record too long to be spanned by the probe window ends macro-splitting where it starts, keeping the
-     * boundaries found before it. Serial and concurrent discovery must agree on that: the serial walk stops probing
-     * at that offset, while the concurrent one may probe past it and has to discard those results.
-     */
-    public void testSerialAndConcurrentAgreeWhenARecordExceedsTheWindowMidFile() throws Exception {
+    public void testARecordExceedingTheWindowMidFileCostsOnlyItsOwnSplit() throws Exception {
         int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
         long stride = 2L * window;
         StringBuilder csv = new StringBuilder();
@@ -1082,11 +1060,13 @@ public class FileSplitProviderTests extends ESTestCase {
         while (csv.length() < 2 * stride - window) {
             csv.append("a,b,c\n");
         }
+        long longRowStart = csv.length();
         csv.append("z".repeat(3 * window)).append('\n');
         while (csv.length() < 8 * stride) {
             csv.append("a,b,c\n");
         }
-        Map<String, byte[]> payloads = Map.of("mid-file.csv", csv.toString().getBytes(StandardCharsets.UTF_8));
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        Map<String, byte[]> payloads = Map.of("mid-file.csv", payload);
 
         List<ExternalSplit> serial = discoverPlainCsvSplits(payloads, stride, null, null);
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -1097,8 +1077,14 @@ public class FileSplitProviderTests extends ESTestCase {
             executor.shutdown();
         }
 
-        assertEquals("splitting stops at the long record, keeping the boundary before it", 2, serial.size());
-        assertEquals("discarding the probes past a terminating one must match stopping at it", describe(serial), describe(parallel));
+        assertEquals("an offset's outcome must not depend on when it is probed", describe(serial), describe(parallel));
+        // One offset lands inside the long row and yields nothing; the file start and the rest of the offsets each
+        // start a split, so the long row costs exactly one of them.
+        int probes = FileSplitProvider.macroSplitProbePositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        assertEquals("only the offset inside the long record loses its split", probes, serial.size());
+        FileSplit spanning = (FileSplit) serial.get(1);
+        assertThat("one split must span the record no probe could split", spanning.offset(), lessThan(longRowStart));
+        assertThat(spanning.offset() + spanning.length(), greaterThan(longRowStart + 3L * window));
     }
 
     /**
@@ -1184,26 +1170,24 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A probe skipped because a lower offset already terminated does no read, and so observes no cancellation of
-     * its own. When the first probe terminates macro-splitting, every remaining probe is skipped, and a cancel
-     * arriving then must still fail the query instead of returning the splits found so far.
+     * A cancel landing between two probes is seen by the next one before it opens a stream, so a query cancelled
+     * part-way through a file's offsets fails rather than reading out the rest of them.
      */
-    public void testCancellationIsSeenWhenEveryRemainingProbeIsSkipped() throws Exception {
-        int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
-        // Lines longer than the probe window: the first probe finds no boundary and terminates the file.
-        byte[] payload = ("y".repeat(3 * window) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+    public void testCancellationBetweenProbesIsSeenBeforeTheNextRead() throws Exception {
+        byte[] payload = delimitedPayload("a,b,c\n");
         StreamTracking tracking = new StreamTracking(1);
-        // Cancelled once the first probe has finished with its stream, so the probes the cutoff skips are the only
-        // work left when the cancel lands.
+        // Cancelled once the first probe has finished with its stream, so the cancel lands between two probes
+        // rather than inside one.
         BooleanSupplier cancelAfterFirstProbe = () -> tracking.closes.get() > 0;
 
+        // A single thread makes the ordering deterministic: no second probe starts before the first one closes.
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
             expectThrows(
                 TaskCancelledException.class,
                 () -> discoverPlainCsvSplits(
-                    Map.of("long-lines.csv", payload),
-                    window,
+                    Map.of("cancelled.csv", payload),
+                    256 * 1024,
                     executor,
                     tracking,
                     Settings.EMPTY,
@@ -1213,7 +1197,7 @@ public class FileSplitProviderTests extends ESTestCase {
         } finally {
             executor.shutdown();
         }
-        assertEquals("the skipped probes must not read", 1, tracking.opens.get());
+        assertEquals("the probes after the cancel must not read", 1, tracking.opens.get());
     }
 
     /**
@@ -1689,19 +1673,14 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A terminating probe ends the split set there: everything after it belongs to the preceding split, which
-     * extends to end-of-file. Probes past the terminating one are discarded even though they found boundaries,
-     * so the serial walk's early stop and the concurrent gather's full sweep agree.
+     * An offset that yielded no boundary costs the one split it would have started: the boundaries after it still
+     * stand, and the splits either side of it merge into the one that spans it.
      */
-    public void testReduceProbeOutcomesStopsAtTheFirstTerminatingProbe() {
+    public void testReduceProbeOutcomesSkipsAnOffsetThatFoundNoBoundary() {
         List<Long> boundaries = FileSplitProvider.reduceProbeOutcomes(
-            List.of(
-                FileSplitProvider.ProbeOutcome.at(120),
-                FileSplitProvider.ProbeOutcome.TERMINATE,
-                FileSplitProvider.ProbeOutcome.at(360)
-            )
+            List.of(FileSplitProvider.ProbeOutcome.at(120), FileSplitProvider.ProbeOutcome.NONE, FileSplitProvider.ProbeOutcome.at(360))
         );
-        assertEquals(List.of(0L, 120L), boundaries);
+        assertEquals(List.of(0L, 120L, 360L), boundaries);
     }
 
     /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
@@ -1713,10 +1692,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A record longer than the probe window leaves no boundary to split at, so the probe terminates rather than
+     * A record longer than the probe window leaves no boundary to split at, so the probe yields none rather than
      * reading on to end-of-file. Bounding the read is what keeps a probe a small, predictable ranged GET.
      */
-    public void testProbeStridedBoundaryTerminatesWhenNoBoundaryInWindow() throws IOException {
+    public void testProbeStridedBoundaryYieldsNoBoundaryWhenNoneInWindow() throws IOException {
         int window = Math.toIntExact(FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES);
         byte[] payload = new byte[4 * window];
         Arrays.fill(payload, (byte) 'x');
@@ -1732,11 +1711,11 @@ public class FileSplitProviderTests extends ESTestCase {
             () -> false
         );
 
-        assertTrue("a record spanning the whole window leaves nothing to split at", outcome.terminate());
+        assertEquals("a record spanning the whole window leaves nothing to split at", FileSplitProvider.ProbeOutcome.NONE, outcome);
     }
 
-    /** A boundary too close to end-of-file would leave a runt split, so the probe terminates instead. */
-    public void testProbeStridedBoundaryTerminatesWhenTailIsBelowMinimumSegment() throws IOException {
+    /** A boundary too close to end-of-file would leave a runt split, so the probe yields none instead. */
+    public void testProbeStridedBoundaryYieldsNoBoundaryWhenTailIsBelowMinimumSegment() throws IOException {
         byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://short.ndjson"));
         RecordSplitter splitter = stridedSplitter();
@@ -1746,7 +1725,10 @@ public class FileSplitProviderTests extends ESTestCase {
             FileSplitProvider.probeStridedBoundary(splitter, object, 5, payload.length, 5, () -> false)
         );
         // With a 6-byte minimum segment, the same boundary leaves only 5 of the 15 bytes behind it.
-        assertTrue(FileSplitProvider.probeStridedBoundary(splitter, object, 5, payload.length, 6, () -> false).terminate());
+        assertEquals(
+            FileSplitProvider.ProbeOutcome.NONE,
+            FileSplitProvider.probeStridedBoundary(splitter, object, 5, payload.length, 6, () -> false)
+        );
     }
 
     /**
@@ -1851,21 +1833,53 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("a cancelled probe must not read", 0, streamsOpened.get());
     }
 
-    public void testRecordAlignedMacroSplitDiscoveryStopsOnMaxRecordSize() throws IOException {
+    /**
+     * A record longer than the splitter's maximum cannot be measured by a probe, so the offset inside it yields no
+     * boundary and the split that began before it runs on past the record. The offsets beyond the record are
+     * probed as usual, so a record the splitter refuses to span costs the one split its offset would have started.
+     */
+    public void testMacroSplitDiscoverySkipsAnOffsetInsideAnOversizedRecord() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        StringBuilder csv = new StringBuilder("ok\n").append("x".repeat(128)).append('\n');
-        while (csv.length() < 2 * 1024 * 1024) {
+        int maxRecordBytes = 16;
+        long stride = 256 * 1024;
+        // A record straddling the first stride offset, long enough that the probe there runs past maxRecordBytes
+        // before reaching its terminator. The filler rows divide into the offset exactly, so it starts where meant.
+        long oversizedStart = stride - 64;
+        StringBuilder csv = new StringBuilder();
+        while (csv.length() < oversizedStart) {
+            csv.append("tail\n");
+        }
+        assertEquals("the filler must end exactly where the oversized record starts", oversizedStart, csv.length());
+        csv.append("x".repeat(127)).append('\n');
+        long oversizedEnd = csv.length();
+        while (csv.length() < 2 * CSV_MIN_SEGMENT_BYTES) {
             csv.append("tail\n");
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
-        // Plain mode: max-record-size stop is format-agnostic; macro-split discovery now refuses non-strided
+        // Plain mode: the max-record-size verdict is format-agnostic, but macro-split discovery refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
-        List<Long> starts = serialStridedStarts(csvReader, object, payload.length, 4, 16);
+        List<Long> starts = serialStridedStarts(csvReader, object, payload.length, stride, maxRecordBytes);
 
-        assertEquals(List.of(0L), starts);
+        // A maximum the record does fit in leaves every offset able to start a split, which is the count to
+        // measure the oversized record's cost against.
+        List<Long> unrestricted = serialStridedStarts(
+            csvReader,
+            object,
+            payload.length,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+        assertThat("the payload must offer several offsets to probe", unrestricted.size(), greaterThan(2));
+        assertEquals("only the offset inside the oversized record loses its split", unrestricted.size() - 1, starts.size());
+        for (long start : starts) {
+            assertFalse(
+                "no split may start inside a record the splitter cannot span: " + start,
+                start > oversizedStart && start < oversizedEnd
+            );
+        }
     }
 
     /**

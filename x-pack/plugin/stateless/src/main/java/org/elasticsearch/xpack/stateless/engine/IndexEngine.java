@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -522,12 +523,13 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        List<Index> operations = engineBatch.operations();
         for (Index operation : operations) {
             documentParsingReporter.onParsingCompleted(operation.parsedDoc());
         }
-        List<IndexResult> results = super.indexBatch(operations, batch);
+        List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
                 documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());

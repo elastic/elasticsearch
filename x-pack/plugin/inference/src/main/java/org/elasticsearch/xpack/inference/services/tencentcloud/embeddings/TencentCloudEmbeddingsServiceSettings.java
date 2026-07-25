@@ -15,6 +15,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateL
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,10 +43,27 @@ public class TencentCloudEmbeddingsServiceSettings extends FilteredXContentObjec
 
     public static final String NAME = "tencentcloud_embeddings_service_settings";
 
-    public static TencentCloudEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
-        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, validationException);
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        TencentCloudCommonServiceSettings.declareCommonFields(parser, TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
+        parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
+        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        return parser;
+    }
+
+    public static TencentCloudEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        var validationException = new ValidationException();
+        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
+        // Fallback to hand-parsing for embeddings-specific fields that were not captured by the common parser
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -199,5 +219,48 @@ public class TencentCloudEmbeddingsServiceSettings extends FilteredXContentObjec
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens);
+    }
+
+    // ---- ObjectParser Builder ----
+
+    private static class Builder implements TencentCloudCommonServiceSettings.CommonSettingsBuilder {
+        private String modelId;
+        private String url;
+        private RateLimitSettings rateLimitSettings;
+        private SimilarityMeasure similarity;
+        private Integer dimensions;
+        private Integer maxInputTokens;
+
+        @Override
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        @Override
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        @Override
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public void setSimilarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
+        }
+
+        public void setDimensions(Integer dimensions) {
+            this.dimensions = dimensions;
+        }
+
+        public void setMaxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        @Override
+        public TencentCloudCommonServiceSettings buildCommon() {
+            return new TencentCloudCommonServiceSettings(modelId, url != null ? URI.create(url) : null, rateLimitSettings);
+        }
     }
 }

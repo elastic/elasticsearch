@@ -11,7 +11,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateL
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,9 +34,23 @@ public class TencentCloudRerankServiceSettings extends FilteredXContentObject
 
     public static final String NAME = "tencentcloud_rerank_service_settings";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        TencentCloudCommonServiceSettings.declareCommonFields(parser, TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
+        return parser;
+    }
+
     public static TencentCloudRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         var validationException = new ValidationException();
-        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, validationException);
+        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
         validationException.throwIfValidationErrorsExist();
         return new TencentCloudRerankServiceSettings(commonSettings);
     }
@@ -109,5 +126,33 @@ public class TencentCloudRerankServiceSettings extends FilteredXContentObject
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings);
+    }
+
+    // ---- ObjectParser Builder ----
+
+    private static class Builder implements TencentCloudCommonServiceSettings.CommonSettingsBuilder {
+        private String modelId;
+        private String url;
+        private RateLimitSettings rateLimitSettings;
+
+        @Override
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        @Override
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        @Override
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        @Override
+        public TencentCloudCommonServiceSettings buildCommon() {
+            return new TencentCloudCommonServiceSettings(modelId, url != null ? URI.create(url) : null, rateLimitSettings);
+        }
     }
 }

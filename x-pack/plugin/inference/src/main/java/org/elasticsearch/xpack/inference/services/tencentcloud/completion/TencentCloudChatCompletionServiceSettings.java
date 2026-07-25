@@ -11,7 +11,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateL
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,23 +36,23 @@ public class TencentCloudChatCompletionServiceSettings extends FilteredXContentO
     // Chat completion default rate limit is 5 rpm per the AI Gateway docs.
     public static final RateLimitSettings DEFAULT_CHAT_COMPLETION_RATE_LIMIT = new RateLimitSettings(5);
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        TencentCloudCommonServiceSettings.declareCommonFields(parser, DEFAULT_CHAT_COMPLETION_RATE_LIMIT);
+        return parser;
+    }
+
     public static TencentCloudChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         var validationException = new ValidationException();
-
-        // Chat completion has a lower default rate limit than embeddings/rerank; if user does not specify one we override the default.
-        if (map != null && map.containsKey(RateLimitSettings.FIELD_NAME) == false) {
-            // Override common default before parsing.
-        }
-        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, validationException);
-        // If the user did not provide a rate_limit override, replace the common default (20 rpm) with 5 rpm.
-        if (commonSettings != null && commonSettings.rateLimitSettings() == TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS) {
-            commonSettings = new TencentCloudCommonServiceSettings(
-                commonSettings.modelId(),
-                commonSettings.uri(),
-                DEFAULT_CHAT_COMPLETION_RATE_LIMIT
-            );
-        }
-
+        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
         validationException.throwIfValidationErrorsExist();
 
         return new TencentCloudChatCompletionServiceSettings(commonSettings);
@@ -126,5 +129,33 @@ public class TencentCloudChatCompletionServiceSettings extends FilteredXContentO
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings);
+    }
+
+    // ---- ObjectParser Builder ----
+
+    private static class Builder implements TencentCloudCommonServiceSettings.CommonSettingsBuilder {
+        private String modelId;
+        private String url;
+        private RateLimitSettings rateLimitSettings;
+
+        @Override
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        @Override
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        @Override
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        @Override
+        public TencentCloudCommonServiceSettings buildCommon() {
+            return new TencentCloudCommonServiceSettings(modelId, url != null ? URI.create(url) : null, rateLimitSettings);
+        }
     }
 }

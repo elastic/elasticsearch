@@ -304,7 +304,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
                 newVersion
             );
             assertNotNull(mapperService);
-            assertSemanticField(mapperService, "my_field", false, TEST_MODEL, null, null);
+            assertSemanticField(mapperService, "my_field", false, new MinimalServiceSettings(TEST_MODEL), null, null);
         }
     }
 
@@ -327,7 +327,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         // Should not throw; model_settings provided to avoid consulting the model registry
         merge(mapperService, semanticMapping("my_field", TEST_MODEL.getInferenceEntityId()));
 
-        assertSemanticField(mapperService, "my_field", false, TEST_MODEL, null, null);
+        assertSemanticField(mapperService, "my_field", false, new MinimalServiceSettings(TEST_MODEL), null, null);
     }
 
     @Override

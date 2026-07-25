@@ -37,8 +37,6 @@ import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
@@ -275,7 +273,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             var mapperService = createSemanticMapperService(semanticMapping(fieldName, oldInferenceId));
 
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-            assertSemanticField(mapperService, fieldName, false, oldModel, null, null);
+            assertSemanticField(
+                mapperService,
+                fieldName,
+                false,
+                oldModel == null ? null : new MinimalServiceSettings(oldModel),
+                null,
+                null
+            );
 
             String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
             TestModel newModel = null;
@@ -287,7 +292,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             merge(mapperService, semanticMapping(fieldName, newInferenceId));
 
             assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-            assertSemanticField(mapperService, fieldName, false, newModel, null, null);
+            assertSemanticField(
+                mapperService,
+                fieldName,
+                false,
+                newModel == null ? null : new MinimalServiceSettings(newModel),
+                null,
+                null
+            );
         }
     }
 
@@ -305,7 +317,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                 semanticMapping(fieldName, oldInferenceId, previousModelSettings)
             );
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-            assertSemanticField(mapperService, fieldName, true, oldModel, null, null);
+            assertSemanticField(mapperService, fieldName, true, previousModelSettings, null, null);
 
             final CheckedRunnable<IOException> mergeRunner = () -> merge(mapperService, semanticMapping(fieldName, newInferenceId));
 
@@ -317,7 +329,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
                 mergeRunner.run();
                 assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-                assertSemanticField(mapperService, fieldName, true, newModel, null, null);
+                assertSemanticField(mapperService, fieldName, true, newModelSettings, null, null);
             } else {
                 final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
                 final String expectedErrorMessage;
@@ -511,6 +523,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
     }
 
+    protected MinimalServiceSettings createRandomModelSettings() {
+        return new MinimalServiceSettings(createRandomSupportedModel());
+    }
+
+    protected MinimalServiceSettings createRandomModelSettings(TaskType taskType) {
+        return new MinimalServiceSettings(TestModel.createRandomInstance(taskType));
+    }
+
     protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(expectedMapperClass()));
@@ -555,19 +575,20 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
      *
      * @param mapperService The mapper service.
      * @param fieldName The name of the field to check.
-     * @param expectedModelSettings Whether model settings are expected. If true, {@code model} is required.
-     * @param model The model used to validate the embeddings sub-mapper. When null, verifies that the embeddings sub-mapper is not
-     *             configured.
+     * @param modelSettingsSetOnFieldType Whether model settings should be set on the field type. If true, {@code modelSettings} is
+     *                                    required.
+     * @param modelSettings The model settings used to validate the embeddings sub-mapper. When null, verifies that the embeddings
+     *                      sub-mapper is not configured.
      * @param expectedChunkingSettings The expected chunking settings.
-     * @param expectedIndexOptions The expected index options. When null and {@code model} is provided, the expected default index options
-     *                             are automatically determined and validated. When non-null, they must specify the complete index options
-     *                             expected, including any element type override.
+     * @param expectedIndexOptions The expected index options. When null and {@code modelSettings} is provided, the expected default index
+     *                             options are automatically determined and validated. When non-null, they must specify the complete index
+     *                             options expected, including any element type override.
      */
     protected void assertSemanticField(
         MapperService mapperService,
         String fieldName,
-        boolean expectedModelSettings,
-        @Nullable Model model,
+        boolean modelSettingsSetOnFieldType,
+        @Nullable MinimalServiceSettings modelSettings,
         @Nullable ChunkingSettings expectedChunkingSettings,
         @Nullable SemanticIndexOptions expectedIndexOptions
     ) {
@@ -588,10 +609,10 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         assertChunksTextField(semanticFieldType, chunksMapper);
 
         Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);
-        if (model != null) {
+        if (modelSettings != null) {
             SemanticIndexOptions resolvedExpectedIndexOptions = expectedIndexOptions;
             if (resolvedExpectedIndexOptions == null) {
-                resolvedExpectedIndexOptions = getDefaultIndexOptions(model, mapperService);
+                resolvedExpectedIndexOptions = getDefaultIndexOptions(modelSettings, mapperService);
             }
 
             assertNotNull(embeddingsMapper);
@@ -599,16 +620,16 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             FieldMapper embeddingsFieldMapper = (FieldMapper) embeddingsMapper;
             assertSame(embeddingsFieldMapper.fieldType(), mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
             assertThat(embeddingsMapper.fullPath(), equalTo(getEmbeddingsFieldName(fieldName)));
-            assertEmbeddingsField(mapperService, embeddingsFieldMapper, model, resolvedExpectedIndexOptions);
+            assertEmbeddingsField(mapperService, embeddingsFieldMapper, modelSettings, resolvedExpectedIndexOptions);
         } else {
             assertNull(embeddingsMapper);
         }
 
-        if (expectedModelSettings) {
-            if (model == null) {
-                throw new AssertionError("model must be provided to check model settings");
+        if (modelSettingsSetOnFieldType) {
+            if (modelSettings == null) {
+                throw new AssertionError("modelSettings must be provided to check model settings on the field type");
             }
-            assertModelSettings(semanticFieldType, model);
+            assertModelSettingsOnFieldType(semanticFieldType, modelSettings);
         } else {
             assertNull(semanticFieldType.getModelSettings());
         }
@@ -633,25 +654,24 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     /**
-     * Asserts the embeddings sub-mapper against the referenced {@link Model} and expected index options. The base implementation
-     * covers the dense task types ({@code text_embedding}, {@code embedding}); {@code semantic_text} overrides this to also cover
-     * {@code sparse_embedding}.
+     * Asserts the embeddings sub-mapper against the referenced {@link MinimalServiceSettings} and expected index options. The base
+     * implementation covers the dense task types ({@code text_embedding}, {@code embedding}); {@code semantic_text} overrides this to
+     * also cover {@code sparse_embedding}.
      */
     protected void assertEmbeddingsField(
         MapperService mapperService,
         FieldMapper embeddingsMapper,
-        Model model,
+        MinimalServiceSettings modelSettings,
         @Nullable SemanticIndexOptions expectedIndexOptions
     ) {
         IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-        TaskType taskType = model.getTaskType();
-        ServiceSettings serviceSettings = model.getServiceSettings();
+        TaskType taskType = modelSettings.taskType();
         if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
             assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
             DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsMapper;
 
             IndexOptions expectedBaseIndexOptions = null;
-            DenseVectorFieldMapper.ElementType expectedElementType = serviceSettings.elementType();
+            DenseVectorFieldMapper.ElementType expectedElementType = modelSettings.elementType();
             if (expectedIndexOptions != null) {
                 IndexOptions expectedEmbeddingFieldIndexOptions = expectedIndexOptions.indexOptions();
                 if (expectedEmbeddingFieldIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
@@ -666,27 +686,26 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
             assertEquals(expectedBaseIndexOptions, denseVectorFieldMapper.fieldType().getIndexOptions());
             assertEquals(expectedElementType, denseVectorFieldMapper.fieldType().getElementType());
-            assertEquals(serviceSettings.dimensions().intValue(), denseVectorFieldMapper.fieldType().getVectorDimensions());
-            if (serviceSettings.similarity() != null && indexVersion.onOrAfter(NEW_SPARSE_VECTOR)) {
+            assertEquals(modelSettings.dimensions().intValue(), denseVectorFieldMapper.fieldType().getVectorDimensions());
+            if (modelSettings.similarity() != null && indexVersion.onOrAfter(NEW_SPARSE_VECTOR)) {
                 // We don't set similarity on pre 8.11 indices
-                assertEquals(serviceSettings.similarity().vectorSimilarity(), denseVectorFieldMapper.fieldType().getSimilarity());
+                assertEquals(modelSettings.similarity().vectorSimilarity(), denseVectorFieldMapper.fieldType().getSimilarity());
             }
         } else {
             throw new AssertionError("Invalid task type [" + taskType + "]");
         }
     }
 
-    protected void assertModelSettings(U fieldType, Model model) {
+    protected void assertModelSettingsOnFieldType(U fieldType, MinimalServiceSettings modelSettings) {
         MinimalServiceSettings actual = fieldType.getModelSettings();
         assertNotNull(actual);
 
-        assertEquals(model.getTaskType(), actual.taskType());
-        assertEquals(model.getServiceSettings().dimensions(), actual.dimensions());
-        assertEquals(model.getServiceSettings().similarity(), actual.similarity());
-        assertEquals(model.getServiceSettings().elementType(), actual.elementType());
+        assertEquals(modelSettings.taskType(), actual.taskType());
+        assertEquals(modelSettings.dimensions(), actual.dimensions());
+        assertEquals(modelSettings.similarity(), actual.similarity());
+        assertEquals(modelSettings.elementType(), actual.elementType());
 
-        MinimalServiceSettings modelServiceSettings = new MinimalServiceSettings(model);
-        assertTrue(modelServiceSettings.canMergeWith(actual));
+        assertTrue(modelSettings.canMergeWith(actual));
     }
 
     protected static void assertInferenceEndpoints(
@@ -703,17 +722,17 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         assertEquals(expectedSearchInferenceId, semanticFieldType.getSearchInferenceId());
     }
 
-    protected SemanticIndexOptions getDefaultIndexOptions(Model model, MapperService mapperService) {
+    protected SemanticIndexOptions getDefaultIndexOptions(MinimalServiceSettings modelSettings, MapperService mapperService) {
         IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
         boolean experimentalFeatures = DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings());
 
-        TaskType taskType = model.getTaskType();
-        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-        Integer dimensions = model.getServiceSettings().dimensions();
+        TaskType taskType = modelSettings.taskType();
+        DenseVectorFieldMapper.ElementType elementType = modelSettings.elementType();
+        Integer dimensions = modelSettings.dimensions();
 
         return switch (taskType) {
             case TEXT_EMBEDDING, EMBEDDING -> {
-                var denseDefaults = getExplicitDenseVectorIndexOptions(model, indexVersion);
+                var denseDefaults = getExplicitDenseVectorIndexOptions(modelSettings, indexVersion);
                 if (denseDefaults == null) {
                     denseDefaults = defaultDenseVectorIndexOptions(
                         indexVersion,
@@ -745,7 +764,10 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         };
     }
 
-    protected DenseVectorFieldMapper.DenseVectorIndexOptions getExplicitDenseVectorIndexOptions(Model model, IndexVersion indexVersion) {
+    protected DenseVectorFieldMapper.DenseVectorIndexOptions getExplicitDenseVectorIndexOptions(
+        MinimalServiceSettings modelSettings,
+        IndexVersion indexVersion
+    ) {
         return null;
     }
 

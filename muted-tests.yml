@@ -630,3 +630,6 @@ tests:
 - class: org.elasticsearch.foreign.DefaultMethodHandleResolverTests
   method: testDefaultResolverBuildsWorkingMethodHandle
   issue: https://github.com/elastic/elasticsearch/issues/155012
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search/160_exists_query/Test exists query on object inner field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/155016

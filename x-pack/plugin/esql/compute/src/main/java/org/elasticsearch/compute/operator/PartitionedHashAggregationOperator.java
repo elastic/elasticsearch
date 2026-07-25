@@ -267,9 +267,9 @@ public class PartitionedHashAggregationOperator implements Operator {
     private final DriverContext driverContext;
 
     /** Non-null until {@link #convertToPartitioned} (or a multi-valued key) replaces it. */
-    private Table legacy;
+    private HashAggregationOperator legacyOp;
     /** Non-null once converted from the legacy table. */
-    private Table[] partitions;
+    private HashAggregationOperator[] partitionOps;
     /**
      * Routing-only hash, non-null once {@link #convertToPartitioned} succeeds. Uses
      * {@link BlockHash#buildPackedValuesBlockHash} (which has a {@link BlockHash.Router} for any
@@ -322,7 +322,7 @@ public class PartitionedHashAggregationOperator implements Operator {
         this.driverContext = driverContext;
         boolean success = false;
         try {
-            this.legacy = newTable(aggregationBatchSize);
+            this.legacyOp = newOp();
             success = true;
         } finally {
             if (success == false) {
@@ -351,13 +351,13 @@ public class PartitionedHashAggregationOperator implements Operator {
         try {
             checkState(needsInput(), "Operator is already finishing");
             requireNonNull(page, "page is null");
-            if (partitions != null && permanentlyUnpartitioned == false && hasMultiValuedKeys(page)) {
+            if (partitionOps != null && permanentlyUnpartitioned == false && hasMultiValuedKeys(page)) {
                 revertToLegacy();
             }
             Page internal = toInternalLayout(page);
-            if (partitions == null) {
-                addToLegacy(internal);
-                if (permanentlyUnpartitioned == false && legacy.blockHash.numKeys() >= partitionConversionThreshold) {
+            if (partitionOps == null) {
+                legacyOp.processPage(internal);
+                if (permanentlyUnpartitioned == false && legacyOp.blockHash.numKeys() >= partitionConversionThreshold) {
                     convertToPartitioned();
                 }
             } else {
@@ -437,9 +437,9 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(legacy, probeHash, output);
-        if (partitions != null) {
-            Releasables.close(partitions);
+        Releasables.close(legacyOp, probeHash, output);
+        if (partitionOps != null) {
+            Releasables.close(partitionOps);
         }
     }
 
@@ -447,10 +447,10 @@ public class PartitionedHashAggregationOperator implements Operator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getSimpleName()).append("[");
-        if (partitions != null) {
+        if (partitionOps != null) {
             sb.append("partitionCount=").append(partitionCount);
-        } else if (legacy != null) {
-            sb.append("legacy=").append(legacy.blockHash);
+        } else if (legacyOp != null) {
+            sb.append("legacy=").append(legacyOp.blockHash);
         } else {
             sb.append("emitting");
         }
@@ -459,22 +459,6 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     // ---- legacy (pre-conversion) processing ----
-
-    private void addToLegacy(Page page) {
-        List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(legacy.aggregators.size());
-        try {
-            for (GroupingAggregator aggregator : legacy.aggregators) {
-                GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(legacy.blockHash, page);
-                if (addInput != null) {
-                    prepared.add(addInput);
-                }
-            }
-            legacy.blockHash.add(page, new FanOutAddInput(prepared));
-        } finally {
-            Releasables.closeExpectNoException(Releasables.wrap(prepared));
-        }
-        legacy.rowsAddedInCurrentBatch += page.getPositionCount();
-    }
 
     /**
      * Converts the legacy single table into {@link #partitionCount} independent partitions,
@@ -499,20 +483,20 @@ public class PartitionedHashAggregationOperator implements Operator {
             return;
         }
         probeHash = routingHash;
-        Table[] newPartitions = new Table[partitionCount];
+        HashAggregationOperator[] newPartitions = new HashAggregationOperator[partitionCount];
         for (int p = 0; p < partitionCount; p++) {
-            newPartitions[p] = newPartitionTable(aggregationBatchSize);
+            newPartitions[p] = newOp();
         }
-        try (ReleasableIterator<Page> intermediatePages = evaluateToIntermediate(legacy)) {
+        try (ReleasableIterator<Page> intermediatePages = evaluateToIntermediate(legacyOp)) {
             while (intermediatePages.hasNext()) {
                 try (Page intermediatePage = intermediatePages.next()) {
                     distributeIntermediatePage(intermediatePage, newPartitions);
                 }
             }
         }
-        legacy.close();
-        legacy = null;
-        partitions = newPartitions;
+        legacyOp.close();
+        legacyOp = null;
+        partitionOps = newPartitions;
     }
 
     /**
@@ -523,7 +507,7 @@ public class PartitionedHashAggregationOperator implements Operator {
      * copies — sequential reads on the target table's BlockHash improve cache utilisation
      * compared to a scatter-gather approach.
      */
-    private void distributeIntermediatePage(Page intermediatePage, Table[] targets) {
+    private void distributeIntermediatePage(Page intermediatePage, HashAggregationOperator[] targets) {
         int positions = intermediatePage.getPositionCount();
         int keyCount = groupChannels.size();
         BlockHash.Router probeRouter = probeHash.router();
@@ -558,17 +542,17 @@ public class PartitionedHashAggregationOperator implements Operator {
      * {@code INTERMEDIATE}-mode {@link HashAggregationOperator} uses for cross-node merges,
      * reused here regardless of these aggregators' own {@link AggregatorMode}.
      */
-    private void mergeIntermediateIntoTable(Table table, Page page) {
-        List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
+    private void mergeIntermediateIntoTable(HashAggregationOperator op, Page page) {
+        List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(op.aggregators.size());
         try {
-            for (GroupingAggregator aggregator : table.aggregators) {
+            for (GroupingAggregator aggregator : op.aggregators) {
                 GroupingAggregatorFunction.AddInput addInput = aggregator.aggregatorFunction()
-                    .prepareProcessIntermediateInputPage(table.blockHash, page);
+                    .prepareProcessIntermediateInputPage(op.blockHash, page);
                 if (addInput != null) {
                     prepared.add(addInput);
                 }
             }
-            table.blockHash.add(page, new FanOutAddInput(prepared));
+            op.blockHash.add(page, new FanOutAddInput(prepared));
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(prepared));
         }
@@ -613,21 +597,8 @@ public class PartitionedHashAggregationOperator implements Operator {
             if (start == end) {
                 continue;
             }
-            Table table = partitions[p];
             try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
-                List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
-                try {
-                    for (GroupingAggregator aggregator : table.aggregators) {
-                        GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(table.blockHash, subPage);
-                        if (addInput != null) {
-                            prepared.add(addInput);
-                        }
-                    }
-                    table.blockHash.add(subPage, new FanOutAddInput(prepared));
-                } finally {
-                    Releasables.closeExpectNoException(Releasables.wrap(prepared));
-                }
-                table.rowsAddedInCurrentBatch += (end - start);
+                partitionOps[p].processPage(subPage);
             }
         }
     }
@@ -649,17 +620,17 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     /**
      * Permanently falls back to single-table behavior: drains every partition's contents back
-     * into one fresh legacy table (the same evaluate-intermediate merge primitive as conversion,
+     * into one fresh legacy operator (the same evaluate-intermediate merge primitive as conversion,
      * in reverse), since a multi-valued key showed up and bucket-sort routing can't handle it.
      */
     private void revertToLegacy() {
         permanentlyUnpartitioned = true;
-        Table newLegacy = newTable(aggregationBatchSize);
+        HashAggregationOperator newLegacy = newOp();
         boolean success = false;
         try {
-            for (Table partition : partitions) {
+            for (HashAggregationOperator partition : partitionOps) {
                 if (partition.blockHash.numKeys() > 0) {
-                    drainTableInto(partition, newLegacy);
+                    drainOpInto(partition, newLegacy);
                 }
             }
             success = true;
@@ -667,17 +638,17 @@ public class PartitionedHashAggregationOperator implements Operator {
             BlockHash ph = probeHash;
             probeHash = null;
             Releasables.close(ph);
-            Releasables.close(partitions);
-            partitions = null;
+            Releasables.close(partitionOps);
+            partitionOps = null;
             if (success) {
-                legacy = newLegacy;
+                legacyOp = newLegacy;
             } else {
                 newLegacy.close();
             }
         }
     }
 
-    private void drainTableInto(Table source, Table destination) {
+    private void drainOpInto(HashAggregationOperator source, HashAggregationOperator destination) {
         try (ReleasableIterator<Page> pages = evaluateToIntermediate(source)) {
             while (pages.hasNext()) {
                 try (Page intermediatePage = pages.next()) {
@@ -692,13 +663,13 @@ public class PartitionedHashAggregationOperator implements Operator {
     private void maybeEmitPartitions() {
         List<TaggedPageSource> sources = null;
         for (int p = 0; p < partitionCount; p++) {
-            Table table = partitions[p];
-            if (shouldEmitPartition(table)) {
+            HashAggregationOperator op = partitionOps[p];
+            if (shouldEmitPartition(op)) {
                 if (sources == null) {
                     sources = new ArrayList<>();
                 }
                 int partitionIndex = p;
-                ReleasableIterator<Page> pages = evaluateToIntermediate(table, maxPageSize);
+                ReleasableIterator<Page> pages = evaluateToIntermediate(op, maxPageSize);
                 sources.add(new TaggedPageSource(p, resetPartitionOnClose(pages, partitionIndex)));
             }
         }
@@ -707,25 +678,23 @@ public class PartitionedHashAggregationOperator implements Operator {
         }
     }
 
-    private boolean shouldEmitPartition(Table table) {
-        if (table.rowsAddedInCurrentBatch == 0) {
+    private boolean shouldEmitPartition(HashAggregationOperator op) {
+        if (op.rowsAddedInCurrentBatch == 0) {
             return false;
         }
-        int numKeys = table.blockHash.numKeys();
+        int numKeys = op.blockHash.numKeys();
         if (numKeys < perPartitionEmitThreshold) {
             return false;
         }
-        return table.rowsAddedInCurrentBatch * perPartitionEmitUniquenessThreshold <= numKeys;
+        return op.rowsAddedInCurrentBatch * perPartitionEmitUniquenessThreshold <= numKeys;
     }
 
     /**
-     * Wraps {@code delegate} so that once its pages are fully consumed and it's closed, the table
-     * at {@code partitions[partitionIndex]} is closed and replaced with a fresh one - the
-     * destructive per-partition generalization of
-     * {@code HashAggregationOperator#maybeReinitializeAfterPeriodicallyEmitted}. Safe to reset
-     * only once {@code delegate} itself is closed/exhausted, since later pages of a multi-page
-     * result still read the table's {@link BlockHash} lazily (for {@code getKeys}); {@code
-     * getOutput} only closes an exhausted iterator, so this always fires at the right time,
+     * Wraps {@code delegate} so that once its pages are fully consumed and it's closed, the
+     * operator at {@code partitionOps[partitionIndex]} is closed and replaced with a fresh one.
+     * Safe to reset only once {@code delegate} itself is closed/exhausted, since later pages of
+     * a multi-page result still read the operator's {@link BlockHash} lazily (for {@code getKeys});
+     * {@code getOutput} only closes an exhausted iterator, so this always fires at the right time,
      * whether through normal drainage or the operator being closed early.
      */
     private ReleasableIterator<Page> resetPartitionOnClose(ReleasableIterator<Page> delegate, int partitionIndex) {
@@ -743,14 +712,14 @@ public class PartitionedHashAggregationOperator implements Operator {
             @Override
             public void close() {
                 delegate.close();
-                partitions[partitionIndex].close();
-                partitions[partitionIndex] = newPartitionTable(aggregationBatchSize);
+                partitionOps[partitionIndex].close();
+                partitionOps[partitionIndex] = newOp();
             }
         };
     }
 
-    /** Wraps {@code delegate} so that closing it also closes {@code table} (never rebuilt). */
-    private ReleasableIterator<Page> closeTableOnClose(ReleasableIterator<Page> delegate, Table table) {
+    /** Wraps {@code delegate} so that closing it also closes {@code op} (never rebuilt). */
+    private ReleasableIterator<Page> closeOpOnClose(ReleasableIterator<Page> delegate, HashAggregationOperator op) {
         return new ReleasableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -764,7 +733,7 @@ public class PartitionedHashAggregationOperator implements Operator {
 
             @Override
             public void close() {
-                Releasables.close(delegate::close, table);
+                Releasables.close(delegate::close, op);
             }
         };
     }
@@ -773,119 +742,69 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     private void emitFinal() {
         List<TaggedPageSource> sources = new ArrayList<>();
-        if (legacy != null) {
-            Table table = legacy;
-            legacy = null;
-            if (table.blockHash.numKeys() > 0) {
-                sources.add(new TaggedPageSource(NONE_PARTITION, closeTableOnClose(evaluateToIntermediate(table, maxPageSize), table)));
+        if (legacyOp != null) {
+            HashAggregationOperator op = legacyOp;
+            legacyOp = null;
+            if (op.blockHash.numKeys() > 0) {
+                sources.add(new TaggedPageSource(NONE_PARTITION, closeOpOnClose(evaluateToIntermediate(op, maxPageSize), op)));
             } else {
-                table.close();
+                op.close();
             }
         } else {
             for (int p = 0; p < partitionCount; p++) {
-                Table table = partitions[p];
-                if (table.blockHash.numKeys() > 0) {
-                    sources.add(new TaggedPageSource(p, closeTableOnClose(evaluateToIntermediate(table, maxPageSize), table)));
+                HashAggregationOperator op = partitionOps[p];
+                if (op.blockHash.numKeys() > 0) {
+                    sources.add(new TaggedPageSource(p, closeOpOnClose(evaluateToIntermediate(op, maxPageSize), op)));
                 } else {
-                    table.close();
+                    op.close();
                 }
             }
-            partitions = null;
+            partitionOps = null;
         }
         if (sources.isEmpty() == false) {
             output = new PartitionedOutputIterator(sources);
         }
     }
 
-    // ---- shared table helpers ----
+    // ---- shared operator helpers ----
 
-    private Table newTable(int emitBatchSize) {
-        // Every page these tables ever see (raw or intermediate) is in this operator's internal
-        // layout, which places grouping keys at channels 0..groupChannels.size()-1 - see toInternalLayout.
-        BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
-        boolean success = false;
-        try {
-            Table table = new Table(blockHash, buildAggregators());
-            success = true;
-            return table;
-        } finally {
-            if (success == false) {
-                blockHash.close();
-            }
-        }
+    /**
+     * Builds a child {@link HashAggregationOperator} with a per-partition block hash and
+     * auto-emit disabled ({@code partialEmitKeysThreshold = MAX_VALUE}). This operator manages
+     * its own periodic emit externally via {@link #shouldEmitPartition} and
+     * {@link #evaluateToIntermediate}.
+     */
+    private HashAggregationOperator newOp() {
+        return new HashAggregationOperator(
+            AggregatorMode.INITIAL,
+            aggregatorFactories,
+            () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
+            Integer.MAX_VALUE,
+            1.0,
+            maxPageSize,
+            null,
+            driverContext
+        );
     }
 
     /**
-     * Builds a partition table for aggregation. Routing (which partition a row belongs to) is
-     * handled separately by {@link #probeHash}, so the table's {@link BlockHash} does not need
-     * to expose a {@link BlockHash.Router} — we can always use the fastest available hash (e.g.
-     * {@code LongIntAdaptiveBlockHash}) without a PackedValues fallback.
+     * Evaluates {@code op}'s current contents to intermediate pages - the same flow
+     * {@link HashAggregationOperator} uses for output, reused here as an
+     * "intermediate representation to re-consume elsewhere". The operator stays alive/unmodified;
+     * the caller decides when (if ever) to close it.
      */
-    private Table newPartitionTable(int emitBatchSize) {
-        BlockHash blockHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), emitBatchSize, false);
-        boolean success = false;
-        try {
-            Table table = new Table(blockHash, buildAggregators());
-            success = true;
-            return table;
-        } finally {
-            if (success == false) {
-                blockHash.close();
-            }
-        }
+    private ReleasableIterator<Page> evaluateToIntermediate(HashAggregationOperator op) {
+        return evaluateToIntermediate(op, Integer.MAX_VALUE);
     }
 
-    private List<GroupingAggregator> buildAggregators() {
-        List<GroupingAggregator> result = new ArrayList<>(aggregatorFactories.size());
-        boolean success = false;
-        try {
-            for (GroupingAggregator.Factory f : aggregatorFactories) {
-                result.add(f.apply(driverContext));
-            }
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.close(result);
-            }
-        }
-    }
-
-    /**
-     * Evaluates {@code table} to a page reflecting its current, unmodified contents (its
-     * grouping key column, followed by each aggregator's intermediate state) - the same
-     * evaluate-to-page flow {@link HashAggregationOperator} uses, just interpreted here as an
-     * "intermediate representation to re-consume elsewhere" rather than as final output. Table
-     * stays alive/unmodified; the caller decides when (if ever) to close it.
-     */
-    private ReleasableIterator<Page> evaluateToIntermediate(Table table) {
-        return evaluateToIntermediate(table, Integer.MAX_VALUE);
-    }
-
-    private ReleasableIterator<Page> evaluateToIntermediate(Table table, int maxPageSizeForThisEmit) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(table.blockHash, table.aggregators, maxPageSizeForThisEmit, NO_CUSTOMIZATION);
+    private ReleasableIterator<Page> evaluateToIntermediate(HashAggregationOperator op, int maxPageSizeForThisEmit) {
+        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeForThisEmit, NO_CUSTOMIZATION);
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
-        }
-    }
-
-    private static final class Table implements Releasable {
-        BlockHash blockHash;
-        List<GroupingAggregator> aggregators;
-        long rowsAddedInCurrentBatch;
-
-        Table(BlockHash blockHash, List<GroupingAggregator> aggregators) {
-            this.blockHash = blockHash;
-            this.aggregators = aggregators;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(blockHash, () -> Releasables.close(aggregators));
         }
     }
 

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
@@ -578,9 +580,15 @@ public final class CsvSpecReader {
     }
 
     /**
-     * Returns {@code true} when the outermost pipeline command (ignoring a trailing {@code LIMIT}) is
-     * an {@link OrderBy}, meaning the query has a deterministic top-level sort. Returns {@code true}
+     * Returns {@code true} when the query has a deterministic top-level sort. Returns {@code true}
      * on parse failure so that a bad query is not double-reported here and by the test runner.
+     * <p>
+     * The check peels through {@link Limit} (truncating but order-preserving for the top-N rows) and
+     * any {@link SortPreserving} node ({@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL},
+     * {@code WHERE}, {@code ENRICH}, regex-extract commands, etc.) before looking for an
+     * {@link OrderBy}. This avoids false positives on queries like
+     * {@code FROM t | SORT x | EVAL y = f(x) | KEEP x, y | LIMIT 10} where the effective output
+     * order is fully determined by the inner {@code SORT}.
      */
     private static boolean hasTopLevelSort(String query) {
         if (SPEC_PARSER == null) {
@@ -588,9 +596,9 @@ public final class CsvSpecReader {
         }
         try {
             LogicalPlan plan = SPEC_PARSER.parseQuery(query);
-            // A trailing LIMIT preserves the ordering established by any preceding SORT.
-            if (plan instanceof Limit limit) {
-                plan = limit.child();
+            // Peel through nodes that do not disturb the established sort order.
+            while (plan instanceof Limit || plan instanceof SortPreserving) {
+                plan = ((UnaryPlan) plan).child();
             }
             return plan instanceof OrderBy;
         } catch (Exception e) {

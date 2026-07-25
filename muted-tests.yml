@@ -751,3 +751,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.get_alias/10_basic/Get aliases via /_alias/*}
   issue: https://github.com/elastic/elasticsearch/issues/155013
+- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
+  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
+  issue: https://github.com/elastic/elasticsearch/issues/155014

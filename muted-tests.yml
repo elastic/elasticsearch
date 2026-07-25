@@ -745,3 +745,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-load.loadViewWithSubqueryBody_EvalNonExistent}
   issue: https://github.com/elastic/elasticsearch/issues/154921
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/153848

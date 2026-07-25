@@ -115,13 +115,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         // The same id "1" in two slices must each resolve via their own slice's compound _id term — before routing was
         // threaded through, the shard threw on encodeIdentity(true, id, null). A get from translog triggers a refresh,
         // so (as in testGetFromTranslog) each write is checked by the get immediately following it.
-        var ra = client().index(
-            new IndexRequest(index).id("1")
-                .source("field1", "va")
-                .routing("s1")
-                .setRoutingFromSlice(true)
-                .setRefreshPolicy(RefreshPolicy.NONE)
-        ).actionGet();
+        var ra = client().index(new IndexRequest(index).id("1").source("field1", "va").routing("s1").setRoutingFromSlice(true)).actionGet();
         var responseA = getFromTranslog(shardRouting, index, "1", "s1");
         assertNotNull(responseA.getResult());
         assertThat(responseA.getResult().isExists(), equalTo(true));
@@ -134,13 +128,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(responseA.getResult().isExists(), equalTo(false));
 
         // The same id in a different slice is an independent document, resolved by its own compound term.
-        var rb = client().index(
-            new IndexRequest(index).id("1")
-                .source("field1", "vb")
-                .routing("s2")
-                .setRoutingFromSlice(true)
-                .setRefreshPolicy(RefreshPolicy.NONE)
-        ).actionGet();
+        var rb = client().index(new IndexRequest(index).id("1").source("field1", "vb").routing("s2").setRoutingFromSlice(true)).actionGet();
         var responseB = getFromTranslog(shardRouting, index, "1", "s2");
         assertNotNull(responseB.getResult());
         assertThat(responseB.getResult().isExists(), equalTo(true));

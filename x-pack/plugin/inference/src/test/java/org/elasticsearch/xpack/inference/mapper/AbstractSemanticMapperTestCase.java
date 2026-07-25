@@ -264,42 +264,28 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             String fieldName = randomAlphaOfLengthBetween(5, 15);
             String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
 
-            TestModel oldModel = null;
+            MinimalServiceSettings oldModelSettings = null;
             if (randomBoolean()) {
-                oldModel = createRandomSupportedModel();
-                givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
+                oldModelSettings = createRandomModelSettings();
+                givenModelSettings(oldInferenceId, oldModelSettings);
             }
 
             var mapperService = createSemanticMapperService(semanticMapping(fieldName, oldInferenceId));
 
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-            assertSemanticField(
-                mapperService,
-                fieldName,
-                false,
-                oldModel == null ? null : new MinimalServiceSettings(oldModel),
-                null,
-                null
-            );
+            assertSemanticField(mapperService, fieldName, false, oldModelSettings, null, null);
 
             String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
-            TestModel newModel = null;
+            MinimalServiceSettings newModelSettings = null;
             if (randomBoolean()) {
-                newModel = createRandomSupportedModel();
-                givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
+                newModelSettings = createRandomModelSettings();
+                givenModelSettings(newInferenceId, newModelSettings);
             }
 
             merge(mapperService, semanticMapping(fieldName, newInferenceId));
 
             assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-            assertSemanticField(
-                mapperService,
-                fieldName,
-                false,
-                newModel == null ? null : new MinimalServiceSettings(newModel),
-                null,
-                null
-            );
+            assertSemanticField(mapperService, fieldName, false, newModelSettings, null, null);
         }
     }
 
@@ -309,8 +295,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
             final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
 
-            final TestModel oldModel = createRandomSupportedModel();
-            final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
+            final MinimalServiceSettings previousModelSettings = createRandomModelSettings();
             givenModelSettings(oldInferenceId, previousModelSettings);
 
             final MapperService mapperService = createSemanticMapperService(
@@ -323,17 +308,16 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
             if (randomBoolean()) {
                 // Compatible: new endpoint has identical task type / dimensions / similarity / element type
-                TestModel newModel = createCompatibleModel(newInferenceId, oldModel);
-                MinimalServiceSettings newModelSettings = new MinimalServiceSettings(newModel);
+                MinimalServiceSettings newModelSettings = createCompatibleModelSettings(previousModelSettings);
                 givenModelSettings(newInferenceId, newModelSettings);
 
                 mergeRunner.run();
                 assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
                 assertSemanticField(mapperService, fieldName, true, newModelSettings, null, null);
             } else {
-                final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
+                final MinimalServiceSettings incompatibleModelSettings = createIncompatibleModelSettings(previousModelSettings);
                 final String expectedErrorMessage;
-                if (incompatibleModel == null) {
+                if (incompatibleModelSettings == null) {
                     // Incompatible: new endpoint does not exist
                     expectedErrorMessage = "Cannot update ["
                         + contentType()
@@ -344,7 +328,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                         + "] does not exist.";
                 } else {
                     // Incompatible: new endpoint exists but its model settings are incompatible
-                    MinimalServiceSettings incompatibleModelSettings = new MinimalServiceSettings(incompatibleModel);
                     givenModelSettings(newInferenceId, incompatibleModelSettings);
 
                     expectedErrorMessage = "Cannot update ["
@@ -776,45 +759,38 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     /**
-     * Creates a {@link TestModel} that is compatible with {@code baseModel} (same task type, dimensions,
-     * similarity, and element type) but with a distinct service, task settings, and secrets, registered
-     * under the given inference ID. Compatible models can be substituted via an inference-ID update.
+     * Creates a {@link MinimalServiceSettings} that is compatible with {@code base} (same task type,
+     * dimensions, similarity, and element type) but with a distinct service name. Compatible settings
+     * can be substituted via an inference-ID update.
      */
-    protected TestModel createCompatibleModel(String inferenceId, TestModel baseModel) {
-        return new TestModel(
-            inferenceId,
-            baseModel.getTaskType(),
+    protected MinimalServiceSettings createCompatibleModelSettings(MinimalServiceSettings base) {
+        return new MinimalServiceSettings(
             randomAlphaOfLength(4),
-            new TestModel.TestServiceSettings(
-                randomAlphaOfLength(4),
-                baseModel.getServiceSettings().dimensions(),
-                baseModel.getServiceSettings().similarity(),
-                baseModel.getServiceSettings().elementType()
-            ),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            base.taskType(),
+            base.dimensions(),
+            base.similarity(),
+            base.elementType()
         );
     }
 
     /**
-     * Creates a {@link TestModel} that is NOT compatible with {@code baseModel}, choosing uniformly among the
+     * Creates a {@link MinimalServiceSettings} that is NOT compatible with {@code base}, choosing uniformly among the
      * applicable kinds of incompatibility: task type, dimensions, similarity, element type, or the endpoint not
      * existing. Setting-based perturbations (dimensions/similarity/element type) only apply to dense base models;
      * a sparse base model has null dimensions/similarity/element type, so only task-type and does-not-exist apply.
      *
-     * @return an incompatible model to register under {@code inferenceId}, or {@code null} to indicate the
-     *         caller should NOT register an endpoint (the does-not-exist case).
+     * @return new incompatible settings, or {@code null} to indicate the caller should NOT register an endpoint (the does-not-exist case).
      */
-    protected TestModel createIncompatibleModel(String inferenceId, TestModel baseModel) {
-        final TestModel.TestServiceSettings baseServiceSettings = baseModel.getServiceSettings();
-        final DenseVectorFieldMapper.ElementType baseElementType = baseServiceSettings.elementType();
+    @Nullable
+    protected MinimalServiceSettings createIncompatibleModelSettings(MinimalServiceSettings base) {
+        final DenseVectorFieldMapper.ElementType baseElementType = base.elementType();
 
         List<IncompatibilityKind> applicable = new ArrayList<>();
         if (supportedTaskTypes().size() > 1) {
             applicable.add(IncompatibilityKind.TASK_TYPE);
         }
         applicable.add(IncompatibilityKind.DOES_NOT_EXIST);
-        if (baseModel.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        if (base.taskType() != TaskType.SPARSE_EMBEDDING) {
             applicable.add(IncompatibilityKind.DIMENSIONS);
             applicable.add(IncompatibilityKind.ELEMENT_TYPE);
             // SIMILARITY only when the element type supports more than one option to perturb to
@@ -823,17 +799,18 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             }
         }
 
-        TaskType taskType = baseModel.getTaskType();
-        Integer dimensions = baseServiceSettings.dimensions();
-        SimilarityMeasure similarity = baseServiceSettings.similarity();
+        TaskType taskType = base.taskType();
+        Integer dimensions = base.dimensions();
+        SimilarityMeasure similarity = base.similarity();
         DenseVectorFieldMapper.ElementType elementType = baseElementType;
-        boolean returnNull = false;
 
         switch (randomFrom(applicable)) {
-            case DOES_NOT_EXIST -> returnNull = true;
+            case DOES_NOT_EXIST -> {
+                return null;
+            }
             case TASK_TYPE -> {
                 taskType = randomValueOtherThan(taskType, () -> randomFrom(supportedTaskTypes()));
-                if (taskType != TaskType.SPARSE_EMBEDDING && baseModel.getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                if (taskType != TaskType.SPARSE_EMBEDDING && base.taskType() == TaskType.SPARSE_EMBEDDING) {
                     // Sparse -> dense: populate required dense settings from a fresh random dense model
                     TestModel randomDenseModel = TestModel.createRandomInstance(taskType);
                     dimensions = randomDenseModel.getServiceSettings().dimensions();
@@ -866,29 +843,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             }
         }
 
-        if (returnNull) {
-            return null;
-        }
-
-        return buildModel(baseModel, inferenceId, taskType, elementType, dimensions, similarity);
-    }
-
-    protected static TestModel buildModel(
-        TestModel baseModel,
-        String inferenceId,
-        TaskType taskType,
-        @Nullable DenseVectorFieldMapper.ElementType elementType,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity
-    ) {
-        return new TestModel(
-            inferenceId,
-            taskType,
-            baseModel.getConfigurations().getService(),
-            new TestModel.TestServiceSettings(baseModel.getServiceSettings().model(), dimensions, similarity, elementType),
-            baseModel.getTaskSettings(),
-            baseModel.getSecretSettings()
-        );
+        return new MinimalServiceSettings(base.service(), taskType, dimensions, similarity, elementType);
     }
 
     protected static String randomFieldName(int numLevel) {

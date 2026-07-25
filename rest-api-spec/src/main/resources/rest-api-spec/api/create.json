@@ -57,7 +57,7 @@
       },
       "slice": {
         "type": "string",
-        "description": "Slice value for a slice-enabled index (`index.slice.enabled=true`); required in place of routing",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); required to scope the operation to that slice",
         "visibility": "feature_flag",
         "feature_flag": "es.slice_indexing_feature_flag_enabled"
       },

@@ -295,9 +295,10 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
     }
 
     /**
-     * Slice-scoped index and delete operations must survive recovery: a full cluster restart replays the translog (and the
-     * replica is rebuilt via peer recovery). The recovered shard must reflect that the delete targeted only its slice's
-     * composite term, leaving the same id in another slice intact.
+     * Slice-scoped index and delete operations must survive a full cluster restart. On a graceful restart the shard flushes
+     * on close, so the recovered shard is restored from its Lucene commit rather than by replaying the translog; it must
+     * still reflect that the delete targeted only its slice's composite term, leaving the same id in another slice intact.
+     * (Translog replay of slice ops is covered at the unit level by SliceChangesSnapshotTests.)
      */
     public void testSliceDocsSurviveFullRestart() throws Exception {
         createSliceIndex("rec", 1);
@@ -308,7 +309,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         // Commit the initial docs so the following delete/update land after the last Lucene commit.
         flush("rec");
 
-        // Delete slice sa's id "1" and replace slice sa's id "2", both after the commit, so recovery must reapply them.
+        // Delete slice sa's id "1" and replace slice sa's id "2" after the commit; the full restart must preserve both.
         deleteDoc("rec", "sa", "1");
         indexDoc("rec", "sa", "2", "v2-updated");
         refresh("rec");

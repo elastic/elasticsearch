@@ -253,8 +253,9 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // BGE reranker models (bge-reranker-large, bge-reranker-v2-m3) support up to 512-token inputs.
-        // Using 1 token = 0.75 words, that is roughly 384 words. Use a conservative value with headroom.
+        // Reranker models on TencentCloud AI Gateway (e.g. bge-reranker-large, bge-reranker-v2-m3) support up to
+        // 512-token inputs. Using 1 token ≈ 0.75 words gives roughly 384 words; use a conservative value with headroom.
+        // This is a static window because the gateway supports multiple models and model IDs are not validated here.
         return 350;
     }
 
@@ -270,7 +271,9 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The name of the model to use for the inference task, e.g. bge-m3, deepseek-v3, bge-reranker-v2-m3."
+                        "The name of the model to use for the inference task, e.g. bge-m3 (embeddings),"
+                            + " deepseek-v3 (chat/completions), bge-reranker-v2-m3 (rerank)."
+                            + " The gateway supports additional models; check the TencentCloud AI Gateway documentation for the full list."
                     )
                         .setLabel("Model ID")
                         .setRequired(true)

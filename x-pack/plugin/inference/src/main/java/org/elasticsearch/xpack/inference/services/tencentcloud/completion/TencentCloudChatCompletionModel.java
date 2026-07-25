@@ -87,16 +87,9 @@ public class TencentCloudChatCompletionModel extends TencentCloudModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    /**
-     * Chat completion is dispatched via the {@link TencentCloudService#doInfer} / {@link TencentCloudService#doUnifiedCompletionInfer}
-     * paths using a dedicated {@code TencentCloudChatCompletionRequestManager}, so this visitor entry is not used.
-     */
     @Override
     public ExecutableAction accept(TencentCloudActionVisitor visitor, Map<String, Object> taskSettings) {
-        throw new UnsupportedOperationException(
-            "TencentCloud chat completion does not use the visitor-based action creation flow; "
-                + "requests are dispatched directly through the request manager."
-        );
+        return visitor.create(this, taskSettings);
     }
 
     private static URI resolveUri(TencentCloudChatCompletionServiceSettings serviceSettings) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.tencentcloud.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
 
@@ -18,4 +19,6 @@ public interface TencentCloudActionVisitor {
     ExecutableAction create(TencentCloudEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(TencentCloudRerankModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(TencentCloudChatCompletionModel model, Map<String, Object> taskSettings);
 }

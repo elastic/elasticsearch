@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,7 +55,7 @@ public class TencentCloudEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

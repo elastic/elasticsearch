@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -115,7 +116,7 @@ public class TencentCloudRerankTaskSettings implements TaskSettings, TopNProvide
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

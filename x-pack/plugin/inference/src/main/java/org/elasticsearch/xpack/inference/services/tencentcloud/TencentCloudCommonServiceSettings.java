@@ -148,7 +148,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

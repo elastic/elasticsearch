@@ -9,15 +9,22 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudResponseHandler;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudRerankRequest;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
@@ -29,10 +36,14 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 /**
- * Creates {@link ExecutableAction}s for TencentCloud embeddings and rerank models.
- * Chat completion is handled directly by the {@code TencentCloudService} via a dedicated request manager (not this visitor).
+ * Creates {@link ExecutableAction}s for TencentCloud embeddings, rerank, and completion models using the visitor pattern.
+ * Unified chat completion (the {@code chat_completion} task type) is handled directly by the
+ * {@code TencentCloudService#doUnifiedCompletionInfer} path.
  */
 public class TencentCloudActionCreator implements TencentCloudActionVisitor {
+
+    public static final String COMPLETION_ERROR_PREFIX = "TencentCloud completions";
+    public static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new TencentCloudResponseHandler(
         "tencentcloud text embedding",
@@ -42,6 +53,11 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
     private static final ResponseHandler RERANK_HANDLER = new TencentCloudResponseHandler(
         "tencentcloud rerank",
         (request, response) -> TencentCloudRerankResponseEntity.fromResponse(response)
+    );
+
+    private static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        "tencentcloud completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
     );
 
     private final Sender sender;
@@ -81,5 +97,18 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
             QueryAndDocsInputs.class
         );
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("TencentCloud rerank"));
+    }
+
+    @Override
+    public ExecutableAction create(TencentCloudChatCompletionModel model, Map<String, Object> taskSettings) {
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            model,
+            COMPLETION_HANDLER,
+            (chatCompletionInput) -> new TencentCloudChatCompletionRequest(new UnifiedChatInput(chatCompletionInput, USER_ROLE), model),
+            ChatCompletionInput.class
+        );
+        var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
+        return new SingleInputSenderExecutableAction(sender, requestManager, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

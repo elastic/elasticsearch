@@ -80,6 +80,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     public void testSupportedTaskTypes_ContainsExpectedTasks() throws IOException {
         try (var service = createService()) {
             assertThat(service.supportedTaskTypes().contains(TaskType.TEXT_EMBEDDING), is(true));
+            assertThat(service.supportedTaskTypes().contains(TaskType.COMPLETION), is(true));
             assertThat(service.supportedTaskTypes().contains(TaskType.CHAT_COMPLETION), is(true));
             assertThat(service.supportedTaskTypes().contains(TaskType.RERANK), is(true));
         }
@@ -272,7 +273,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
 
     @Override
     public EnumSet<TaskType> expectedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override

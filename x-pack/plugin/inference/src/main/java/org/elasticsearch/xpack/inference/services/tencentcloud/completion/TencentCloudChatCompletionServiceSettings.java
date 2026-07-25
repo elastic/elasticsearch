@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -106,7 +107,7 @@ public class TencentCloudChatCompletionServiceSettings extends FilteredXContentO
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

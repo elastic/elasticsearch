@@ -7,6 +7,15 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +25,23 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public final class CsvSpecReader {
+
+    private static final Logger logger = LogManager.getLogger(CsvSpecReader.class);
+
+    /**
+     * Parser used solely for the ordering pre-check. Initialised once; set to {@code null} if
+     * construction fails so that the check degrades gracefully rather than blocking test loading.
+     */
+    private static final EsqlParser SPEC_PARSER;
+    static {
+        EsqlParser p;
+        try {
+            p = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        } catch (Exception e) {
+            p = null;
+        }
+        SPEC_PARSER = p;
+    }
 
     private CsvSpecReader() {}
 
@@ -119,6 +145,7 @@ public final class CsvSpecReader {
                 CsvTestCase result = testCase;
                 testCase = null;
                 data.setLength(0);
+                validateOrdering(result);
                 return result;
             }
             data.append(line).append("\r\n");
@@ -458,6 +485,79 @@ public final class CsvSpecReader {
                 return Boolean.TRUE;
             }
             return null;
+        }
+    }
+
+    /**
+     * Checks whether a csv-spec test case with multiple expected rows declares a top-level {@code SORT}.
+     * <p>
+     * Without an explicit {@code SORT} the row ordering of a multi-row result is undefined and the test
+     * is inherently flaky: it may pass consistently on one segment layout and fail on another. The check
+     * fires at spec-load time so violations are reported before any test method executes.
+     * <p>
+     * By default the violation is logged at {@code WARN} level. Set the system property
+     * {@code tests.csv.strict.ordering=true} to turn violations into hard failures, which is useful for
+     * enforcing the policy on individual modules once their existing violations are cleaned up.
+     */
+    private static void validateOrdering(CsvTestCase testCase) {
+        if (testCase.ignoreOrder) {
+            return;
+        }
+        // Count data rows: first non-blank non-directive line is the header; the rest are data.
+        int dataRows = 0;
+        boolean headerSeen = false;
+        for (String line : testCase.expectedResults.split("\\r?\\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("warning")
+                || lower.startsWith("ignoreorder")
+                || lower.startsWith("documents_found")
+                || lower.startsWith("warningregex")) {
+                continue;
+            }
+            if (headerSeen == false) {
+                headerSeen = true;
+            } else {
+                dataRows++;
+            }
+        }
+        if (dataRows < 2) {
+            return;
+        }
+        if (hasTopLevelSort(testCase.query) == false) {
+            String message = "Query has "
+                + dataRows
+                + " expected rows but no top-level SORT. "
+                + "Add `| SORT <stable_field>` to the query or set `ignoreOrder: true` in the spec.\n"
+                + "Query: "
+                + testCase.query;
+            if (Boolean.getBoolean("tests.csv.strict.ordering")) {
+                throw new IllegalArgumentException(message);
+            }
+            logger.warn(message);
+        }
+    }
+
+    /**
+     * Returns {@code true} when the outermost pipeline command (ignoring a trailing {@code LIMIT}) is
+     * an {@link OrderBy}, meaning the query has a deterministic top-level sort. Returns {@code true}
+     * on parse failure so that a bad query is not double-reported here and by the test runner.
+     */
+    private static boolean hasTopLevelSort(String query) {
+        if (SPEC_PARSER == null) {
+            return true;
+        }
+        try {
+            LogicalPlan plan = SPEC_PARSER.parseQuery(query);
+            // A trailing LIMIT preserves the ordering established by any preceding SORT.
+            if (plan instanceof Limit limit) {
+                plan = limit.child();
+            }
+            return plan instanceof OrderBy;
+        } catch (Exception e) {
+            return true;
         }
     }
 

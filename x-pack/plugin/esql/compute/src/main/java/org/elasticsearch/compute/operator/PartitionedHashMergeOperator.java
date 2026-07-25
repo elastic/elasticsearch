@@ -15,16 +15,11 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -50,14 +45,14 @@ import static java.util.stream.Collectors.joining;
  *
  * <h2>Lifecycle</h2>
  * <ol>
- *   <li><b>Pre-tagged</b> – untagged pages accumulate in the {@code noneTable}
+ *   <li><b>Pre-tagged</b> – untagged pages accumulate in the {@code noneOp}
  *       (INTERMEDIATE-mode aggregators) on the driver thread. Tagged pages are routed
  *       directly to the owning partition worker's {@link ExchangeBuffer}.</li>
- *   <li><b>Finish</b> – the {@code noneTable}'s contents are distributed to worker buffers
+ *   <li><b>Finish</b> – the {@code noneOp}'s contents are distributed to worker buffers
  *       via the evaluate-intermediate → split-by-partition-hash → buffer-enqueue primitive;
- *       each worker then merges its buffer into its own FINAL-mode table.</li>
+ *       each worker then merges its buffer into its own FINAL-mode operator.</li>
  *   <li><b>Output</b> – once all workers signal completion, the driver evaluates each
- *       worker table to final output pages (disjoint, no k-way merge required).</li>
+ *       worker operator to final output pages (disjoint, no k-way merge required).</li>
  * </ol>
  *
  * <p>Background workers run on the {@code esql_worker} thread pool using the same
@@ -287,9 +282,9 @@ public class PartitionedHashMergeOperator implements Operator {
     private boolean buildOutputCalled = false;
 
     /** Accumulates all untagged pages on the driver thread. INTERMEDIATE mode. */
-    private Table noneTable;
-    /** One FINAL-mode table per partition; created eagerly in the constructor. */
-    private Table[] workerTables;
+    private HashAggregationOperator noneOp;
+    /** One FINAL-mode operator per partition; created eagerly in the constructor. */
+    private HashAggregationOperator[] workerOps;
     /**
      * One child block factory per logical worker (worker {@code w} uses {@code workerBlockFactories[w]}).
      * Workers run concurrently on separate threads; each needs its own {@code LocalCircuitBreaker}
@@ -336,11 +331,29 @@ public class PartitionedHashMergeOperator implements Operator {
             for (int w = 0; w < workerCount; w++) {
                 workerBlockFactories[w] = driverContext.createChildBlockFactory();
             }
-            this.noneTable = newTable(noneAggFactories, driverContext.blockFactory(), driverContext);
-            this.workerTables = new Table[partitionCount];
+            this.noneOp = new HashAggregationOperator(
+                AggregatorMode.INTERMEDIATE,
+                noneAggFactories,
+                () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
+                Integer.MAX_VALUE,
+                1.0,
+                maxPageSize,
+                null,
+                driverContext
+            );
+            this.workerOps = new HashAggregationOperator[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
                 BlockFactory wf = workerBlockFactories[p % workerCount];
-                workerTables[p] = newTable(workerAggFactories, wf, driverContext.withBlockFactory(wf));
+                workerOps[p] = new HashAggregationOperator(
+                    AggregatorMode.FINAL,
+                    workerAggFactories,
+                    () -> BlockHash.build(internalGroupSpecs, wf, aggregationBatchSize, false),
+                    Integer.MAX_VALUE,
+                    1.0,
+                    maxPageSize,
+                    null,
+                    driverContext.withBlockFactory(wf)
+                );
             }
             this.workerBuffers = new ExchangeBuffer[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
@@ -388,8 +401,9 @@ public class PartitionedHashMergeOperator implements Operator {
             workerBuffers[partitionId].addPage(page);
             // Ownership transferred to buffer — do NOT call page.releaseBlocks()
         } else {
+            Page internal = toInternalLayout(page);
             try {
-                mergeIntermediateIntoTable(noneTable, toInternalLayout(page));
+                noneOp.processPage(internal);
             } finally {
                 page.releaseBlocks();
             }
@@ -481,16 +495,16 @@ public class PartitionedHashMergeOperator implements Operator {
             pendingTasks.finishTask();
         }
         if (allWorkersDone.isDone()) {
-            // Close output BEFORE releasing worker block factories: tables inside output return
+            // Close output BEFORE releasing worker block factories: operators inside output return
             // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
-            Releasables.close(noneTable, output);
-            noneTable = null;
+            Releasables.close(noneOp, output);
+            noneOp = null;
             output = null;
             closeWorkerResources();
         } else {
             // Workers still running; they (or the PendingTasks callback) will call
             // closeWorkerResources() once they finish, by which point output is already gone.
-            Releasables.close(noneTable, output);
+            Releasables.close(noneOp, output);
         }
     }
 
@@ -520,11 +534,12 @@ public class PartitionedHashMergeOperator implements Operator {
                     boolean anyUnfinished = false;
                     for (int p = workerIndex; p < partitionCount; p += workerCount) {
                         ExchangeBuffer buffer = workerBuffers[p];
-                        Table table = workerTables[p];
+                        HashAggregationOperator op = workerOps[p];
                         Page page;
                         while ((page = buffer.pollPage()) != null) {
+                            Page internal = toInternalLayout(page);
                             try {
-                                mergeIntermediateIntoTable(table, toInternalLayout(page));
+                                op.processPage(internal);
                             } finally {
                                 page.releaseBlocks();
                             }
@@ -603,15 +618,16 @@ public class PartitionedHashMergeOperator implements Operator {
         }
         // Release the driver's own task reference; workers hold the rest.
         // Any pages left in buffers (e.g. from rejected worker tasks) are drained in buildOutput()
-        // after allWorkersDone fires, when it is safe to access workerTables single-threadedly.
+        // after allWorkersDone fires, when it is safe to access workerOps single-threadedly.
         pendingTasks.finishTask();
     }
 
     private void drainBufferOnDriverThread(int p) {
         Page page;
         while ((page = workerBuffers[p].pollPage()) != null) {
+            Page internal = toInternalLayout(page);
             try {
-                mergeIntermediateIntoTable(workerTables[p], toInternalLayout(page));
+                workerOps[p].processPage(internal);
             } finally {
                 page.releaseBlocks();
             }
@@ -619,25 +635,25 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     /**
-     * Evaluates the NONE table (INTERMEDIATE mode → intermediate pages), splits each page by
+     * Evaluates the none operator (INTERMEDIATE mode → intermediate pages), splits each page by
      * partition hash, and enqueues each slice into the owning worker's {@link ExchangeBuffer}.
-     * Closes and nulls {@link #noneTable} on return.
+     * Closes and nulls {@link #noneOp} on return.
      */
     private void reconcileNoneToBuffers() {
-        if (noneTable.blockHash.numKeys() == 0) {
-            noneTable.close();
-            noneTable = null;
+        if (noneOp.blockHash.numKeys() == 0) {
+            noneOp.close();
+            noneOp = null;
             return;
         }
-        try (ReleasableIterator<Page> nonePages = evaluateTable(noneTable)) {
+        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp)) {
             while (nonePages.hasNext()) {
                 try (Page p = nonePages.next()) {
                     distributeIntermediatePageToBuffers(p);
                 }
             }
         }
-        noneTable.close();
-        noneTable = null;
+        noneOp.close();
+        noneOp = null;
     }
 
     /**
@@ -649,7 +665,7 @@ public class PartitionedHashMergeOperator implements Operator {
     private void distributeIntermediatePageToBuffers(Page intermediatePage) {
         int positions = intermediatePage.getPositionCount();
         int keyCount = internalGroupSpecs.size();
-        BlockHash.Router probeRouter = workerTables[0].blockHash.router();
+        BlockHash.Router probeRouter = workerOps[0].blockHash.router();
         if (probeRouter == null) {
             // Router unsupported for this grouping shape: route everything to partition 0.
             int[] allPos = new int[positions];
@@ -697,16 +713,16 @@ public class PartitionedHashMergeOperator implements Operator {
     private void buildOutput() {
         if (anyTaggedSeen) {
             // Drain any pages left in buffers after allWorkersDone (e.g. from rejected worker tasks).
-            // Safe here because all workers have exited — no concurrent table access.
+            // Safe here because all workers have exited — no concurrent operator access.
             for (int p = 0; p < partitionCount; p++) {
                 drainBufferOnDriverThread(p);
             }
             List<ReleasableIterator<Page>> parts = new ArrayList<>();
             for (int p = 0; p < partitionCount; p++) {
-                Table worker = workerTables[p];
-                workerTables[p] = null;
+                HashAggregationOperator worker = workerOps[p];
+                workerOps[p] = null;
                 if (worker != null && worker.blockHash.numKeys() > 0) {
-                    parts.add(closeTableOnClose(evaluateTable(worker), worker));
+                    parts.add(closeOpOnClose(evaluateOp(worker), worker));
                 } else if (worker != null) {
                     worker.close();
                 }
@@ -715,56 +731,29 @@ public class PartitionedHashMergeOperator implements Operator {
                 output = new ConcatenatingPageIterator(parts);
             }
         } else {
-            // Non-promoted path: rewrap NONE aggregators with FINAL mode and evaluate directly.
+            // Non-promoted path: evaluate noneOp's INTERMEDIATE-mode aggregators as FINAL output.
             // The underlying aggregatorFunction state is identical between INTERMEDIATE and FINAL
             // mode; only what evaluate() emits differs. This skips the evaluate-then-re-ingest
             // round trip that would otherwise be needed to convert to final output format.
-            Table table = noneTable;
-            noneTable = null;
-            if (table != null && table.blockHash.numKeys() > 0) {
-                List<GroupingAggregator> finalAggregators = new ArrayList<>(table.aggregators.size());
-                for (GroupingAggregator a : table.aggregators) {
-                    finalAggregators.add(new GroupingAggregator(a.aggregatorFunction(), AggregatorMode.FINAL));
-                }
-                var pageBuilder = new GroupingAggregatorPageBuilder(table.blockHash, finalAggregators, maxPageSize, NO_CUSTOMIZATION);
-                output = closeTableOnClose(pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext)), table);
-            } else if (table != null) {
-                table.close();
+            HashAggregationOperator op = noneOp;
+            noneOp = null;
+            if (op != null && op.blockHash.numKeys() > 0) {
+                output = closeOpOnClose(op.evaluateAsFinal(), op);
+            } else if (op != null) {
+                op.close();
             }
         }
     }
 
-    // ---- shared table helpers ----
+    // ---- shared operator helpers ----
 
     /**
-     * Merges an intermediate-format page into {@code table} by re-hashing the key column(s) to
-     * get local group ids, then feeding each aggregator's intermediate state to
-     * {@code prepareProcessIntermediateInputPage}. Safe to call from worker threads provided
-     * each worker operates on its own table.
+     * Evaluates {@code op} to pages reflecting its current state. For INTERMEDIATE-mode
+     * operators this produces intermediate pages suitable for re-merging; for FINAL-mode
+     * operators this produces final output pages.
      */
-    private void mergeIntermediateIntoTable(Table table, Page page) {
-        List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(table.aggregators.size());
-        try {
-            for (GroupingAggregator aggregator : table.aggregators) {
-                GroupingAggregatorFunction.AddInput addInput = aggregator.aggregatorFunction()
-                    .prepareProcessIntermediateInputPage(table.blockHash, page);
-                if (addInput != null) {
-                    prepared.add(addInput);
-                }
-            }
-            table.blockHash.add(page, new FanOutAddInput(prepared));
-        } finally {
-            Releasables.closeExpectNoException(Releasables.wrap(prepared));
-        }
-    }
-
-    /**
-     * Evaluates {@code table} to pages reflecting its current state. For INTERMEDIATE-mode
-     * tables this produces intermediate pages suitable for re-merging; for FINAL-mode tables
-     * this produces final output pages.
-     */
-    private ReleasableIterator<Page> evaluateTable(Table table) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(table.blockHash, table.aggregators, maxPageSize, NO_CUSTOMIZATION);
+    private ReleasableIterator<Page> evaluateOp(HashAggregationOperator op) {
+        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSize, NO_CUSTOMIZATION);
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 
@@ -790,35 +779,7 @@ public class PartitionedHashMergeOperator implements Operator {
         return new Page(blocks);
     }
 
-    /**
-     * Creates a {@link Table} backed by the given {@code blockFactory} for its {@link BlockHash}
-     * and the given {@code aggContext} for its aggregators. Using a per-worker {@code aggContext}
-     * (with the worker's own {@link org.elasticsearch.compute.data.LocalCircuitBreaker}) is
-     * required when the table will be accessed from a background worker thread: aggregator state
-     * such as {@link org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus} tracks
-     * heap allocations through {@code DriverContext.breaker()}, which is not thread-safe, so
-     * sharing the coordinator driver's context across concurrent workers causes races on
-     * {@code LocalCircuitBreaker.reservedBytes} and leaks bytes in the parent circuit breaker.
-     */
-    private Table newTable(List<GroupingAggregator.Factory> factories, BlockFactory blockFactory, DriverContext aggContext) {
-        BlockHash blockHash = BlockHash.build(internalGroupSpecs, blockFactory, aggregationBatchSize, false);
-        boolean success = false;
-        try {
-            List<GroupingAggregator> aggregators = new ArrayList<>(factories.size());
-            for (GroupingAggregator.Factory f : factories) {
-                aggregators.add(f.apply(aggContext));
-            }
-            Table table = new Table(blockHash, aggregators);
-            success = true;
-            return table;
-        } finally {
-            if (success == false) {
-                blockHash.close();
-            }
-        }
-    }
-
-    private ReleasableIterator<Page> closeTableOnClose(ReleasableIterator<Page> delegate, Table table) {
+    private ReleasableIterator<Page> closeOpOnClose(ReleasableIterator<Page> delegate, HashAggregationOperator op) {
         return new ReleasableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -832,14 +793,14 @@ public class PartitionedHashMergeOperator implements Operator {
 
             @Override
             public void close() {
-                Releasables.close(delegate::close, table);
+                Releasables.close(delegate::close, op);
             }
         };
     }
 
     private void closeWorkerResources() {
-        if (workerTables != null) {
-            Releasables.close(workerTables);
+        if (workerOps != null) {
+            Releasables.close(workerOps);
         }
         if (workerBlockFactories != null) {
             for (BlockFactory wf : workerBlockFactories) {
@@ -855,8 +816,6 @@ public class PartitionedHashMergeOperator implements Operator {
             throw new IllegalArgumentException(msg);
         }
     }
-
-    // ---- Inner types ----
 
     private static final class PendingTasks {
         final AtomicInteger instances = new AtomicInteger(1);
@@ -879,53 +838,6 @@ public class PartitionedHashMergeOperator implements Operator {
                 completion.run();
             }
         }
-    }
-
-    private static final class Table implements Releasable {
-        final BlockHash blockHash;
-        final List<GroupingAggregator> aggregators;
-
-        Table(BlockHash blockHash, List<GroupingAggregator> aggregators) {
-            this.blockHash = blockHash;
-            this.aggregators = aggregators;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(blockHash, () -> Releasables.close(aggregators));
-        }
-    }
-
-    private static final class FanOutAddInput implements GroupingAggregatorFunction.AddInput {
-        private final List<GroupingAggregatorFunction.AddInput> prepared;
-
-        FanOutAddInput(List<GroupingAggregatorFunction.AddInput> prepared) {
-            this.prepared = prepared;
-        }
-
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            for (GroupingAggregatorFunction.AddInput p : prepared) {
-                p.add(positionOffset, groupIds);
-            }
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            for (GroupingAggregatorFunction.AddInput p : prepared) {
-                p.add(positionOffset, groupIds);
-            }
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            for (GroupingAggregatorFunction.AddInput p : prepared) {
-                p.add(positionOffset, groupIds);
-            }
-        }
-
-        @Override
-        public void close() {}
     }
 
     /**

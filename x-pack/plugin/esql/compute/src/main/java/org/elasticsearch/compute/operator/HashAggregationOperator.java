@@ -634,6 +634,20 @@ public class HashAggregationOperator implements Operator {
         return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount);
     }
 
+    /**
+     * Evaluates this operator's current contents as final output, regardless of
+     * its own aggregator mode. Used by {@link PartitionedHashMergeOperator} when the
+     * non-promoted path needs to emit final results from an INTERMEDIATE-mode
+     * accumulator without a re-ingest round trip.
+     */
+    protected ReleasableIterator<Page> evaluateAsFinal() {
+        List<GroupingAggregator> finalAggs = aggregators.stream()
+            .map(a -> new GroupingAggregator(a.aggregatorFunction(), AggregatorMode.FINAL))
+            .toList();
+        var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, finalAggs, maxPageSize, this::customizeSelected);
+        return pageBuilder.build(evaluationContext(blockHash));
+    }
+
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);

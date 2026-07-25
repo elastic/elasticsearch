@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import com.google.protobuf.ByteString;
+
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
@@ -566,8 +568,8 @@ public final class MetricEscfConverter {
     private static void buildTDigestFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
         List<Long> counts = new ArrayList<>();
         List<Double> values = new ArrayList<>();
-        TDigestConverter.counts(dp, v -> counts.add(v));
-        TDigestConverter.centroidValues(dp, v -> values.add(v));
+        TDigestConverter.counts(dp, counts::add);
+        TDigestConverter.centroidValues(dp, values::add);
         row.startObject(metricName);
         row.arrayField("counts", SourceValueType.FIXED_ARRAY, packLongList(counts));
         row.arrayField("values", SourceValueType.FIXED_ARRAY, packDoubleList(values));
@@ -676,7 +678,7 @@ public final class MetricEscfConverter {
         return new XContentString.UTF8Bytes(s.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void addFieldIfNotEmpty(EscfRowBuffer row, String fieldName, com.google.protobuf.ByteString byteString) {
+    private static void addFieldIfNotEmpty(EscfRowBuffer row, String fieldName, ByteString byteString) {
         if (byteString != null && byteString.isEmpty() == false) {
             row.stringField(fieldName, new XContentString.UTF8Bytes(byteString.toByteArray()));
         }

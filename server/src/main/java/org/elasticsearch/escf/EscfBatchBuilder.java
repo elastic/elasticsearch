@@ -208,7 +208,7 @@ public final class EscfBatchBuilder implements Releasable {
      */
     private void ensurePartitionBuilders(Partition partition, int size) {
         while (partition.builders.size() < size) {
-            EscfColumnBuilder builder = new EscfColumnBuilder(recycler);
+            EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler);
             for (int i = 0; i < partition.docCount; i++) {
                 builder.addAbsent();
             }

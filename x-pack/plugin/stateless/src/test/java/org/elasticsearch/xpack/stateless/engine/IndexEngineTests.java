@@ -15,9 +15,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -34,8 +37,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -433,6 +438,81 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             verify(documentSizeReporter).onParsingCompleted(eq(index.parsedDoc())); // we report parsing before indexing
             verify(documentSizeReporter, times(0)).onIndexingCompleted(eq(newIndex.parsedDoc()));
         }
+    }
+
+    public void testDocSizeIsReportedUponBatchIndex() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndex()),
+                eq(mapperService),
+                any(DocumentSizeAccumulator.class)
+            )
+        ).thenReturn(documentSizeReporter);
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                documentParsingProvider,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+            )
+        ) {
+            // Success case: all docs in the batch succeed.
+            List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
+            List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEscfBatch(ops));
+            for (int i = 0; i < results.size(); i++) {
+                assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                verify(documentSizeReporter).onParsingCompleted(eq(ops.get(i).parsedDoc()));
+                verify(documentSizeReporter).onIndexingCompleted(eq(ops.get(i).parsedDoc()));
+            }
+
+            // Failure case: a version-conflicting op does not get onIndexingCompleted.
+            Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
+            List<Engine.Index> failOps = List.of(conflictingOp);
+            List<Engine.IndexResult> failResults = engine.indexBatch(failOps, encodeAsEscfBatch(failOps));
+            assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            verify(documentSizeReporter).onParsingCompleted(eq(conflictingOp.parsedDoc()));
+            verify(documentSizeReporter, never()).onIndexingCompleted(eq(conflictingOp.parsedDoc()));
+        }
+    }
+
+    public void testHollowEngineCannotIngestBatch() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            var indexedDoc = randomDoc(String.valueOf(0));
+            engine.index(indexedDoc);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+            final var maxSeqNo = engine.getMaxSeqNo();
+
+            List<Engine.Index> batchOps = List.of(randomDoc(String.valueOf(1)));
+            expectThrows(IllegalStateException.class, () -> engine.indexBatch(batchOps, encodeAsEscfBatch(batchOps)));
+            assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
+        }
+    }
+
+    /**
+     * Encodes a list of index operations as an {@link EscfBatch}. All operations must share the same
+     * {@link XContentType}.
+     */
+    private static SourceBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            sources.add(op.source().originalBytes());
+        }
+        return EscfEncoder.encode(sources, xContentType);
     }
 
     public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,10 +26,9 @@ public class TencentCloudRerankModelTests extends ESTestCase {
         assertThat(model.uri().toString(), is("https://bj.aisearch.tencentelasticsearch.com/v1/rerank"));
     }
 
-    public void testUri_UsesOverrideWhenProvided() {
-        var override = URI.create("http://custom.example.com/v1/rerank");
-        var model = createModel(new TencentCloudCommonServiceSettings("bge-reranker-large", override, new RateLimitSettings(20)));
-        assertThat(model.uri(), is(override));
+    public void testUri_UsesRegion() {
+        var model = createModel(new TencentCloudCommonServiceSettings("bge-reranker-large", "gz", new RateLimitSettings(20)));
+        assertThat(model.uri().toString(), is("https://gz.aisearch.tencentelasticsearch.com/v1/rerank"));
     }
 
     public void testOf_EmptyOverride_ReturnsSameInstance() {

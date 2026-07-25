@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
-import java.net.URI;
-
 import static org.hamcrest.Matchers.is;
 
 public class TencentCloudEmbeddingsModelTests extends ESTestCase {
@@ -32,16 +30,15 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
         assertThat(model.getServiceSettings().modelId(), is("bge-m3"));
     }
 
-    public void testUri_UsesOverrideWhenProvided() {
-        var override = URI.create("http://custom.example.com/embeddings");
+    public void testUri_UsesRegion() {
         var settings = new TencentCloudEmbeddingsServiceSettings(
-            new TencentCloudCommonServiceSettings("bge-m3", override, new RateLimitSettings(20)),
+            new TencentCloudCommonServiceSettings("bge-m3", "sh", new RateLimitSettings(20)),
             null,
             null,
             null
         );
         var model = createModel(settings);
-        assertThat(model.uri(), is(override));
+        assertThat(model.uri().toString(), is("https://sh.aisearch.tencentelasticsearch.com/v1/embeddings"));
     }
 
     public void testCopyConstructor_UpdatesServiceSettings() {

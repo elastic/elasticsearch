@@ -60,7 +60,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 
 /**
@@ -248,6 +247,11 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public int rerankerWindowSize(String modelId) {
         // BGE reranker models (bge-reranker-large, bge-reranker-v2-m3) support up to 512-token inputs.
         // Using 1 token = 0.75 words, that is roughly 384 words. Use a conservative value with headroom.
@@ -277,15 +281,13 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
                 );
 
                 configurationMap.put(
-                    URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue(
-                        "https://bj.aisearch.tencentelasticsearch.com/v1/embeddings"
-                    )
+                    "region",
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue("bj")
                         .setDescription(
-                            "The full URL endpoint to use for the requests. Defaults to the AI Gateway endpoint corresponding to the "
-                                + "task type."
+                            "The TencentCloud AI Gateway region, e.g. bj, sh, gz. "
+                                + "The endpoint URL is constructed as https://{region}.aisearch.tencentelasticsearch.com/v1/<task-path>."
                         )
-                        .setLabel("URL")
+                        .setLabel("Region")
                         .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)

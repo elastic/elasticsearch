@@ -26,15 +26,19 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils;
 
 import java.io.IOException;
-import java.net.URI;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * Common service settings shared by all TencentCloud task types.
- * Contains the required {@code model_id}, an optional {@code url} override, and rate limit settings.
+ * Contains the required {@code model_id}, an optional {@code region} (defaults to {@code bj}), and rate limit settings.
+ * <p>
+ * The endpoint URL is not user-configurable; it is always constructed from the region and the task-specific path
+ * ({@code https://{region}.aisearch.tencentelasticsearch.com/v1/<task-path>}).
  */
 public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     implements
@@ -42,21 +46,25 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
         TencentCloudRateLimitServiceSettings {
 
     public static final String NAME = "tencentcloud_service_settings";
+    private static final String REGION = "region";
 
     // Default rate limit for TencentCloud AI Gateway (see docs).
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(20);
 
     /**
-     * Declares the common TencentCloud service-settings fields ({@code model_id}, {@code url}, {@code rate_limit},
+     * Declares the common TencentCloud service-settings fields ({@code model_id}, {@code region}, {@code rate_limit},
      * and a no-op {@code api_key}) onto the given parser so that every task-specific settings parser can reuse the
-     * same declaration.
+     * same declaration. The {@code url} field (if present) is silently consumed for backward compatibility with
+     * persisted configurations.
      */
     public static <B extends CommonSettingsBuilder> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser,
         RateLimitSettings defaultRateLimit
     ) {
         parser.declareString((b, v) -> b.setModelId(v), new ParseField(ServiceFields.MODEL_ID));
-        parser.declareString((b, v) -> b.setUrl(v), new ParseField(ServiceFields.URL));
+        parser.declareString((b, v) -> b.setRegion(v), new ParseField(REGION));
+        // Consume the legacy url field silently so that persisted configurations from older versions don't fail to parse.
+        parser.declareString((b, v) -> {}, new ParseField(ServiceFields.URL));
         parser.declareObject(
             (b, v) -> b.setRateLimitSettings(v),
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultRateLimit).apply(p, null),
@@ -68,8 +76,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Parses common settings from a map using an ObjectParser. This is the recommended way to parse task-level
-     * settings with their task-specific parser; it replaces the previous hand-written map extraction.
+     * Parses common settings from a map using an ObjectParser.
      */
     public static <T extends CommonSettingsBuilder> TencentCloudCommonServiceSettings fromMap(
         Map<String, Object> map,
@@ -80,15 +87,12 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             T builder = parser.apply(xParser, context);
             var commonSettings = builder.buildCommon();
-            // SSRF guard: only enforce the allow-list when the caller creates/updates an endpoint via the REST API.
+            // Validate region in REQUEST context.
             if (context == ConfigurationParseContext.REQUEST) {
-                TencentCloudEndpointUtils.validateEndpoint(
-                    commonSettings.uri(),
-                    ServiceFields.URL,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
-                if (validationException.validationErrors().isEmpty() == false) {
+                if (commonSettings.region().isBlank()) {
+                    validationException.addValidationError(
+                        String.format(Locale.ROOT, "[%s] in [%s] must not be empty", REGION, ModelConfigurations.SERVICE_SETTINGS)
+                    );
                     return null;
                 }
             }
@@ -108,7 +112,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     public interface CommonSettingsBuilder {
         void setModelId(String modelId);
 
-        void setUrl(String url);
+        void setRegion(String region);
 
         void setRateLimitSettings(RateLimitSettings rateLimitSettings);
 
@@ -118,20 +122,18 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     // ---- instance fields and methods ----
 
     private final String modelId;
-    @Nullable
-    private final URI uri;
+    private final String region;
     private final RateLimitSettings rateLimitSettings;
 
-    public TencentCloudCommonServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
+    public TencentCloudCommonServiceSettings(String modelId, @Nullable String region, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.uri = uri;
+        this.region = region != null && region.isBlank() == false ? region : TencentCloudUtils.DEFAULT_REGION;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public TencentCloudCommonServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        var uriString = in.readOptionalString();
-        this.uri = uriString == null ? null : URI.create(uriString);
+        this.region = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -152,7 +154,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
             return null;
         }
 
-        return new TencentCloudCommonServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
+        return new TencentCloudCommonServiceSettings(this.modelId, this.region, extractedRateLimitSettings);
     }
 
     @Override
@@ -160,9 +162,8 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
         return modelId;
     }
 
-    @Nullable
-    public URI uri() {
-        return uri;
+    public String region() {
+        return region;
     }
 
     @Override
@@ -190,9 +191,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(ServiceFields.MODEL_ID, modelId);
-        if (uri != null) {
-            builder.field(ServiceFields.URL, uri.toString());
-        }
+        builder.field(REGION, region);
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
@@ -205,7 +204,7 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeOptionalString(uri != null ? uri.toString() : null);
+        out.writeString(region);
         rateLimitSettings.writeTo(out);
     }
 
@@ -215,12 +214,12 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
         if (o == null || getClass() != o.getClass()) return false;
         TencentCloudCommonServiceSettings that = (TencentCloudCommonServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
+            && Objects.equals(region, that.region)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, rateLimitSettings);
+        return Objects.hash(modelId, region, rateLimitSettings);
     }
 }

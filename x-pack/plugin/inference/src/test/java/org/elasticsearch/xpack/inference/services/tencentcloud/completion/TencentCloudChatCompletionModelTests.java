@@ -14,21 +14,18 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
-import java.net.URI;
-
 import static org.hamcrest.Matchers.is;
 
 public class TencentCloudChatCompletionModelTests extends ESTestCase {
 
-    public void testUri_UsesDefaultWhenNoOverride() {
+    public void testUri_UsesDefaultRegion() {
         var model = createModel(new TencentCloudCommonServiceSettings("deepseek-v3", null, new RateLimitSettings(5)));
         assertThat(model.uri().toString(), is("https://bj.aisearch.tencentelasticsearch.com/v1/chat/completions"));
     }
 
-    public void testUri_UsesOverrideWhenProvided() {
-        var override = URI.create("http://custom.example.com/v1/chat/completions");
-        var model = createModel(new TencentCloudCommonServiceSettings("deepseek-v3", override, new RateLimitSettings(5)));
-        assertThat(model.uri(), is(override));
+    public void testUri_UsesCustomRegion() {
+        var model = createModel(new TencentCloudCommonServiceSettings("deepseek-v3", "sh", new RateLimitSettings(5)));
+        assertThat(model.uri().toString(), is("https://sh.aisearch.tencentelasticsearch.com/v1/chat/completions"));
     }
 
     public void testModelIdAccessor() {

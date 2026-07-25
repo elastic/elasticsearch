@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.rerank;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -22,15 +21,8 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCl
 
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class TencentCloudRerankModel extends TencentCloudModel {
-
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme(TencentCloudUtils.SCHEME)
-        .setHost(TencentCloudUtils.HOST)
-        .setPathSegments(TencentCloudUtils.VERSION_1, TencentCloudUtils.RERANK_PATH);
 
     public static TencentCloudRerankModel of(TencentCloudRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = TencentCloudRerankTaskSettings.fromMap(taskSettings);
@@ -109,7 +101,10 @@ public class TencentCloudRerankModel extends TencentCloudModel {
     }
 
     private static URI resolveUri(TencentCloudRerankServiceSettings serviceSettings) {
-        var override = serviceSettings.getCommonSettings().uri();
-        return Objects.requireNonNullElseGet(override, () -> buildUri("TencentCloud", DEFAULT_URI_BUILDER::build));
+        return TencentCloudUtils.buildUri(
+            serviceSettings.getCommonSettings().region(),
+            TencentCloudUtils.VERSION_1,
+            TencentCloudUtils.RERANK_PATH
+        );
     }
 }

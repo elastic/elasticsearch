@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateL
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -225,7 +224,7 @@ public class TencentCloudEmbeddingsServiceSettings extends FilteredXContentObjec
 
     private static class Builder implements TencentCloudCommonServiceSettings.CommonSettingsBuilder {
         private String modelId;
-        private String url;
+        private String region;
         private RateLimitSettings rateLimitSettings;
         private SimilarityMeasure similarity;
         private Integer dimensions;
@@ -237,8 +236,8 @@ public class TencentCloudEmbeddingsServiceSettings extends FilteredXContentObjec
         }
 
         @Override
-        public void setUrl(String url) {
-            this.url = url;
+        public void setRegion(String region) {
+            this.region = region;
         }
 
         @Override
@@ -260,7 +259,7 @@ public class TencentCloudEmbeddingsServiceSettings extends FilteredXContentObjec
 
         @Override
         public TencentCloudCommonServiceSettings buildCommon() {
-            return new TencentCloudCommonServiceSettings(modelId, url != null ? URI.create(url) : null, rateLimitSettings);
+            return new TencentCloudCommonServiceSettings(modelId, region, rateLimitSettings);
         }
     }
 }

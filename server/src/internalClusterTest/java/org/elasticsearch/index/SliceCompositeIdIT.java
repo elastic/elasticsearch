@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -23,17 +24,28 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -44,6 +56,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -57,13 +70,24 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // InternalSettingsPlugin registers the otherwise-unregistered index.recovery.file_based_threshold test setting.
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), InternalSettingsPlugin.class);
+    }
+
     private void createSliceIndex(String index, int replicas) {
+        createSliceIndex(index, replicas, Settings.EMPTY);
+    }
+
+    private void createSliceIndex(String index, int replicas, Settings extraSettings) {
         assertAcked(
             prepareCreate(index).setSettings(
                 Settings.builder()
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", replicas)
                     .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                    .put(extraSettings)
             ).setMapping("field", "type=keyword")
         );
         ensureGreen(index);
@@ -359,6 +383,165 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             searchSlice("peer", SliceIndexing.SLICE_ALL, QueryBuilders.matchAllQuery()),
             r -> assertThat(r.getHits().getTotalHits().value(), equalTo(1L))
         );
+    }
+
+    private ClusterState clusterState() {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+    }
+
+    private IndexShardRoutingTable shardTable(String index) {
+        return clusterState().routingTable().index(index).shard(0);
+    }
+
+    private ShardRouting primaryRouting(String index) {
+        return shardTable(index).primaryShard();
+    }
+
+    private ShardRouting replicaRouting(String index) {
+        return shardTable(index).replicaShards().get(0);
+    }
+
+    private String nodeName(String nodeId) {
+        return clusterState().nodes().get(nodeId).getName();
+    }
+
+    private RecoveryState replicaRecoveryState(String index) {
+        return indicesAdmin().prepareRecoveries(index)
+            .get()
+            .shardRecoveryStates()
+            .get(index)
+            .stream()
+            .filter(rs -> rs.getPrimary() == false)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    /** GET a slice-scoped doc pinned to a specific shard copy, so a test can read the recovered/relocated copy. */
+    private GetResponse getDocFromNode(String index, String slice, String id, String nodeId) {
+        return client().get(new GetRequest(index, id).routing(slice).setRoutingFromSlice(true).preference("_only_nodes:" + nodeId))
+            .actionGet();
+    }
+
+    /** Index the shared recovery scenario, then (after a commit) delete slice sa's id "1" and replace slice sa's id "2". */
+    private void indexSliceScenario(String index) {
+        indexDoc(index, "sa", "1", "va");
+        indexDoc(index, "sb", "1", "vb");
+        indexDoc(index, "sa", "2", "v2");
+        flush(index);
+        deleteDoc(index, "sa", "1");
+        indexDoc(index, "sa", "2", "v2-updated");
+    }
+
+    /**
+     * Asserts the slice invariant on the copy hosted by {@code nodeId}: the delete hit only slice sa's compound term
+     * (sa/1 is gone), the same id in slice sb is intact, and sa/2 reflects its latest value.
+     */
+    private void assertRecoveredSliceState(String index, String nodeId) {
+        assertThat(getDocFromNode(index, "sa", "1", nodeId).isExists(), equalTo(false));
+        GetResponse gb = getDocFromNode(index, "sb", "1", nodeId);
+        assertThat(gb.isExists(), equalTo(true));
+        assertThat(gb.getId(), equalTo("1"));
+        assertThat(gb.getSource().get("field"), equalTo("vb"));
+        assertThat(getDocFromNode(index, "sa", "2", nodeId).getSource().get("field"), equalTo("v2-updated"));
+    }
+
+    /**
+     * Ops-based (sequence-number-based) peer recovery: after a replica's node restarts having missed some slice ops, the
+     * primary replays them from its translog without copying segment files. The recovered replica must reflect that the
+     * delete hit only slice sa's compound term, leaving the same id in slice sb intact.
+     */
+    public void testSliceOpsBasedPeerRecovery() throws Exception {
+        // A 100% file-based threshold keeps recovery on the ops path as long as the peer-recovery retention lease holds.
+        createSliceIndex("ops", 1, Settings.builder().put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0).build());
+        indexDoc("ops", "sa", "1", "va");
+        indexDoc("ops", "sb", "1", "vb");
+        indexDoc("ops", "sa", "2", "v2");
+        flush("ops");
+
+        String replicaNode = nodeName(replicaRouting("ops").currentNodeId());
+        // While the replica's node is down the primary accumulates the delete/replace that recovery must replay.
+        internalCluster().restartNode(replicaNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                deleteDoc("ops", "sa", "1");
+                indexDoc("ops", "sa", "2", "v2-updated");
+                return Settings.EMPTY;
+            }
+        });
+        ensureGreen("ops");
+
+        RecoveryState recovery = replicaRecoveryState("ops");
+        assertThat(recovery.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
+        assertThat("ops-based recovery copies no files", recovery.getIndex().totalFileCount(), equalTo(0));
+        assertThat("ops-based recovery replays translog ops", recovery.getTranslog().recoveredOperations(), greaterThan(0));
+
+        refresh("ops");
+        assertRecoveredSliceState("ops", replicaRouting("ops").currentNodeId());
+    }
+
+    /**
+     * File-based ("full copy") peer recovery: allocating a fresh replica copies the primary's segment files wholesale
+     * (there is no local history to replay). The recovered replica must be slice-correct.
+     */
+    public void testSliceFileBasedPeerRecovery() throws Exception {
+        createSliceIndex("file", 0);
+        indexSliceScenario("file");
+
+        setReplicaCount(1, "file");
+        ensureGreen("file");
+
+        RecoveryState recovery = replicaRecoveryState("file");
+        assertThat(recovery.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
+        assertThat("a fresh replica is built by copying segment files", recovery.getIndex().totalFileCount(), greaterThan(0));
+
+        refresh("file");
+        assertRecoveredSliceState("file", replicaRouting("file").currentNodeId());
+    }
+
+    /**
+     * Relocation: moving the shard to another node peer-recovers it there, replaying the post-commit slice ops. The
+     * relocated copy must reflect that the delete hit only slice sa's compound term.
+     */
+    public void testSliceDocsSurviveRelocation() throws Exception {
+        createSliceIndex("reloc", 0);
+        indexSliceScenario("reloc");
+
+        String fromNode = nodeName(primaryRouting("reloc").currentNodeId());
+        String toNode = clusterState().nodes()
+            .getDataNodes()
+            .values()
+            .stream()
+            .map(DiscoveryNode::getName)
+            .filter(name -> name.equals(fromNode) == false)
+            .findFirst()
+            .orElseThrow();
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("reloc", 0, fromNode, toNode));
+        ensureGreen("reloc");
+        assertThat(nodeName(primaryRouting("reloc").currentNodeId()), equalTo(toNode));
+
+        refresh("reloc");
+        assertRecoveredSliceState("reloc", primaryRouting("reloc").currentNodeId());
+    }
+
+    /**
+     * Establishing a new replica while writes are outstanding: the fresh copy is built by a full peer recovery plus a
+     * catch-up of live slice ops. The new replica must be slice-correct, including an op indexed during recovery.
+     */
+    public void testSliceNewReplicaWithOutstandingIndexing() throws Exception {
+        createSliceIndex("newrep", 0);
+        indexSliceScenario("newrep");
+
+        setReplicaCount(1, "newrep");
+        // An op indexed while the replica is being established must be caught up by the new copy.
+        indexDoc("newrep", "sb", "2", "vb2");
+        ensureGreen("newrep");
+
+        String replicaNodeId = replicaRouting("newrep").currentNodeId();
+        refresh("newrep");
+        assertRecoveredSliceState("newrep", replicaNodeId);
+        GetResponse late = getDocFromNode("newrep", "sb", "2", replicaNodeId);
+        assertThat(late.isExists(), equalTo(true));
+        assertThat(late.getSource().get("field"), equalTo("vb2"));
     }
 
     /**

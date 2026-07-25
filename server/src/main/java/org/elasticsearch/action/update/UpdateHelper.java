@@ -184,9 +184,9 @@ public class UpdateHelper {
     static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {
         if (updateIndexRequest != null && updateIndexRequest.routing() != null) {
             return updateIndexRequest.routing();
-        } else if (getResult.getFields().containsKey(SliceIndexing.PARAM_NAME)) {
+        } else if (getResult.getFields().containsKey(SliceIndexing.FIELD_NAME)) {
             // A slice-enabled index surfaces the routing value as _slice rather than _routing.
-            return getResult.field(SliceIndexing.PARAM_NAME).getValue().toString();
+            return getResult.field(SliceIndexing.FIELD_NAME).getValue().toString();
         } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {
             return getResult.field(RoutingFieldMapper.NAME).getValue().toString();
         } else {

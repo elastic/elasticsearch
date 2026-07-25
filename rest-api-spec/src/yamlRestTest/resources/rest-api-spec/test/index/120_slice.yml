@@ -25,7 +25,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
           refresh: true
           body:   { value: va }
   - match: { _id: "1" }
@@ -35,7 +35,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          _slice: b
+          slice: b
           refresh: true
           body:   { value: vb }
   - match: { _id: "1" }
@@ -46,7 +46,7 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
   - match: { _id: "1" }
   - match: { _source.value: va }
 
@@ -54,7 +54,7 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          _slice: b
+          slice: b
   - match: { _id: "1" }
   - match: { _source.value: vb }
 
@@ -62,7 +62,7 @@ setup:
   - do:
       search:
           index:  slice_index
-          _slice: a
+          slice: a
           body:   { query: { match_all: {} } }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
@@ -71,7 +71,7 @@ setup:
   - do:
       search:
           index:  slice_index
-          _slice: _all
+          slice: _all
           body:   { query: { match_all: {} } }
   - match: { hits.total.value: 2 }
 
@@ -79,7 +79,7 @@ setup:
   - do:
       search:
           index:  slice_index
-          _slice: b
+          slice: b
           body:   { query: { ids: { values: ["1"] } } }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.value: vb }
@@ -90,14 +90,14 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
           refresh: true
           body:   { value: va }
   - do:
       index:
           index:  slice_index
           id:     "1"
-          _slice: b
+          slice: b
           refresh: true
           body:   { value: vb }
 
@@ -106,7 +106,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
           refresh: true
           body:   { value: va2 }
   - match: { result: updated }
@@ -116,14 +116,14 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
   - match: { _source.value: va2 }
 
   - do:
       get:
           index:  slice_index
           id:     "1"
-          _slice: b
+          slice: b
   - match: { _source.value: vb }
 
   # deleting _id 1 in slice a leaves slice b intact
@@ -131,7 +131,7 @@ setup:
       delete:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
           refresh: true
   - match: { result: deleted }
 
@@ -140,11 +140,75 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          _slice: a
+          slice: a
+
+  # delete and update of the now-missing (slice a, id 1) report missing/404, not a wrong-slice error
+  - do:
+      catch: missing
+      delete:
+          index:  slice_index
+          id:     "1"
+          slice: a
+
+  - do:
+      catch: missing
+      update:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          body:   { doc: { value: vX } }
 
   - do:
       get:
           index:  slice_index
           id:     "1"
-          _slice: b
+          slice: b
   - match: { _source.value: vb }
+
+---
+"An id present only in another slice is filtered out":
+  - do:
+      index:
+          index:  slice_index
+          id:     "only-a"
+          slice: a
+          refresh: true
+          body:   { value: va }
+
+  # the id exists in slice a but not slice b; reads/writes in slice b must miss, proving other slices are filtered out
+  - do:
+      catch: missing
+      get:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+
+  - do:
+      search:
+          index:  slice_index
+          slice: b
+          body:   { query: { ids: { values: ["only-a"] } } }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      catch: missing
+      delete:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+
+  - do:
+      catch: missing
+      update:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+          body:   { doc: { value: vb } }
+
+  # slice a is untouched by the missing-slice operations
+  - do:
+      get:
+          index:  slice_index
+          id:     "only-a"
+          slice: a
+  - match: { _source.value: va }

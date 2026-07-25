@@ -247,7 +247,7 @@ public final class Uid {
     public static Uid create(boolean sliceEnabled, String id, @Nullable String slice) {
         if (sliceEnabled) {
             if (slice == null) {
-                throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
+                throw new IllegalArgumentException("unable to create _id as slice is enabled but slice is null");
             }
             return of(id, slice);
         }

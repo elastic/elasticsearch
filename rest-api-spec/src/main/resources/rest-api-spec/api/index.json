@@ -75,7 +75,7 @@
         "type": "list",
         "description": "Specific routing value"
       },
-      "_slice": {
+      "slice": {
         "type": "string",
         "description": "Slice value for slice-enabled indices. Replaces routing when `index.slice.enabled` is true.",
         "visibility": "feature_flag",

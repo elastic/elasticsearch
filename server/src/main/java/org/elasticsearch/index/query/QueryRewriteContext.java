@@ -583,7 +583,7 @@ public class QueryRewriteContext {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         if (isSliceFieldAlias(pattern)) {
-            return Set.of(SliceIndexing.PARAM_NAME);
+            return Set.of(SliceIndexing.FIELD_NAME);
         }
         if (isRoutingHiddenBySlice(pattern)) {
             // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
@@ -614,7 +614,7 @@ public class QueryRewriteContext {
     }
 
     protected final boolean isSliceFieldAlias(String fieldName) {
-        return isSliceFieldAliasEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName);
+        return isSliceFieldAliasEnabled() && SliceIndexing.FIELD_NAME.equals(fieldName);
     }
 
     /**

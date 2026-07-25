@@ -28,7 +28,6 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -64,24 +63,28 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         // `FieldFetcher` constructor.
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
         // A slice-enabled index keeps routing and slicing non-overlapping: _routing is hidden from retrieval
-        // (SearchExecutionContext#getMatchingFieldNames) and the slice is surfaced as the _slice field, added below so it
-        // is returned by default.
+        // (SearchExecutionContext#getMatchingFieldNames) and the slice is surfaced top-level as the _slice metadata field
+        // (see the default metadata fields below), unless the caller explicitly fetched it into the document fields.
         final boolean sliceEnabled = searchExecutionContext.getIndexSettings().isSliceEnabled();
-        final List<FieldAndFormat> documentFields = new ArrayList<>();
-        if (fetchFieldsContext != null && fetchFieldsContext.fields() != null) {
-            for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
-                if (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
-                    || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
-                    || IdFieldMapper.NAME.equals(fieldAndFormat.field)
-                    || SourceFieldMapper.NAME.equals(fieldAndFormat.field)) {
-                    documentFields.add(fieldAndFormat);
-                }
-            }
-        }
-        if (sliceEnabled && documentFields.stream().noneMatch(f -> SliceIndexing.PARAM_NAME.equals(f.field))) {
-            documentFields.add(new FieldAndFormat(SliceIndexing.PARAM_NAME, null));
-        }
-        final FieldFetcher fieldFetcher = documentFields.isEmpty() ? null : FieldFetcher.create(searchExecutionContext, documentFields);
+        final boolean sliceExplicitlyFetched = fetchFieldsContext != null
+            && fetchFieldsContext.fields() != null
+            && fetchFieldsContext.fields().stream().anyMatch(f -> SliceIndexing.FIELD_NAME.equals(f.field));
+        final FieldFetcher fieldFetcher = (fetchFieldsContext == null
+            || fetchFieldsContext.fields() == null
+            || fetchFieldsContext.fields().isEmpty())
+                ? null
+                : FieldFetcher.create(
+                    searchExecutionContext,
+                    fetchFieldsContext.fields()
+                        .stream()
+                        .filter(
+                            fieldAndFormat -> (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
+                                || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
+                                || IdFieldMapper.NAME.equals(fieldAndFormat.field)
+                                || SourceFieldMapper.NAME.equals(fieldAndFormat.field))
+                        )
+                        .toList()
+                );
 
         // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext) like for instance the _ignored source field
         final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
@@ -124,11 +127,17 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             }
             // NOTE: Include also metadata stored fields requested via `fields`
             metadataFields.addAll(fetchContextMetadataFields);
+            if (sliceEnabled && sliceExplicitlyFetched == false) {
+                metadataFields.add(new FieldAndFormat(SliceIndexing.FIELD_NAME, null));
+            }
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
         } else {
             // NOTE: Include also metadata stored fields requested via `fields`
             final Set<FieldAndFormat> allMetadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
             allMetadataFields.addAll(fetchContextMetadataFields);
+            if (sliceEnabled && sliceExplicitlyFetched == false) {
+                allMetadataFields.add(new FieldAndFormat(SliceIndexing.FIELD_NAME, null));
+            }
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, allMetadataFields);
         }
         return new FetchSubPhaseProcessor() {

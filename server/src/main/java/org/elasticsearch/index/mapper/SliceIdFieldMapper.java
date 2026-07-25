@@ -75,7 +75,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
         /**
          * Seek the slice-free search term {@code encodeId(id + "#")} for each value. This is derived only from the
-         * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code _slice=_all}).
+         * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code slice=_all}).
          */
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
@@ -115,7 +115,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         if (slice == null) {
             // Coordinating-node validation normally rejects this first, but parsing can be reached on paths that bypass it,
             // so fail with the same message as IdFieldMapper.encodeIdentity rather than NPE in encodeCompoundId below.
-            throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
+            throw new IllegalArgumentException("unable to create _id as slice is enabled but slice is null");
         }
         final String id = context.id();
         // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes

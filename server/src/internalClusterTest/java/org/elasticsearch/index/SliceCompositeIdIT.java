@@ -122,7 +122,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(ga.getId(), equalTo("1"));
         assertThat(ga.getSource().get("field"), equalTo("va"));
         assertThat(ga.getField("_routing"), equalTo(null));
-        assertThat(ga.getField(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+        assertThat(ga.getField(SliceIndexing.FIELD_NAME).getValue(), equalTo("sa"));
         GetResponse gb = getDoc("idx", "sb", "1");
         assertThat(gb.getId(), equalTo("1"));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
@@ -134,7 +134,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo("1"));
             assertThat(hit.getSourceAsMap().get("field"), equalTo("va"));
             // The hit surfaces the slice as _slice and never leaks it as _routing.
-            assertThat(hit.field(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+            assertThat(hit.field(SliceIndexing.FIELD_NAME).getValue(), equalTo("sa"));
             assertThat(hit.field("_routing"), equalTo(null));
         });
         // _all sees both, and each hit carries its own _slice so same-id docs are distinguishable.
@@ -144,7 +144,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             for (SearchHit hit : r.getHits().getHits()) {
                 assertThat(hit.getId(), equalTo("1"));
                 assertThat(hit.field("_routing"), equalTo(null));
-                sliceByValue.put((String) hit.getSourceAsMap().get("field"), hit.field(SliceIndexing.PARAM_NAME).getValue());
+                sliceByValue.put((String) hit.getSourceAsMap().get("field"), hit.field(SliceIndexing.FIELD_NAME).getValue());
             }
             assertThat(sliceByValue, equalTo(Map.of("va", "sa", "vb", "sb")));
         });
@@ -178,12 +178,12 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
 
         SearchRequestBuilder search = prepareSearch("hidden").setQuery(QueryBuilders.matchAllQuery())
             .addFetchField("_routing")
-            .addFetchField(SliceIndexing.PARAM_NAME);
+            .addFetchField(SliceIndexing.FIELD_NAME);
         search.request().searchSlice("sa");
         assertResponse(search, r -> {
             SearchHit hit = r.getHits().getAt(0);
             assertThat(hit.field("_routing"), equalTo(null));
-            assertThat(hit.field(SliceIndexing.PARAM_NAME).getValue(), equalTo("sa"));
+            assertThat(hit.field(SliceIndexing.FIELD_NAME).getValue(), equalTo("sa"));
         });
     }
 
@@ -223,7 +223,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(indexResponse.getItems()[0].getId(), equalTo("1"));
         assertThat(indexResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertThat(indexResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        refresh("bulk");
+        maybeRefresh("bulk");
 
         assertThat(getDoc("bulk", "sa", "1").getSource().get("field"), equalTo("va"));
         assertThat(getDoc("bulk", "sb", "1").getSource().get("field"), equalTo("vb"));
@@ -234,7 +234,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         mutateBulk.add(new DeleteRequest("bulk", "1").routing("sb").setRoutingFromSlice(true));
         BulkResponse mutateResponse = client().bulk(mutateBulk).actionGet();
         assertThat(mutateResponse.buildFailureMessage(), mutateResponse.hasFailures(), equalTo(false));
-        refresh("bulk");
+        maybeRefresh("bulk");
 
         assertThat(getDoc("bulk", "sa", "1").getSource().get("field"), equalTo("va2"));
         assertThat(getDoc("bulk", "sb", "1").isExists(), equalTo(false));
@@ -266,7 +266,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(missing.getFailure(), not(equalTo(null)));
         assertThat(
             missing.getFailure().getFailure().getMessage(),
-            containsString("[_slice] is required when [index.slice.enabled] is true")
+            containsString("[slice] is required when [index.slice.enabled] is true")
         );
     }
 
@@ -394,11 +394,28 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
      * compound-term reconstruction in the translog reader — and return the plain id.
      */
     public void testRealtimeGetBeforeRefresh() {
-        createSliceIndex("rt", 1);
+        // Disable periodic refresh so the refresh-count assertion below is deterministic.
+        assertAcked(
+            prepareCreate("rt").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.refresh_interval", -1)
+                    .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            ).setMapping("field", "type=keyword")
+        );
+        ensureGreen("rt");
+
+        // The first realtime GET flips on translog-location tracking (and refreshes once); ops indexed afterwards carry a
+        // translog location, so a realtime GET reads straight from the translog instead of the get-from-searcher fallback.
+        // Warm that up before the docs under test so the assertion below exercises the translog read path.
+        indexDoc("rt", "sa", "warmup", "w");
+        getDoc("rt", "sa", "warmup");
+
         indexDoc("rt", "sa", "1", "va");
         indexDoc("rt", "sb", "1", "vb");
-        // Intentionally no refresh: GET is realtime and reads from the translog.
-
+        long refreshesBefore = refreshCount("rt");
+        // Intentionally no refresh: a realtime GET on a slice index resolves each slice's compound _id from the translog.
         GetResponse ga = getDoc("rt", "sa", "1");
         assertThat(ga.isExists(), equalTo(true));
         assertThat(ga.getId(), equalTo("1"));
@@ -406,6 +423,12 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         GetResponse gb = getDoc("rt", "sb", "1");
         assertThat(gb.isExists(), equalTo(true));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
+        // No refresh means the GETs were served from the translog, not the get-from-searcher fallback.
+        assertThat("slice realtime GET should read from the translog, not refresh", refreshCount("rt"), equalTo(refreshesBefore));
+    }
+
+    private long refreshCount(String index) {
+        return indicesAdmin().prepareStats(index).clear().setRefresh(true).get().getTotal().getRefresh().getTotal();
     }
 
     /**

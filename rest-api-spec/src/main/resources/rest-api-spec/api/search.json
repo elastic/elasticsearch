@@ -138,7 +138,7 @@
         "type": "list",
         "description": "A comma-separated list of specific routing values"
       },
-      "_slice": {
+      "slice": {
         "type": "string",
         "description": "Slice value for slice-enabled indices. Replaces routing when `index.slice.enabled` is true. Use `_all` to search across all slices.",
         "visibility": "feature_flag",

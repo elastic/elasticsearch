@@ -475,20 +475,20 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // A slice-enabled index keeps routing internal: it never exposes _routing and surfaces the slice (stored as
-        // routing doc values, not a stored field) as the _slice document field instead, mirroring search.
+        // routing doc values, not a stored field) top-level as the _slice metadata field instead, mirroring search.
         if (indexSettings.isSliceEnabled()) {
-            if (metadataFields != null) {
-                metadataFields.remove(RoutingFieldMapper.NAME);
-            }
-            if (documentFields == null || documentFields.containsKey(SliceIndexing.PARAM_NAME) == false) {
+            if (metadataFields == null || metadataFields.containsKey(SliceIndexing.FIELD_NAME) == false) {
                 SortedDocValues routingDocValues = DocValues.getSorted(docIdAndVersion.reader, RoutingFieldMapper.NAME);
                 if (routingDocValues.advanceExact(docIdAndVersion.docId)) {
                     String sliceValue = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
-                    if (documentFields == null) {
-                        documentFields = new HashMap<>();
+                    if (metadataFields == null) {
+                        metadataFields = new HashMap<>();
                     }
-                    documentFields.put(SliceIndexing.PARAM_NAME, new DocumentField(SliceIndexing.PARAM_NAME, List.of(sliceValue)));
+                    metadataFields.put(SliceIndexing.FIELD_NAME, new DocumentField(SliceIndexing.FIELD_NAME, List.of(sliceValue)));
                 }
+            }
+            if (metadataFields != null) {
+                metadataFields.remove(RoutingFieldMapper.NAME);
             }
         }
 

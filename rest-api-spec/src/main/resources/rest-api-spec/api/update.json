@@ -77,9 +77,9 @@
         "type": "list",
         "description": "Specific routing value"
       },
-      "_slice": {
+      "slice": {
         "type": "string",
-        "description": "Slice routing value, used instead of routing when the index has index.slice.enabled set to true",
+        "description": "Slice value for a slice-enabled index (`index.slice.enabled=true`); required in place of routing",
         "visibility": "feature_flag",
         "feature_flag": "es.slice_indexing_feature_flag_enabled"
       },

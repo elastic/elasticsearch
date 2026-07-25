@@ -738,10 +738,10 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
-        if (sliceEnabled && SliceIndexing.PARAM_NAME.equals(mapper.leafName())) {
+        if (sliceEnabled && SliceIndexing.FIELD_NAME.equals(mapper.leafName())) {
             throw new IllegalArgumentException(
                 "["
-                    + SliceIndexing.PARAM_NAME
+                    + SliceIndexing.FIELD_NAME
                     + "] is a reserved field name and cannot be used when ["
                     + IndexSettings.SLICE_ENABLED.getKey()
                     + "] is true"

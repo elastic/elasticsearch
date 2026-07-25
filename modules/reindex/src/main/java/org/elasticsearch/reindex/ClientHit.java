@@ -72,7 +72,7 @@ class ClientHit implements PaginatedHitSource.Hit {
     public String getRouting() {
         // A slice-enabled index never exposes _routing; it surfaces the routing value as _slice instead.
         String routing = fieldValue(RoutingFieldMapper.NAME);
-        return routing != null ? routing : fieldValue(SliceIndexing.PARAM_NAME);
+        return routing != null ? routing : fieldValue(SliceIndexing.FIELD_NAME);
     }
 
     @Override

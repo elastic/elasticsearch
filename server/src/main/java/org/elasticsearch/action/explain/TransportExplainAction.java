@@ -182,7 +182,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             request.filteringAlias(),
             null,
             request.getSplitShardCountSummary(),
-            // Provide the _slice routing to the search request for downstream filter application
+            // Provide the slice routing to the search request for downstream filter application
             request.isRoutingFromSlice() ? request.routing() : null
         );
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);

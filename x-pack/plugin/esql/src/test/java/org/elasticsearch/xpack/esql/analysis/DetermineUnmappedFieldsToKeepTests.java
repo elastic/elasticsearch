@@ -176,9 +176,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testRenameThenEval() {
         // The RENAME target ("x") and the EVAL output ("y") each shadow a same-named unmapped source field.
-        UnmappedFieldsPattern pattern = patternOf(
-            test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x | EVAL y = 2"))
-        );
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x | EVAL y = 2")));
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("x", "y"));
     }

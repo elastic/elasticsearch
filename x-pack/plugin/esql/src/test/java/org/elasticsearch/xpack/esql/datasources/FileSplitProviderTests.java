@@ -1170,6 +1170,31 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A probe read that fails must fail the query. Probes run on other threads and each one only ever adds a
+     * boundary, so an I/O error that did not travel back out of the gather would leave the file quietly split at
+     * the boundaries the surviving probes happened to find.
+     */
+    public void testAFailedProbeReadFailsDiscovery() throws Exception {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        // The first stream any probe opens fails; planning reads nothing, so no other read can be the first.
+        StreamTracking tracking = new StreamTracking(1, 1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        RuntimeException failure;
+        try {
+            failure = expectThrows(
+                RuntimeException.class,
+                () -> discoverPlainCsvSplits(Map.of("broken.csv", payload), 256 * 1024, executor, tracking)
+            );
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat(failure.getCause(), instanceOf(IOException.class));
+        assertEquals("connection reset", failure.getCause().getMessage());
+    }
+
+    /**
      * A cancel landing between two probes is seen by the next one before it opens a stream, so a query cancelled
      * part-way through a file's offsets fails rather than reading out the rest of them.
      */
@@ -1366,6 +1391,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     private static final class StreamTracking {
         private static final long OVERLAP_WAIT_MILLIS = 5_000;
+        private static final int NEVER_FAIL = 0;
 
         final AtomicInteger peakInFlight = new AtomicInteger();
         final AtomicInteger opens = new AtomicInteger();
@@ -1374,17 +1400,26 @@ public class FileSplitProviderTests extends ESTestCase {
         final AtomicInteger objects = new AtomicInteger();
         private final AtomicInteger inFlight = new AtomicInteger();
         private final CountDownLatch overlap;
+        /** Ordinal of the stream whose reads fail, standing in for a mid-probe I/O error, or {@link #NEVER_FAIL}. */
+        private final int failReadsOnOpen;
 
         StreamTracking(int expectedOverlap) {
-            this.overlap = new CountDownLatch(expectedOverlap);
+            this(expectedOverlap, NEVER_FAIL);
         }
 
-        void opened() throws InterruptedException {
-            opens.incrementAndGet();
+        StreamTracking(int expectedOverlap, int failReadsOnOpen) {
+            this.overlap = new CountDownLatch(expectedOverlap);
+            this.failReadsOnOpen = failReadsOnOpen;
+        }
+
+        /** @return the ordinal of the stream just opened, counting from one */
+        int opened() throws InterruptedException {
+            int ordinal = opens.incrementAndGet();
             int current = inFlight.incrementAndGet();
             peakInFlight.accumulateAndGet(current, Math::max);
             overlap.countDown();
             overlap.await(OVERLAP_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+            return ordinal;
         }
 
         void closed() {
@@ -1450,11 +1485,20 @@ public class FileSplitProviderTests extends ESTestCase {
                 if (tracking == null) {
                     return delegate;
                 }
+                int ordinal;
                 try {
-                    tracking.opened();
+                    ordinal = tracking.opened();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new AssertionError("interrupted while tracking stream", e);
+                }
+                if (ordinal == tracking.failReadsOnOpen) {
+                    return new InputStream() {
+                        @Override
+                        public int read() throws IOException {
+                            throw new IOException("connection reset");
+                        }
+                    };
                 }
                 return new FilterInputStream(delegate) {
                     @Override
@@ -1632,7 +1676,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
-    // -- strided macro-split discovery: fixed probe offsets, independent probes --
+    // strided macro-split discovery: fixed probe offsets, independent probes
 
     /**
      * A strided (newline-terminated) record splitter. Plain-mode CSV turns quoting off, so every newline

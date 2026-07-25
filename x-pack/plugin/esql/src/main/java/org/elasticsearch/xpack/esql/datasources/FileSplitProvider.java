@@ -434,8 +434,11 @@ public class FileSplitProvider implements SplitProvider {
                 splits.addAll(planResult.splits());
             } else {
                 List<Long> starts = boundariesByPlan.get(i);
-                // A file is only deferred when it has offsets to probe, so the probe phase always answers for it.
-                assert starts != null : "no probed boundaries for deferred file " + planResult.deferred().filePath();
+                if (starts == null) {
+                    // A file is only deferred when it has offsets to probe, so the probe phase answers for every
+                    // deferred file. Fail loud rather than on a null if that ever stops holding.
+                    throw new IllegalStateException("no probed boundaries for deferred file " + planResult.deferred().filePath());
+                }
                 splits.addAll(buildNewlineMacroSplits(planResult.deferred(), starts));
             }
         }

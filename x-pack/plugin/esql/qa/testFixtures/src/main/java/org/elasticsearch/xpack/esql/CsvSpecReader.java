@@ -15,12 +15,15 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -495,6 +498,12 @@ public final class CsvSpecReader {
      * is inherently flaky: it may pass consistently on one segment layout and fail on another. The check
      * fires at spec-load time so violations are reported before any test method executes.
      * <p>
+     * The check is skipped when ordering is provably irrelevant:
+     * <ul>
+     *   <li>The test declares {@code ignoreOrder: true}.</li>
+     *   <li>The query has no {@code FROM} source (pure {@code ROW}/{@code EVAL} — always deterministic).</li>
+     *   <li>All expected data rows are identical strings (any permutation produces the same result).</li>
+     * </ul>
      * By default the violation is logged at {@code WARN} level. Set the system property
      * {@code tests.csv.strict.ordering=true} to turn violations into hard failures, which is useful for
      * enforcing the policy on individual modules once their existing violations are cleaned up.
@@ -503,11 +512,12 @@ public final class CsvSpecReader {
         if (testCase.ignoreOrder) {
             return;
         }
-        // Count data rows: first non-blank non-directive line is the header; the rest are data.
-        int dataRows = 0;
+        // Collect data rows: first non-blank non-directive non-comment line is the header; the rest are data.
+        List<String> dataRowLines = new ArrayList<>();
         boolean headerSeen = false;
         for (String line : testCase.expectedResults.split("\\r?\\n")) {
-            if (line.isBlank()) {
+            // Mirror SpecReader.shouldSkipLine: blank, // comments, and # comments are not data.
+            if (line.isBlank() || line.startsWith("//") || line.startsWith("#")) {
                 continue;
             }
             String lower = line.toLowerCase(Locale.ROOT);
@@ -520,15 +530,24 @@ public final class CsvSpecReader {
             if (headerSeen == false) {
                 headerSeen = true;
             } else {
-                dataRows++;
+                dataRowLines.add(line);
             }
         }
-        if (dataRows < 2) {
+        if (dataRowLines.size() < 2) {
+            return;
+        }
+        // If all data rows are identical the result set is order-independent: any permutation matches.
+        Set<String> distinct = new HashSet<>(dataRowLines);
+        if (distinct.size() == 1) {
+            return;
+        }
+        // Pure ROW/EVAL queries (no FROM source) produce deterministic ordering; no SORT needed.
+        if (hasFromSource(testCase.query) == false) {
             return;
         }
         if (hasTopLevelSort(testCase.query) == false) {
             String message = "Query has "
-                + dataRows
+                + dataRowLines.size()
                 + " expected rows but no top-level SORT. "
                 + "Add `| SORT <stable_field>` to the query or set `ignoreOrder: true` in the spec.\n"
                 + "Query: "
@@ -537,6 +556,24 @@ public final class CsvSpecReader {
                 throw new IllegalArgumentException(message);
             }
             logger.warn(message);
+        }
+    }
+
+    /**
+     * Returns {@code true} when the query contains at least one {@link UnresolvedRelation} leaf —
+     * i.e., a {@code FROM} clause that reads from an external index. Pure {@code ROW}/{@code EVAL}
+     * pipelines produce deterministic output and never need a {@code SORT} for stable test results.
+     * Returns {@code true} on parse failure so that a bad query is not double-reported here.
+     */
+    private static boolean hasFromSource(String query) {
+        if (SPEC_PARSER == null) {
+            return true;
+        }
+        try {
+            LogicalPlan plan = SPEC_PARSER.parseQuery(query);
+            return plan.anyMatch(n -> n instanceof UnresolvedRelation);
+        } catch (Exception e) {
+            return true;
         }
     }
 

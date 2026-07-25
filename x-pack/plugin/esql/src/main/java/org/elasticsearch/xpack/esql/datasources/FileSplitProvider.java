@@ -176,6 +176,12 @@ public class FileSplitProvider implements SplitProvider {
      * each boundary probe a small, predictable ranged GET instead of a range opened to end-of-file. A probe drains
      * the window in full (see {@link #probeStridedBoundary}) so the connection is pooled for the next probe to
      * reuse; the window is bounded so that drain stays cheap.
+     * <p>
+     * Doubles as the floor on the strided probe stride (see {@link #newlineMacroSplitCandidate}): a stride below
+     * the window would put several probe offsets inside one window's worth of file, each drained in full, while
+     * materializing a probe task per stride offset — {@code fileLength / stride} of them, unbounded below. Flooring
+     * the stride to the window caps a file's probe count at {@code fileLength / window} and keeps every probe's
+     * window disjoint from its neighbours'.
      */
     static final long MACRO_SPLIT_PROBE_WINDOW_BYTES = 256 * 1024;
 
@@ -1181,9 +1187,11 @@ public class FileSplitProvider implements SplitProvider {
         RecordSplitter splitter = segmentableReader.recordSplitter(maxRecordBytes);
         long minSegment = segmentableReader.minimumSegmentSize();
         // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
-        // Anything else keeps the sequential walk and carries no positions.
+        // Anything else keeps the sequential walk and carries no positions. The stride is floored to the probe
+        // window so a tiny target_split_size cannot materialize a probe per stride offset (unbounded below);
+        // see MACRO_SPLIT_PROBE_WINDOW_BYTES.
         List<Long> positions = splitter.supportsStridedProbing()
-            ? macroSplitProbePositions(fileLength, targetStrideBytes, minSegment)
+            ? macroSplitProbePositions(fileLength, Math.max(targetStrideBytes, MACRO_SPLIT_PROBE_WINDOW_BYTES), minSegment)
             : List.of();
         return new DeferredNewlineSplits(
             filePath,

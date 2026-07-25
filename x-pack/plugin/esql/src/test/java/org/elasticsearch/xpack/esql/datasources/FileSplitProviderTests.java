@@ -736,8 +736,11 @@ public class FileSplitProviderTests extends ESTestCase {
             return -1L;
         });
 
+        // The stride is floored to the probe window, so both it and the payload are sized in windows: several
+        // strides' worth of file, with slack past the last offset so the final split is not a runt.
+        long stride = FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES;
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 4000; i++) {
+        while (sb.length() < 4 * stride + stride / 2) {
             sb.append(lineContent);
         }
         byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -750,7 +753,6 @@ public class FileSplitProviderTests extends ESTestCase {
 
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
 
-        long stride = 3000;
         FileSplitProvider splitter = new FileSplitProvider(
             stride,
             new DecompressionCodecRegistry(),
@@ -1043,6 +1045,22 @@ public class FileSplitProviderTests extends ESTestCase {
         int probes = FileSplitProvider.macroSplitProbePositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertThat("the payload must offer several offsets to probe", probes, greaterThan(1));
         assertEquals("an offset that finds nothing must not suppress the others", probes, tracking.opens.get());
+    }
+
+    /**
+     * A target split size below the probe window is floored to the window: below it, probe offsets stop being
+     * disjoint (several land inside one window's worth of file, each drained in full) and the number of probe
+     * tasks materialized during planning is {@code fileLength / stride}, unbounded below. Flooring caps a file's
+     * probes at {@code fileLength / window}, so a tiny stride must probe exactly as a window-sized one does.
+     */
+    public void testTargetStrideBelowTheProbeWindowIsFlooredToTheWindow() {
+        Map<String, byte[]> payloads = Map.of("tiny-stride.csv", delimitedPayload("a,b,c\n"));
+
+        List<ExternalSplit> floored = discoverPlainCsvSplits(payloads, 1024, null, null);
+        List<ExternalSplit> atWindow = discoverPlainCsvSplits(payloads, FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES, null, null);
+
+        assertThat("the file must still macro-split", floored.size(), greaterThan(1));
+        assertEquals("a sub-window stride must split exactly like a window-sized one", describe(atWindow), describe(floored));
     }
 
     /**

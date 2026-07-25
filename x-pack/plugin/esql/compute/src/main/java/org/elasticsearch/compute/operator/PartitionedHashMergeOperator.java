@@ -336,10 +336,11 @@ public class PartitionedHashMergeOperator implements Operator {
             for (int w = 0; w < workerCount; w++) {
                 workerBlockFactories[w] = driverContext.createChildBlockFactory();
             }
-            this.noneTable = newTable(noneAggFactories, driverContext.blockFactory());
+            this.noneTable = newTable(noneAggFactories, driverContext.blockFactory(), driverContext);
             this.workerTables = new Table[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
-                workerTables[p] = newTable(workerAggFactories, workerBlockFactories[p % workerCount]);
+                BlockFactory wf = workerBlockFactories[p % workerCount];
+                workerTables[p] = newTable(workerAggFactories, wf, driverContext.withBlockFactory(wf));
             }
             this.workerBuffers = new ExchangeBuffer[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
@@ -480,9 +481,17 @@ public class PartitionedHashMergeOperator implements Operator {
             pendingTasks.finishTask();
         }
         if (allWorkersDone.isDone()) {
+            // Close output BEFORE releasing worker block factories: tables inside output return
+            // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
+            Releasables.close(noneTable, output);
+            noneTable = null;
+            output = null;
             closeWorkerResources();
+        } else {
+            // Workers still running; they (or the PendingTasks callback) will call
+            // closeWorkerResources() once they finish, by which point output is already gone.
+            Releasables.close(noneTable, output);
         }
-        Releasables.close(noneTable, output);
     }
 
     @Override
@@ -781,13 +790,23 @@ public class PartitionedHashMergeOperator implements Operator {
         return new Page(blocks);
     }
 
-    private Table newTable(List<GroupingAggregator.Factory> factories, BlockFactory blockFactory) {
+    /**
+     * Creates a {@link Table} backed by the given {@code blockFactory} for its {@link BlockHash}
+     * and the given {@code aggContext} for its aggregators. Using a per-worker {@code aggContext}
+     * (with the worker's own {@link org.elasticsearch.compute.data.LocalCircuitBreaker}) is
+     * required when the table will be accessed from a background worker thread: aggregator state
+     * such as {@link org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus} tracks
+     * heap allocations through {@code DriverContext.breaker()}, which is not thread-safe, so
+     * sharing the coordinator driver's context across concurrent workers causes races on
+     * {@code LocalCircuitBreaker.reservedBytes} and leaks bytes in the parent circuit breaker.
+     */
+    private Table newTable(List<GroupingAggregator.Factory> factories, BlockFactory blockFactory, DriverContext aggContext) {
         BlockHash blockHash = BlockHash.build(internalGroupSpecs, blockFactory, aggregationBatchSize, false);
         boolean success = false;
         try {
             List<GroupingAggregator> aggregators = new ArrayList<>(factories.size());
             for (GroupingAggregator.Factory f : factories) {
-                aggregators.add(f.apply(driverContext));
+                aggregators.add(f.apply(aggContext));
             }
             Table table = new Table(blockHash, aggregators);
             success = true;

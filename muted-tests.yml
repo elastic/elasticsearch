@@ -748,3 +748,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/153848
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.get_alias/10_basic/Get aliases via /_alias/*}
+  issue: https://github.com/elastic/elasticsearch/issues/155013

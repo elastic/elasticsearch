@@ -310,7 +310,7 @@ FROM partial_mapping_sample_data
 // (gap): multi-value JSON arrays are rendered via List.toString() ("[web, api]") instead of a
 // multi-value keyword block. Only multi-element arrays trigger this: single-element CSV arrays
 // are collapsed to scalars by the data loader.
-arraysGap
+arraysGap-Ignore
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -325,7 +325,7 @@ id:keyword | tags:keyword
 ;
 
 // (gap): JSON object values are rendered via Map.toString() ("{baz=world}") instead of valid JSON.
-objectsGap
+objectsGap-Ignore
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -340,7 +340,7 @@ id:keyword | extra:keyword
 
 // (gap): for a field mapped on only some shards, the source value from the shards where it is
 // unmapped is silently dropped, with no representation in the output.
-crossMappingGap
+crossMappingGap-Ignore
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;

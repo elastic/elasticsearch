@@ -31,6 +31,7 @@ $$$percentiles-bucket-params$$$
 | `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 | `percents` | The list of percentiles to calculate | Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]` |
 | `keyed` | Flag which returns the range as an hash instead of an array of key-value pairs | Optional | `true` |
+| `interpolation` | The method used to calculate values between input data points: `none` returns the nearest input point, while `linear` interpolates between the surrounding points | Optional | `none` |
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
@@ -122,6 +123,7 @@ And the following may be the response:
 
 The percentiles are calculated exactly and is not an approximation (unlike the Percentiles Metric). This means the implementation maintains an in-memory, sorted list of your data to compute the percentiles, before discarding the data. You may run into memory pressure issues if you attempt to calculate percentiles over many millions of data-points in a single `percentiles_bucket`.
 
-The Percentile Bucket returns the nearest input data point to the requested percentile, rounding indices toward positive infinity; it does not interpolate between data points. For example, if there are eight data points and you request the `50%th` percentile, it will return the `4th` item because `ROUND_UP(.50 * (8-1))` is `4`.
+By default, the Percentile Bucket returns the nearest input data point to the requested percentile. This is the `none` interpolation method and preserves the historical behavior: the rank is calculated as `p / 100 * (n - 1)` and rounded with ties toward positive infinity. For example, if there are eight data points and you request the `50%th` percentile, it returns the `4th` item because `ROUND(.50 * (8-1))` is `4`.
 
+Set `interpolation` to `linear` to calculate a value between the surrounding input data points. The same rank is used, with the values at the lower and upper integer ranks combined according to the fractional part of the rank. Values at the minimum, maximum, or an exact integer rank are returned unchanged.
 

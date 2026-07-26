@@ -28,9 +28,40 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     public static final String NAME = "percentiles_bucket";
     static final ParseField PERCENTS_FIELD = new ParseField("percents");
     static final ParseField KEYED_FIELD = new ParseField("keyed");
+    static final ParseField INTERPOLATION_FIELD = new ParseField("interpolation");
+
+    private static final TransportVersion LINEAR_INTERPOLATION_SUPPORT = TransportVersion.fromName(
+        "percentiles_bucket_linear_interpolation"
+    );
+
+    public enum Interpolation {
+        NONE("none"),
+        LINEAR("linear");
+
+        private final String name;
+
+        Interpolation(String name) {
+            this.name = name;
+        }
+
+        public static Interpolation fromString(String name) {
+            for (Interpolation interpolation : values()) {
+                if (interpolation.name.equals(name)) {
+                    return interpolation;
+                }
+            }
+            throw new IllegalArgumentException("Unknown interpolation [" + name + "]; expected [none] or [linear]");
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
     private boolean keyed = true;
+    private Interpolation interpolation = Interpolation.NONE;
 
     public PercentilesBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });
@@ -43,12 +74,18 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         super(in, NAME);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
+        if (in.getTransportVersion().supports(LINEAR_INTERPOLATION_SUPPORT)) {
+            interpolation = in.readEnum(Interpolation.class);
+        }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
         out.writeBoolean(keyed);
+        if (out.getTransportVersion().supports(LINEAR_INTERPOLATION_SUPPORT)) {
+            out.writeEnum(interpolation);
+        }
     }
 
     /**
@@ -84,9 +121,36 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         return this;
     }
 
+    /**
+     * Get the interpolation method used to calculate percentiles between input data points.
+     */
+    public Interpolation getInterpolation() {
+        return interpolation;
+    }
+
+    /**
+     * Set the interpolation method used to calculate percentiles between input data points.
+     */
+    public PercentilesBucketPipelineAggregationBuilder setInterpolation(Interpolation interpolation) {
+        if (interpolation == null) {
+            throw new IllegalArgumentException("[interpolation] must not be null: [" + name + "]");
+        }
+        this.interpolation = interpolation;
+        return this;
+    }
+
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new PercentilesBucketPipelineAggregator(name, percents, keyed, bucketsPaths, gapPolicy(), formatter(), metadata);
+        return new PercentilesBucketPipelineAggregator(
+            name,
+            percents,
+            keyed,
+            bucketsPaths,
+            gapPolicy(),
+            formatter(),
+            metadata,
+            interpolation
+        );
     }
 
     @Override
@@ -108,12 +172,13 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
             builder.array(PERCENTS_FIELD.getPreferredName(), percents);
         }
         builder.field(KEYED_FIELD.getPreferredName(), keyed);
+        builder.field(INTERPOLATION_FIELD.getPreferredName(), interpolation.toString());
         return builder;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.zero();
+        return interpolation == Interpolation.LINEAR ? LINEAR_INTERPOLATION_SUPPORT : TransportVersion.zero();
     }
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
@@ -138,6 +203,10 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
             if (keyed != null) {
                 factory.setKeyed(keyed);
             }
+            String interpolation = (String) params.get(INTERPOLATION_FIELD.getPreferredName());
+            if (interpolation != null) {
+                factory.setInterpolation(Interpolation.fromString(interpolation));
+            }
 
             return factory;
         }
@@ -155,6 +224,9 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
             } else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN) {
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());
                 return true;
+            } else if (INTERPOLATION_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_STRING) {
+                params.put(INTERPOLATION_FIELD.getPreferredName(), parser.text());
+                return true;
             }
             return false;
         }
@@ -163,7 +235,7 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed);
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed, interpolation);
     }
 
     @Override
@@ -172,7 +244,9 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
-        return Objects.deepEquals(percents, other.percents) && Objects.equals(keyed, other.keyed);
+        return Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(interpolation, other.interpolation);
     }
 
     @Override

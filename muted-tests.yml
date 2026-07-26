@@ -754,3 +754,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/155014
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:spatial.centroidFromAirportsFilteredCountry}
+  issue: https://github.com/elastic/elasticsearch/issues/155030

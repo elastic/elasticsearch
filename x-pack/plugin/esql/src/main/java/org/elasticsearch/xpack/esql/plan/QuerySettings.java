@@ -62,7 +62,9 @@ public final class QuerySettings {
     public static final QuerySettingDef<String> PROJECT_ROUTING = QuerySettingDef.string("project_routing")
         .withServerlessOnly()
         .withPreview()
-        .withValidator((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
+        .withValidator(
+            (value, ctx) -> ctx.crossProjectEnabled() ? null : "[project_routing] is only allowed when cross-project search is enabled"
+        )
         .withRequestBody()
         .withAliasAtRoot()
         .build();

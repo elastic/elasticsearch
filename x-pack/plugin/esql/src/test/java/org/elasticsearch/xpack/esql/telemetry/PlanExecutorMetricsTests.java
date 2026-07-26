@@ -608,7 +608,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     // Expected: validation should fail because cross-project search is not enabled
                     assertThat(e, instanceOf(ParsingException.class));
-                    assertTrue(e.getMessage().contains("cross-project search not enabled"));
+                    assertTrue(e.getMessage().contains("[project_routing] is only allowed when cross-project search is enabled"));
                 }
             });
         }

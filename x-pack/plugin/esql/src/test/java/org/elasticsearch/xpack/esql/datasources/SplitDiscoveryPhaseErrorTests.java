@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -61,6 +63,28 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("gcs://bucket/files/*.csv"));
         assertThat(e.getMessage(), containsString("csv"));
         assertThat(e.getCause(), instanceOf(RuntimeException.class));
+    }
+
+    /**
+     * A user-caused failure keeps its 400. Everything that is not an {@link ElasticsearchException} used to be
+     * wrapped in a bare one, which maps to 500 -- so converting a config parser to {@link IllegalArgumentException}
+     * bought nothing on the only query path that reaches it: the status was thrown away one frame up. The wrap now
+     * preserves the type while still adding the source path and format, so the parser conversions are not cosmetic.
+     */
+    public void testIllegalArgumentExceptionKeepsClientStatusAndGainsContext() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.csv", "csv");
+        IllegalArgumentException original = new IllegalArgumentException("Invalid value for [target_split_size]: [0b]; must be positive");
+        SplitProvider failingProvider = ctx -> { throw original; };
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("csv", testFactory(failingProvider)))
+        );
+
+        assertEquals("a user-caused split-discovery failure is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/data/*.csv"));
+        assertThat(e.getMessage(), containsString("csv"));
+        assertSame("the original failure must be preserved as the cause", original, e.getCause());
     }
 
     public void testElasticsearchExceptionNotDoubleWrapped() {

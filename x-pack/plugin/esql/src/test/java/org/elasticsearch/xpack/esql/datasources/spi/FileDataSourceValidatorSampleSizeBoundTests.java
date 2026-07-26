@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 
 import java.util.Map;
@@ -31,14 +32,17 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
         return new FileDataSourceValidator("file", (raw, consumed) -> null, Set.of("file"));
     }
 
-    public void testTheReaderDefaultIsAcceptedAtRegistration() {
-        Map<String, Object> accepted = validator().validateDataset(
-            Map.of(),
-            "file:///data/events.ndjson",
-            Map.of("schema_sample_size", String.valueOf(NdJsonFormatReader.DEFAULT_SCHEMA_SAMPLE_SIZE))
-        );
-
-        assertEquals(NdJsonFormatReader.DEFAULT_SCHEMA_SAMPLE_SIZE, accepted.get("schema_sample_size"));
+    public void testEveryReaderDefaultIsAcceptedAtRegistration() {
+        // Both readers, not just one: pinning a single default leaves the other free to move above the bound and
+        // silently reopen the gap while this test stays green.
+        for (int readerDefault : new int[] { NdJsonFormatReader.DEFAULT_SCHEMA_SAMPLE_SIZE, CsvFormatReader.DEFAULT_SCHEMA_SAMPLE_SIZE }) {
+            Map<String, Object> accepted = validator().validateDataset(
+                Map.of(),
+                "file:///data/events.ndjson",
+                Map.of("schema_sample_size", String.valueOf(readerDefault))
+            );
+            assertEquals(readerDefault, accepted.get("schema_sample_size"));
+        }
     }
 
     public void testAValueJustAboveTheOldBoundIsAccepted() {

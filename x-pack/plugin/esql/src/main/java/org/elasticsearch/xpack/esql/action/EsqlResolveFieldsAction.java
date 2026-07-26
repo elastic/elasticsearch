@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
@@ -122,13 +123,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
                 remoteRequest.indicesOptions(
-                    IndicesOptions.builder(remoteRequest.indicesOptions())
-                        .indexAbstractionOptions(
-                            IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
-                                .resolveViews(true)
-                                .resolveDatasets(true)
-                        )
-                        .build()
+                    remoteResolveOptions(remoteRequest.indicesOptions(), DatasetRewriter.wildcardsMatchDatasets())
                 );
                 transportService.sendRequest(
                     conn,
@@ -167,6 +162,22 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
      */
     private static List<String> qualify(String clusterAlias, Set<String> names) {
         return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
+    }
+
+    /**
+     * Options for the outgoing remote field-caps request. Views are always resolved; datasets only when
+     * {@code wildcardsMatchDatasets} — the shared gate. Off => the remote reports no datasets, so a remote wildcard
+     * (or exact dataset name) falls through to ordinary remote index resolution instead of throwing. Package-private
+     * so the gate is unit-testable without a cross-cluster harness.
+     */
+    static IndicesOptions remoteResolveOptions(IndicesOptions base, boolean wildcardsMatchDatasets) {
+        return IndicesOptions.builder(base)
+            .indexAbstractionOptions(
+                IndicesOptions.IndexAbstractionOptions.builder(base.indexAbstractionOptions())
+                    .resolveViews(true)
+                    .resolveDatasets(wildcardsMatchDatasets)
+            )
+            .build();
     }
 
     private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {

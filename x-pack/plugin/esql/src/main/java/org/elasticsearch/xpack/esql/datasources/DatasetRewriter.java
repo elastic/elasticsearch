@@ -59,7 +59,7 @@ import java.util.Set;
  * relation also targets non-dataset abstractions. {@link #rewrite}/{@link #rewriteOne} then consume that
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
  *
- * <p>Whether a wildcard may resolve to a dataset is governed by {@link #DATASET_WILDCARDS_FEATURE_FLAG}: when it is off
+ * <p>Whether a wildcard may resolve to a dataset is governed by {@link #wildcardsMatchDatasets()}: when it is off
  * (the release default) a dataset is reachable only by an exact name, so a wildcard resolves to indices exactly as it
  * did before datasets existed. Index expressions are otherwise untouched.
  */
@@ -78,15 +78,16 @@ public final class DatasetRewriter {
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
         .build();
 
+    private static final FeatureFlag DATASET_WILDCARDS_FEATURE_FLAG = new FeatureFlag("esql_dataset_wildcards");
+
     /**
-     * When enabled, a wildcard FROM pattern can resolve to datasets. When off — the default in release builds —
-     * datasets are reachable only by an exact name: a wildcard resolves to indices only, exactly as it did before
-     * datasets existed. Explicitly naming a dataset alongside an index still unions (heterogeneous FROM is unaffected);
-     * only accidental wildcard-to-dataset matching is gated. Index expressions (wildcards, exclusions, aliases, data
-     * streams) are
-     * never affected; this only governs whether a wildcard may pull in a dataset.
+     * The single gate every rail reads — local dispatch/resolve and the remote field-caps rail — so the
+     * wildcard-to-dataset decision has one home. Off in release builds (see the class javadoc for the semantics). The
+     * gating is permanent: when the cluster-setting / SET control replaces the flag, only this body changes.
      */
-    public static final FeatureFlag DATASET_WILDCARDS_FEATURE_FLAG = new FeatureFlag("esql_dataset_wildcards");
+    public static boolean wildcardsMatchDatasets() {
+        return DATASET_WILDCARDS_FEATURE_FLAG.isEnabled();
+    }
 
     private DatasetRewriter() {}
 
@@ -97,7 +98,7 @@ public final class DatasetRewriter {
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      *
-     * @param wildcardDatasets when {@code false} (the release-build default, see {@link #DATASET_WILDCARDS_FEATURE_FLAG})
+     * @param wildcardDatasets when {@code false} (the release-build default, see {@link #wildcardsMatchDatasets()})
      *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
      *                         so the wildcard resolves to indices only.
      */
@@ -187,7 +188,7 @@ public final class DatasetRewriter {
      * dataset-free project is a no-op.
      */
     public static LogicalPlan rewriteUnsecured(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
-        return rewriteUnsecured(parsed, projectMetadata, iner, DATASET_WILDCARDS_FEATURE_FLAG.isEnabled());
+        return rewriteUnsecured(parsed, projectMetadata, iner, wildcardsMatchDatasets());
     }
 
     /** Package-private overload letting tests drive the wildcard-dataset flag without the {@code static final} field. */

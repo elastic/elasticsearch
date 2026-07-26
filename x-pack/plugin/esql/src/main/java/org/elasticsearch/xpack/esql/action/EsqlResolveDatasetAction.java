@@ -94,7 +94,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             request.rawPatterns(),
             project.metadata(),
             indexNameExpressionResolver,
-            DatasetRewriter.DATASET_WILDCARDS_FEATURE_FLAG.isEnabled()
+            DatasetRewriter.wildcardsMatchDatasets()
         );
         listener.onResponse(
             new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())

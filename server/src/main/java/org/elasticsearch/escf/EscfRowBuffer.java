@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -18,30 +19,14 @@ import org.elasticsearch.xcontent.XContentString;
 import java.util.Arrays;
 
 /**
- * A mutable, single-row staging buffer for ESCF column-major encoding — the write-side dual of
- * {@link org.elasticsearch.sourcebatch.SourceRow}.
+ * Mutable single-row staging buffer for ESCF column-major encoding — the write-side dual of
+ * {@link org.elasticsearch.sourcebatch.SourceRow}. Does not implement {@code SourceRow} because
+ * there are no finished columns, the buffer is partial and mutable, and it grows the schema as
+ * fields are encountered.
  *
- * <p>Both types index one row by leaf-column against a {@link SourceSchema}, but they serve
- * opposite roles: {@link org.elasticsearch.sourcebatch.SourceRow} (implemented by {@code EscfRow})
- * is an immutable <em>read</em> view over finished column vectors, whereas {@code EscfRowBuffer} is
- * a mutable <em>write</em> buffer of staged values that feed {@link EscfColumnBuilder}s when
- * committed via {@link EscfBatchBuilder#commit}. It deliberately does <em>not</em> implement
- * {@code SourceRow}: there are no finished columns, the buffer is partial and mutable, and it
- * grows the schema as fields are encountered.
- *
- * <p>Usage:
- * <ol>
- *   <li>Call {@link #beginRow()} to reset the buffer for a new row (or call
- *       {@link EscfBatchBuilder#beginRow()}, which does this and returns the buffer).</li>
- *   <li>Populate fields using {@link #startObject}/{@link #endObject} and the leaf writers
- *       ({@link #longField}, {@link #stringField}, etc.).</li>
- *   <li>Call {@link EscfBatchBuilder#commit} to drain the staged values into column builders.</li>
- * </ol>
- *
- * <p>Both the x-content and protobuf frontends write into this buffer; the shared
- * {@link EscfBatchBuilder} backend drains it. The staged-value model uses
- * {@link SourceValueType} constants and is thus format-neutral. If EIRF or other formats ever need
- * this, it could move to {@code org.elasticsearch.sourcebatch} as a {@code SourceRowBuffer}.
+ * <p>Usage: call {@link #beginRow()} (or {@link EscfBatchBuilder#beginRow()}), populate fields
+ * via {@link #startObject}/{@link #endObject} and the leaf writers, then call
+ * {@link EscfBatchBuilder#commit} to drain into column builders.
  */
 public final class EscfRowBuffer {
 
@@ -59,8 +44,7 @@ public final class EscfRowBuffer {
     private int parentDepth;
 
     /**
-     * Whether {@link #beginRow()} has been called for the current row and
-     * {@link EscfBatchBuilder#commit} has not yet been called.
+     * Whether {@link #beginRow()} has been called but {@link EscfBatchBuilder#commit} has not.
      * Package-private so {@link EscfBatchBuilder#commit} can reset it after draining.
      */
     boolean rowStarted;
@@ -75,11 +59,7 @@ public final class EscfRowBuffer {
         // parentStack[0] = 0 (root) is already set by zero-initialization
     }
 
-    /**
-     * Resets the buffer for a new row. Clears scratch type and var slots for all known columns,
-     * resets the duplicate-detection bitset, and positions the parent context at the root.
-     * Must be called before any field writes.
-     */
+    /** Resets the buffer for a new row. Must be called before any field writes. */
     public void beginRow() {
         int columnCountBefore = schema.leafCount();
         Arrays.fill(scratchType, 0, Math.min(columnCountBefore, scratchType.length), (byte) 0);
@@ -89,11 +69,7 @@ public final class EscfRowBuffer {
         rowStarted = true;
     }
 
-    /**
-     * Descends into the named nested object, pushing the current parent context. The non-leaf
-     * index is resolved via the shared schema (idempotent). Must be paired with
-     * {@link #endObject()}.
-     */
+    /** Descends into a named nested object, pushing the parent context. Pair with {@link #endObject()}. */
     public void startObject(String name) {
         int nonLeafIdx = schema.appendNonLeaf(name, parentStack[parentDepth]);
         parentDepth++;
@@ -101,17 +77,12 @@ public final class EscfRowBuffer {
         parentStack[parentDepth] = nonLeafIdx;
     }
 
-    /**
-     * Exits the current nested object, restoring the parent context.
-     */
+    /** Exits the current nested object, restoring the parent context. */
     public void endObject() {
         parentDepth--;
     }
 
-    /**
-     * Encodes an empty object ({@code {}}) as a zero-byte {@code KEY_VALUE} leaf, keeping it
-     * distinguishable from an absent field. Returns the leaf column index.
-     */
+    /** Encodes an empty object as a zero-byte {@code KEY_VALUE} leaf, keeping it distinct from absent. Returns the leaf column index. */
     public int emptyObject(String name) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.KEY_VALUE;
@@ -119,10 +90,7 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /**
-     * Stages a long value for {@code name} under the current parent. Uses {@code INT} encoding if
-     * the value fits in an {@code int} range, {@code LONG} otherwise. Returns the leaf column index.
-     */
+    /** Stages a long; uses {@code INT} encoding if the value fits in int range. Returns the leaf column index. */
     public int longField(String name, long value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
@@ -130,12 +98,7 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /**
-     * Stages a double value for {@code name} under the current parent. Uses {@code FLOAT} encoding
-     * if the value round-trips exactly through {@code float}, {@code DOUBLE} otherwise. In both
-     * cases the value is stored as {@code Double.doubleToRawLongBits(value)} in the numeric slot.
-     * Returns the leaf column index.
-     */
+    /** Stages a double; uses {@code FLOAT} encoding if it round-trips exactly through float. Returns the leaf column index. */
     public int doubleField(String name, double value) {
         int colIdx = addLeaf(name);
         float fval = (float) value;
@@ -144,10 +107,7 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /**
-     * Stages a UTF-8 string value for {@code name} under the current parent. Returns the leaf
-     * column index.
-     */
+    /** Stages a UTF-8 string value. Returns the leaf column index. */
     public int stringField(String name, XContentString.UTF8Bytes value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
@@ -155,28 +115,19 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /**
-     * Stages a UTF-8 string value for {@code name} from a raw byte slice. Convenience overload
-     * that wraps the slice into a {@link XContentString.UTF8Bytes}. Returns the leaf column index.
-     */
+    /** Stages a UTF-8 string value from a raw byte slice. Returns the leaf column index. */
     public int stringField(String name, byte[] bytes, int offset, int length) {
         return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
     }
 
-    /**
-     * Stages a boolean value for {@code name} under the current parent. Returns the leaf column
-     * index.
-     */
+    /** Stages a boolean value. Returns the leaf column index. */
     public int booleanField(String name, boolean value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
         return colIdx;
     }
 
-    /**
-     * Stages an explicit JSON null for {@code name} under the current parent. Returns the leaf
-     * column index.
-     */
+    /** Stages an explicit null. Returns the leaf column index. */
     public int nullField(String name) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.NULL;
@@ -184,10 +135,8 @@ public final class EscfRowBuffer {
     }
 
     /**
-     * Stages an inline array payload for {@code name} under the current parent. {@code arrayType}
-     * must be {@link SourceValueType#FIXED_ARRAY} or {@link SourceValueType#UNION_ARRAY};
-     * {@code packed} is the corresponding byte payload produced by
-     * {@link org.elasticsearch.sourcebatch.SourceBatchEncodeHelper}. Returns the leaf column index.
+     * Stages a packed inline array ({@link SourceValueType#FIXED_ARRAY} or
+     * {@link SourceValueType#UNION_ARRAY}). Returns the leaf column index.
      */
     public int arrayField(String name, byte arrayType, byte[] packed) {
         int colIdx = addLeaf(name);
@@ -196,7 +145,33 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    // ── Package-private read-back — used only by EscfBatchBuilder to drain into column builders ──
+    /**
+     * Stages a {@code LONG} array by reference from {@code values[0, size)}, skipping the pack/unpack
+     * round trip. The buffer must not be mutated until committed. Returns the leaf column index.
+     */
+    public int longArrayField(String name, long[] values, int size) {
+        return stageColumnarArray(name, EscfColumnKind.LONG, values, size);
+    }
+
+    /**
+     * Stages a {@code DOUBLE} array from raw-bit values ({@link Double#doubleToRawLongBits}).
+     * See {@link #longArrayField} for buffer constraints. Returns the leaf column index.
+     */
+    public int doubleArrayField(String name, long[] rawBits, int size) {
+        return stageColumnarArray(name, EscfColumnKind.DOUBLE, rawBits, size);
+    }
+
+    private int stageColumnarArray(String name, byte elemKind, long[] values, int size) {
+        int colIdx = addLeaf(name);
+        // Reuse the FIXED_ARRAY scratch type; the drain distinguishes a staged columnar array from a
+        // packed byte[] by the scratchVar runtime type (StagedColumnarArray vs byte[]).
+        scratchType[colIdx] = SourceValueType.FIXED_ARRAY;
+        scratchVar[colIdx] = new StagedColumnarArray(elemKind, values, size);
+        return colIdx;
+    }
+
+    /** A fixed-width array staged by reference; {@code elemKind} is {@link EscfColumnKind#LONG} or {@link EscfColumnKind#DOUBLE}. */
+    record StagedColumnarArray(byte elemKind, long[] values, int size) {}
 
     byte scratchType(int col) {
         return scratchType[col];
@@ -229,10 +204,7 @@ public final class EscfRowBuffer {
         if (size <= scratchType.length) {
             return;
         }
-        int cap = scratchType.length;
-        while (cap < size) {
-            cap <<= 1;
-        }
+        int cap = ArrayUtil.oversize(size, Byte.BYTES);
         scratchType = Arrays.copyOf(scratchType, cap);
         scratchNumeric = Arrays.copyOf(scratchNumeric, cap);
         scratchVar = Arrays.copyOf(scratchVar, cap);

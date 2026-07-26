@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToIntFunction;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_COUNTS_FIELD;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_INDICES_FIELD;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.MAX_FIELD;
@@ -110,16 +111,9 @@ public final class MetricEscfConverter {
             addLong(Double.doubleToRawLongBits(v));
         }
 
-        byte[] packAsLong() {
-            return packLongArray(buf, size);
-        }
-
-        byte[] packAsDouble() {
-            return packDoubleArray(buf, size);
-        }
-
-        void reset() {
-            size = 0;
+        /** The backing buffer; only {@code [0, size)} is meaningful and it may be larger. */
+        long[] buffer() {
+            return buf;
         }
     }
 
@@ -286,7 +280,12 @@ public final class MetricEscfConverter {
         // temporality (optional)
         String temporality = MetricDocumentBuilder.temporalityToString(group.temporality());
         if (temporality != null) {
-            XContentString.UTF8Bytes temporalityUtf8 = TEMPORALITY_UTF8.getOrDefault(temporality, utf8(temporality));
+            // Look up the pre-encoded bytes; fall back to a fresh encode only for an unknown value.
+            // (getOrDefault would evaluate utf8(temporality) unconditionally, defeating the cache.)
+            XContentString.UTF8Bytes temporalityUtf8 = TEMPORALITY_UTF8.get(temporality);
+            if (temporalityUtf8 == null) {
+                temporalityUtf8 = utf8(temporality);
+            }
             row.stringField(MetricDocumentBuilder.TEMPORALITY_FIELD, temporalityUtf8);
         }
 
@@ -482,8 +481,6 @@ public final class MetricEscfConverter {
         return new PackedAnyArray(SourceBatchEncodeHelper.packUnionArray(types, numerics, vars, n), SourceValueType.UNION_ARRAY);
     }
 
-    // ---- Metric value writers ----
-
     private static void buildMetricValue(
         EscfRowBuffer row,
         DataPoint dataPoint,
@@ -550,9 +547,7 @@ public final class MetricEscfConverter {
             case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDoubleToRow(row, metricName, dp.getSum(), dp.getCount());
             case TDIGEST -> buildTDigestFromHistToRow(row, metricName, dp);
             case HISTOGRAM_RAW -> buildRawHistogramFromHistToRow(row, metricName, dp);
-            case EXPONENTIAL_HISTOGRAM -> throw new UnsupportedOperationException(
-                "EXPONENTIAL_HISTOGRAM mapping for explicit-bucket HistogramDataPoint is not yet implemented in MetricEscfConverter"
-            );
+            case EXPONENTIAL_HISTOGRAM -> buildExponentialFromHistToRow(row, metricName, histogram);
         }
     }
 
@@ -575,8 +570,8 @@ public final class MetricEscfConverter {
         TDigestConverter.counts(dp, counts::addLong);
         TDigestConverter.centroidValues(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
+        row.longArrayField("counts", counts.buffer(), counts.size);
+        row.doubleArrayField("values", values.buffer(), values.size);
         row.endObject();
     }
 
@@ -586,8 +581,8 @@ public final class MetricEscfConverter {
         TDigestConverter.counts(dp, counts::addLong);
         TDigestConverter.centroidValues(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
+        row.longArrayField("counts", counts.buffer(), counts.size);
+        row.doubleArrayField("values", values.buffer(), values.size);
         row.endObject();
     }
 
@@ -598,8 +593,8 @@ public final class MetricEscfConverter {
         RawHistogramConverter.counts(dp, counts::addLong);
         RawHistogramConverter.values(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
+        row.longArrayField("counts", counts.buffer(), counts.size);
+        row.doubleArrayField("values", values.buffer(), values.size);
         row.endObject();
     }
 
@@ -609,8 +604,8 @@ public final class MetricEscfConverter {
         RawHistogramConverter.counts(dp, counts::addLong);
         RawHistogramConverter.values(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
+        row.longArrayField("counts", counts.buffer(), counts.size);
+        row.doubleArrayField("values", values.buffer(), values.size);
         row.endObject();
     }
 
@@ -662,22 +657,72 @@ public final class MetricEscfConverter {
             return;
         }
         row.startObject(fieldName);
-        row.arrayField(BUCKET_INDICES_FIELD, SourceValueType.FIXED_ARRAY, indices.packAsLong());
-        row.arrayField(BUCKET_COUNTS_FIELD, SourceValueType.FIXED_ARRAY, counts.packAsLong());
+        row.longArrayField(BUCKET_INDICES_FIELD, indices.buffer(), indices.size);
+        row.longArrayField(BUCKET_COUNTS_FIELD, counts.buffer(), counts.size);
         row.endObject();
     }
 
-    // ---- Array packing helpers ----
-
-    private static byte[] packLongArray(long[] values, int size) {
-        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, values, new Object[size], size);
+    /**
+     * Writes an explicit-bucket {@link HistogramDataPoint} as a native exponential_histogram, mirroring
+     * {@link ExponentialHistogramConverter#buildExponentialHistogram(HistogramDataPoint, io.opentelemetry.proto.metrics.v1.AggregationTemporality, org.elasticsearch.xcontent.XContentBuilder, ExponentialHistogramConverter.BucketBuffer)}.
+     * The re-bucketing algorithm is shared via {@link ExponentialHistogramConverter#computeBuckets}; only
+     * the emit differs (columnar rows here vs. XContent there).
+     */
+    private static void buildExponentialFromHistToRow(EscfRowBuffer row, String metricName, DataPoint.Histogram histogram) {
+        HistogramDataPoint dp = histogram.dataPoint();
+        ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+        row.startObject(metricName);
+        row.longField(SCALE_FIELD, MAX_SCALE);
+        if (ExponentialHistogramConverter.computeBuckets(dp, histogram.metric().getHistogram().getAggregationTemporality(), scratch)) {
+            writeComputedExponentialBucketsToRow(row, scratch);
+            if (dp.hasSum()) {
+                row.doubleField(SUM_FIELD, dp.getSum());
+            }
+            if (dp.hasMin()) {
+                row.doubleField(MIN_FIELD, dp.getMin());
+            }
+            if (dp.hasMax()) {
+                row.doubleField(MAX_FIELD, dp.getMax());
+            }
+        }
+        row.endObject();
     }
 
-    private static byte[] packDoubleArray(long[] bits, int size) {
-        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.DOUBLE, bits, new Object[size], size);
+    /** Emits the zero/negative/positive buckets from {@code b} in the same order as {@code BucketBuffer.writeBuckets}. */
+    private static void writeComputedExponentialBucketsToRow(EscfRowBuffer row, ExponentialHistogramConverter.BucketBuffer b) {
+        if (b.zeroCount() > 0) {
+            row.startObject(ZERO_FIELD);
+            row.longField(ZERO_COUNT_FIELD, b.zeroCount());
+            row.endObject();
+        }
+        int negative = b.negativeSize();
+        if (negative > 0) {
+            // Negatives are stored highest-to-lowest index; emit in inverse to get lowest-to-highest.
+            long[] indices = new long[negative];
+            long[] counts = new long[negative];
+            for (int i = 0; i < negative; i++) {
+                indices[i] = b.negativeIndex(negative - 1 - i);
+                counts[i] = b.negativeCount(negative - 1 - i);
+            }
+            row.startObject(NEGATIVE_FIELD);
+            row.longArrayField(BUCKET_INDICES_FIELD, indices, negative);
+            row.longArrayField(BUCKET_COUNTS_FIELD, counts, negative);
+            row.endObject();
+        }
+        int positive = b.positiveSize();
+        if (positive > 0) {
+            long[] indices = new long[positive];
+            long[] counts = new long[positive];
+            for (int i = 0; i < positive; i++) {
+                indices[i] = b.positiveIndex(i);
+                counts[i] = b.positiveCount(i);
+            }
+            row.startObject(POSITIVE_FIELD);
+            row.longArrayField(BUCKET_INDICES_FIELD, indices, positive);
+            row.longArrayField(BUCKET_COUNTS_FIELD, counts, positive);
+            row.endObject();
+        }
     }
-
-    // ---- Miscellaneous helpers ----
 
     private static XContentString.UTF8Bytes utf8(String s) {
         return new XContentString.UTF8Bytes(s.getBytes(StandardCharsets.UTF_8));

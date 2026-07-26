@@ -26,31 +26,14 @@ import java.util.Arrays;
 
 /**
  * Value-at-a-time accumulator for a single ESCF leaf column, serialized into an {@link EscfColumnData}
- * by {@link #finish(int)}. Serves both the format encoders and the Lucene mappers from one class whose
- * scalar&harr;array collision behavior is chosen by a {@link CollisionPolicy}:
+ * by {@link #finish(int)}. The {@link CollisionPolicy} governs scalar&harr;array collision behavior:
+ * {@link CollisionPolicy#MERGE} coalesces a scalar and a compatible-kind array into one
+ * {@link EscfColumnKind#ARRAY} column; {@link CollisionPolicy#SPLIT} promotes them to
+ * {@link EscfColumnKind#UNION} to preserve per-row shape for faithful round-trip.
  *
- * <ul>
- *   <li>{@link CollisionPolicy#MERGE} (Lucene): a scalar and an array of compatible child kind coalesce
- *       into an {@link EscfColumnKind#ARRAY} column (a scalar row becomes a one-element range); a second
- *       value for the same row promotes to array. Lucene fields are inherently multi-valued, so the
- *       scalar-vs-array distinction is not preserved.</li>
- *   <li>{@link CollisionPolicy#SPLIT} (format/x-content/protobuf): a scalar row and an array row in the
- *       same column promote to {@link EscfColumnKind#UNION}, preserving each row's shape even when the
- *       element type matches, for faithful round-trip.</li>
- * </ul>
- *
- * <p>Two call surfaces feed the same positional core: an <b>append</b> surface ({@code addX}, one value
- * per row in row order, {@code addAbsent} for gaps) used by the format frontends, and a <b>positional</b>
- * surface ({@code setX(row, value)} with non-decreasing rows, gaps are absent) plus an array
- * <b>element-append</b> surface ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one
- * {@code lastWrittenRow} cursor; a value whose row equals the last written row is a second value for that
- * row (multi-value).
- *
- * <p>A typed columnar {@link EscfColumnKind#ARRAY} column that later meets a conflicting value — a
- * different child kind, a heterogeneous / nested / object array, a key-value, an explicit null, or (under
- * {@link CollisionPolicy#SPLIT}) a scalar — is rewritten in place into a {@link EscfColumnKind#UNION} of
- * inline arrays by {@link #rewriteArrayToUnion}, streaming the already-built child bytes into the union
- * buffer (bulk-copy for fixed-width children).
+ * <p>Two call surfaces: an <b>append</b> surface ({@code addX}/{@code addAbsent}, in row order) and a
+ * <b>positional</b> surface ({@code setX(row, value)}, non-decreasing rows) plus element-append
+ * ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one {@code lastWrittenRow} cursor.
  *
  * <p>Not thread-safe.
  */
@@ -95,11 +78,8 @@ public final class EscfColumnBuilder {
         return lastWrittenRow == -1;
     }
 
-    // ── Hints (advisory: pre-select the starting state to skip discovery/promotion) ────────────────
-
     /**
-     * Hints that this column is a scalar of {@code kind}. Advisory: if a later value diverges, the normal
-     * promotion still fires. Applied only before the first value.
+     * Hints that this column is a scalar of {@code kind}.
      */
     public void hintScalar(byte kind) {
         if (canHint()) {
@@ -108,9 +88,7 @@ public final class EscfColumnBuilder {
     }
 
     /**
-     * Hints that this column is a columnar array with elements of {@code childKind}. Advisory. Note this
-     * forces an {@link EscfColumnKind#ARRAY} column even for single-valued rows, so use it only for fields
-     * that are genuinely always arrays.
+     * Hints that this column is an array with elements of {@code childKind}.
      */
     public void hintArray(byte childKind) {
         if (canHint()) {
@@ -120,7 +98,7 @@ public final class EscfColumnBuilder {
         }
     }
 
-    /** Hints that this column is heterogeneous. Advisory; starts a {@link EscfColumnKind#UNION} directly. */
+    /** Hints that this column is heterogeneous. */
     public void hintUnion() {
         if (canHint()) {
             UnionBuilder union = new UnionBuilder(recycler);
@@ -133,8 +111,6 @@ public final class EscfColumnBuilder {
         return current == null && arrayOpen == false;
     }
 
-    // ── Append surface (one value per row, in order) ──────────────────────────────────────────────
-
     public void addAbsent() {
         if (current == null) {
             leadingAbsents++;
@@ -143,10 +119,7 @@ public final class EscfColumnBuilder {
         }
     }
 
-    /**
-     * Records {@code n} consecutive absent rows. More efficient than calling {@link #addAbsent()}
-     * {@code n} times because each typed builder can bulk-write its absent representation.
-     */
+    /** Records {@code n} consecutive absent rows; more efficient than {@code n} {@link #addAbsent()} calls. */
     public void addAbsents(int n) {
         if (n <= 0) {
             return;
@@ -174,15 +147,9 @@ public final class EscfColumnBuilder {
         setString(nextAppendRow(), utf8);
     }
 
-    public void addBinary(XContentString.UTF8Bytes bytes) {
-        setBinary(nextAppendRow(), bytes);
-    }
-
     /**
-     * Adds an array value in its inline packed form. A fixed array of one primitive element kind (or an
-     * empty array) is decoded into the columnar child; a heterogeneous / nested / object array, or a
-     * child-kind change against an existing array column, goes inline on a union (rewriting the columnar
-     * array if necessary).
+     * Adds a packed inline array. Fixed single-kind arrays are decoded into the columnar child;
+     * heterogeneous/nested arrays, or a child-kind mismatch, go inline on a union (rewriting if needed).
      */
     public void addArray(byte arrayType, byte[] packed) {
         int row = nextAppendRow();
@@ -208,14 +175,51 @@ public final class EscfColumnBuilder {
         lastWrittenRow = row;
     }
 
+    /**
+     * Adds a {@code LONG} array row from {@code values[0, size)}, avoiding a packed {@code byte[]}
+     * intermediate. The buffer may be larger than {@code size} but must not be mutated until committed.
+     */
+    public void addLongArray(long[] values, int size) {
+        addColumnarFixedArray(EscfColumnKind.LONG, values, size);
+    }
+
+    /**
+     * Adds a {@code DOUBLE} array row from raw-bit values ({@link Double#doubleToRawLongBits}).
+     * See {@link #addLongArray} for buffer constraints.
+     */
+    public void addDoubleArray(long[] rawBits, int size) {
+        addColumnarFixedArray(EscfColumnKind.DOUBLE, rawBits, size);
+    }
+
+    private void addColumnarFixedArray(byte elemKind, long[] values, int size) {
+        int row = nextAppendRow();
+        fillGapTo(row);
+        ArrayBuilder ab = prepareColumnarArrayRow(elemKind);
+        if (ab != null) {
+            ab.startRow();
+            for (int i = 0; i < size; i++) {
+                ab.appendFixedBits(elemKind, values[i]);
+            }
+        } else {
+            // Column is (or became) a union — scalar+array under SPLIT, or a child-kind mismatch.
+            // Stream the array inline on the union as a FIXED_ARRAY slot, matching the byte layout of
+            // rewriteArrayToUnion / SourceBatchEncodeHelper.packFixedArray ([elemType][raw LE values]).
+            UnionBuilder ub = (UnionBuilder) current;
+            ub.beginInlineSlot(SourceValueType.FIXED_ARRAY);
+            ub.slotByte(childInlineType(elemKind));
+            for (int i = 0; i < size; i++) {
+                ub.slotLongLE(values[i]);
+            }
+            ub.endInlineSlot();
+        }
+        lastWrittenRow = row;
+    }
+
     public void addNull() {
         setNull(nextAppendRow());
     }
 
-    /**
-     * Adds a key-value value (an object's entries in inline kv form). There is no native key-value column
-     * kind, so this promotes to a union holding the bytes inline.
-     */
+    /** Adds an object's entries in inline kv form. No native key-value column kind; promotes to union. */
     public void addKeyValue(byte[] packed) {
         int row = nextAppendRow();
         fillGapTo(row);
@@ -223,8 +227,6 @@ public final class EscfColumnBuilder {
         ((UnionBuilder) current).addInlineArray(SourceValueType.KEY_VALUE, packed);
         lastWrittenRow = row;
     }
-
-    // ── Positional scalar surface (non-decreasing rows) ───────────────────────────────────────────
 
     public void setLong(int row, long value) {
         if (row == lastWrittenRow) {
@@ -271,10 +273,6 @@ public final class EscfColumnBuilder {
         setBytes(row, EscfColumnKind.STRING, value.bytes, value.offset, value.length);
     }
 
-    public void setBinary(int row, XContentString.UTF8Bytes value) {
-        setBytes(row, EscfColumnKind.BINARY, value.bytes(), value.offset(), value.length());
-    }
-
     public void setBinary(int row, BytesRef value) {
         setBytes(row, EscfColumnKind.BINARY, value.bytes, value.offset, value.length);
     }
@@ -294,8 +292,6 @@ public final class EscfColumnBuilder {
         }
         newRowScalar(row, kind, 0L, 0.0, bytes, off, len);
     }
-
-    // ── Array element-append surface ──────────────────────────────────────────────────────────────
 
     /** Opens an array cell for {@code row}; elements are supplied via {@code appendX} until {@link #endArray}. */
     public void beginArray(int row) {
@@ -369,8 +365,6 @@ public final class EscfColumnBuilder {
         arrayOpen = false;
     }
 
-    // ── Finish / discard ──────────────────────────────────────────────────────────────────────────
-
     /**
      * Determines the column kind and serialises it. An all-absent (or empty) column finishes as
      * {@link EscfColumnKind#LONG} with an all-absent bitset.
@@ -400,8 +394,6 @@ public final class EscfColumnBuilder {
         }
     }
 
-    // ── Internal routing ──────────────────────────────────────────────────────────────────────────
-
     /** The next fresh row index for the append surface. */
     private int nextAppendRow() {
         return current == null ? leadingAbsents : current.rowsConsumed();
@@ -414,8 +406,9 @@ public final class EscfColumnBuilder {
             leadingAbsents = row;
         } else {
             assert row >= current.rowsConsumed() : "row " + row + " already consumed " + current.rowsConsumed();
-            while (current.rowsConsumed() < row) {
-                current.addAbsent();
+            int gap = row - current.rowsConsumed();
+            if (gap > 0) {
+                current.addAbsents(gap);
             }
         }
     }
@@ -509,10 +502,9 @@ public final class EscfColumnBuilder {
     }
 
     /**
-     * Prepares {@code current} to accept a columnar array row of {@code childKind}, creating an
-     * {@link ArrayBuilder} or (MERGE) promoting a compatible scalar. Returns the array builder, or
-     * {@code null} when the value must instead be inlined on a union — in which case {@code current} has
-     * been left as a {@link UnionBuilder}.
+     * Prepares {@code current} to accept a columnar array row of {@code childKind}. Returns the
+     * {@link ArrayBuilder}, or {@code null} if the value must go inline on a union (in which case
+     * {@code current} is a {@link UnionBuilder}).
      */
     private ArrayBuilder prepareColumnarArrayRow(byte childKind) {
         if (current == null) {
@@ -544,8 +536,7 @@ public final class EscfColumnBuilder {
 
     /**
      * Handles a heterogeneous element inside an open element-append array: rewrites the columnar array to a
-     * union, re-opens the current row as an inline {@code UNION_ARRAY} slot carrying its already-appended
-     * (homogeneous) elements, then appends the conflicting element.
+     * union, re-opens the current row as a {@code UNION_ARRAY} slot, then appends the conflicting element.
      */
     private void heterogeneousArrayElement(byte typeByte, long longBits, double dbl, byte[] bytes, int off, int len) {
         assert current instanceof ArrayBuilder;
@@ -596,11 +587,10 @@ public final class EscfColumnBuilder {
     }
 
     /**
-     * Rewrites the first {@code upToRow} rows of {@code ab} into a fresh {@link UnionBuilder}: each present
-     * non-empty row becomes an inline {@code FIXED_ARRAY} slot (fixed-width children are bulk-copied), each
-     * present empty row a {@code UNION_ARRAY} zero-length slot, each absent row a {@code ABSENT} slot. The
-     * remaining rows {@code [upToRow, rowsConsumed)} are left for the caller (used by
-     * {@link #heterogeneousArrayElement}, which re-opens the open row).
+     * Rewrites the first {@code upToRow} rows of {@code ab} into a fresh {@link UnionBuilder}: present
+     * non-empty rows become {@code FIXED_ARRAY} slots (fixed children bulk-copied), present empty rows
+     * become zero-length {@code UNION_ARRAY} slots, absent rows become {@code ABSENT} slots.
+     * Rows {@code [upToRow, rowsConsumed)} are left for the caller.
      */
     private UnionBuilder rewriteArrayToUnion(ArrayBuilder ab, int upToRow) {
         ab.seal();
@@ -634,6 +624,7 @@ public final class EscfColumnBuilder {
         }
         if (upToRow == ab.rowsConsumed()) {
             ab.childData.close();
+            ab.consumed = true;
         }
         return union;
     }
@@ -657,6 +648,7 @@ public final class EscfColumnBuilder {
             }
         }
         ab.childData.close();
+        ab.consumed = true;
     }
 
     private static byte childInlineType(byte childKind) {
@@ -711,8 +703,6 @@ public final class EscfColumnBuilder {
         };
     }
 
-    // ── Typed builders ────────────────────────────────────────────────────────────────────────────
-
     private interface TypedBuilder {
 
         byte kind();
@@ -762,7 +752,7 @@ public final class EscfColumnBuilder {
             return count;
         }
 
-        /** Marks the current document absent, materialising and backfilling the validity bitset on the first absence. */
+        /** Marks the current row absent, materialising the validity bitset on first absence. */
         final void advanceAbsent() {
             if (validity == null) {
                 validity = new FixedBitSet(Math.max(64, count + 1));
@@ -773,11 +763,7 @@ public final class EscfColumnBuilder {
             count++;
         }
 
-        /**
-         * Marks {@code n} consecutive documents absent in one shot. Cheaper than calling
-         * {@link #advanceAbsent()} {@code n} times: materialises the validity bitset once and
-         * grows it once rather than once per row.
-         */
+        /** Marks {@code n} consecutive rows absent; materialises and grows the validity bitset once. */
         final void bulkAdvanceAbsent(int n) {
             if (n == 0) return;
             if (validity == null) {
@@ -891,20 +877,24 @@ public final class EscfColumnBuilder {
                 offsets[i] = i * 8;
             }
             offsets[count] = count * 8;
-            // Adopts the positional data buffer verbatim.
-            return new UnionBuilder(data, typeVec, offsets, count * 8, count, validity);
+            // Adopts the positional data buffer verbatim; null out to prevent double-close via discard().
+            RecyclerBytesStreamOutput adopted = data;
+            data = null;
+            return new UnionBuilder(adopted, typeVec, offsets, count * 8, count, validity);
         }
 
         @Override
         public ArrayBuilder promoteToArray(Recycler<BytesRef> recycler) {
             int[] rowOffsets = new int[Math.max(16, count + 1)];
             if (validity == null) {
-                // Dense: positional == element-packed. Adopt the data buffer with no copy.
+                // Dense: positional == element-packed. Adopt the data buffer; null out to prevent double-close via discard().
                 int[] childOffsets = new int[Math.max(16, count + 2)];
                 for (int i = 0; i < count; i++) {
                     rowOffsets[i] = i;
                 }
-                return new ArrayBuilder(kind, data, childOffsets, rowOffsets, count, count * 8, count, null);
+                RecyclerBytesStreamOutput adopted = data;
+                data = null;
+                return new ArrayBuilder(kind, adopted, childOffsets, rowOffsets, count, count * 8, count, null);
             }
             // Sparse: compact present slots into a fresh element-packed stream (the [swap]).
             BytesReference positional = data.bytes();
@@ -926,6 +916,7 @@ public final class EscfColumnBuilder {
                 throw new UncheckedIOException(e);
             }
             data.close();
+            data = null; // handed off to the fresh childData above; null out so discard() does not double-close.
             return new ArrayBuilder(kind, childData, childOffsets, rowOffsets, elemCount, childDataLen, count, validity);
         }
 
@@ -937,7 +928,7 @@ public final class EscfColumnBuilder {
 
         @Override
         public void discard() {
-            data.close();
+            if (data != null) data.close();
         }
     }
 
@@ -963,6 +954,11 @@ public final class EscfColumnBuilder {
         @Override
         public void addAbsent() {
             advanceAbsent();
+        }
+
+        @Override
+        public void addAbsents(int n) {
+            bulkAdvanceAbsent(n);
         }
 
         @Override
@@ -1039,8 +1035,10 @@ public final class EscfColumnBuilder {
             }
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            // Adopts both the data buffer and the offset array.
-            return new UnionBuilder(data, typeVec, offsets, dataLen, count, validity);
+            // Adopts both the data buffer and the offset array; null out to prevent double-close via discard().
+            RecyclerBytesStreamOutput adopted = data;
+            data = null;
+            return new UnionBuilder(adopted, typeVec, offsets, dataLen, count, validity);
         }
 
         @Override
@@ -1050,12 +1048,15 @@ public final class EscfColumnBuilder {
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
             int[] rowOffsets = new int[Math.max(16, count + 1)];
+            // Adopts data; null out to prevent double-close via discard().
+            RecyclerBytesStreamOutput adopted = data;
+            data = null;
             if (validity == null) {
                 // Dense: one element per row. Reuse the per-doc offsets as the per-element child offsets.
                 for (int i = 0; i < count; i++) {
                     rowOffsets[i] = i;
                 }
-                return new ArrayBuilder(kind, data, offsets, rowOffsets, count, dataLen, count, null);
+                return new ArrayBuilder(kind, adopted, offsets, rowOffsets, count, dataLen, count, null);
             }
             int[] childOffsets = new int[Math.max(16, count + 2)];
             int elemCount = 0;
@@ -1067,7 +1068,7 @@ public final class EscfColumnBuilder {
                 }
             }
             childOffsets[elemCount] = dataLen;
-            return new ArrayBuilder(kind, data, childOffsets, rowOffsets, elemCount, dataLen, count, validity);
+            return new ArrayBuilder(kind, adopted, childOffsets, rowOffsets, elemCount, dataLen, count, validity);
         }
 
         @Override
@@ -1080,19 +1081,13 @@ public final class EscfColumnBuilder {
 
         @Override
         public void discard() {
-            data.close();
+            if (data != null) data.close();
         }
     }
 
     /**
-     * ARRAY: a columnar list layout — a per-row element-range offset vector over a dense element-packed
-     * child. Rows are opened via {@link #startRow} (present) or {@link #addAbsent} (absent); elements are
-     * appended into the current row. Built either from element-append / decoded inline arrays, or by
-     * adopting a scalar builder's value buffer ({@link TypedBuilder#promoteToArray}).
-     *
-     * <p>Under SPLIT a validity bitset distinguishes a present empty array {@code []} from an absent row;
-     * under MERGE (which never produces distinct empty arrays) the array carries null validity and an
-     * absent row is simply an empty element range (Lucene does not distinguish {@code []} from absent).
+     * ARRAY: per-row element-range offsets over a dense element-packed child. Under SPLIT a validity
+     * bitset distinguishes a present empty array from absent; under MERGE an absent row is an empty range.
      */
     private static final class ArrayBuilder extends BaseBuilder {
         private byte childKind;
@@ -1104,6 +1099,8 @@ public final class EscfColumnBuilder {
         private int elemCount;
         private int childDataLen;
         private boolean sealed;
+        /** Set once {@code childData} has been closed by a rewrite/replay; makes {@link #discard()} idempotent. */
+        private boolean consumed;
 
         ArrayBuilder(byte childKind, boolean splitValidity, Recycler<BytesRef> recycler) {
             this.childKind = childKind;
@@ -1189,6 +1186,15 @@ public final class EscfColumnBuilder {
             elemCount++;
         }
 
+        /** Appends an 8-byte element from its raw bit pattern; avoids a bits→double→bits round trip. */
+        void appendFixedBits(byte elemKind, long bits) {
+            resolveKind(elemKind);
+            recordElemOffset();
+            writeLongLE(childData, bits);
+            childDataLen += Long.BYTES;
+            elemCount++;
+        }
+
         private void resolveKind(byte k) {
             if (childKind == UNSET_ARRAY_KIND) {
                 childKind = k;
@@ -1255,7 +1261,9 @@ public final class EscfColumnBuilder {
 
         @Override
         public void discard() {
-            childData.close();
+            if (consumed == false) {
+                childData.close();
+            }
         }
     }
 
@@ -1370,6 +1378,15 @@ public final class EscfColumnBuilder {
             advanceAbsent();
         }
 
+        @Override
+        public void addAbsents(int n) {
+            offsets = ensureIntCapacity(offsets, count + n);
+            typeVec = ensureByteCapacity(typeVec, count + n);
+            Arrays.fill(typeVec, count, count + n, SourceValueType.ABSENT);
+            Arrays.fill(offsets, count, count + n, dataLen);
+            bulkAdvanceAbsent(n);
+        }
+
         private void prep(byte type) {
             offsets = ensureIntCapacity(offsets, count + 1);
             typeVec = ensureByteCapacity(typeVec, count + 1);
@@ -1418,6 +1435,7 @@ public final class EscfColumnBuilder {
         out.writeByte(value);
     }
 
+    // TODO: Add first class on RecyclerBytesStreamOutput
     private static void writeIntLE(RecyclerBytesStreamOutput out, int value) {
         out.writeByte((byte) value);
         out.writeByte((byte) (value >>> 8));

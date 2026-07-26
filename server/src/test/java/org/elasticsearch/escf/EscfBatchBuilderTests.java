@@ -30,15 +30,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-/**
- * Tests for {@link EscfBatchBuilder} (the shared column-building backend) and
- * {@link EscfRowBuffer} (the named scratch row). Covers scalars, nested objects, empty objects,
- * fixed arrays, absent backfill, multiple partitions, and null fields.
- *
- * <p>Round-trip equivalence is verified by reconstructing each row via
- * {@link EirfRowToXContent#writeRow} and comparing the resulting JSON map against a reference
- * JSON document parsed the same way, so key order and numeric width do not affect the assertion.
- */
 public class EscfBatchBuilderTests extends ESTestCase {
 
     public void testScalars() throws IOException {

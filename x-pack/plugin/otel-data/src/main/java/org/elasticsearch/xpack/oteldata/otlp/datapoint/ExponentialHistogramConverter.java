@@ -122,7 +122,14 @@ public class ExponentialHistogramConverter {
         BucketBuffer bucketsScratch
     ) throws IOException {
         builder.startObject().field(SCALE_FIELD, MAX_SCALE);
+        if (computeBuckets(dataPoint, temporality, bucketsScratch)) {
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
+        }
+        builder.endObject();
+    }
 
+    static boolean computeBuckets(HistogramDataPoint dataPoint, AggregationTemporality temporality, BucketBuffer bucketsScratch) {
         int size = dataPoint.getBucketCountsCount();
 
         if (size > 0 && dataPoint.getExplicitBoundsCount() > 0) {
@@ -173,8 +180,7 @@ public class ExponentialHistogramConverter {
                     }
                 }
             }
-            bucketsScratch.writeBuckets(builder);
-            writeSummaryStatistics(dataPoint, builder);
+            return true;
         } else if (dataPoint.getCount() > 0) {
             bucketsScratch.clear();
             double value = 0.0;
@@ -183,10 +189,9 @@ public class ExponentialHistogramConverter {
                 value = dataPoint.getSum() / dataPoint.getCount();
             }
             bucketsScratch.append(value, dataPoint.getCount());
-            bucketsScratch.writeBuckets(builder);
-            writeSummaryStatistics(dataPoint, builder);
+            return true;
         }
-        builder.endObject();
+        return false;
     }
 
     private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
@@ -288,6 +293,36 @@ public class ExponentialHistogramConverter {
             } else {
                 buckets.add(index, count);
             }
+        }
+
+        // Read accessors used by the ESCF encoder to emit the computed buckets columnar-ly, mirroring
+        // the order used by writeBuckets (negatives from lowest to highest index, i.e. inverse storage).
+        long zeroCount() {
+            return zeroCount;
+        }
+
+        int negativeSize() {
+            return negativeBuckets.size();
+        }
+
+        long negativeIndex(int position) {
+            return negativeBuckets.getIndex(position);
+        }
+
+        long negativeCount(int position) {
+            return negativeBuckets.getCount(position);
+        }
+
+        int positiveSize() {
+            return positiveBuckets.size();
+        }
+
+        long positiveIndex(int position) {
+            return positiveBuckets.getIndex(position);
+        }
+
+        long positiveCount(int position) {
+            return positiveBuckets.getCount(position);
         }
 
         private void writeBuckets(XContentBuilder builder) throws IOException {

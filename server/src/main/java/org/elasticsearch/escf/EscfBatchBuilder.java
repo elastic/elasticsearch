@@ -24,28 +24,15 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Shared backend accumulator for ESCF column-major encoding. Owns the {@link SourceSchema}, a set
- * of per-partition {@link EscfColumnBuilder} lists, and a reusable {@link EscfRowBuffer}. Both the
- * x-content frontend ({@link EscfEncoder}) and the protobuf frontend ({@code MetricEscfConverter})
- * drive the same backend, so all optimization work on the column-building path benefits every
- * encoder.
+ * Shared backend for ESCF column-major encoding. Owns a {@link SourceSchema}, per-partition
+ * {@link EscfColumnBuilder} lists, and a reusable {@link EscfRowBuffer}.
  *
- * <p>Usage per row:
- * <ol>
- *   <li>{@link #beginRow()} — resets and returns the reusable {@link EscfRowBuffer}.</li>
- *   <li>Frontend writes fields into the buffer.</li>
- *   <li>{@link #commit(int)} — drains the buffer into the target partition's column builders and
- *       returns the row index within that partition.</li>
- * </ol>
+ * <p>Usage per row: call {@link #beginRow()} to get the row buffer, populate it, then
+ * {@link #commit(int)} to flush into the partition's column builders. Call
+ * {@link #buildPartition(int)} once all rows for a partition are committed; the resulting
+ * {@link EscfBatch} owns the column buffers and must be closed to release them.
  *
- * <p>Call {@link #buildPartition(int)} when all rows for a partition have been committed; the
- * resulting {@link EscfBatch} owns the column buffers and must be closed to release them.
- * Implements {@link Releasable}: close the builder when done to discard any uncommitted or
- * unbuilt column buffers.
- *
- * <p><b>Partition keys</b> must be small non-negative integers (e.g., shard indices in the range
- * {@code [0, shardCount)}). The backing array is indexed directly by the key; a large key causes
- * a proportionally large allocation.
+ * <p>Partition keys must be non-negative integers (e.g., shard indices).
  */
 public final class EscfBatchBuilder implements Releasable {
 
@@ -58,17 +45,12 @@ public final class EscfBatchBuilder implements Releasable {
     private Partition[] partitions;
     private String[] cachedPath;
 
-    /**
-     * Creates a builder using the non-recycling recycler (suitable for tests and low-volume paths).
-     */
+    /** Creates a builder using the non-recycling recycler (suitable for tests). */
     public EscfBatchBuilder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
     }
 
-    /**
-     * Creates a builder that uses {@code recycler} to back the column byte buffers, enabling
-     * page-based memory reuse for high-throughput paths.
-     */
+    /** Creates a builder using {@code recycler} to back column byte buffers for high-throughput paths. */
     public EscfBatchBuilder(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
         this.schema = new SourceSchema();
@@ -77,21 +59,17 @@ public final class EscfBatchBuilder implements Releasable {
         this.cachedPath = new String[INITIAL_CAPACITY];
     }
 
-    /**
-     * Resets the shared {@link EscfRowBuffer} for a new row and returns it for the frontend to
-     * populate. Must be called before {@link #commit(int)}.
-     */
+    /** Resets the row buffer for a new row and returns it. Must be called before {@link #commit(int)}. */
     public EscfRowBuffer beginRow() {
         rowBuffer.beginRow();
         return rowBuffer;
     }
 
     /**
-     * Drains the staged row from the {@link EscfRowBuffer} into the column builders for
-     * {@code partitionKey}. Returns the zero-based row index within the partition.
+     * Drains the staged row into {@code partitionKey}'s column builders and returns its
+     * zero-based row index within that partition.
      *
-     * @param partitionKey a small non-negative shard index; see the class-level Javadoc
-     * @throws IllegalStateException if {@link #beginRow()} has not been called for the current row
+     * @throws IllegalStateException if {@link #beginRow()} was not called for the current row
      */
     public int commit(int partitionKey) {
         if (rowBuffer.isStarted() == false) {
@@ -111,10 +89,8 @@ public final class EscfBatchBuilder implements Releasable {
 
     /**
      * Finalizes all column builders for {@code partitionKey} and returns the resulting
-     * {@link EscfBatch}. The batch owns the column buffers; close it to release them. After this
-     * call the partition entry is cleared; calling this method twice for the same key is an error.
-     *
-     * @param partitionKey a small non-negative shard index; see the class-level Javadoc
+     * {@link EscfBatch}. The batch owns the column buffers; close it to release them.
+     * The partition entry is cleared; calling this twice for the same key is an error.
      */
     public EscfBatch buildPartition(int partitionKey) {
         final Partition partition = getOrCreatePartition(partitionKey);
@@ -130,26 +106,18 @@ public final class EscfBatchBuilder implements Releasable {
         return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
     }
 
-    /**
-     * Returns the number of rows committed to {@code partitionKey}, or 0 if no rows have been
-     * committed to that partition.
-     */
+    /** Returns the number of rows committed to {@code partitionKey}, or 0 if none. */
     public int docCount(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition == null ? 0 : partition.docCount;
     }
 
-    /**
-     * Returns {@code true} if at least one row has been committed to {@code partitionKey}.
-     */
+    /** Returns {@code true} if at least one row has been committed to {@code partitionKey}. */
     public boolean hasPartition(int partitionKey) {
         return partitionKey < partitions.length && partitions[partitionKey] != null;
     }
 
-    /**
-     * Returns the full dot-separated path for leaf column {@code columnIndex}, caching the result
-     * so repeated lookups are cheap.
-     */
+    /** Returns the full dot-separated path for leaf column {@code columnIndex}, with caching. */
     public String columnPath(int columnIndex) {
         if (columnIndex >= cachedPath.length) {
             cachedPath = Arrays.copyOf(cachedPath, ArrayUtil.oversize(columnIndex + 1, Long.BYTES));
@@ -162,11 +130,7 @@ public final class EscfBatchBuilder implements Releasable {
         return path;
     }
 
-    /**
-     * Discards all uncommitted and unbuilt column builders, releasing their recycler-backed
-     * buffers. Safe to call after {@link #buildPartition} (the consumed builders' streams are
-     * already empty).
-     */
+    /** Discards all uncommitted and unbuilt column builders, releasing their recycler-backed buffers. */
     @Override
     public void close() {
         for (Partition partition : partitions) {
@@ -189,7 +153,19 @@ public final class EscfBatchBuilder implements Releasable {
             case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(rowBuffer.scratchNumeric(col));
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(rowBuffer.scratchNumeric(col)));
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
-            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
+            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
+                final Object value = rowBuffer.scratchVar(col);
+                if (value instanceof EscfRowBuffer.StagedColumnarArray(byte elemKind, long[] values, int size)) {
+                    // Direct columnar drain — no packed byte[] intermediate.
+                    if (elemKind == EscfColumnKind.LONG) {
+                        builder.addLongArray(values, size);
+                    } else {
+                        builder.addDoubleArray(values, size);
+                    }
+                } else {
+                    builder.addArray(type, (byte[]) value);
+                }
+            }
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");
         }
@@ -213,10 +189,8 @@ public final class EscfBatchBuilder implements Releasable {
     }
 
     /**
-     * Ensures the partition has a column builder for every leaf in the schema. Any newly added
-     * builder is backfilled with absent rows for all rows already committed to the partition,
-     * since those rows did not contain the column. The backfill uses the bulk
-     * {@link EscfColumnBuilder#addAbsents(int)} path to avoid per-row overhead on large batches.
+     * Ensures the partition has a builder for every leaf. Newly added builders are backfilled with
+     * absent rows for prior commits via {@link EscfColumnBuilder#addAbsents(int)}.
      */
     private void ensurePartitionBuilders(Partition partition, int size) {
         while (partition.builders.size() < size) {

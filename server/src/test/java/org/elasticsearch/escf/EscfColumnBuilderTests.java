@@ -709,6 +709,118 @@ public class EscfColumnBuilderTests extends ESTestCase {
         b.discard();
     }
 
+    /**
+     * Writes a single value at a row with a large leading gap and a large interior gap, then verifies the
+     * resulting validity bitset and values across SPLIT and MERGE policies and across builder kinds (LONG,
+     * STRING, BOOL). This exercises the {@code fillGapTo} bulk-absent path that was previously a per-row
+     * loop and is now a single {@code addAbsents(gap)} call.
+     */
+    public void testFillGapToUsesBulkAbsent() {
+        for (CollisionPolicy policy : CollisionPolicy.values()) {
+            // LONG builder: gap of 100 absent rows, then one present row, then 50 absent rows, then one more.
+            {
+                EscfColumnBuilder b = new EscfColumnBuilder(policy);
+                b.setLong(100, 42L); // rows 0–99 absent, row 100 present
+                b.setLong(151, 99L); // rows 101–150 absent, row 151 present
+                EscfColumnData data = b.finish(152);
+                assertEquals(EscfColumnKind.LONG, data.kind());
+                EscfColumn col = EscfColumn.from(data);
+                for (int r = 0; r < 100; r++) {
+                    assertTrue("row " + r + " should be absent [" + policy + "]", col.isAbsent(r));
+                }
+                assertFalse("row 100 should be present [" + policy + "]", col.isAbsent(100));
+                assertEquals(42L, col.getLongValue(100));
+                for (int r = 101; r < 151; r++) {
+                    assertTrue("row " + r + " should be absent [" + policy + "]", col.isAbsent(r));
+                }
+                assertFalse("row 151 should be present [" + policy + "]", col.isAbsent(151));
+                assertEquals(99L, col.getLongValue(151));
+            }
+            // STRING builder: same gap structure.
+            {
+                EscfColumnBuilder b = new EscfColumnBuilder(policy);
+                b.setString(100, utf8("hello")); // rows 0–99 absent
+                b.setString(151, utf8("world")); // rows 101–150 absent
+                EscfColumnData data = b.finish(152);
+                assertEquals(EscfColumnKind.STRING, data.kind());
+                EscfColumn col = EscfColumn.from(data);
+                for (int r = 0; r < 100; r++) {
+                    assertTrue("string row " + r + " should be absent [" + policy + "]", col.isAbsent(r));
+                }
+                assertFalse(col.isAbsent(100));
+                assertEquals("hello", col.getBinaryValue(100).utf8ToString());
+                assertFalse(col.isAbsent(151));
+                assertEquals("world", col.getBinaryValue(151).utf8ToString());
+            }
+            // BOOL builder: gap of 50 absent rows then a true value.
+            {
+                EscfColumnBuilder b = new EscfColumnBuilder(policy);
+                b.setBoolean(50, true);
+                EscfColumnData data = b.finish(51);
+                assertEquals(EscfColumnKind.BOOL, data.kind());
+                EscfColumn col = EscfColumn.from(data);
+                for (int r = 0; r < 50; r++) {
+                    assertTrue("bool row " + r + " should be absent [" + policy + "]", col.isAbsent(r));
+                }
+                assertFalse(col.isAbsent(50));
+                assertTrue(col.getBooleanValue(50));
+            }
+        }
+    }
+
+    /**
+     * The direct columnar path ({@link EscfColumnBuilder#addLongArray}) must produce the same
+     * {@link EscfColumnKind#ARRAY}-of-{@code LONG} layout as the packed {@code addArray} path, honoring
+     * the {@code size} argument (trailing buffer slots beyond {@code size} are ignored) and representing
+     * an absent row as an empty element range.
+     */
+    public void testAddLongArrayColumnarLayout() {
+        EscfColumnBuilder b = builder(); // SPLIT
+        b.addLongArray(new long[] { 10, 20, 30 }, 3);
+        b.addAbsent();
+        b.addLongArray(new long[] { 7, 8, 9, 99 /* beyond size, ignored */ }, 3);
+        EscfColumnData data = b.finish(3);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.LONG, data.child().kind());
+        assertEquals(3, elemCount(data, 0));
+        assertEquals(10L, readArrayLong(data, 0, 0));
+        assertEquals(30L, readArrayLong(data, 0, 2));
+        assertEquals(0, elemCount(data, 1)); // absent row
+        assertEquals(3, elemCount(data, 2));
+        assertEquals(7L, readArrayLong(data, 2, 0));
+        assertEquals(9L, readArrayLong(data, 2, 2));
+    }
+
+    /** {@link EscfColumnBuilder#addDoubleArray} builds an ARRAY-of-{@code DOUBLE}, preserving raw bits. */
+    public void testAddDoubleArrayColumnarLayout() {
+        EscfColumnBuilder b = builder();
+        long[] bits = { Double.doubleToRawLongBits(1.5), Double.doubleToRawLongBits(-2.5) };
+        b.addDoubleArray(bits, 2);
+        EscfColumnData data = b.finish(1);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(EscfColumnKind.DOUBLE, data.child().kind());
+        assertEquals(2, elemCount(data, 0));
+        assertEquals(1.5, readArrayDouble(data, 0, 0), 0.0);
+        assertEquals(-2.5, readArrayDouble(data, 0, 1), 0.0);
+    }
+
+    /**
+     * Under SPLIT, a scalar row followed by an array row promotes the column to a union; the direct
+     * columnar path must stream the array inline as a FIXED_ARRAY slot readable by {@code getArrayValue}.
+     */
+    public void testAddLongArrayAfterScalarInlinesOnUnion() {
+        EscfColumnBuilder b = builder(); // SPLIT
+        b.addLong(42); // row 0 scalar
+        b.addLongArray(new long[] { 1, 2, 3 }, 3); // row 1 array → union inline FIXED_ARRAY
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(SourceValueType.LONG, col.getTypeByte(0));
+        assertEquals(42L, col.getLongValue(0));
+        assertEquals(SourceValueType.FIXED_ARRAY, col.getTypeByte(1));
+        assertEquals(List.of(1L, 2L, 3L), unionArrayLongs(col, 1));
+    }
+
     // ── Helpers ──
 
     private static List<Long> unionArrayLongs(EscfColumn col, int row) {

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,12 +49,18 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     public static final TransportVersion TIME_SERIES_WINDOW_FILTER = TransportVersion.fromName("time_series_window_filter");
 
     private final Expression window, bucket, timestamp;
+    private final Rounding.Prepared preparedRounding;
 
     public WindowFilter(Source source, Expression window, Expression bucket, Expression timestamp) {
+        this(source, window, bucket, timestamp, bucket instanceof Bucket b ? b.getDateRoundingOrNull(FoldContext.small()) : null);
+    }
+
+    public WindowFilter(Source source, Expression window, Expression bucket, Expression timestamp, Rounding.Prepared preparedRounding) {
         super(source, List.of(window, bucket, timestamp));
         this.window = window;
         this.bucket = bucket;
         this.timestamp = timestamp;
+        this.preparedRounding = preparedRounding;
     }
 
     private WindowFilter(StreamInput in) throws IOException {
@@ -100,7 +107,9 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new WindowFilter(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        // The bucket is execution configuration. Optimizer rewrites can replace its expression with an attribute, but the prepared
+        // rounding must remain the one selected while the window filter was introduced.
+        return new WindowFilter(source(), newChildren.get(0), bucket, newChildren.get(2), preparedRounding);
     }
 
     @Override
@@ -110,12 +119,10 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        Bucket bucketBucket = (Bucket) bucket;
         if (window.foldable() == false) {
             throw new IllegalArgumentException("Window should be foldable");
         }
         Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
-        Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
         var timestampFactory = toEvaluator.apply(timestamp);
         if (timestamp.dataType() == DataType.DATE_NANOS) {
             return new WindowFilterDateNanosEvaluator.Factory(

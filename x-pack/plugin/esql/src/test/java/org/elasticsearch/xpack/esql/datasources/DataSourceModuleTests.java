@@ -472,10 +472,8 @@ public class DataSourceModuleTests extends ESTestCase {
 
         List<DataSourcePlugin> plugins = List.of(catalogPlugin);
         try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
-            // Assert the FULL sequence, not relative positions. Map.copyOf's iteration order is salt-randomized
-            // per JVM launch, so a positional assertion passes by coincidence on a large fraction of runs --
-            // measured at roughly a third for this key set, because immutable-map placement is biased for these
-            // particular strings. Pinning the exact permutation leaves a regression one chance in 120.
+            // Assert the FULL sequence, not relative positions: Map.copyOf's iteration order is salt-randomized
+            // per JVM launch, so a positional assertion passes by coincidence often enough to be no pin at all.
             List<String> order = List.copyOf(module.sourceFactories().keySet());
             assertEquals(
                 "the file fallback must be registered last so plugin factories claim first",
@@ -773,6 +771,26 @@ public class DataSourceModuleTests extends ESTestCase {
         // Sequential formats must still be wrappable
         assertNotNull(registry.byExtension("data.csv.gz"));
         assertNotNull(registry.byExtension("data.tsv.gz"));
+    }
+
+    /**
+     * A scheme nothing on this node reads must name what IS readable. The two forms this replaced named neither
+     * the registered schemes nor any action, and one spoke of an "SPI storage factory" -- the only message
+     * rewritten in this change that nothing else pins.
+     */
+    public void testUnsupportedSchemeNamesTheReadableSchemes() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> module.storageProviderRegistry().provider(StoragePath.of("nope://bucket/data.csv"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Unsupported storage scheme [nope]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Supported schemes:"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("SPI storage factory")));
     }
 
     /**

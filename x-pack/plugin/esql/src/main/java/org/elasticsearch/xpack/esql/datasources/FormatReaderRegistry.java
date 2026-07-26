@@ -186,8 +186,7 @@ public class FormatReaderRegistry {
      * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
      * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
      * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
-     * {@code canHandle}, honours it. No shipped reader does that today (parquet's {@code .parq} was the one
-     * case and is now spec-declared), but sourcing the message from the claiming maps means a future one
+     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
      * cannot make the advice lie.
      *
      * @param displayPath what the user asked for, quoted back to them — the full location on the resolver

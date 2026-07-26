@@ -162,9 +162,11 @@ public class StorageProviderRegistry implements Closeable {
 
     /**
      * One message for "nothing here reads that scheme", raised wherever the lookup fails. The bare forms this
-     * replaced named neither the schemes that ARE registered nor anything the caller could do, and one of them
-     * spoke of an "SPI storage factory" -- an internal noun the caller has no way to act on. Mirrors the shape
-     * {@code StorageManager} already uses for the same condition.
+     * replaced named neither the schemes that ARE registered nor anything the caller could do, and one spoke of
+     * an "SPI storage factory" -- a noun with no meaning outside this code. Follows the wording of
+     * {@code ExternalSourceResolver}'s {@code UnsupportedSchemeException}, which states the same condition to
+     * the same audience. {@code StorageManager} has a third wording for it, still divergent; collapsing all
+     * three onto one builder is esql-planning#1551.
      */
     private IllegalArgumentException unsupportedScheme(String scheme) {
         Set<String> known = new TreeSet<>(factories.keySet());

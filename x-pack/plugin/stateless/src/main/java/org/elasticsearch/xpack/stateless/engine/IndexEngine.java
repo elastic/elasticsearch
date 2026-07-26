@@ -524,7 +524,7 @@ public class IndexEngine extends InternalEngine {
     @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
-        List<Index> operations = engineBatch.operations();
+        List<Index> operations = engineBatch.batch().materializeIndexOps();
         for (Index operation : operations) {
             documentParsingReporter.onParsingCompleted(operation.parsedDoc());
         }

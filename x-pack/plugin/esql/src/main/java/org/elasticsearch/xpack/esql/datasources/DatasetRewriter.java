@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -57,6 +58,10 @@ import java.util.Set;
  * client-side). {@link #resolve} returns, per relation, the authorized concrete dataset names plus whether the
  * relation also targets non-dataset abstractions. {@link #rewrite}/{@link #rewriteOne} then consume that
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
+ *
+ * <p>Whether a wildcard may resolve to a dataset is governed by {@link #DATASET_WILDCARDS_FEATURE_FLAG}: when it is off
+ * (the release default) a dataset is reachable only by an exact name, so a wildcard resolves to indices exactly as it
+ * did before datasets existed. Index expressions are otherwise untouched.
  */
 public final class DatasetRewriter {
 
@@ -73,6 +78,16 @@ public final class DatasetRewriter {
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
         .build();
 
+    /**
+     * When enabled, a wildcard FROM pattern can resolve to datasets. When off — the default in release builds —
+     * datasets are reachable only by an exact name: a wildcard resolves to indices only, exactly as it did before
+     * datasets existed. Explicitly naming a dataset alongside an index still unions (heterogeneous FROM is unaffected);
+     * only accidental wildcard-to-dataset matching is gated. Index expressions (wildcards, exclusions, aliases, data
+     * streams) are
+     * never affected; this only governs whether a wildcard may pull in a dataset.
+     */
+    public static final FeatureFlag DATASET_WILDCARDS_FEATURE_FLAG = new FeatureFlag("esql_dataset_wildcards");
+
     private DatasetRewriter() {}
 
     /**
@@ -81,12 +96,17 @@ public final class DatasetRewriter {
      * {@link UnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
+     *
+     * @param wildcardDatasets when {@code false} (the release-build default, see {@link #DATASET_WILDCARDS_FEATURE_FLAG})
+     *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
+     *                         so the wildcard resolves to indices only.
      */
     public static DatasetResolution resolve(
         String[] authorizedIndices,
         String[] rawPatterns,
         ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver iner
+        IndexNameExpressionResolver iner,
+        boolean wildcardDatasets
     ) {
         // (a) resolved external datasets: request.indices(), which the security filter already narrowed to the
         // read-privileged subset on a secured cluster (and equals rawPatterns without security). Empty short-circuits,
@@ -121,14 +141,15 @@ public final class DatasetRewriter {
             }
         }
 
-        // Explicit (non-wildcard) dataset names absent from the authorized set — rewriteOne rejects these as Unknown
-        // index rather than silently dropping them from a multi-target FROM.
+        // The exact (non-wildcard) FROM names, date-math resolved: the only names that reach a dataset when
+        // wildcard-dataset matching is off, and the set an explicitly-named dataset must come from to be flagged
+        // unauthorized. Computed once and shared by both uses below.
+        Set<String> exact = exactNames(Arrays.asList(rawPatterns));
+
+        // Explicitly-named datasets absent from the authorized set — rewriteOne rejects these as Unknown index rather
+        // than silently dropping them from a multi-target FROM.
         Set<String> explicitUnauthorized = new LinkedHashSet<>();
-        for (String pattern : rawPatterns) {
-            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
-                continue;
-            }
-            String name = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
+        for (String name : exact) {
             if (rawDatasetNames.contains(name) && resolvedExternalDatasets.contains(name) == false) {
                 explicitUnauthorized.add(name);
             }
@@ -136,6 +157,11 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(resolvedExternalDatasets);
+        if (wildcardDatasets == false) {
+            // Datasets are reachable only by an exact name: a wildcard that also matched a dataset drops it, leaving the
+            // wildcard to resolve to indices only (unchanged index behaviour). Explicit names still resolve as datasets.
+            result.retainAll(exact);
+        }
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -161,6 +187,16 @@ public final class DatasetRewriter {
      * dataset-free project is a no-op.
      */
     public static LogicalPlan rewriteUnsecured(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
+        return rewriteUnsecured(parsed, projectMetadata, iner, DATASET_WILDCARDS_FEATURE_FLAG.isEnabled());
+    }
+
+    /** Package-private overload letting tests drive the wildcard-dataset flag without the {@code static final} field. */
+    static LogicalPlan rewriteUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardDatasets
+    ) {
         if (projectMetadata == null) {
             return parsed;
         }
@@ -174,13 +210,13 @@ public final class DatasetRewriter {
                 return;
             }
             List<String> patterns = patternsOf(r);
-            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, wildcardDatasets) == false) {
                 return;
             }
             // Unsecured: the (un-narrowed) raw patterns are the authorized indices — every registered dataset matched
             // by the pattern is authorized, so resolve() returns it.
             String[] raw = patterns.toArray(String[]::new);
-            resolutions.put(r, resolve(raw, raw, projectMetadata, iner));
+            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardDatasets));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
         return rewrite(parsed, projectMetadata, resolutions, false);
@@ -321,8 +357,8 @@ public final class DatasetRewriter {
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
         // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
         // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This stays inert until
-        // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
-        // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
+        // datasets exist: datasetNames is non-empty only once datasets are registered, which dataset registration
+        // gating controls (see Federation) — this method enforces no flag check of its own.
         if (crossProjectEnabled) {
             children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }
@@ -338,8 +374,18 @@ public final class DatasetRewriter {
      * name. False positives are fine (slow path runs); false negatives would miss datasets, so this
      * must be at least as permissive as the full resolver.
      */
-    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames) {
+    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames, boolean wildcardDatasets) {
         if (datasetNames.isEmpty()) {
+            return false;
+        }
+        if (wildcardDatasets == false) {
+            // Datasets match only exact names — reuse the same exact-name notion resolve() applies (single source of
+            // truth), so the pre-check and the real resolution can't drift.
+            for (String name : exactNames(patterns)) {
+                if (datasetNames.contains(name)) {
+                    return true;
+                }
+            }
             return false;
         }
         for (String pattern : patterns) {
@@ -357,6 +403,23 @@ public final class DatasetRewriter {
             }
         }
         return false;
+    }
+
+    /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */
+    private static Set<String> exactNames(List<String> patterns) {
+        Set<String> exact = new LinkedHashSet<>();
+        for (String pattern : patterns) {
+            if (isWildcardOrExclusion(pattern)) {
+                continue;
+            }
+            exact.add(IndexNameExpressionResolver.resolveDateMathExpression(pattern));
+        }
+        return exact;
+    }
+
+    /** A FROM part that contributes no exact name: empty, an exclusion ({@code -x}), or a wildcard. */
+    private static boolean isWildcardOrExclusion(String pattern) {
+        return pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern);
     }
 
     /** Splits a relation's FROM pattern string into its comma-separated parts. */
@@ -426,7 +489,7 @@ public final class DatasetRewriter {
         Set<String> seen = new LinkedHashSet<>();
         for (int i = 0; i < patterns.size(); i++) {
             String pattern = patterns.get(i);
-            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
+            if (isWildcardOrExclusion(pattern)) {
                 continue;
             }
             // Resolve date-math so a literal-named dataset with a date suffix matches its authorized name.

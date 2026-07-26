@@ -1,0 +1,5 @@
+pr: 154987
+summary: Gate wildcard-to-dataset resolution in `FROM` behind a feature flag
+area: ES|QL
+type: feature
+issues: []

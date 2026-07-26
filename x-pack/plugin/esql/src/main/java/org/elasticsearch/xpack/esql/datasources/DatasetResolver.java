@@ -96,11 +96,12 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
+        boolean wildcardDatasets = DatasetRewriter.DATASET_WILDCARDS_FEATURE_FLAG.isEnabled();
         List<UnresolvedRelation> relations = new ArrayList<>();
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardDatasets) == false) {
                 return;
             }
             relations.add(r);

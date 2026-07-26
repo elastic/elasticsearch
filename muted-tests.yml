@@ -642,3 +642,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:promql-native-histogram-support.histogram_avg_increase_exp_histo_all_instances}
   issue: https://github.com/elastic/elasticsearch/issues/155024
+- class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
+  method: testValidateIndexOptionsWithBasicLicense
+  issue: https://github.com/elastic/elasticsearch/issues/155026

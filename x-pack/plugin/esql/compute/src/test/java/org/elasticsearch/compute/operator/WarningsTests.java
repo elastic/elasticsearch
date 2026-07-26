@@ -35,6 +35,22 @@ public class WarningsTests extends ESTestCase {
         assertWarnings(expected);
     }
 
+    public void testRegisterExceptionDeduplication() {
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerException(new IllegalArgumentException("duplicate"));
+        }
+        warnings.registerException(new IllegalArgumentException("distinct message"));
+        warnings.registerException(new IllegalStateException("distinct exception"));
+
+        assertWarnings(
+            "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: duplicate",
+            "Line 1:1: java.lang.IllegalArgumentException: distinct message",
+            "Line 1:1: java.lang.IllegalStateException: distinct exception"
+        );
+    }
+
     public void testRegisterCollectViews() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo", "view1"));
         for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {

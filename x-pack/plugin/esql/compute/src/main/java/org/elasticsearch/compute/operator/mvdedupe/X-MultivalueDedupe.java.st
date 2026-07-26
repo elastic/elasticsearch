@@ -697,7 +697,7 @@ $endif$
 
     private void hashAdd(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
 $if(double)$
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
+        appendFound(builder, hash.add(hashDouble(v)));
 $else$
         appendFound(builder, hash.add(v));
 $endif$
@@ -705,7 +705,7 @@ $endif$
 
     private long hashLookup($Hash$Table hash, $type$ v) {
 $if(double)$
-        return hash.find(Double.doubleToLongBits(v));
+        return hash.find(hashDouble(v));
 $else$
         return hash.find(v);
 $endif$
@@ -723,6 +723,14 @@ $endif$
     private void appendFound(IntBlock.Builder builder, long found) {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
     }
+
+$if(double)$
+    /** Canonicalizes signed zero before building an ES|QL double hash key. */
+    private static long hashDouble(double value) {
+        return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
+    }
+
+$endif$
 
     private static boolean valuesEqual($type$ lhs, $type$ rhs) {
 $if(BytesRef)$

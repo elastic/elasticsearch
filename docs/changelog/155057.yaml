@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 153418
+pr: 155057
+summary: Expose annotated_text as the text field family
+type: bug

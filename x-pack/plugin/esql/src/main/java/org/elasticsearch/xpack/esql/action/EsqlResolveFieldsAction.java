@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -123,7 +124,13 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
                 remoteRequest.indicesOptions(
-                    remoteResolveOptions(remoteRequest.indicesOptions(), DatasetRewriter.wildcardsMatchDatasets())
+                    IndicesOptions.builder(remoteRequest.indicesOptions())
+                        .indexAbstractionOptions(
+                            IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
+                                .resolveViews(true)
+                                .resolveDatasets(true)
+                        )
+                        .build()
                 );
                 transportService.sendRequest(
                     conn,
@@ -164,35 +171,27 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
     }
 
-    /**
-     * Options for the outgoing remote field-caps request. Views are always resolved; datasets only when
-     * {@code wildcardsMatchDatasets} — the shared gate. Off => the remote reports no datasets, so a remote wildcard
-     * (or exact dataset name) falls through to ordinary remote index resolution instead of throwing. Package-private
-     * so the gate is unit-testable without a cross-cluster harness.
-     */
-    static IndicesOptions remoteResolveOptions(IndicesOptions base, boolean wildcardsMatchDatasets) {
-        return IndicesOptions.builder(base)
-            .indexAbstractionOptions(
-                IndicesOptions.IndexAbstractionOptions.builder(base.indexAbstractionOptions())
-                    .resolveViews(true)
-                    .resolveDatasets(wildcardsMatchDatasets)
-            )
-            .build();
-    }
-
     private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {
         // Datasets resolve via IndexNameExpressionResolver, not the view service.
         var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-        return Set.copyOf(indexNameExpressionResolver.datasets(projectMetadata, indicesOptions, new IndicesRequest() {
-            @Override
-            public String[] indices() {
-                return indices;
-            }
+        Set<String> datasets = new LinkedHashSet<>(
+            indexNameExpressionResolver.datasets(projectMetadata, indicesOptions, new IndicesRequest() {
+                @Override
+                public String[] indices() {
+                    return indices;
+                }
 
-            @Override
-            public IndicesOptions indicesOptions() {
-                return indicesOptions;
-            }
-        }));
+                @Override
+                public IndicesOptions indicesOptions() {
+                    return indicesOptions;
+                }
+            })
+        );
+        // The flag governs only wildcard discovery of datasets: with it off, a wildcard-matched remote dataset is
+        // dropped (so FROM <remote>:<wildcard> resolves to remote indices), while an explicitly-named remote dataset is
+        // kept and still rejected as non-remotable. Same rule the local rail applies, so the flag means the same thing
+        // on both sides; error handling is otherwise identical across flag states.
+        DatasetRewriter.keepOnlyExplicitlyNamed(datasets, Arrays.asList(indices), DatasetRewriter.wildcardsMatchDatasets());
+        return datasets;
     }
 }

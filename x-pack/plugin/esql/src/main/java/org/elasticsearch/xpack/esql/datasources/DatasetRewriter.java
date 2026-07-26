@@ -159,11 +159,7 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(resolvedExternalDatasets);
-        if (wildcardDatasets == false) {
-            // Datasets are reachable only by an exact name: a wildcard that also matched a dataset drops it, leaving the
-            // wildcard to resolve to indices only (unchanged index behaviour). Explicit names still resolve as datasets.
-            result.retainAll(exact);
-        }
+        keepOnlyExplicitlyNamed(result, Arrays.asList(rawPatterns), wildcardDatasets);
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -405,6 +401,20 @@ public final class DatasetRewriter {
             }
         }
         return false;
+    }
+
+    /**
+     * Enforces the one thing the flag controls — wildcard discoverability of datasets. When
+     * {@code wildcardDatasets} is off, drops every dataset in {@code datasets} that no exact name in {@code patterns}
+     * points at, so a wildcard-discovered dataset disappears while an explicitly-named one is kept. A no-op when on.
+     * Shared by the local resolve rail ({@link #resolve}) and the remote field-caps detection rail
+     * ({@code EsqlResolveFieldsAction#getDatasets}) so the flag means the same thing on both, and error handling is
+     * otherwise identical across flag states.
+     */
+    public static void keepOnlyExplicitlyNamed(Set<String> datasets, List<String> patterns, boolean wildcardDatasets) {
+        if (wildcardDatasets == false) {
+            datasets.retainAll(exactNames(patterns));
+        }
     }
 
     /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */

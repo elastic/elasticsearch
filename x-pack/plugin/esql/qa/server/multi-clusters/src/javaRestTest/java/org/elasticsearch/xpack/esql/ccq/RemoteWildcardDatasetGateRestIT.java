@@ -39,18 +39,16 @@ import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 /**
- * The flag-off twin of {@code CrossClusterDatasetIT} (which runs with wildcards matching datasets and asserts
- * {@code FROM <remote>:<wildcard>} is rejected). Here the wildcards feature flag is off on
- * the coordinating (local) cluster, so the remote-dataset detection rail must not fire for wildcards: the gate reads the
- * flag when building the outgoing field-caps request, so the remote reports no datasets and a remote wildcard resolves
- * to remote <em>indices</em> instead of throwing {@code RemoteDatasetNotSupportedException}. This is the test that would
- * have caught the originally-ungated remote rail.
+ * The flag-off twin of {@code CrossClusterDatasetIT} (which runs with wildcards matching datasets and asserts every
+ * {@code FROM <remote>:<...>} dataset match is rejected). The flag governs only wildcard discovery of datasets, so with
+ * it off a remote <em>wildcard</em> resolves to remote indices instead of throwing, while an explicitly-named remote
+ * dataset is still detected and rejected as non-remotable — unchanged from flag-on. This is the test that would have
+ * caught the originally-ungated remote rail.
  *
- * <p>The flag is only needed off on the coordinator — the gate is coordinator-side — so the remote keeps the default
- * (federation enabled, so the dataset can be registered there).
+ * <p>The flag is set off on the remote, which owns the dataset detection this rail exercises; federation stays enabled
+ * there so the dataset can be registered.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
@@ -58,15 +56,16 @@ public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
     private static final String WILDCARDS_FLAG_PROPERTY = "es.esql_dataset_wildcards_feature_flag_enabled";
     private static final Path DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(DATA_PATH, emptyMap(), false);
-    static ElasticsearchCluster localCluster = Clusters.localCluster(
+    // The wildcard gate reads the flag where dataset detection runs — the remote's doExecute — so the flag goes off on
+    // the remote. The local (coordinating) cluster keeps the default.
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(
         DATA_PATH,
-        remoteCluster,
-        false,
         emptyMap(),
         false,
+        null,
         Map.of(WILDCARDS_FLAG_PROPERTY, "false")
     );
+    static ElasticsearchCluster localCluster = Clusters.localCluster(DATA_PATH, remoteCluster, false, emptyMap(), false);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
@@ -119,12 +118,12 @@ public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
         List<List<Object>> values = (List<List<Object>>) entityAsMap(ok).get("values");
         assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(1L));
 
-        // An exact remote dataset name is not rejected with the courtesy "datasets not supported" message either — with
-        // detection off it falls through to a plain unknown remote index (the accepted trade-off; unreadable either way).
+        // An explicitly-named remote dataset is unchanged by the flag: still detected and rejected as non-remotable,
+        // exactly as with the flag on. The flag disables only wildcard discovery of datasets.
         ResponseException exactError = expectThrows(ResponseException.class, () -> runQuery("FROM " + REMOTE_CLUSTER_NAME + ":" + dataset));
         String exactBody = EntityUtils.toString(exactError.getResponse().getEntity());
-        assertThat(exactBody, containsString("Unknown index [" + REMOTE_CLUSTER_NAME + ":" + dataset + "]"));
-        assertThat(exactBody, not(containsString("remote datasets are not supported")));
+        assertThat(exactBody, containsString("remote datasets are not supported"));
+        assertThat(exactBody, containsString(dataset));
     }
 
     private Response runQuery(String query) throws IOException {

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1170,5 +1171,22 @@ public class DatasetRewriterTests extends ESTestCase {
             return ((Map<String, Object>) subMap).get(key);
         }
         return null;
+    }
+
+    /**
+     * The shared rule both the local and remote rails apply: the flag gates only wildcard discovery of datasets. Off
+     * drops a dataset only a wildcard matched ({@code logs_a}/{@code logs_b}) while keeping an explicitly-named one
+     * ({@code metrics}); on is a no-op.
+     */
+    public void testKeepOnlyExplicitlyNamedGatesOnlyWildcards() {
+        List<String> patterns = List.of("logs*", "metrics");
+
+        Set<String> off = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
+        DatasetRewriter.keepOnlyExplicitlyNamed(off, patterns, false);
+        assertThat(off, containsInAnyOrder("metrics"));
+
+        Set<String> on = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
+        DatasetRewriter.keepOnlyExplicitlyNamed(on, patterns, true);
+        assertThat(on, containsInAnyOrder("logs_a", "logs_b", "metrics"));
     }
 }

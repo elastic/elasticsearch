@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/154866
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/27_id_generation_synthetic_id_true/create operation on top of old document fails}
+  issue: https://github.com/elastic/elasticsearch/issues/155027
 
 # Examples:
 #

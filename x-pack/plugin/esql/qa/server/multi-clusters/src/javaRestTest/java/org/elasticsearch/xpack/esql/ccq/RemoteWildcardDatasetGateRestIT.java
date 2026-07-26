@@ -13,9 +13,11 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -124,6 +126,9 @@ public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
     private Response runQuery(String query) throws IOException {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity("{\"query\":\"" + query + "\"}");
+        // A successful ES|QL query can carry deprecation warning headers unrelated to this gate; tolerate them so the
+        // assertions test the dataset behavior, not warning strictness.
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }
 

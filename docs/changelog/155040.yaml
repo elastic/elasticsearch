@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154804
+pr: 155040
+summary: Infer non-null constraints for `AVG` over long fields
+type: bug

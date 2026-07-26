@@ -17,6 +17,13 @@ TS : 'ts' -> pushMode(FROM_MODE);
 // EXTERNAL command (internal, deprecated, snapshot-only)
 DEV_EXTERNAL : {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? 'external' -> pushMode(FROM_MODE);
 
+// EQL source command (internal, snapshot-only): delegates to the EQL search endpoint.
+// EXPRESSION_MODE is pushed twice so that `eql "index" | "query"` reads two quoted strings with the
+// separating pipe consumed by the command itself (the first PIPE pops one EXPRESSION_MODE). The pipe
+// that follows the query pops the second EXPRESSION_MODE back to DEFAULT_MODE, where the downstream
+// ES|QL processing commands are lexed as usual.
+DEV_EQL : {this.isDevVersion()}? 'eql' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
+
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_COLON : COLON -> type(COLON);

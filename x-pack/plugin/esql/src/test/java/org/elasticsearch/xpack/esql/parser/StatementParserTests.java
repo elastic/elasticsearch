@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -1249,6 +1250,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDedupNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
+    }
+
+    public void testEqlSourceCommand() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("""
+            eql "my-index" | "sequence [any where true] [any where true]"
+            """);
+        EqlQuery eql = as(plan, EqlQuery.class);
+        assertThat(eql.index(), equalTo("my-index"));
+        assertThat(eql.query(), equalTo("sequence [any where true] [any where true]"));
+        assertThat(eql.output().stream().map(a -> a.name()).toList(), equalTo(List.of("_sequence", "_index", "_id", "_source")));
+    }
+
+    public void testEqlSourceCommandFollowedByProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("""
+            eql "idx" | "any where true" | keep _id, _source | limit 5
+            """);
+        Limit limit = as(plan, Limit.class);
+        Keep keep = as(limit.child(), Keep.class);
+        EqlQuery eql = as(keep.child(), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx"));
+        assertThat(eql.query(), equalTo("any where true"));
+    }
+
+    public void testEqlSourceCommandNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'eql'"), () -> query("eql \"idx\" | \"any where true\""));
     }
 
     public void testHighlightOnFields() {

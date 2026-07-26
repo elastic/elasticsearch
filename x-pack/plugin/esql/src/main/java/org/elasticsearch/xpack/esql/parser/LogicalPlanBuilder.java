@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -1009,6 +1010,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
         return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+    }
+
+    @Override
+    public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
+        Source source = source(ctx);
+        String index = BytesRefs.toString(visitString(ctx.index).fold(FoldContext.small()));
+        String query = BytesRefs.toString(visitString(ctx.eqlQuery).fold(FoldContext.small()));
+        return new EqlQuery(source, index, query);
     }
 
     /**

@@ -47,6 +47,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {this.isDevVersion()}? eqlCommand
     ;
 
 processingCommand
@@ -114,6 +115,13 @@ timeSeriesCommand
 
 externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+// EQL source command: `EQL "<index>" | "<eql query>"`. The index and the EQL query string are both
+// part of this source command; the pipe between them is consumed here. A following pipe (if any)
+// starts the regular ES|QL processing pipeline.
+eqlCommand
+    : DEV_EQL index=string PIPE eqlQuery=string
     ;
 
 indexPatternAndMetadataFields

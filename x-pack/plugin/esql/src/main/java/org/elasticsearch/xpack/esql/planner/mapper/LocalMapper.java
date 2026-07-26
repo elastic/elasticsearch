@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -93,6 +94,13 @@ public class LocalMapper {
 
         if (leaf instanceof ExternalRelation external) {
             return external.toPhysicalExec();
+        }
+
+        // EqlQuery is coordinator-only (delegates to the EQL search endpoint, which has no compute engine) and is never
+        // shipped inside a FragmentExec, so it must not reach the data-node mapper. Reject it here as defense-in-depth;
+        // the coordinator path keeps mapping it via MapperUtils.mapLeaf.
+        if (leaf instanceof EqlQuery) {
+            return MapperUtils.unsupported(leaf);
         }
 
         return MapperUtils.mapLeaf(leaf);

@@ -819,6 +819,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null, // eqlQueryService - not needed for these tests
             null,
             null,
             null,

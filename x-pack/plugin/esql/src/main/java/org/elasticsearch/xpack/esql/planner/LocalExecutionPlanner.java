@@ -138,6 +138,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.eql.EqlQueryService;
+import org.elasticsearch.xpack.esql.eql.EqlQuerySourceOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -158,6 +160,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -250,6 +253,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final EqlQueryService eqlQueryService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -273,6 +277,7 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
+        EqlQueryService eqlQueryService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
@@ -295,6 +300,7 @@ public class LocalExecutionPlanner {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
+        this.eqlQueryService = eqlQueryService;
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.ipLocationService = ipLocationService;
         this.projectResolver = projectResolver;
@@ -429,6 +435,8 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof EqlQueryExec eqlQuery) {
+            return planEqlQuery(eqlQuery);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         } else if (node instanceof ExternalSourceExec externalSource) {
@@ -1984,6 +1992,21 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+    }
+
+    private PhysicalOperation planEqlQuery(EqlQueryExec eqlQueryExec) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(eqlQueryExec.output());
+        return PhysicalOperation.fromSource(
+            new EqlQuerySourceOperator.Factory(
+                eqlQueryService,
+                eqlQueryExec.index(),
+                eqlQueryExec.query(),
+                eqlQueryExec.limit(),
+                parentTask
+            ),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

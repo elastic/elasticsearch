@@ -830,6 +830,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null, // eqlQueryService
             null,
             null,
             null,

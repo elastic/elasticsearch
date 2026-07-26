@@ -166,7 +166,7 @@ tasks.named("test").configure {
   // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
   systemProperty 'arrow.memory.debug.allocator', 'true'
   // Wildcard-dataset resolution is off in release builds, so unit tests that resolve a dataset through a wildcard
-  // (e.g. DatasetResolverTests) would resolve to indices only during release testing. Enable it so those tests
+  // (e.g. DatasetRewriterTests) would resolve to indices only during release testing. Enable it so those tests
   // exercise the wildcard-dataset path; the exact-name restriction is covered via the boolean test seam.
   systemProperty 'es.esql_dataset_wildcards_feature_flag_enabled', 'true'
 }

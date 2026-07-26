@@ -47,6 +47,36 @@
   - match: { hits.total.value: 1 }
 
 ---
+"field_caps reports annotated_text as text family":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              title:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: "1"
+        body:
+          "title": "A searchable title"
+        refresh: true
+
+  - do:
+      field_caps:
+        index: annotated
+        fields: [ title ]
+  - match: { fields.title.text.type: text }
+  - match: { fields.title.text.searchable: true }
+  - match: { fields.title.text.aggregatable: false }
+
+---
 "more_like_this query on an annotated_text field":
   - do:
       indices.create:

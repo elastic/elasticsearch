@@ -47,6 +47,7 @@ import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState.ThrottleDelay;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.rest.RestStatus;
@@ -124,7 +125,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * {@link RequestWrapper} completely.
      */
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
-    private int lastBatchSize;
     /**
      * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
@@ -144,6 +144,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * in order to compute a correct search context keep-alive time.
      */
     private final AtomicInteger totalBatchSizeInSinglePaginatedSearchResponse = new AtomicInteger();
+    /**
+     * The remaining throttle delay calculated when the previous page finished. It is consumed by the next paginated search response so
+     * time spent waiting for that response neither shortens the delay nor causes it to be calculated twice.
+     */
+    private final AtomicReference<ThrottleDelay> pendingThrottleDelay = new AtomicReference<>(ThrottleDelay.ZERO);
     /**
      * Minimum time a relocated task must run before it can be relocated again.
      * Prevents quick back-to-back relocations that could cause issues with tasks endpoints,
@@ -516,19 +521,15 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onPaginatedSearchResponse(PaginatedSearchConsumableHitsResponse asyncResponse) {
-        // TODO - https://github.com/elastic/elasticsearch/issues/150875
-        // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
-        // Leaving it for now, since it seems like a bug?
-        onPaginatedSearchResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
+        onPaginatedSearchResponse(pendingThrottleDelay.getAndSet(ThrottleDelay.ZERO), asyncResponse);
     }
 
     /**
      * Process a paginated search response.
-     * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
-     * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
+     * @param throttleDelay the remaining delay calculated when the preceding bulk batch completed
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
-    void onPaginatedSearchResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, PaginatedSearchConsumableHitsResponse asyncResponse) {
+    void onPaginatedSearchResponse(ThrottleDelay throttleDelay, PaginatedSearchConsumableHitsResponse asyncResponse) {
         currentPaginatedSearchResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got paginated search response with [{}] hits", task.getId(), asyncResponse.remainingHits());
@@ -568,7 +569,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSizeToUse, prepareBulkRequestRunnable);
+        worker.delayPrepareBulkRequest(threadPool, throttleDelay, prepareBulkRequestRunnable);
     }
 
     /**
@@ -759,12 +760,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             finishHim(null);
             return;
         }
-        this.lastBatchSize = batchSize;
         this.totalBatchSizeInSinglePaginatedSearchResponse.addAndGet(batchSize);
 
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
-            onPaginatedSearchResponse(thisBatchStartTimeNS, batchSize, asyncResponse);
+            onPaginatedSearchResponse(worker.throttleDelay(thisBatchStartTimeNS, System.nanoTime(), batchSize), asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {
@@ -833,7 +833,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         int totalBatchSize = totalBatchSizeInSinglePaginatedSearchResponse.getAndSet(0);
-        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
+        ThrottleDelay throttleDelay = worker.throttleDelay(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize);
+        pendingThrottleDelay.set(throttleDelay);
+        asyncResponse.done(throttleDelay.delay());
     }
 
     /**

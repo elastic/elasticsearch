@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -343,6 +344,67 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, (int) TimeUnit.HOURS.toSeconds(2)).nanos(),
             equalTo(TimeUnit.HOURS.toNanos(1))
         );
+    }
+
+    public void testPendingThrottleDelayIsShortenedByFasterRethrottle() throws IOException {
+        workerState.rethrottle(1f);
+        var throttleDelay = new WorkerBulkByPaginatedSearchTaskState.ThrottleDelay(timeValueSeconds(100), 1f);
+
+        assertThat(scheduleAfterRethrottle(throttleDelay, 10f), equalTo(timeValueSeconds(10)));
+    }
+
+    public void testPendingThrottleDelayIsNotLengthenedBySlowerRethrottle() throws IOException {
+        workerState.rethrottle(10f);
+        var throttleDelay = workerState.throttleDelay(0, 0, 10);
+
+        assertThat(scheduleAfterRethrottle(throttleDelay, 1f), equalTo(timeValueSeconds(1)));
+    }
+
+    private TimeValue scheduleAfterRethrottle(WorkerBulkByPaginatedSearchTaskState.ThrottleDelay throttleDelay, float requestsPerSecond)
+        throws IOException {
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        ThreadPool threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        };
+        try {
+            workerState.rethrottle(requestsPerSecond);
+            workerState.delayPrepareBulkRequest(threadPool, throttleDelay, new AbstractRunnable() {
+                @Override
+                protected void doRun() {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+            return capturedDelay.get();
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     public void testRethrottleWithRelocationGuardNonSliced() {

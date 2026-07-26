@@ -31,12 +31,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -72,10 +72,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
-    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
-    /// already started (i.e. are not in [#pendingRecoveries]).
+    /// Tracks allocation IDs of the recoveries that the master has directly requested to cancel. Values are [CancelledRecovery]
+    /// instances whose [CancellationState] is either [CancellationState#PENDING] (cancellation recorded, but not yet confirmed
+    /// actioned) or [CancellationState#CONFIRMED] (recovery removed from the queue or confirmed cancelled after starting).
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
-    private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
+    private final Map<String, CancelledRecovery> cancelledAllocationIds = new ConcurrentHashMap<>();
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
@@ -108,17 +109,21 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     ) {
         final Supplier<ThreadContext.StoredContext> context = restorableContextForProject(projectId);
         final PendingRecovery pendingRecovery;
+        final CancelledRecovery cancellation;
         final boolean serviceClosed;
         synchronized (this) {
+            cancellation = cancelledAllocationIds.get(allocationId);
             serviceClosed = isClosed();
-            if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
+            if (serviceClosed || cancellation != null) {
                 pendingRecovery = null;
+                cancelledAllocationIds.put(allocationId, cancellation.confirmed());
             } else {
                 pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             }
         }
+
         if (pendingRecovery == null) {
             if (serviceClosed) {
                 logger.debug("service is closed, aborting recovery: {}", recoveryState);
@@ -136,7 +141,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                                 recoveryState.getSourceNode(),
                                 recoveryState.getTargetNode()
                             ),
-                            true
+                            cancellation.state() != CancellationState.CONFIRMED
                         );
                     schedulingListener.onRecoveryCancelledBeforeQueuing(recoveryType, RecoveryRole.TARGET);
                 });
@@ -154,28 +159,45 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Any matching entries already in the pending queue are immediately notified via `onRecoveryFailure`
     /// (with `sendShardFailure=false`, since the master is informed through the action response).
     ///
-    /// Returns the set of allocation IDs that were found and removed from the pending queue.
+    /// Returns the set of allocation IDs that were already confirmed-cancelled from a previous request or removed
+    /// from the pending queue this round.
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
         final List<PendingRecovery> recoveriesToCancel = new ArrayList<>();
+        final Set<String> confirmedCancelled = new HashSet<>();
         synchronized (this) {
             if (isClosed()) {
                 return Set.of();
             }
-            // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
-            // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
-            cancelledAllocationIds.putAll(cancellations);
+            for (final var cancellation : cancellations.entrySet()) {
+                final String allocId = cancellation.getKey();
+                final ShardId shardId = cancellation.getValue();
+                final CancelledRecovery alreadyCancelled = cancelledAllocationIds.get(allocId);
+                if (alreadyCancelled == null) {
+                    // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
+                    // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
+                    cancelledAllocationIds.put(allocId, new CancelledRecovery(shardId, CancellationState.PENDING));
+                } else if (alreadyCancelled.state() == CancellationState.CONFIRMED) {
+                    // Include IDs already confirmed-cancelled from a previous request (in case the master is retrying).
+                    confirmedCancelled.add(allocId);
+                }
+            }
+
+            // Look in the pending queue for recoveries we can cancel now.
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
             while (it.hasNext()) {
                 final PendingRecovery candidate = it.next();
-                if (cancellations.containsKey(candidate.allocationId())) {
-                    assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
+                final String allocationId = candidate.allocationId();
+                if (cancellations.containsKey(allocationId)) {
+                    final ShardId shardId = candidate.recoveryState().getShardId();
+                    assert cancellations.get(allocationId).equals(shardId);
                     it.remove();
                     recoveriesToCancel.add(candidate);
+                    cancelledAllocationIds.put(allocationId, new CancelledRecovery(shardId, CancellationState.CONFIRMED));
                     candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
                 }
             }
         }
-        final Set<String> cancelledInQueue = new HashSet<>(recoveriesToCancel.size());
+
         for (PendingRecovery pendingRecovery : recoveriesToCancel) {
             final RecoveryState state = pendingRecovery.recoveryState();
 
@@ -183,9 +205,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
             schedulingListener.onQueuedRecoveryCancelled(state.getRecoverySource().getType(), RecoveryRole.TARGET);
-            cancelledInQueue.add(pendingRecovery.allocationId());
+            confirmedCancelled.add(pendingRecovery.allocationId());
         }
-        return cancelledInQueue;
+        return confirmedCancelled;
     }
 
     /// Prunes queued recoveries and remembered direct-cancellation requests that have been rendered stale by this
@@ -207,8 +229,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                         + "entry must be non-null or it's not a data node and it should not have any recoveries";
                 return;
             }
-            cancelledAllocationIds.entrySet()
-                .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
+            cancelledAllocationIds.entrySet().removeIf(e -> allocationIdIsOutdated(localNode, e.getValue().shardId(), e.getKey()));
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
             while (it.hasNext()) {
                 final PendingRecovery pending = it.next();
@@ -225,7 +246,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
         for (PendingRecovery stale : staleRecoveries) {
             final RecoveryState state = stale.recoveryState();
-            // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
+            // Get off the cluster applier thread. Generic executor has an unbounded queue and thread shutdown happens
             // after service close so this runnable should never get rejected.
             logger.debug("cancelling stale queued recovery {}", state);
             executor.execute(() -> {
@@ -311,10 +332,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
+                final String allocId = recovery.allocationId();
+                final CancelledRecovery cancelledRecovery = cancelledAllocationIds.get(allocId);
+                assert cancelledRecovery != null && cancelledRecovery.state() != CancellationState.CONFIRMED;
+                cancelledAllocationIds.put(allocId, cancelledRecovery.confirmed());
                 schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
             }
         });
-
         final RecoveryListener releaseSlot = RecoveryListener.runAfter(handleCancellation, () -> releaseSlot(recovery));
         return RecoveryListener.wrapPreservingContext(releaseSlot, recovery.context);
     }
@@ -385,4 +409,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             task.accept(listener);
         }
     }
+
+    private enum CancellationState {
+        PENDING,
+        CONFIRMED
+    }
+
+    private record CancelledRecovery(ShardId shardId, CancellationState state) {
+        /// Returns a new entry for the same shard but with the [CancellationState#CONFIRMED] state.
+        CancelledRecovery confirmed() {
+            return new CancelledRecovery(shardId, CancellationState.CONFIRMED);
+        }
+    }
+
 }

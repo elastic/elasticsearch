@@ -151,25 +151,24 @@ public class RecoveryDirectCancellationService {
         }
     }
 
-    void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
+    private void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
         transportService.sendRequest(
             node,
             CancelRecoveriesAction.TYPE.name(),
             request,
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(
-                    response -> failShardsCancelledInQueue(node, response),
-                    e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)
-                ),
-                CancelRecoveriesAction.Response::new,
-                genericExecutor
-            )
+            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> failShardsConfirmedCancelled(node, response), e -> {
+                // TODO: we could avoid the retry if the cluster state no longer contains any of the request's allocationIds
+                // Safe to retry: the data node ignores obsolete allocation IDs, and we already tried cancelling
+                // the ones that are still live.
+                logger.warn(() -> "failed to cancel recoveries [" + request + "] on [" + node + "], will retry", e);
+                genericExecutor.execute(() -> sendCancellations(Map.of(node, request)));
+            }), CancelRecoveriesAction.Response::new, genericExecutor)
         );
     }
 
-    private void failShardsCancelledInQueue(DiscoveryNode node, CancelRecoveriesAction.Response response) {
+    private void failShardsConfirmedCancelled(DiscoveryNode node, CancelRecoveriesAction.Response response) {
         final var state = clusterService.state();
-        for (CancelRecoveriesAction.CancelledInQueue cancelled : response.cancelledInQueue()) {
+        for (CancelRecoveriesAction.ConfirmedCancelled cancelled : response.confirmedCancelled()) {
             final ShardId shardId = cancelled.shardId();
             final IndexMetadata indexMetadata = state.metadata().findIndex(shardId.getIndex()).orElse(null);
             if (indexMetadata == null) {

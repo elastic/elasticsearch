@@ -27,25 +27,25 @@ public class CancelRecoveriesActionResponseTests extends AbstractWireSerializing
 
     @Override
     protected CancelRecoveriesAction.Response createTestInstance() {
-        return new CancelRecoveriesAction.Response(randomCancelledInQueue());
+        return new CancelRecoveriesAction.Response(randomConfirmedCancelled());
     }
 
     @Override
     protected CancelRecoveriesAction.Response mutateInstance(CancelRecoveriesAction.Response instance) throws IOException {
-        return new CancelRecoveriesAction.Response(randomValueOtherThan(instance.cancelledInQueue(), this::randomCancelledInQueue));
+        return new CancelRecoveriesAction.Response(randomValueOtherThan(instance.confirmedCancelled(), this::randomConfirmedCancelled));
     }
 
-    private Set<CancelRecoveriesAction.CancelledInQueue> randomCancelledInQueue() {
+    private Set<CancelRecoveriesAction.ConfirmedCancelled> randomConfirmedCancelled() {
         final int size = randomIntBetween(0, 5);
-        final var cancelledInQueue = new HashSet<CancelRecoveriesAction.CancelledInQueue>(size);
+        final var confirmedCancelled = new HashSet<CancelRecoveriesAction.ConfirmedCancelled>(size);
         for (int i = 0; i < size; i++) {
-            cancelledInQueue.add(
-                new CancelRecoveriesAction.CancelledInQueue(
+            confirmedCancelled.add(
+                new CancelRecoveriesAction.ConfirmedCancelled(
                     new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i),
                     UUIDs.randomBase64UUID()
                 )
             );
         }
-        return cancelledInQueue;
+        return confirmedCancelled;
     }
 }

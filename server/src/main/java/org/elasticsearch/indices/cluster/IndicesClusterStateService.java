@@ -76,6 +76,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
@@ -143,7 +144,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final Settings settings;
 
-    record FailedShardCacheEntry(ShardRouting routing, long primaryTerm) {}
+    record FailedShardCacheEntry(ShardRouting routing, long primaryTerm, boolean recoveryCancelled) {}
 
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
@@ -408,7 +409,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
-                    shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);
+                    final Exception resendFailure = cacheEntry.getValue().recoveryCancelled()
+                        ? new RecoveryCancelledException(matchedRouting.shardId(), null, state.nodes().getLocalNode())
+                        : null;
+                    shardStateAction.localShardFailed(matchedRouting, message, resendFailure, ActionListener.noop(), state);
                 }
             }
         }
@@ -1313,7 +1317,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ShardId shardId = shardRouting.shardId();
         try {
             logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
-            failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
+            final boolean recoveryCancelled = ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null;
+            failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm, recoveryCancelled));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);

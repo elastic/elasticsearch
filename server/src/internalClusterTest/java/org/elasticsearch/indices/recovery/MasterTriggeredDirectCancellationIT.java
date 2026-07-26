@@ -156,7 +156,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             initialReplicaNode,
             clusterService().state(),
             List.of(expectedCancellation),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.shardId(), expectedCancellation.allocationId()))
+            Set.of(new CancelRecoveriesAction.ConfirmedCancelled(expectedCancellation.shardId(), expectedCancellation.allocationId()))
         );
 
         // Switch the desired node to desiredReplicaNode
@@ -263,7 +263,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             initialPrimaryNode,
             clusterService().state(),
             List.of(expectedCancellation),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.shardId(), expectedCancellation.allocationId()))
+            Set.of(new CancelRecoveriesAction.ConfirmedCancelled(expectedCancellation.shardId(), expectedCancellation.allocationId()))
         );
 
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", desiredPrimaryNode));
@@ -381,12 +381,12 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             new ShardRecoveryCancellation(startedShardId, startedAllocationId, true),
             new ShardRecoveryCancellation(queuedShardId, queuedAllocationId, true)
         );
-        final var expectedCancelledInQueue = Set.of(new CancelRecoveriesAction.CancelledInQueue(queuedShardId, queuedAllocationId));
+        final var expectedConfirmedCancelled = Set.of(new CancelRecoveriesAction.ConfirmedCancelled(queuedShardId, queuedAllocationId));
         final var requestAndResponse = assertDirectCancellationExchange(
             initialReplicaNode,
             clusterService().state(),
             expectedCancellations,
-            expectedCancelledInQueue
+            expectedConfirmedCancelled
         );
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(internalCluster().getMasterName(), startedShardId);
 
@@ -468,13 +468,13 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             nodeA,
             clusterService().state(),
             List.of(expectedCancellationA),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(shardIdA, allocationIdA))
+            Set.of(new CancelRecoveriesAction.ConfirmedCancelled(shardIdA, allocationIdA))
         );
         final var requestAndResponseB = assertDirectCancellationExchange(
             nodeB,
             clusterService().state(),
             List.of(expectedCancellationB),
-            Set.of(new CancelRecoveriesAction.CancelledInQueue(shardIdB, allocationIdB))
+            Set.of(new CancelRecoveriesAction.ConfirmedCancelled(shardIdB, allocationIdB))
         );
 
         assertAcked(
@@ -495,7 +495,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         String node,
         ClusterState state,
         List<ShardRecoveryCancellation> expectedCancellations,
-        Set<CancelRecoveriesAction.CancelledInQueue> expectedCancelledInQueue
+        Set<CancelRecoveriesAction.ConfirmedCancelled> expectedConfirmedCancelled
     ) {
         final CountDownLatch requestAndResponse = new CountDownLatch(2);
         MockTransportService.getInstance(node)
@@ -512,7 +512,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                         @Override
                         public void sendResponse(TransportResponse response) {
                             assertTrue(response instanceof CancelRecoveriesAction.Response);
-                            assertExpectedResponse((CancelRecoveriesAction.Response) response, expectedCancelledInQueue);
+                            assertExpectedResponse((CancelRecoveriesAction.Response) response, expectedConfirmedCancelled);
                             requestAndResponse.countDown();
                             channel.sendResponse(response);
                         }
@@ -545,9 +545,9 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
 
     private void assertExpectedResponse(
         CancelRecoveriesAction.Response response,
-        Set<CancelRecoveriesAction.CancelledInQueue> expectedCancelledInQueue
+        Set<CancelRecoveriesAction.ConfirmedCancelled> expectedConfirmedCancelled
     ) {
-        assertThat(response.cancelledInQueue(), equalTo(expectedCancelledInQueue));
+        assertThat(response.confirmedCancelled(), equalTo(expectedConfirmedCancelled));
     }
 
     private void updateSettings(String indexName, Settings.Builder settings) {

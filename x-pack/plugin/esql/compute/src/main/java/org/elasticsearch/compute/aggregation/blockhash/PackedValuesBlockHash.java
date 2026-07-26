@@ -541,29 +541,6 @@ final class PackedValuesBlockHash extends BlockHash {
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    Arrays.fill(scratch, 0, fw.keyLength, (byte) 0);
-                    for (int g = 0; g < fw.specs.size(); g++) {
-                        Block block = page.getBlock(fw.specs.get(g).channel());
-                        if (block.isNull(position)) {
-                            seenNull = true;
-                            scratch[g / 8] |= (byte) (1 << (g % 8));
-                        } else {
-                            int offset = fw.offsets[g];
-                            switch (fw.specs.get(g).elementType()) {
-                                case LONG -> LONG_HANDLE.set(scratch, offset, ((LongBlock) block).getLong(position));
-                                case INT -> INT_HANDLE.set(scratch, offset, ((IntBlock) block).getInt(position));
-                                case DOUBLE -> DOUBLE_HANDLE.set(scratch, offset, ((DoubleBlock) block).getDouble(position));
-                                case BOOLEAN -> scratch[offset] = ((BooleanBlock) block).getBoolean(position) ? (byte) 1 : (byte) 0;
-                                default -> throw new IllegalStateException("unsupported type: " + fw.specs.get(g).elementType());
-                            }
-                        }
-                    }
-                    long hash64 = BytesRefSwissHash.hash64(scratch, 0, fw.keyLength);
-                    return Math.toIntExact(hashOrdToGroup(fw.swiss.addWithHash(scratchRef, hash64)));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,
@@ -631,18 +608,6 @@ final class PackedValuesBlockHash extends BlockHash {
                     vw.rowKeys[0].bytes = vw.keyBuf;
                     vw.serializeColumns(position, 1, singleCursor);
                     return (int) BytesRefSwissHash.hash64(vw.rowKeys[0]);
-                }
-
-                @Override
-                public int addRow(Page page, int position, int hash) {
-                    setupVectors(page);
-                    vw.rowKeys[0].offset = 0;
-                    vw.collectRowSizes(position, 1);
-                    vw.ensureKeyBuf(vw.rowKeys[0].length);
-                    vw.rowKeys[0].bytes = vw.keyBuf;
-                    vw.serializeColumns(position, 1, singleCursor);
-                    long hash64 = BytesRefSwissHash.hash64(vw.rowKeys[0]);
-                    return Math.toIntExact(hashOrdToGroup(vw.swiss.addWithHash(vw.rowKeys[0], hash64)));
                 }
 
                 @Override

@@ -190,17 +190,6 @@ final class DoubleBlockHash extends BlockHash {
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    DoubleBlock keyBlock = (DoubleBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    long key = Double.doubleToRawLongBits(keyBlock.getDouble(position));
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,

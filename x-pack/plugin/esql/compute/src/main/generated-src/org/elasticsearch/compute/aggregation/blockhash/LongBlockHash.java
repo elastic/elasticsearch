@@ -217,17 +217,6 @@ final class LongBlockHash extends BlockHash {
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    LongBlock keyBlock = (LongBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    long key = keyBlock.getLong(position);
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,

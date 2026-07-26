@@ -299,17 +299,6 @@ final class BytesRefBlockHash extends BlockHash {
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    BytesRefBlock keyBlock = (BytesRefBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    BytesRef key = keyBlock.getBytesRef(position, scratch);
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,

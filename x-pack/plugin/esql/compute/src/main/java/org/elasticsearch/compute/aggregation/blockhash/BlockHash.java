@@ -133,18 +133,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         /**
          * Compute the partition hash for the row at {@code position} in {@code page}, without
          * inserting it. Only call this when no grouping-key column for that row is null — null
-         * rows have no partition hash; callers route them to a fixed agreed-upon partition and
-         * call {@link #addRow} directly.
+         * rows have no partition hash; callers route them to a fixed agreed-upon partition.
          */
         int partitionHashOfRow(Page page, int position);
-
-        /**
-         * Insert (or look up) the grouping-key columns at {@code position} in {@code page},
-         * reusing a {@code hash} already computed by {@link #partitionHashOfRow} for that same
-         * row (for null-containing rows, any {@code hash} value is accepted and ignored), and
-         * return the group id — numbered the same way {@link #add} numbers groups.
-         */
-        int addRow(Page page, int position, int hash);
 
         /**
          * Compute partition IDs for all {@code count} rows in {@code page}, writing results to

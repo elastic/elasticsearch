@@ -423,7 +423,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     private void drain(PartitionedHashAggregationOperator operator, List<TaggedPage> results) {
         Page out;
         while ((out = operator.getOutput()) != null) {
-            results.add(new TaggedPage(operator.outputPartition(), out));
+            Integer pid = out.partitionId();
+            results.add(new TaggedPage(pid != null ? pid : PartitionedHashAggregationOperator.NONE_PARTITION, out));
         }
     }
 

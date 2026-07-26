@@ -372,17 +372,6 @@ $if(long)$
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    $Type$Block keyBlock = ($Type$Block) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    long key = keyBlock.getLong(position);
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,
@@ -418,17 +407,6 @@ $if(int)$
                 @Override
                 public int partitionHashOfRow(Page page, int position) {
                     return LongSwissHash.hash((long) ((IntBlock) page.getBlock(channel)).getInt(position));
-                }
-
-                @Override
-                public int addRow(Page page, int position, int hash) {
-                    IntBlock keyBlock = (IntBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    long key = (long) keyBlock.getInt(position);
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }
 
                 @Override
@@ -470,17 +448,6 @@ $if(double)$
                 }
 
                 @Override
-                public int addRow(Page page, int position, int hash) {
-                    DoubleBlock keyBlock = (DoubleBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    long key = Double.doubleToRawLongBits(keyBlock.getDouble(position));
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
-                }
-
-                @Override
                 public void fillPartitions(
                     Page page,
                     int count,
@@ -518,17 +485,6 @@ $if(BytesRef)$
                 @Override
                 public int partitionHashOfRow(Page page, int position) {
                     return (int) BytesRefSwissHash.hash64(((BytesRefBlock) page.getBlock(channel)).getBytesRef(position, scratch));
-                }
-
-                @Override
-                public int addRow(Page page, int position, int hash) {
-                    BytesRefBlock keyBlock = (BytesRefBlock) page.getBlock(channel);
-                    if (keyBlock.isNull(position)) {
-                        seenNull = true;
-                        return 0;
-                    }
-                    BytesRef key = keyBlock.getBytesRef(position, scratch);
-                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
                 }
 
                 @Override

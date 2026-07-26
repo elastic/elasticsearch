@@ -92,7 +92,7 @@ public class PartitionedHashAggregationOperator implements Operator {
     /** The fixed partition every null grouping key is routed to, rather than being hashed. */
     private static final int NULL_PARTITION = 0;
 
-    /** {@link #outputPartition()} value for pages emitted from the legacy (pre-conversion) table. */
+    /** Partition value for pages emitted from the legacy (pre-conversion) table; no partition tag is applied. */
     public static final int NONE_PARTITION = -1;
 
     private static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
@@ -304,7 +304,6 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     private boolean finished;
     private ReleasableIterator<Page> output;
-    private int currentOutputPartition = NONE_PARTITION;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -350,16 +349,6 @@ public class PartitionedHashAggregationOperator implements Operator {
                 close();
             }
         }
-    }
-
-    /**
-     * The partition the page most recently returned by {@link #getOutput} belongs to, or
-     * {@link #NONE_PARTITION} if it came from the (pre-conversion) legacy table. Exposed for a
-     * future wiring step that tags emitted pages with this partition id on the wire; unused
-     * internally beyond that.
-     */
-    protected int outputPartition() {
-        return currentOutputPartition;
     }
 
     @Override
@@ -866,8 +855,7 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     /**
      * Concatenates each triggered partition's pages into the single {@link #output} iterator
-     * {@code getOutput()} drains, updating {@link #currentOutputPartition} as it advances from
-     * one partition's pages to the next.
+     * {@code getOutput()} drains, tagging each page with its partition id as it goes.
      */
     private final class PartitionedOutputIterator implements ReleasableIterator<Page> {
         private final Deque<TaggedPageSource> sources;
@@ -890,10 +878,10 @@ public class PartitionedHashAggregationOperator implements Operator {
                 throw new NoSuchElementException();
             }
             TaggedPageSource source = sources.peekFirst();
-            currentOutputPartition = source.partitionId();
+            int partitionId = source.partitionId();
             Page page = source.pages().next();
-            if (currentOutputPartition != NONE_PARTITION) {
-                Page tagged = page.withPartitionId(currentOutputPartition);
+            if (partitionId != NONE_PARTITION) {
+                Page tagged = page.withPartitionId(partitionId);
                 page.releaseBlocks();
                 return tagged;
             }

@@ -845,6 +845,24 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
+    public void testSettingsBlockRejectsExplicitApproximationDisableConflict() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "approximation": false,
+                "settings": {
+                    "approximation": {
+                        "rows": null,
+                        "confidence_level": null
+                    }
+                }
+            }"""));
+        assertThat(
+            e.getMessage(),
+            containsString("Setting [approximation] has conflicting values at the top level of the request body and under [settings]")
+        );
+    }
+
     public void testSettingsBlockRejectsConflictingValuesRegardlessOfOrder() {
         // Same conflict, JSON order swapped — the check runs after the whole body is parsed, so order is irrelevant.
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""

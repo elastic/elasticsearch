@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ApproximationSettingsTests extends ESTestCase {
@@ -142,6 +143,12 @@ public class ApproximationSettingsTests extends ESTestCase {
         assertNotNull(result);
         assertThat(result.rows(), nullValue());
         assertThat(result.confidenceLevel(), equalTo(0.90));
+    }
+
+    public void testExplicitNullIsDistinctFromNullFieldSettings() {
+        ApproximationSettings nullFieldSettings = new ApproximationSettings.Builder(true).rows(null).confidenceLevel(null).build();
+        assertNotNull(nullFieldSettings);
+        assertThat(nullFieldSettings, not(equalTo(ApproximationSettings.EXPLICIT_NULL)));
     }
 
     public void testMergeDefaultPreservesNullRows() {

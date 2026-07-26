@@ -23,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -67,24 +68,24 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
-                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                return new ScorerSupplier() {
                     @Override
-                    public long cost() {
-                        return context.reader().maxDoc();
-                    }
-
-                    @Override
-                    public DocIdSetIterator iterator(long leadCost) throws IOException {
-                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
-                        // checking before the allocation skips it entirely when under pressure.
-                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                    public Scorer get(long leadCost) throws IOException {
                         final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
                         if (values == null) {
-                            return DocIdSetIterator.empty();
+                            return ConstantScoreScorerSupplier.fromIterator(
+                                DocIdSetIterator.empty(),
+                                score(),
+                                scoreMode,
+                                context.reader().maxDoc()
+                            ).get(leadCost);
                         }
 
+                        // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+
                         // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
-                        // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
+                        // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
                         // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                         // linear scaling under sub-segment slicing (DataPartitioning.DOC).
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
@@ -97,14 +98,23 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                                 ? direct.tryContainsIterator(containsTerm)
                                 : null;
 
+                        final DocIdSetIterator iterator;
                         if (containsIter != null) {
-                            return containsIter;
+                            iterator = containsIter;
+                        } else {
+                            Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
+                            final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                            iterator = arrayOrderInlineNull
+                                ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
+                                : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                         }
-                        Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                        final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        return arrayOrderInlineNull
-                            ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
-                            : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                        return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc())
+                            .get(leadCost);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return context.reader().maxDoc();
                     }
                 };
             }

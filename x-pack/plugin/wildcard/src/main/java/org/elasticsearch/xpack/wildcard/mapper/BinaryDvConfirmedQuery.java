@@ -196,6 +196,14 @@ abstract class BinaryDvConfirmedQuery extends Query {
                             ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
                             : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
                         final Scorer approxScorer = approxScorerSupplier.get(leadCost);
+
+                        // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+
+                        final SortedBinaryDocValues values = arrayOrder
+                            ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
+                            : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
+
                         final DocIdSetIterator approxDisi = approxScorer.iterator();
                         final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
                             @Override

@@ -30,6 +30,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -201,7 +203,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         dir.close();
     }
 
-    public void testBinaryDvConfirmationChecksCircuitBreaker() throws IOException {
+    public void testBinaryDvConfirmationChecksCircuitBreakerWhenScorerBuilt() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -236,7 +238,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         searcher.setCircuitBreaker(breaker);
 
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
-        expectThrows(CircuitBreakingException.class, () -> searcher.count(wildcardFieldQuery));
+        var weight = wildcardFieldQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(reader.leaves().get(0));
+        assertNotNull(scorerSupplier);
+        assertThat(checkpointedBytes.get(), equalTo(-1L));
+        expectThrows(CircuitBreakingException.class, () -> scorerSupplier.get(Long.MAX_VALUE));
         // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
         assertThat(checkpointedBytes.get(), equalTo(0L));
 

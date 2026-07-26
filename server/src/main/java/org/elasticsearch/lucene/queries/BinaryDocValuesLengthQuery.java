@@ -23,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -63,39 +64,54 @@ final class BinaryDocValuesLengthQuery extends Query {
                 if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
-                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                return new ScorerSupplier() {
                     @Override
-                    public long cost() {
-                        return context.reader().maxDoc();
-                    }
-
-                    @Override
-                    public DocIdSetIterator iterator(long leadCost) throws IOException {
-                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
-                        // checking before the allocation skips it entirely when under pressure.
-                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                    public Scorer get(long leadCost) throws IOException {
                         final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
                         if (values == null) {
-                            return DocIdSetIterator.empty();
+                            return ConstantScoreScorerSupplier.fromIterator(
+                                DocIdSetIterator.empty(),
+                                score(),
+                                scoreMode,
+                                context.reader().maxDoc()
+                            ).get(leadCost);
                         }
+
+                        // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
 
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                         DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                        final DocIdSetIterator iterator;
                         if ((countsSkipper == null || countsSkipper.maxValue() == 1)
                             && values instanceof BlockLoader.OptionalLengthReader direct) {
                             // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
                             // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
-                            return direct.tryLengthIterator(length);
-                        }
-                        Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (arrayOrderInlineNull) {
-                            return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
-                        } else if (countsSkipper != null) {
-                            return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
+                            iterator = direct.tryLengthIterator(length);
                         } else {
-                            return AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
+                            Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
+                            if (arrayOrderInlineNull) {
+                                iterator = AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(
+                                    values,
+                                    counts,
+                                    lengthPredicate,
+                                    matchCost
+                                );
+                            } else if (countsSkipper != null) {
+                                iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
+                            } else {
+                                iterator = AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
+                            }
                         }
+
+                        return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc())
+                            .get(leadCost);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return context.reader().maxDoc();
                     }
                 };
             }

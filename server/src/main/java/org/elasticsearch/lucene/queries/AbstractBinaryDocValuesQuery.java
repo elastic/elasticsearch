@@ -15,6 +15,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -22,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -65,22 +67,26 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                 if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
-                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        final DocIdSetIterator iterator = getDocIdSetIterator(context, matchCost);
+                        if (iterator == null) {
+                            return ConstantScoreScorerSupplier.fromIterator(
+                                DocIdSetIterator.empty(),
+                                score(),
+                                scoreMode,
+                                context.reader().maxDoc()
+                            ).get(leadCost);
+                        }
+
+                        // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        return new ConstantScoreScorer(score(), scoreMode, iterator);
+                    }
                     @Override
                     public long cost() {
                         return context.reader().maxDoc();
-                    }
-
-                    @Override
-                    public DocIdSetIterator iterator(long leadCost) throws IOException {
-                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
-                        // checking before the allocation skips it entirely when under pressure.
-                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
-                        final DocIdSetIterator disi = getDocIdSetIterator(context, matchCost);
-                        if (disi == null) {
-                            return DocIdSetIterator.empty();
-                        }
-                        return disi;
                     }
                 };
             }

@@ -184,7 +184,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
         }
     }
 
-    public void testChecksCircuitBreakerWhenReaderOpened() throws IOException {
+    public void testChecksCircuitBreakerWhenScorerBuilt() throws IOException {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -218,7 +218,11 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                     searcher.setCircuitBreaker(breaker);
 
                     Query present = new BinaryDocValuesLengthQuery(fieldName, 1, false);
-                    expectThrows(CircuitBreakingException.class, () -> searcher.count(present));
+                    var weight = present.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    var scorerSupplier = weight.scorerSupplier(reader.leaves().get(0));
+                    assertNotNull(scorerSupplier);
+                    assertEquals(-1L, checkpointedBytes.get());
+                    expectThrows(CircuitBreakingException.class, () -> scorerSupplier.get(Long.MAX_VALUE));
                     // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
                     assertEquals(0L, checkpointedBytes.get());
 

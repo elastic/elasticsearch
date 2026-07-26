@@ -1203,9 +1203,11 @@ public class ExternalSourceResolver {
      * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
      * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
      * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
-     * Any resolution failure refuses: the registry throws {@code QlIllegalArgumentException} (not
-     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is an
-     * optimization that must never turn a resolvable read into a throw — hence the broad catch.
+     * Any resolution failure refuses rather than throws: the registry rejects an unregistered extension
+     * with an {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn
+     * a resolvable read into a throw — hence the broad catch. The catch is deliberately broad and must
+     * stay so: it is the refusal that matters here, not the exception type, and narrowing it to the type
+     * the registry happens to throw today would re-couple this gate to that choice.
      */
     private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
         try {
@@ -1993,16 +1995,38 @@ public class ExternalSourceResolver {
         if (lastFailure != null) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
         }
-        var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-        throw new UnsupportedOperationException(
-            "No handler found for source at path ["
-                + path
-                + "]. "
-                + "Please ensure the appropriate data source plugin is installed. "
-                + "Known handlers: ["
-                + sources
-                + "]."
-        );
+        throw noReaderError(path);
+    }
+
+    /**
+     * Builds the failure for a path that no factory claimed. The cause is always format resolution, never a missing
+     * storage plugin: {@link #resolveSingleSource} and {@link #resolveSingleSourceAsync} both validate the scheme
+     * against {@link DataSourceCapabilities} first, so an unsupported scheme has already failed with its own message
+     * by the time we get here. What is left is an object whose extension names no registered format, or which carries
+     * no extension to name one with.
+     * <p>
+     * The remedy is named as the {@code format} dataset setting, not as any query surface syntax — the resolver must
+     * not prescribe a query shape it has no business knowing. The listed vocabulary is the registered format names and
+     * extensions from {@link DataSourceCapabilities}, NOT {@code sourceFactories().keySet()}: that key set aliases the
+     * single catch-all file factory under every format name alongside catalog types, so it reads as a handler list
+     * while being neither the formats a user may name nor anything they can act on.
+     * <p>
+     * An {@link IllegalArgumentException} so this maps to 400 via {@code ExceptionsHelper#status}, matching its
+     * sibling {@link UnsupportedSchemeException}. It was an {@code UnsupportedOperationException}, which is unmapped
+     * and so reported a plain user-input mistake as a 500.
+     */
+    private IllegalArgumentException noReaderError(String path) {
+        String objectName;
+        try {
+            objectName = StoragePath.of(path).objectName();
+        } catch (IllegalArgumentException e) {
+            objectName = "";
+        }
+        // Delegated, not duplicated. The registry owns both the vocabulary and the claiming decision
+        // (canHandle consults its maps), so building the message anywhere else lets the advice drift from
+        // the behaviour. The full location is passed as the display path -- the caller asked for a glob or
+        // a dataset resource, and quoting back only the object name would lose that.
+        return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
     }
 
     /**
@@ -2037,7 +2061,10 @@ public class ExternalSourceResolver {
 
         List<ExternalSourceFactory> candidates = new ArrayList<>();
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(path)) {
+            // Config-aware, exactly like the synchronous resolveSingleSource: an explicit `format` names the reader
+            // directly, so it must claim a resource whose extension alone says nothing. Every multi-file resolve
+            // (glob, prefix, comma-list) lands here, so the path-only form made `format` a no-op for all of them.
+            if (factory.canHandle(path, config)) {
                 candidates.add(factory);
             }
         }
@@ -2064,18 +2091,7 @@ public class ExternalSourceResolver {
                 listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
                 return;
             }
-            var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-            listener.onFailure(
-                new UnsupportedOperationException(
-                    "No handler found for source at path ["
-                        + path
-                        + "]. "
-                        + "Please ensure the appropriate data source plugin is installed. "
-                        + "Known handlers: ["
-                        + sources
-                        + "]."
-                )
-            );
+            listener.onFailure(noReaderError(path));
             return;
         }
         ExternalSourceFactory factory = candidates.get(index);

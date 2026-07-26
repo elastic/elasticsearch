@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -1299,7 +1298,13 @@ public class FileSplitProvider implements SplitProvider {
      */
     public static long validateTargetSplitSize(String value) {
         long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
-        Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
+        if (result <= 0) {
+            // A plain IllegalArgumentException (400): an invalid setting value is user input. Check.isTrue throws
+            // QlIllegalArgumentException, which extends QlServerException and so rendered as a 500 -- while the very
+            // same value is rejected as a 400 at PUT time, where the dataset validator re-runs this parser and wraps
+            // the failure in a ValidationException. This also makes the @throws above true; it was not.
+            throw new IllegalArgumentException("Invalid value for [" + CONFIG_TARGET_SPLIT_SIZE + "]: [" + value + "]; must be positive");
+        }
         return result;
     }
 

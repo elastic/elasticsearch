@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -95,7 +96,20 @@ public class FormatReaderRegistry {
         }
 
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        Check.notNull(supplier, "No format reader registered for format: " + formatName);
+        if (supplier == null) {
+            // 400, not 500. A dataset naming a format whose plugin is not installed is a configuration
+            // problem the caller can act on, not a server fault -- Check.notNull threw
+            // QlIllegalArgumentException, which extends QlServerException and so rendered as a 500.
+            // This is also the ONE place where "the plugin providing this format may not be installed"
+            // is the correct advice, so it is stated here and nowhere else.
+            throw new IllegalArgumentException(
+                "No reader registered for format ["
+                    + formatName
+                    + "]; the plugin providing it may not be installed. Registered formats: "
+                    + new TreeSet<>(byName.keySet())
+                    + "."
+            );
+        }
         return supplier.get();
     }
 
@@ -128,7 +142,9 @@ public class FormatReaderRegistry {
 
         String extension = trailingExtension(objectName);
         if (extension == null) {
-            throw new IllegalArgumentException("Cannot infer format from object name without extension: " + objectName);
+            // Same condition, same builder: an extensionless object is one more shape of "cannot work out how
+            // to read this", and must not answer differently just because it failed one branch earlier.
+            throw unreadableObject(objectName, objectName);
         }
 
         // Check for compound extension (e.g. .csv.gz)
@@ -144,8 +160,68 @@ public class FormatReaderRegistry {
         }
 
         Supplier<FormatReader> supplier = byExtension.get(extension);
-        Check.notNull(supplier, "No format reader registered for extension: {}. Supported: {}", extension, byExtension.keySet());
+        if (supplier == null) {
+            throw unreadableObject(objectName, objectName);
+        }
         return supplier.get();
+    }
+
+    /**
+     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
+     * failure and this registry's own extension lookup raise it, so one condition cannot produce two
+     * differently-worded answers depending on which layer caught it.
+     * <p>
+     * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
+     * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
+     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities
+     * is built from {@code FormatSpec} declarations alone, so a reader that declares an extension only via
+     * {@code FormatReader#fileExtensions()} (parquet's {@code .parq}) is readable but absent from it.
+     *
+     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
+     *                    path, the object name here
+     * @param objectName  the object name to diagnose the extension from
+     */
+    IllegalArgumentException unreadableObject(String displayPath, String objectName) {
+        return new IllegalArgumentException(
+            "Cannot determine how to read ["
+                + displayPath
+                + "]: "
+                + diagnose(objectName)
+                + " Set the dataset's [format] setting to one of "
+                + new TreeSet<>(byName.keySet())
+                + ", or use objects whose extension is one of "
+                + new TreeSet<>(byExtension.keySet())
+                + " (optionally followed by a compression suffix, e.g. .gz)."
+        );
+    }
+
+    /**
+     * Names the part of {@code objectName} that failed to resolve. Which suffix counts as compression is
+     * asked of the codec registry, never inferred from the shape of the name: reporting the outer segment of
+     * {@code flow.log.gz} alone would contradict itself ({@code .gz} IS a supported codec), while always
+     * reporting two segments would misreport a dotted stem ({@code 2026.07.26.data.xyz}, whose extension is
+     * just {@code .xyz}). So the pair is reported only when the outer segment really is a codec and there is
+     * an inner segment behind it, and a bare codec suffix gets its own diagnosis.
+     */
+    private String diagnose(String objectName) {
+        String outer = trailingExtension(objectName);
+        if (outer == null) {
+            return "it has no file extension to infer a format from.";
+        }
+        if (isCompressionExtension(outer) == false) {
+            return "extension [" + outer + "] does not match any registered format.";
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        int innerDot = objectName.lastIndexOf('.', lastDot - 1);
+        if (innerDot < 0) {
+            return "extension ["
+                + outer
+                + "] names a compression codec, not a data format; a compressed object needs an inner format "
+                + "extension (e.g. .csv"
+                + outer
+                + ").";
+        }
+        return "extension [" + objectName.substring(innerDot) + "] does not match any registered format.";
     }
 
     /**
@@ -242,6 +318,15 @@ public class FormatReaderRegistry {
             return false;
         }
         return byName.containsKey(formatName.toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Whether {@code extension} (leading dot, any case) is a registered decompression-codec suffix. Callers that
+     * need to tell "this names a codec" from "this names nothing we know" must ask rather than infer it from the
+     * shape of the object name — a suffix is a compression suffix only if a codec claims it.
+     */
+    public boolean isCompressionExtension(String extension) {
+        return codecRegistry != null && codecRegistry.hasCompressionExtension(extension);
     }
 
     public boolean hasExtension(String extension) {

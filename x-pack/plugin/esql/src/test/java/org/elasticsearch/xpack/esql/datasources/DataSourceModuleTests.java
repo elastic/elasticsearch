@@ -47,6 +47,7 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -438,6 +439,43 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * The catch-all file factory is registered LAST so plugin-provided factories win when both claim a path, and
+     * {@link ExternalSourceResolver} takes the FIRST factory whose {@code canHandle} claims. That priority is
+     * carried entirely by the map's iteration order, so it must survive publication.
+     * <p>
+     * The claims genuinely overlap: a table catalog claims an extensionless object (a table directory), and the
+     * file factory's config-aware {@code canHandle} claims the same object once an explicit {@code format} is
+     * configured. Publishing through {@code Map.copyOf} — whose iteration order the JDK documents as
+     * unspecified — silently dropped the ordering, so which factory won such a path was undefined. This pin
+     * fails if anyone reintroduces that.
+     */
+    public void testFileFallbackIsRegisteredAfterPluginFactories() {
+        DataSourcePlugin catalogPlugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("catalog-scheme");
+            }
+
+            @Override
+            public Set<String> supportedCatalogs() {
+                return Set.of("test-catalog");
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(catalogPlugin);
+        try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
+            List<String> order = List.copyOf(module.sourceFactories().keySet());
+            int catalogAt = order.indexOf("test-catalog");
+            int fileAt = order.indexOf("file");
+            assertTrue("the catalog factory must be registered, got " + order, catalogAt >= 0);
+            assertTrue("the file fallback must be registered, got " + order, fileAt >= 0);
+            assertTrue("the file fallback must come after plugin factories so they claim first, got " + order, catalogAt < fileAt);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {

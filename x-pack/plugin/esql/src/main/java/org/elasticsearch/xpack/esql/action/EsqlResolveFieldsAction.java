@@ -95,7 +95,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
         // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
         List<String> remoteDatasets = abstractionOptions.resolveDatasets() && Federation.isAvailable()
-            ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
+            ? qualify(
+                request.clusterAlias(),
+                getDatasets(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions())
+            )
             : List.of();
         boolean hasRemoteViews = remoteViews.isEmpty() == false;
         boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;
@@ -171,7 +174,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
     }
 
-    private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {
+    private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions, ResolvedIndexExpressions resolved) {
         // Datasets resolve via IndexNameExpressionResolver, not the view service.
         var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         Set<String> datasets = new LinkedHashSet<>(
@@ -189,9 +192,13 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         );
         // The flag governs only wildcard discovery of datasets: with it off, a wildcard-matched remote dataset is
         // dropped (so FROM <remote>:<wildcard> resolves to remote indices), while an explicitly-named remote dataset is
-        // kept and still rejected as non-remotable. Same rule the local rail applies, so the flag means the same thing
-        // on both sides; error handling is otherwise identical across flag states.
-        DatasetRewriter.keepOnlyExplicitlyNamed(datasets, Arrays.asList(indices), DatasetRewriter.wildcardsMatchDatasets());
+        // kept and still rejected as non-remotable. Under security this runs after wildcards were replaced with concrete
+        // names, so the explicit set is recovered from the resolved expressions' originals — see explicitlyNamed.
+        DatasetRewriter.keepOnlyExplicitlyNamed(
+            datasets,
+            DatasetRewriter.explicitlyNamed(indices, resolved),
+            DatasetRewriter.wildcardsMatchDatasets()
+        );
         return datasets;
     }
 }

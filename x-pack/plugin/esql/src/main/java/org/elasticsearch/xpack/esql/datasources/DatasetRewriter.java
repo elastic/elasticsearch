@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -159,7 +162,9 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(resolvedExternalDatasets);
-        keepOnlyExplicitlyNamed(result, Arrays.asList(rawPatterns), wildcardDatasets);
+        // The local rail's raw patterns are preserved by the security filter (it replaces indices() but keeps
+        // rawPatterns), so the exact names computed above are the explicit set directly.
+        keepOnlyExplicitlyNamed(result, exact, wildcardDatasets);
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -404,17 +409,30 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Enforces the one thing the flag controls — wildcard discoverability of datasets. When
-     * {@code wildcardDatasets} is off, drops every dataset in {@code datasets} that no exact name in {@code patterns}
-     * points at, so a wildcard-discovered dataset disappears while an explicitly-named one is kept. A no-op when on.
-     * Shared by the local resolve rail ({@link #resolve}) and the remote field-caps detection rail
-     * ({@code EsqlResolveFieldsAction#getDatasets}) so the flag means the same thing on both, and error handling is
-     * otherwise identical across flag states.
+     * Enforces the one thing the flag controls — wildcard discoverability of datasets. When {@code wildcardDatasets} is
+     * off, drops every dataset not in {@code explicitlyNamed}, so a wildcard-discovered dataset disappears while an
+     * explicitly-named one is kept. A no-op when on. Shared by the local resolve rail ({@link #resolve}) and the remote
+     * field-caps detection rail ({@code EsqlResolveFieldsAction#getDatasets}), so the flag means the same thing on both
+     * and error handling is otherwise identical across flag states.
      */
-    public static void keepOnlyExplicitlyNamed(Set<String> datasets, List<String> patterns, boolean wildcardDatasets) {
+    public static void keepOnlyExplicitlyNamed(Set<String> datasets, Set<String> explicitlyNamed, boolean wildcardDatasets) {
         if (wildcardDatasets == false) {
-            datasets.retainAll(exactNames(patterns));
+            datasets.retainAll(explicitlyNamed);
         }
+    }
+
+    /**
+     * The explicitly-named (non-wildcard) names for the remote field-caps rail, robust to the security layer having
+     * already replaced the request's wildcards with concrete names before this runs: each {@link ResolvedIndexExpression}
+     * still carries its user {@code original()}, so the exact originals are the explicit set. Falls back to {@code indices}
+     * when no resolution is attached (unsecured, where they are still the user's originals). Mirrors how the views rail
+     * reads {@link ResolvedIndexExpressions}.
+     */
+    public static Set<String> explicitlyNamed(String[] indices, @Nullable ResolvedIndexExpressions resolved) {
+        if (resolved == null) {
+            return exactNames(Arrays.asList(indices));
+        }
+        return exactNames(resolved.expressions().stream().map(ResolvedIndexExpression::original).toList());
     }
 
     /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */

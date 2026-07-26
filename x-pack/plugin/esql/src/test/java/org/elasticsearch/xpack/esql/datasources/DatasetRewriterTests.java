@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1175,18 +1177,56 @@ public class DatasetRewriterTests extends ESTestCase {
 
     /**
      * The shared rule both the local and remote rails apply: the flag gates only wildcard discovery of datasets. Off
-     * drops a dataset only a wildcard matched ({@code logs_a}/{@code logs_b}) while keeping an explicitly-named one
+     * drops a wildcard-discovered dataset ({@code logs_a}/{@code logs_b}) while keeping an explicitly-named one
      * ({@code metrics}); on is a no-op.
      */
     public void testKeepOnlyExplicitlyNamedGatesOnlyWildcards() {
-        List<String> patterns = List.of("logs*", "metrics");
+        Set<String> explicit = Set.of("metrics");
 
         Set<String> off = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
-        DatasetRewriter.keepOnlyExplicitlyNamed(off, patterns, false);
+        DatasetRewriter.keepOnlyExplicitlyNamed(off, explicit, false);
         assertThat(off, containsInAnyOrder("metrics"));
 
         Set<String> on = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
-        DatasetRewriter.keepOnlyExplicitlyNamed(on, patterns, true);
+        DatasetRewriter.keepOnlyExplicitlyNamed(on, explicit, true);
         assertThat(on, containsInAnyOrder("logs_a", "logs_b", "metrics"));
+    }
+
+    /**
+     * The remote rail's explicit-name derivation must survive the security filter having already replaced the request's
+     * wildcards with concrete names: the wildcard-ness lives on {@link ResolvedIndexExpression#original()}, not on the
+     * (now concrete) indices, so only {@code metrics} — whose original was exact — counts as explicit. Without a
+     * resolution attached (unsecured), the raw indices are still the user's originals.
+     */
+    public void testExplicitlyNamedRecoversOriginalsUnderSecurity() {
+        // Unsecured: no resolution attached; the raw indices are the originals.
+        assertThat(DatasetRewriter.explicitlyNamed(new String[] { "logs*", "metrics" }, null), containsInAnyOrder("metrics"));
+
+        // Secured: request.indices() have been expanded to concrete names, but the originals survive on the resolution.
+        ResolvedIndexExpressions resolved = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs_a", "logs_b", "logs_ds"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    ),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "metrics",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("metrics"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    ),
+                    Set.of()
+                )
+            ),
+            null
+        );
+        assertThat(
+            DatasetRewriter.explicitlyNamed(new String[] { "logs_a", "logs_b", "logs_ds", "metrics" }, resolved),
+            containsInAnyOrder("metrics")
+        );
     }
 }

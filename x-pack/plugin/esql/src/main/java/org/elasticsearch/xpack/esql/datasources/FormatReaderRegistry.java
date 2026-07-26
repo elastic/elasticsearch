@@ -136,6 +136,19 @@ public class FormatReaderRegistry {
     }
 
     public FormatReader byExtension(String objectName) {
+        return byExtension(objectName, objectName);
+    }
+
+    /**
+     * @param objectName   the name being resolved, which the compound-extension branch strips down as it recurses
+     * @param originalName the name the CALLER asked about, carried through the recursion untouched so a failure
+     *                     reports the object that actually exists. Without it, {@code b.log.gz} stripped to
+     *                     {@code b.log} before failing and reported "cannot read [b.log]: extension [.log]" — a
+     *                     file name the user never wrote, and a different extension than the same file gets on the
+     *                     resolver path, which is exactly the two-answers-for-one-condition split that
+     *                     {@link #unreadableObject} exists to prevent.
+     */
+    private FormatReader byExtension(String objectName, String originalName) {
         if (Strings.isNullOrEmpty(objectName)) {
             throw new IllegalArgumentException("Object name cannot be null or empty");
         }
@@ -144,14 +157,14 @@ public class FormatReaderRegistry {
         if (extension == null) {
             // Same condition, same builder: an extensionless object is one more shape of "cannot work out how
             // to read this", and must not answer differently just because it failed one branch earlier.
-            throw unreadableObject(objectName, objectName);
+            throw unreadableObject(originalName, originalName);
         }
 
         // Check for compound extension (e.g. .csv.gz)
         if (codecRegistry != null) {
             String stripped = codecRegistry.stripCompressionSuffix(objectName);
             if (stripped != null) {
-                FormatReader inner = byExtension(stripped);
+                FormatReader inner = byExtension(stripped, originalName);
                 DecompressionCodec codec = codecRegistry.byExtension(extension);
                 if (codec != null) {
                     return wrapWithCodec(inner, codec, extension, objectName);
@@ -161,7 +174,7 @@ public class FormatReaderRegistry {
 
         Supplier<FormatReader> supplier = byExtension.get(extension);
         if (supplier == null) {
-            throw unreadableObject(objectName, objectName);
+            throw unreadableObject(originalName, originalName);
         }
         return supplier.get();
     }
@@ -173,9 +186,12 @@ public class FormatReaderRegistry {
      * <p>
      * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
      * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
-     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities
-     * is built from {@code FormatSpec} declarations alone, so a reader that declares an extension only via
-     * {@code FormatReader#fileExtensions()} (parquet's {@code .parq}) is readable but absent from it.
+     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
+     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
+     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
+     * {@code canHandle}, honours it. No shipped reader does that today (parquet's {@code .parq} was the one
+     * case and is now spec-declared), but sourcing the message from the claiming maps means a future one
+     * cannot make the advice lie.
      *
      * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
      *                    path, the object name here

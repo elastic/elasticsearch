@@ -767,6 +767,28 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
+     * A compound name whose INNER extension is unknown must report the object the caller actually named, and the
+     * compound extension that failed. The compound branch strips the codec suffix and recurses, so the failure is
+     * raised one frame down against a name that does not exist on disk: it reported "cannot read [data.log]:
+     * extension [.log]" for a file called {@code data.log.gz}, while the resolver path reported "[.log.gz]" for
+     * the very same file. Two answers for one condition is precisely what the shared builder exists to prevent,
+     * and no test covered this route -- every other case reaches the builder through the resolver.
+     */
+    public void testCompoundNameWithUnknownInnerExtensionReportsTheOriginalObject() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("data.log.gz"));
+
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("[data.log.gz]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("extension [.log.gz]"));
+        // The stripped intermediate must never surface -- it names a file that does not exist.
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("[data.log]")));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("extension [.log]")));
+    }
+
+    /**
      * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
      * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
      * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.

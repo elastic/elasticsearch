@@ -2005,11 +2005,11 @@ public class ExternalSourceResolver {
      * by the time we get here. What is left is an object whose extension names no registered format, or which carries
      * no extension to name one with.
      * <p>
-     * The remedy is named as the {@code format} dataset setting, not as any query surface syntax — the resolver must
-     * not prescribe a query shape it has no business knowing. The listed vocabulary is the registered format names and
-     * extensions from {@link DataSourceCapabilities}, NOT {@code sourceFactories().keySet()}: that key set aliases the
-     * single catch-all file factory under every format name alongside catalog types, so it reads as a handler list
-     * while being neither the formats a user may name nor anything they can act on.
+     * The message itself is built by {@link FormatReaderRegistry#unreadableObject}, which sources the vocabulary
+     * from the registry's own maps — the same maps {@code canHandle} consults, so the advice cannot drift from what
+     * actually claims. It is deliberately NOT {@code sourceFactories().keySet()}: that key set aliases the single
+     * catch-all file factory under every format name alongside catalog types, so it reads as a handler list while
+     * being neither the formats a user may name nor anything they can act on.
      * <p>
      * An {@link IllegalArgumentException} so this maps to 400 via {@code ExceptionsHelper#status}, matching its
      * sibling {@link UnsupportedSchemeException}. It was an {@code UnsupportedOperationException}, which is unmapped

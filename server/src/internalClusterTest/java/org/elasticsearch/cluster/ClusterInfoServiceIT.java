@@ -66,7 +66,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -498,26 +497,21 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             }
             final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
-            // Wait until the WRITE thread pool is fully quiesced and GlobalCheckpointSyncAction can no longer be
-            // triggered. For REQUEST durability, syncGlobalCheckpoints is only called when
-            // trackedGlobalCheckpointsNeedSync() is true, i.e. some in-sync shard's tracked global checkpoint lags
-            // the primary's. Asserting all in-sync checkpoints equal getLastKnownGlobalCheckpoint() is equivalent to
-            // asserting !trackedGlobalCheckpointsNeedSync(), so any pending sync has completed and no future trigger
-            // can fire. active=0 ensures afterExecute() has been called (finalising utilization accounting); queue=0
-            // ensures no task is about to be picked up.
-            assertBusy(() -> {
-                for (IndexService indexService : dataNodeIndicesService) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (IndexShard shard : indexService) {
-                            if (shard.routingEntry().primary()) {
-                                assertThat(
-                                    shard.getInSyncGlobalCheckpoints().values(),
-                                    everyItem(equalTo(shard.getLastKnownGlobalCheckpoint()))
-                                );
-                            }
-                        }
-                    }
+            // Disable the periodic global-checkpoint sync task for the test index. This is the only remaining source
+            // of GlobalCheckpointSyncAction dispatches to WRITE after all write threads are joined (post-operation
+            // triggers from TransportReplicationAction cannot fire once there are no active writers). Without this,
+            // shards that received no writes have trackedGlobalCheckpointsNeedSync() perpetually true, so the
+            // periodic task would keep dispatching to WRITE indefinitely, making active=0 && queue=0 unsafe to rely
+            // on as a quiescence signal.
+            for (IndexService indexService : dataNodeIndicesService) {
+                if (indexService.index().getName().equals(indexName)) {
+                    indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
                 }
+            }
+            // Wait until the WRITE thread pool is fully quiesced. With the periodic task disabled and all writers
+            // joined, no new GlobalCheckpointSyncAction dispatches can occur; active=0 ensures afterExecute() has
+            // been called (finalising utilization accounting) and queue=0 ensures nothing is about to be picked up.
+            assertBusy(() -> {
                 assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
                 assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
             });

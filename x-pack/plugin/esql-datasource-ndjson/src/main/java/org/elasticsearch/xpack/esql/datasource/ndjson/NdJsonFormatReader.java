@@ -181,7 +181,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         if (newSampleSize <= 0) {
-            // 400, not 500: an invalid setting value is user input (see FileSplitProvider#validateTargetSplitSize).
+            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
             throw new IllegalArgumentException(CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: " + newSampleSize);
         }
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
@@ -361,8 +361,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
         long bytes = value.getBytes();
         if (bytes < MIN_SEGMENT_SIZE.getBytes()) {
-            // 400, not 500: an out-of-range node setting is operator input, and ES setting validation conventionally
-            // rejects with IllegalArgumentException.
+            // Operator input; ES setting validation rejects with IllegalArgumentException by convention.
             throw new IllegalArgumentException(SEGMENT_SIZE_SETTING + " must be >= " + MIN_SEGMENT_SIZE + ", got: " + value);
         }
         return bytes;
@@ -386,7 +385,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
         if (bytes < MIN_SEGMENT_SIZE.getBytes()) {
-            // 400, not 500: an invalid setting value is user input (see FileSplitProvider#validateTargetSplitSize).
+            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
             throw new IllegalArgumentException(CONFIG_SEGMENT_SIZE + " must be >= " + MIN_SEGMENT_SIZE + ", got: " + parsed);
         }
         return bytes;

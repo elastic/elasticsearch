@@ -2011,9 +2011,7 @@ public class ExternalSourceResolver {
      * catch-all file factory under every format name alongside catalog types, so it reads as a handler list while
      * being neither the formats a user may name nor anything they can act on.
      * <p>
-     * An {@link IllegalArgumentException} so this maps to 400 via {@code ExceptionsHelper#status}, matching its
-     * sibling {@link UnsupportedSchemeException}. It was an {@code UnsupportedOperationException}, which is unmapped
-     * and so reported a plain user-input mistake as a 500.
+     * An {@link IllegalArgumentException}, so this maps to 400 like its sibling {@link UnsupportedSchemeException}.
      */
     private IllegalArgumentException noReaderError(String path) {
         String objectName;
@@ -2022,10 +2020,8 @@ public class ExternalSourceResolver {
         } catch (IllegalArgumentException e) {
             objectName = "";
         }
-        // Delegated, not duplicated. The registry owns both the vocabulary and the claiming decision
-        // (canHandle consults its maps), so building the message anywhere else lets the advice drift from
-        // the behaviour. The full location is passed as the display path -- the caller asked for a glob or
-        // a dataset resource, and quoting back only the object name would lose that.
+        // The full location is the display path: the caller asked for a glob or a dataset resource, and
+        // quoting back only the object name would lose what they wrote.
         return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
     }
 
@@ -2061,9 +2057,9 @@ public class ExternalSourceResolver {
 
         List<ExternalSourceFactory> candidates = new ArrayList<>();
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            // Config-aware, exactly like the synchronous resolveSingleSource: an explicit `format` names the reader
+            // Config-aware, like the synchronous resolveSingleSource: an explicit `format` names the reader
             // directly, so it must claim a resource whose extension alone says nothing. Every multi-file resolve
-            // (glob, prefix, comma-list) lands here, so the path-only form made `format` a no-op for all of them.
+            // reaches here, so the path-only form would make `format` a no-op for all of them.
             if (factory.canHandle(path, config)) {
                 candidates.add(factory);
             }

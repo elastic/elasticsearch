@@ -49,12 +49,10 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of("optimized_reader", "late_materialization");
 
     /**
-     * Both extensions the reader actually accepts. {@code .parq} was declared only by
-     * {@code ParquetFormatReader#fileExtensions()}, which {@code FormatReaderRegistry} applies lazily on first
-     * reader instantiation -- so on a cold node {@code hasExtension(".parq")} was false and a {@code .parq}
-     * object was not claimed, then became claimable once anything else had forced the reader into existence.
-     * Declaring it here registers it eagerly, which also makes it visible to {@code DataSourceCapabilities} and
-     * to the unreadable-object message's extension list.
+     * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register
+     * eagerly at module construction; reader-declared ones register lazily, inside the supplier that instantiates
+     * the reader. An extension declared only there is therefore unclaimable until something forces that reader
+     * into existence, and invisible to {@code DataSourceCapabilities} throughout.
      */
     @Override
     public Set<FormatSpec> formatSpecs() {

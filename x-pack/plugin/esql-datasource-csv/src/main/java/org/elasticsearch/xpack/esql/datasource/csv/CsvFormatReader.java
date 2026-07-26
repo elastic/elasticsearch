@@ -1043,7 +1043,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         if (newSampleSize <= 0) {
-            // 400, not 500: an invalid setting value is user input (see FileSplitProvider#validateTargetSplitSize).
+            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
             throw new IllegalArgumentException(CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: " + newSampleSize);
         }
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);

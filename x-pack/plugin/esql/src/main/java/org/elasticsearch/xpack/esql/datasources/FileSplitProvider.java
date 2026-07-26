@@ -1299,10 +1299,9 @@ public class FileSplitProvider implements SplitProvider {
     public static long validateTargetSplitSize(String value) {
         long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
         if (result <= 0) {
-            // A plain IllegalArgumentException (400): an invalid setting value is user input. Check.isTrue throws
-            // QlIllegalArgumentException, which extends QlServerException and so rendered as a 500 -- while the very
-            // same value is rejected as a 400 at PUT time, where the dataset validator re-runs this parser and wraps
-            // the failure in a ValidationException. This also makes the @throws above true; it was not.
+            // User input, so IllegalArgumentException (400) -- the dataset validator re-runs this parser at PUT
+            // time and rejects the same value as a 400 there. Check.isTrue would throw QlIllegalArgumentException,
+            // which is a QlServerException and maps to 500.
             throw new IllegalArgumentException("Invalid value for [" + CONFIG_TARGET_SPLIT_SIZE + "]: [" + value + "]; must be positive");
         }
         return result;

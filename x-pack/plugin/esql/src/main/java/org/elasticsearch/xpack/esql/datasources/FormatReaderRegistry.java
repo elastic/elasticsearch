@@ -97,11 +97,9 @@ public class FormatReaderRegistry {
 
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         if (supplier == null) {
-            // 400, not 500. A dataset naming a format whose plugin is not installed is a configuration
-            // problem the caller can act on, not a server fault -- Check.notNull threw
-            // QlIllegalArgumentException, which extends QlServerException and so rendered as a 500.
-            // This is also the ONE place where "the plugin providing this format may not be installed"
-            // is the correct advice, so it is stated here and nowhere else.
+            // The ONE place where "the plugin providing this format may not be installed" is correct advice:
+            // a registered format with no reader behind it is the only way to get here. Do not repeat it on the
+            // extension paths, where the storage side is already proven and only the format failed.
             throw new IllegalArgumentException(
                 "No reader registered for format ["
                     + formatName
@@ -140,13 +138,10 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * @param objectName   the name being resolved, which the compound-extension branch strips down as it recurses
-     * @param originalName the name the CALLER asked about, carried through the recursion untouched so a failure
-     *                     reports the object that actually exists. Without it, {@code b.log.gz} stripped to
-     *                     {@code b.log} before failing and reported "cannot read [b.log]: extension [.log]" — a
-     *                     file name the user never wrote, and a different extension than the same file gets on the
-     *                     resolver path, which is exactly the two-answers-for-one-condition split that
-     *                     {@link #unreadableObject} exists to prevent.
+     * @param objectName   the name being resolved; the compound-extension branch strips it down as it recurses
+     * @param originalName  the name the CALLER asked about, carried through untouched. Failures must report it and
+     *                      not the stripped intermediate, which names a file that does not exist and would give the
+     *                      same object a different answer here than on the resolver path.
      */
     private FormatReader byExtension(String objectName, String originalName) {
         if (Strings.isNullOrEmpty(objectName)) {

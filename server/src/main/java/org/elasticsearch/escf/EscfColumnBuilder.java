@@ -69,6 +69,8 @@ public final class EscfColumnBuilder {
     /** Sentinel returned by {@link #arrayChildKind} for arrays that aren't a single fixed primitive kind. */
     private static final byte UNION_CHILD_KIND = -2;
     private static final byte[] EMPTY_BYTES = new byte[0];
+    /** Reusable zero buffer for bulk absent writes in {@link FixedNumericBuilder#addAbsents}. */
+    private static final byte[] ZERO_BYTES = new byte[512];
 
     private final CollisionPolicy policy;
     private final Recycler<BytesRef> recycler;
@@ -138,6 +140,21 @@ public final class EscfColumnBuilder {
             leadingAbsents++;
         } else {
             current.addAbsent();
+        }
+    }
+
+    /**
+     * Records {@code n} consecutive absent rows. More efficient than calling {@link #addAbsent()}
+     * {@code n} times because each typed builder can bulk-write its absent representation.
+     */
+    public void addAbsents(int n) {
+        if (n <= 0) {
+            return;
+        }
+        if (current == null) {
+            leadingAbsents += n;
+        } else {
+            current.addAbsents(n);
         }
     }
 
@@ -404,9 +421,7 @@ public final class EscfColumnBuilder {
     }
 
     private void backfillLeadingAbsents(TypedBuilder builder) {
-        for (int i = 0; i < leadingAbsents; i++) {
-            builder.addAbsent();
-        }
+        builder.addAbsents(leadingAbsents);
         leadingAbsents = 0;
     }
 
@@ -717,6 +732,13 @@ public final class EscfColumnBuilder {
 
         void addAbsent();
 
+        /** Records {@code n} consecutive absent rows. Default falls back to repeated {@link #addAbsent()}; override for bulk efficiency. */
+        default void addAbsents(int n) {
+            for (int i = 0; i < n; i++) {
+                addAbsent();
+            }
+        }
+
         /** Near-free promotion to a union (adopts the value buffer where the layout allows). */
         UnionBuilder promote(Recycler<BytesRef> recycler);
 
@@ -749,6 +771,23 @@ public final class EscfColumnBuilder {
                 validity = FixedBitSet.ensureCapacity(validity, count + 1);
             }
             count++;
+        }
+
+        /**
+         * Marks {@code n} consecutive documents absent in one shot. Cheaper than calling
+         * {@link #advanceAbsent()} {@code n} times: materialises the validity bitset once and
+         * grows it once rather than once per row.
+         */
+        final void bulkAdvanceAbsent(int n) {
+            if (n == 0) return;
+            if (validity == null) {
+                validity = new FixedBitSet(Math.max(64, count + n));
+                validity.set(0, count); // [0, count) are present
+            } else {
+                validity = FixedBitSet.ensureCapacity(validity, count + n);
+            }
+            // bits [count, count+n) remain 0 (absent)
+            count += n;
         }
 
         /** Marks the current document present and advances {@code count}. */
@@ -828,6 +867,18 @@ public final class EscfColumnBuilder {
         public void addAbsent() {
             writeLongLE(data, 0L);
             advanceAbsent();
+        }
+
+        @Override
+        public void addAbsents(int n) {
+            // Write n * 8 zero bytes in one shot, avoiding per-row stream-call overhead.
+            int remaining = n * Long.BYTES;
+            while (remaining > 0) {
+                int chunk = Math.min(remaining, ZERO_BYTES.length);
+                writeBytes(data, ZERO_BYTES, 0, chunk);
+                remaining -= chunk;
+            }
+            bulkAdvanceAbsent(n);
         }
 
         @Override
@@ -966,6 +1017,14 @@ public final class EscfColumnBuilder {
             advanceAbsent();
         }
 
+        @Override
+        public void addAbsents(int n) {
+            // VarBuilder writes no bytes for absent rows; bulk-fill the offset slots and advance.
+            offsets = ensureIntCapacity(offsets, count + n);
+            Arrays.fill(offsets, count, count + n, dataLen);
+            bulkAdvanceAbsent(n);
+        }
+
         private void recordOffset() {
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
@@ -1090,6 +1149,13 @@ public final class EscfColumnBuilder {
             rowOffsets = ensureIntCapacity(rowOffsets, count + 1);
             rowOffsets[count] = elemCount;
             advanceAbsent();
+        }
+
+        @Override
+        public void addAbsents(int n) {
+            rowOffsets = ensureIntCapacity(rowOffsets, count + n);
+            Arrays.fill(rowOffsets, count, count + n, elemCount);
+            bulkAdvanceAbsent(n);
         }
 
         /** Begins a new present row; the caller then appends zero or more elements. */

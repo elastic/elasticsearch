@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
@@ -41,6 +42,10 @@ import java.util.List;
  * resulting {@link EscfBatch} owns the column buffers and must be closed to release them.
  * Implements {@link Releasable}: close the builder when done to discard any uncommitted or
  * unbuilt column buffers.
+ *
+ * <p><b>Partition keys</b> must be small non-negative integers (e.g., shard indices in the range
+ * {@code [0, shardCount)}). The backing array is indexed directly by the key; a large key causes
+ * a proportionally large allocation.
  */
 public final class EscfBatchBuilder implements Releasable {
 
@@ -85,6 +90,7 @@ public final class EscfBatchBuilder implements Releasable {
      * Drains the staged row from the {@link EscfRowBuffer} into the column builders for
      * {@code partitionKey}. Returns the zero-based row index within the partition.
      *
+     * @param partitionKey a small non-negative shard index; see the class-level Javadoc
      * @throws IllegalStateException if {@link #beginRow()} has not been called for the current row
      */
     public int commit(int partitionKey) {
@@ -106,7 +112,9 @@ public final class EscfBatchBuilder implements Releasable {
     /**
      * Finalizes all column builders for {@code partitionKey} and returns the resulting
      * {@link EscfBatch}. The batch owns the column buffers; close it to release them. After this
-     * call, the partition's column builders are consumed and must not be used again.
+     * call the partition entry is cleared; calling this method twice for the same key is an error.
+     *
+     * @param partitionKey a small non-negative shard index; see the class-level Javadoc
      */
     public EscfBatch buildPartition(int partitionKey) {
         final Partition partition = getOrCreatePartition(partitionKey);
@@ -116,6 +124,8 @@ public final class EscfBatchBuilder implements Releasable {
         for (int c = 0; c < leafCount; c++) {
             columns[c] = partition.builders.get(c).finish(partition.docCount);
         }
+        // Clear the partition so close() skips it and a double-build is caught.
+        partitions[partitionKey] = null;
         // Each column owns its recycler-backed buffers; the batch releases them all on close.
         return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
     }
@@ -142,7 +152,7 @@ public final class EscfBatchBuilder implements Releasable {
      */
     public String columnPath(int columnIndex) {
         if (columnIndex >= cachedPath.length) {
-            cachedPath = Arrays.copyOf(cachedPath, Integer.highestOneBit(columnIndex) << 1);
+            cachedPath = Arrays.copyOf(cachedPath, ArrayUtil.oversize(columnIndex + 1, Long.BYTES));
         }
         String path = cachedPath[columnIndex];
         if (path == null) {
@@ -186,6 +196,7 @@ public final class EscfBatchBuilder implements Releasable {
     }
 
     private Partition getOrCreatePartition(int partitionKey) {
+        assert partitionKey >= 0 : "partition key must be a non-negative shard index, got " + partitionKey;
         if (partitionKey >= partitions.length) {
             int newCap = partitions.length;
             while (partitionKey >= newCap) {
@@ -203,15 +214,14 @@ public final class EscfBatchBuilder implements Releasable {
 
     /**
      * Ensures the partition has a column builder for every leaf in the schema. Any newly added
-     * builder is backfilled with {@code addAbsent()} for all rows already committed to the
-     * partition, since those rows did not contain the column.
+     * builder is backfilled with absent rows for all rows already committed to the partition,
+     * since those rows did not contain the column. The backfill uses the bulk
+     * {@link EscfColumnBuilder#addAbsents(int)} path to avoid per-row overhead on large batches.
      */
     private void ensurePartitionBuilders(Partition partition, int size) {
         while (partition.builders.size() < size) {
             EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler);
-            for (int i = 0; i < partition.docCount; i++) {
-                builder.addAbsent();
-            }
+            builder.addAbsents(partition.docCount);
             partition.builders.add(builder);
         }
     }

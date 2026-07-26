@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
-import com.google.protobuf.ByteString;
-
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
@@ -17,9 +15,12 @@ import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
+import com.google.protobuf.ByteString;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
@@ -35,11 +36,14 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToIntFunction;
 
@@ -74,6 +78,50 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
 public final class MetricEscfConverter {
 
     private MetricEscfConverter() {}
+
+    // Pre-encoded UTF-8 bytes for the small finite set of temporality strings, so
+    // String.getBytes(UTF_8) is not called on the hot per-row path.
+    private static final Map<String, XContentString.UTF8Bytes> TEMPORALITY_UTF8;
+    static {
+        Map<String, XContentString.UTF8Bytes> m = new HashMap<>();
+        for (String s : new String[] { "cumulative", "delta", "unspecified" }) {
+            m.put(s, utf8(s));
+        }
+        TEMPORALITY_UTF8 = Map.copyOf(m);
+    }
+
+    /**
+     * Primitive long accumulator; avoids boxing when collecting histogram bucket counts and
+     * centroid values from {@link TDigestConverter} / {@link RawHistogramConverter} callbacks.
+     * Not thread-safe; allocate per conversion call.
+     */
+    private static final class LongAccumulator {
+        private long[] buf = new long[16];
+        private int size = 0;
+
+        void addLong(long v) {
+            if (size == buf.length) {
+                buf = Arrays.copyOf(buf, buf.length * 2);
+            }
+            buf[size++] = v;
+        }
+
+        void addDouble(double v) {
+            addLong(Double.doubleToRawLongBits(v));
+        }
+
+        byte[] packAsLong() {
+            return packLongArray(buf, size);
+        }
+
+        byte[] packAsDouble() {
+            return packDoubleArray(buf, size);
+        }
+
+        void reset() {
+            size = 0;
+        }
+    }
 
     /**
      * Per data point group: the tsid, dynamic template assignments, and position within the batch.
@@ -149,11 +197,14 @@ public final class MetricEscfConverter {
 
         // One EscfBatchBuilder per target index.
         Map<String, EscfBatchBuilder> buildersByIndex = new LinkedHashMap<>();
+        // Unique shard IDs per target in insertion order — avoids re-scanning groups at finalization.
+        Map<String, Set<Integer>> shardsByIndex = new LinkedHashMap<>();
         List<GroupResult> groups = new ArrayList<>();
 
         ctx.consume(group -> {
             String targetIndex = group.targetIndex().index();
             EscfBatchBuilder batchBuilder = buildersByIndex.computeIfAbsent(targetIndex, k -> new EscfBatchBuilder());
+            shardsByIndex.computeIfAbsent(targetIndex, k -> new LinkedHashSet<>());
 
             Map<String, String> dynamicTemplates = new HashMap<>();
             Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
@@ -163,6 +214,7 @@ public final class MetricEscfConverter {
             group.tsidBuilder().addStringDimension("_metric_names_hash", metricNamesHash);
             BytesRef tsid = group.tsidBuilder().buildTsid(indexVersion);
             int shardId = tsidToShard.applyAsInt(tsid);
+            shardsByIndex.get(targetIndex).add(shardId);
 
             EscfRowBuffer row = batchBuilder.beginRow();
             buildRow(row, group, metricNamesHash, defaultMappingHints, dynamicTemplates, dynamicTemplateParams);
@@ -172,21 +224,25 @@ public final class MetricEscfConverter {
         });
 
         // Finalize — build one EscfBatch per (targetIndex, shardId) combination.
+        // Builders are always closed in the finally block; batches are released on any exception.
         Map<String, Map<Integer, EscfBatch>> batchesByIndex = new LinkedHashMap<>();
-        for (Map.Entry<String, EscfBatchBuilder> entry : buildersByIndex.entrySet()) {
-            String targetIndex = entry.getKey();
-            EscfBatchBuilder builder = entry.getValue();
-            Map<Integer, EscfBatch> byShardId = new LinkedHashMap<>();
-            // Collect unique shard ids that have rows.
-            for (GroupResult g : groups) {
-                if (g.targetIndex().equals(targetIndex) && byShardId.containsKey(g.shardId()) == false) {
-                    if (builder.hasPartition(g.shardId())) {
-                        byShardId.put(g.shardId(), builder.buildPartition(g.shardId()));
-                    }
+        try {
+            for (Map.Entry<String, EscfBatchBuilder> entry : buildersByIndex.entrySet()) {
+                String targetIndex = entry.getKey();
+                EscfBatchBuilder builder = entry.getValue();
+                Map<Integer, EscfBatch> byShardId = new LinkedHashMap<>();
+                for (int shardId : shardsByIndex.get(targetIndex)) {
+                    byShardId.put(shardId, builder.buildPartition(shardId));
                 }
+                batchesByIndex.put(targetIndex, byShardId);
             }
-            batchesByIndex.put(targetIndex, byShardId);
-            builder.close();
+        } catch (Exception e) {
+            for (Map<Integer, EscfBatch> byShardId : batchesByIndex.values()) {
+                Releasables.close(byShardId.values());
+            }
+            throw e;
+        } finally {
+            Releasables.close(buildersByIndex.values());
         }
 
         return new Result(groups, batchesByIndex);
@@ -230,7 +286,8 @@ public final class MetricEscfConverter {
         // temporality (optional)
         String temporality = MetricDocumentBuilder.temporalityToString(group.temporality());
         if (temporality != null) {
-            row.stringField(MetricDocumentBuilder.TEMPORALITY_FIELD, utf8(temporality));
+            XContentString.UTF8Bytes temporalityUtf8 = TEMPORALITY_UTF8.getOrDefault(temporality, utf8(temporality));
+            row.stringField(MetricDocumentBuilder.TEMPORALITY_FIELD, temporalityUtf8);
         }
 
         // _metric_names_hash
@@ -333,11 +390,8 @@ public final class MetricEscfConverter {
             }
             case ARRAY_VALUE -> {
                 List<AnyValue> elements = value.getArrayValue().getValuesList();
-                byte[] packed = packAnyValueArray(elements);
-                // packAnyValueArray returns FIXED_ARRAY bytes (starts with shared type byte) or UNION_ARRAY bytes.
-                // Read the array type from the first element context (see packAnyValueArray contract).
-                byte arrayType = anyValueArrayType(elements);
-                row.arrayField(fieldName, arrayType, packed);
+                PackedAnyArray arr = packAndClassifyAnyValueArray(elements);
+                row.arrayField(fieldName, arr.arrayType(), arr.packed());
             }
             case KVLIST_VALUE -> {
                 List<KeyValue> kvList = value.getKvlistValue().getValuesList();
@@ -356,14 +410,22 @@ public final class MetricEscfConverter {
     }
 
     /**
-     * Packs a list of {@link AnyValue} elements into inline array bytes, using FIXED_ARRAY when all
-     * elements share the same scalar type, UNION_ARRAY otherwise.
+     * Result of {@link #packAndClassifyAnyValueArray}: the packed inline-array bytes and the
+     * corresponding array-type byte ({@link SourceValueType#FIXED_ARRAY} or
+     * {@link SourceValueType#UNION_ARRAY}).
      */
-    private static byte[] packAnyValueArray(List<AnyValue> elements) throws IOException {
+    private record PackedAnyArray(byte[] packed, byte arrayType) {}
+
+    /**
+     * Packs a list of {@link AnyValue} elements into inline array bytes in a single pass,
+     * returning both the packed bytes and the corresponding array-type byte. Uses FIXED_ARRAY
+     * when all elements share the same scalar type, UNION_ARRAY otherwise.
+     */
+    private static PackedAnyArray packAndClassifyAnyValueArray(List<AnyValue> elements) throws IOException {
         int n = elements.size();
         if (n == 0) {
-            // Empty union array: type byte only (0 elements).
-            return SourceBatchEncodeHelper.packUnionArray(new byte[0], new long[0], new Object[0], 0);
+            byte[] empty = SourceBatchEncodeHelper.packUnionArray(new byte[0], new long[0], new Object[0], 0);
+            return new PackedAnyArray(empty, SourceValueType.UNION_ARRAY);
         }
         byte[] types = new byte[n];
         long[] numerics = new long[n];
@@ -411,60 +473,13 @@ public final class MetricEscfConverter {
                 default -> false;
             };
             if (hasData) {
-                return SourceBatchEncodeHelper.packFixedArray(sharedType, numerics, vars, n);
+                return new PackedAnyArray(
+                    SourceBatchEncodeHelper.packFixedArray(sharedType, numerics, vars, n),
+                    SourceValueType.FIXED_ARRAY
+                );
             }
         }
-        return SourceBatchEncodeHelper.packUnionArray(types, numerics, vars, n);
-    }
-
-    /**
-     * Returns the array type byte ({@link SourceValueType#FIXED_ARRAY} or
-     * {@link SourceValueType#UNION_ARRAY}) that {@link #packAnyValueArray} would produce for
-     * {@code elements}. This avoids packing twice; in the future the two methods can be merged.
-     *
-     * <p>For simplicity this is O(n) on the element types — acceptable for the POC.
-     */
-    private static byte anyValueArrayType(List<AnyValue> elements) {
-        int n = elements.size();
-        if (n == 0) {
-            return SourceValueType.UNION_ARRAY;
-        }
-        byte firstType = elementType(elements.get(0));
-        if (isComplexElement(elements.get(0))) {
-            return SourceValueType.UNION_ARRAY;
-        }
-        for (int i = 1; i < n; i++) {
-            if (isComplexElement(elements.get(i)) || elementType(elements.get(i)) != firstType) {
-                return SourceValueType.UNION_ARRAY;
-            }
-        }
-        boolean hasData = switch (firstType) {
-            case SourceValueType.STRING, SourceValueType.INT, SourceValueType.LONG, SourceValueType.FLOAT, SourceValueType.DOUBLE -> true;
-            default -> false;
-        };
-        return hasData ? SourceValueType.FIXED_ARRAY : SourceValueType.UNION_ARRAY;
-    }
-
-    private static byte elementType(AnyValue elem) {
-        return switch (elem.getValueCase()) {
-            case STRING_VALUE, BYTES_VALUE -> SourceValueType.STRING;
-            case BOOL_VALUE -> elem.getBoolValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
-            case INT_VALUE -> {
-                long v = elem.getIntValue();
-                yield (v >= Integer.MIN_VALUE && v <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
-            }
-            case DOUBLE_VALUE -> {
-                double v = elem.getDoubleValue();
-                float fv = (float) v;
-                yield ((double) fv == v) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-            }
-            default -> SourceValueType.NULL;
-        };
-    }
-
-    private static boolean isComplexElement(AnyValue elem) {
-        AnyValue.ValueCase vc = elem.getValueCase();
-        return vc == AnyValue.ValueCase.KVLIST_VALUE || vc == AnyValue.ValueCase.ARRAY_VALUE || vc == AnyValue.ValueCase.VALUE_NOT_SET;
+        return new PackedAnyArray(SourceBatchEncodeHelper.packUnionArray(types, numerics, vars, n), SourceValueType.UNION_ARRAY);
     }
 
     // ---- Metric value writers ----
@@ -555,47 +570,47 @@ public final class MetricEscfConverter {
 
     private static void buildTDigestFromExpHistToRow(EscfRowBuffer row, String metricName, ExponentialHistogramDataPoint dp)
         throws IOException {
-        List<Long> counts = new ArrayList<>();
-        List<Double> values = new ArrayList<>();
-        TDigestConverter.counts(dp, v -> counts.add(v));
-        TDigestConverter.centroidValues(dp, v -> values.add(v));
+        LongAccumulator counts = new LongAccumulator();
+        LongAccumulator values = new LongAccumulator();
+        TDigestConverter.counts(dp, counts::addLong);
+        TDigestConverter.centroidValues(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, packLongList(counts));
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, packDoubleList(values));
+        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
+        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
         row.endObject();
     }
 
     private static void buildTDigestFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
-        List<Long> counts = new ArrayList<>();
-        List<Double> values = new ArrayList<>();
-        TDigestConverter.counts(dp, counts::add);
-        TDigestConverter.centroidValues(dp, values::add);
+        LongAccumulator counts = new LongAccumulator();
+        LongAccumulator values = new LongAccumulator();
+        TDigestConverter.counts(dp, counts::addLong);
+        TDigestConverter.centroidValues(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, packLongList(counts));
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, packDoubleList(values));
+        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
+        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
         row.endObject();
     }
 
     private static void buildRawHistogramFromExpHistToRow(EscfRowBuffer row, String metricName, ExponentialHistogramDataPoint dp)
         throws IOException {
-        List<Long> counts = new ArrayList<>();
-        List<Double> values = new ArrayList<>();
-        RawHistogramConverter.counts(dp, v -> counts.add(v));
-        RawHistogramConverter.values(dp, v -> values.add(v));
+        LongAccumulator counts = new LongAccumulator();
+        LongAccumulator values = new LongAccumulator();
+        RawHistogramConverter.counts(dp, counts::addLong);
+        RawHistogramConverter.values(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, packLongList(counts));
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, packDoubleList(values));
+        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
+        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
         row.endObject();
     }
 
     private static void buildRawHistogramFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
-        List<Long> counts = new ArrayList<>();
-        List<Double> values = new ArrayList<>();
-        RawHistogramConverter.counts(dp, v -> counts.add(v));
-        RawHistogramConverter.values(dp, v -> values.add(v));
+        LongAccumulator counts = new LongAccumulator();
+        LongAccumulator values = new LongAccumulator();
+        RawHistogramConverter.counts(dp, counts::addLong);
+        RawHistogramConverter.values(dp, values::addDouble);
         row.startObject(metricName);
-        row.arrayField("counts", SourceValueType.FIXED_ARRAY, packLongList(counts));
-        row.arrayField("values", SourceValueType.FIXED_ARRAY, packDoubleList(values));
+        row.arrayField("counts", SourceValueType.FIXED_ARRAY, counts.packAsLong());
+        row.arrayField("values", SourceValueType.FIXED_ARRAY, values.packAsDouble());
         row.endObject();
     }
 
@@ -634,42 +649,32 @@ public final class MetricEscfConverter {
 
     private static void writeExponentialBucketsToRow(EscfRowBuffer row, String fieldName, ExponentialHistogramDataPoint.Buckets buckets) {
         int n = buckets.getBucketCountsCount();
-        List<Long> indices = new ArrayList<>();
-        List<Long> counts = new ArrayList<>();
+        LongAccumulator indices = new LongAccumulator();
+        LongAccumulator counts = new LongAccumulator();
         for (int i = 0; i < n; i++) {
             long count = buckets.getBucketCounts(i);
             if (count != 0) {
-                indices.add((long) (buckets.getOffset() + i));
-                counts.add(count);
+                indices.addLong(buckets.getOffset() + i);
+                counts.addLong(count);
             }
         }
-        if (indices.isEmpty()) {
+        if (indices.size == 0) {
             return;
         }
         row.startObject(fieldName);
-        row.arrayField(BUCKET_INDICES_FIELD, SourceValueType.FIXED_ARRAY, packLongList(indices));
-        row.arrayField(BUCKET_COUNTS_FIELD, SourceValueType.FIXED_ARRAY, packLongList(counts));
+        row.arrayField(BUCKET_INDICES_FIELD, SourceValueType.FIXED_ARRAY, indices.packAsLong());
+        row.arrayField(BUCKET_COUNTS_FIELD, SourceValueType.FIXED_ARRAY, counts.packAsLong());
         row.endObject();
     }
 
     // ---- Array packing helpers ----
 
-    private static byte[] packLongList(List<Long> values) {
-        int n = values.size();
-        long[] arr = new long[n];
-        for (int i = 0; i < n; i++) {
-            arr[i] = values.get(i);
-        }
-        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, arr, new Object[n], n);
+    private static byte[] packLongArray(long[] values, int size) {
+        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, values, new Object[size], size);
     }
 
-    private static byte[] packDoubleList(List<Double> values) {
-        int n = values.size();
-        long[] bits = new long[n];
-        for (int i = 0; i < n; i++) {
-            bits[i] = Double.doubleToRawLongBits(values.get(i));
-        }
-        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.DOUBLE, bits, new Object[n], n);
+    private static byte[] packDoubleArray(long[] bits, int size) {
+        return SourceBatchEncodeHelper.packFixedArray(SourceValueType.DOUBLE, bits, new Object[size], size);
     }
 
     // ---- Miscellaneous helpers ----

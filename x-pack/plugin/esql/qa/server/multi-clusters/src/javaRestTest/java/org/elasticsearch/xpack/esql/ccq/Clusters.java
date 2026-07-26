@@ -175,8 +175,10 @@ public class Clusters {
                 cluster.setting(entry.getKey(), entry.getValue());
             }
         }
-        for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
-            cluster.systemProperty(entry.getKey(), entry.getValue());
+        if (systemProperties != null) {
+            for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
+                cluster.systemProperty(entry.getKey(), entry.getValue());
+            }
         }
         if (shared) {
             cluster.shared(true);

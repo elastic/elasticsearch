@@ -113,7 +113,11 @@ public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
         // "FROM <wildcard> does not bring in datasets, and does not fail" guarantee, across the cluster boundary.
         Response ok = runQuery("FROM " + REMOTE_CLUSTER_NAME + ":gate* | STATS c = COUNT(*)");
         assertThat(ok.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(EntityUtils.toString(ok.getEntity()), not(containsString("remote datasets are not supported")));
+        // Exactly the one gate_logs doc — not the dataset's two CSV rows. Silent dataset inclusion would read 3, so this
+        // pins non-inclusion directly rather than only asserting the query did not error.
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(ok).get("values");
+        assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(1L));
 
         // An exact remote dataset name is not rejected with the courtesy "datasets not supported" message either — with
         // detection off it falls through to a plain unknown remote index (the accepted trade-off; unreadable either way).

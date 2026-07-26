@@ -83,7 +83,8 @@ public final class DatasetRewriter {
     /**
      * The single gate every rail reads — local dispatch/resolve and the remote field-caps rail — so the
      * wildcard-to-dataset decision has one home. Off in release builds (see the class javadoc for the semantics). The
-     * gating is permanent: when the cluster-setting / SET control replaces the flag, only this body changes.
+     * gating is permanent; the flag is temporary scaffolding. A node-level cluster setting could replace it by changing
+     * only this body; a per-query SET control would instead thread its value through the call sites.
      */
     public static boolean wildcardsMatchDatasets() {
         return DATASET_WILDCARDS_FEATURE_FLAG.isEnabled();

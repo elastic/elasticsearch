@@ -521,7 +521,8 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    // Package-private so the client-status recovery gate below can be tested directly.
+    RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -565,7 +566,19 @@ public class ExternalSourceResolver {
             wrapped.initCause(rejected);
             return wrapped;
         }
-        if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
+        // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
+        // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an
+        // ExecutionException -- so without this a correctly-typed 400 reached the client as a 500, and only on
+        // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
+        // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
+        // reintroduce the same masking.
+        IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+        if (clientError != null) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            return clientError;
+        }
+        if (e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return (RuntimeException) e;

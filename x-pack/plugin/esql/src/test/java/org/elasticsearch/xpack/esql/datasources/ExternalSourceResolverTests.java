@@ -2355,6 +2355,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A client error must keep its status even when something between the throw and the boundary wrapped it.
+     * Resolution on the cacheable rail runs inside {@code Cache#computeIfAbsent}, which reports a loader failure
+     * as an {@code ExecutionException} -- so the same unreadable object answered 400 on one provider and 500 on
+     * another, purely because one was cacheable. Recovering the client error from the cause chain at the boundary
+     * is deliberately general: it holds for any wrapper, including ones introduced after this test was written,
+     * which is what makes it a gate rather than an audit of today's call sites.
+     */
+    public void testAClientErrorKeepsItsStatusThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalArgumentException original = new IllegalArgumentException("Cannot determine how to read [s3://b/x.log.gz]");
+
+        RuntimeException mapped = resolver.mapResolveFailure(
+            "s3://b/x.log.gz",
+            new java.util.concurrent.ExecutionException("wrapped", original)
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
      * A bare compression suffix is its own diagnosis: {@code .gz} IS a registered codec, so reporting it as an
      * unmatched format would contradict itself. What is missing is an inner format extension.
      */

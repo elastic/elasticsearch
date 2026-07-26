@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
@@ -159,6 +160,20 @@ public class StorageProviderRegistry implements Closeable {
         return provider;
     }
 
+    /**
+     * One message for "nothing here reads that scheme", raised wherever the lookup fails. The bare forms this
+     * replaced named neither the schemes that ARE registered nor anything the caller could do, and one of them
+     * spoke of an "SPI storage factory" -- an internal noun the caller has no way to act on. Mirrors the shape
+     * {@code StorageManager} already uses for the same condition.
+     */
+    private IllegalArgumentException unsupportedScheme(String scheme) {
+        Set<String> known = new TreeSet<>(factories.keySet());
+        known.addAll(providers.keySet());
+        return new IllegalArgumentException(
+            "Unsupported storage scheme [" + scheme + "]. No data source plugin on this node reads it. Supported schemes: " + known + "."
+        );
+    }
+
     public boolean hasProvider(String scheme) {
         if (Strings.isNullOrEmpty(scheme)) {
             return false;
@@ -215,7 +230,7 @@ public class StorageProviderRegistry implements Closeable {
 
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
-            throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
+            throw unsupportedScheme(scheme);
         }
 
         // Gate auth=managed_identity on the cluster setting before constructing the provider. This covers the
@@ -263,7 +278,7 @@ public class StorageProviderRegistry implements Closeable {
         }
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
-            throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
+            throw unsupportedScheme(normalizedScheme);
         }
         provider = wrapProvider(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);

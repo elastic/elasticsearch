@@ -26,7 +26,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -130,6 +134,28 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             .toList();
         for (MetadataFieldMapper m : supportedMappers) {
             m.preColumnarParse(ctx);
+        }
+
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
+            final IndexSettings indexSettings = mapperService.getIndexSettings();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    if (fm.supportsColumnarParse(indexSettings) == false) {
+                        throw new AssertionError(
+                            "field ["
+                                + path
+                                + "] has mapper ["
+                                + fm.typeName()
+                                + "] that does not support columnar parse; "
+                                + "test data must only include fields whose mappers support columnar"
+                        );
+                    }
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
         }
         for (MetadataFieldMapper m : supportedMappers) {
             m.postColumnarParse(ctx);

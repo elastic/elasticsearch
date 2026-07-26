@@ -234,7 +234,8 @@ public class FormatReaderRegistry {
                 + outer
                 + ").";
         }
-        return "extension [" + objectName.substring(innerDot) + "] does not match any registered format.";
+        // Lower-cased to match the single-segment branch, which reports trailingExtension's normalised form.
+        return "extension [" + objectName.substring(innerDot).toLowerCase(Locale.ROOT) + "] does not match any registered format.";
     }
 
     /**

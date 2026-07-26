@@ -1,0 +1,5 @@
+pr: 155035
+summary: Honor an explicit `format` dataset setting on multi-file external reads
+area: ES|QL
+type: bug
+issues: []

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
@@ -461,18 +463,23 @@ public class DataSourceModuleTests extends ESTestCase {
 
             @Override
             public Set<String> supportedCatalogs() {
-                return Set.of("test-catalog");
+                return Set.of("catalog-a", "catalog-b", "catalog-c", "catalog-d");
             }
         };
 
         List<DataSourcePlugin> plugins = List.of(catalogPlugin);
         try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
             List<String> order = List.copyOf(module.sourceFactories().keySet());
-            int catalogAt = order.indexOf("test-catalog");
             int fileAt = order.indexOf("file");
-            assertTrue("the catalog factory must be registered, got " + order, catalogAt >= 0);
             assertTrue("the file fallback must be registered, got " + order, fileAt >= 0);
-            assertTrue("the file fallback must come after plugin factories so they claim first, got " + order, catalogAt < fileAt);
+            // Assert the position of EVERY plugin factory, not just one. Map.copyOf's iteration order is
+            // salt-randomized per JVM launch, so with a single plugin factory a regression back to it would land
+            // the fallback last by coincidence on roughly half of runs -- a pin that passes at random is no pin.
+            for (String catalog : List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d")) {
+                int at = order.indexOf(catalog);
+                assertTrue("plugin factory [" + catalog + "] must be registered, got " + order, at >= 0);
+                assertTrue("the file fallback must come after plugin factory [" + catalog + "], got " + order, at < fileAt);
+            }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -764,6 +771,25 @@ public class DataSourceModuleTests extends ESTestCase {
         // Sequential formats must still be wrappable
         assertNotNull(registry.byExtension("data.csv.gz"));
         assertNotNull(registry.byExtension("data.tsv.gz"));
+    }
+
+    /**
+     * Naming a format the registry does not know is a client error. It is reachable without any typo: the dataset
+     * CRUD vocabulary is a startup snapshot of the declared format specs, so a dataset stored while a format's
+     * feature flag was on resolves, at query time, against a registry that plugin contributed nothing to. This is
+     * also the one message permitted to advise installing a plugin, because here a missing plugin really is a cause.
+     */
+    public void testUnknownFormatNameIsAClientErrorNamingTheRegisteredFormats() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byName("nope"));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("No reader registered for format [nope]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Registered formats"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("may not be installed"));
     }
 
     /**

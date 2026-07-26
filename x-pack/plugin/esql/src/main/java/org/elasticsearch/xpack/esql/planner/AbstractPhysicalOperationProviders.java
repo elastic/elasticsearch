@@ -216,10 +216,12 @@ public abstract class AbstractPhysicalOperationProviders {
                     pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount()),
                     mergeWorkerCount
                 );
+                var hashGroupSpecs = groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList();
                 if (aggregatorMode == AggregatorMode.FINAL
                     && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
                     && partitionCount > 1
-                    && context.nodeLevelReductionActive() == false) {
+                    && context.nodeLevelReductionActive() == false
+                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
                     List<PartitionedHashMergeOperator.AggregatorSpec> mergeSpecs = new ArrayList<>();
                     aggregatesToFactory(
                         aggregateExec,
@@ -230,9 +232,7 @@ public abstract class AbstractPhysicalOperationProviders {
                         s -> mergeSpecs.add(new PartitionedHashMergeOperator.AggregatorSpec(s.supplier, s.channels)),
                         context
                     );
-                    operatorFactory = new PartitionedHashMergeOperator.Builder().groupSpecs(
-                        groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
-                    )
+                    operatorFactory = new PartitionedHashMergeOperator.Builder().groupSpecs(hashGroupSpecs)
                         .aggregators(mergeSpecs)
                         .partitionCount(partitionCount)
                         .workerCount(mergeWorkerCount)
@@ -243,7 +243,8 @@ public abstract class AbstractPhysicalOperationProviders {
                 } else if (aggregatorMode == AggregatorMode.INITIAL
                     && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
                     && partitionCount > 1
-                    && context.nodeLevelReductionActive() == false) {
+                    && context.nodeLevelReductionActive() == false
+                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
                         List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
                         aggregatesToFactory(
                             aggregateExec,
@@ -254,9 +255,7 @@ public abstract class AbstractPhysicalOperationProviders {
                             s -> aggSpecs.add(new PartitionedHashAggregationOperator.AggregatorSpec(s.supplier, s.channels)),
                             context
                         );
-                        operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-                            groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
-                        )
+                        operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(hashGroupSpecs)
                             .aggregators(aggSpecs)
                             .partitionCount(partitionCount)
                             .partitionConversionThreshold(

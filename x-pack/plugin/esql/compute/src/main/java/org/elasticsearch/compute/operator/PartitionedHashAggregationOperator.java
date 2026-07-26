@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -67,6 +68,23 @@ public class PartitionedHashAggregationOperator implements Operator {
     public static final int DEFAULT_PARTITION_CONVERSION_THRESHOLD = 100_000;
     public static final int DEFAULT_PER_PARTITION_EMIT_THRESHOLD = 50_000;
     public static final double DEFAULT_PER_PARTITION_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+
+    /**
+     * Returns true if the given group specs can be routed across partitions at runtime.
+     * <p>
+     * Single-column schemas are always routable: every single-column {@link BlockHash}
+     * implementation (Long, Int, Double, BytesRef, …) exposes a {@link BlockHash.Router}.
+     * Multi-column schemas use {@code PackedValuesBlockHash}, whose router requires all keys
+     * to be fixed-width (no {@link ElementType#BYTES_REF}). When this returns false the planner
+     * should skip PHAO+PHMO and fall through to the plain {@link HashAggregationOperator} instead.
+     * </p>
+     */
+    public static boolean canPartition(List<BlockHash.GroupSpec> groupSpecs) {
+        if (groupSpecs.size() <= 1) {
+            return true;
+        }
+        return groupSpecs.stream().noneMatch(gs -> gs.elementType() == ElementType.BYTES_REF);
+    }
 
     /** The fixed partition every null grouping key is routed to, rather than being hashed. */
     private static final int NULL_PARTITION = 0;

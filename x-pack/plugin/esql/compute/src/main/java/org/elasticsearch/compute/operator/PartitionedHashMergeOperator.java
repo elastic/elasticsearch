@@ -286,6 +286,13 @@ public class PartitionedHashMergeOperator implements Operator {
     /** One FINAL-mode operator per partition; created eagerly in the constructor. */
     private HashAggregationOperator[] workerOps;
     /**
+     * Dedicated routing hash used only on the driver thread in {@link #distributeIntermediatePageToBuffers}.
+     * Kept separate from {@code workerOps[0]} to avoid a data race: the router captures the hash's
+     * internal {@code VariableWidthBatchWork} via closure, and worker threads simultaneously call
+     * {@code bulkAdd} on the same object when {@code workerOps[0]} is reused for routing.
+     */
+    private BlockHash probeHash;
+    /**
      * One child block factory per logical worker (worker {@code w} uses {@code workerBlockFactories[w]}).
      * Workers run concurrently on separate threads; each needs its own {@code LocalCircuitBreaker}
      * so that block allocation/release inside {@link BlockHash#add} does not trigger the
@@ -355,6 +362,7 @@ public class PartitionedHashMergeOperator implements Operator {
                     driverContext.withBlockFactory(wf)
                 );
             }
+            this.probeHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false);
             this.workerBuffers = new ExchangeBuffer[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
                 workerBuffers[p] = new ExchangeBuffer(2 * partitionCount);
@@ -497,14 +505,14 @@ public class PartitionedHashMergeOperator implements Operator {
         if (allWorkersDone.isDone()) {
             // Close output BEFORE releasing worker block factories: operators inside output return
             // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
-            Releasables.close(noneOp, output);
+            Releasables.close(noneOp, probeHash, output);
             noneOp = null;
             output = null;
             closeWorkerResources();
         } else {
             // Workers still running; they (or the PendingTasks callback) will call
             // closeWorkerResources() once they finish, by which point output is already gone.
-            Releasables.close(noneOp, output);
+            Releasables.close(noneOp, probeHash, output);
         }
     }
 
@@ -665,7 +673,7 @@ public class PartitionedHashMergeOperator implements Operator {
     private void distributeIntermediatePageToBuffers(Page intermediatePage) {
         int positions = intermediatePage.getPositionCount();
         int keyCount = internalGroupSpecs.size();
-        BlockHash.Router probeRouter = workerOps[0].blockHash.router();
+        BlockHash.Router probeRouter = probeHash.router();
         if (probeRouter == null) {
             // Router unsupported for this grouping shape: route everything to partition 0.
             int[] allPos = new int[positions];

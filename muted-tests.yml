@@ -657,3 +657,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.inner_hits/10_basic/Inner hits with disabled _source}
+  issue: https://github.com/elastic/elasticsearch/issues/155041

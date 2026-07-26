@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 153927
+pr: 155054
+summary: Defer binary doc-values reader setup until scorer construction
+type: enhancement

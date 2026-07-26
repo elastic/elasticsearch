@@ -84,6 +84,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                         ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
                         return new ConstantScoreScorer(score(), scoreMode, iterator);
                     }
+
                     @Override
                     public long cost() {
                         return context.reader().maxDoc();

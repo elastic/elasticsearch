@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ChangePointAggregatorTests extends AggregatorTestCase {
 
@@ -55,6 +57,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     private static final DateHistogramInterval INTERVAL = DateHistogramInterval.minutes(1);
     private static final String NUMERIC_FIELD_NAME = "value";
     private static final String TIME_FIELD_NAME = "timestamp";
+    private static final long SPARSE_START_TIMESTAMP = 1_767_225_600_000L;
 
     public void testConstant() throws IOException {
         double[] bucketValues = DoubleStream.generate(() -> 10).limit(100).toArray();
@@ -190,6 +193,35 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 )
             )
         );
+    }
+
+    public void testKeepValuesIncludesEmptyMetricBuckets() throws IOException {
+        FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
+            .subAggregation(
+                new DateHistogramAggregationBuilder("time").field(TIME_FIELD_NAME)
+                    .fixedInterval(INTERVAL)
+                    .minDocCount(0)
+                    .extendedBounds(new LongBounds(SPARSE_START_TIMESTAMP, SPARSE_START_TIMESTAMP + 29 * INTERVAL.estimateMillis()))
+                    .subAggregation(AggregationBuilders.sum("sum").field(NUMERIC_FIELD_NAME))
+            )
+            .subAggregation(new ChangePointAggregationBuilder("changes", "time>sum").gapPolicy(BucketHelpers.GapPolicy.KEEP_VALUES));
+
+        testCase(ChangePointAggregatorTests::writeSparseTestDocs, (InternalFilter result) -> {
+            InternalDateHistogram histogram = result.getAggregations().get("time");
+            assertEquals(30, histogram.getBuckets().size());
+            assertEquals(
+                0.0,
+                ((InternalNumericMetricsAggregation.SingleValue) histogram.getBuckets().get(4).getAggregations().get("sum")).value(),
+                0.0
+            );
+            assertEquals(
+                80.0,
+                ((InternalNumericMetricsAggregation.SingleValue) histogram.getBuckets().get(20).getAggregations().get("sum")).value(),
+                0.0
+            );
+            InternalChangePointAggregation agg = result.getAggregations().get("changes");
+            assertThat(agg.getChangeType(), not(instanceOf(ChangeType.Indeterminable.class)));
+        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
     }
 
     public void testZeroDeviation() throws IOException {
@@ -490,6 +522,19 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 )
             );
             epoch_timestamp += INTERVAL.estimateMillis();
+        }
+    }
+
+    private static void writeSparseTestDocs(RandomIndexWriter w) throws IOException {
+        long[] timestamps = { 0, 1, 2, 3, 20, 21, 22, 23 };
+        double[] values = { 3, 4, 3, 5, 80, 75, 90, 85 };
+        for (int i = 0; i < timestamps.length; i++) {
+            w.addDocument(
+                Arrays.asList(
+                    new NumericDocValuesField(NUMERIC_FIELD_NAME, NumericUtils.doubleToSortableLong(values[i])),
+                    new SortedNumericDocValuesField(TIME_FIELD_NAME, SPARSE_START_TIMESTAMP + timestamps[i] * INTERVAL.estimateMillis())
+                )
+            );
         }
     }
 }

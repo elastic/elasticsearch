@@ -24,9 +24,13 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     private final BucketHelpers.GapPolicy gapPolicy;
 
+    public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
+        this(name, bucketsPath, BucketHelpers.GapPolicy.SKIP, metadata);
+    }
+
     public ChangePointAggregator(String name, String bucketsPath, BucketHelpers.GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, new String[] { bucketsPath }, metadata);
-        this.gapPolicy = gapPolicy;
+        this.gapPolicy = gapPolicy == null ? BucketHelpers.GapPolicy.SKIP : gapPolicy;
     }
 
     @Override

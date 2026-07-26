@@ -48,4 +48,16 @@ public class ChangePointAggregationBuilderTests extends BasePipelineAggregationT
             assertThat(parsed.gapPolicy(), equalTo(BucketHelpers.GapPolicy.SKIP));
         }
     }
+
+    public void testFromXContentWithGapPolicy() throws IOException {
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\"changes\":{\"change_point\":{\"buckets_path\":\"time>sum\",\"gap_policy\":\"keep_values\"}}}"
+            )
+        ) {
+            ChangePointAggregationBuilder parsed = (ChangePointAggregationBuilder) parse(parser);
+            assertEquals(BucketHelpers.GapPolicy.KEEP_VALUES, parsed.gapPolicy());
+        }
+    }
 }

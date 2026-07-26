@@ -1066,6 +1066,25 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * AVG is represented as an expression over SUM and COUNT before local optimization. The non-null constraint must still be inferred from
+     * those nested aggregate functions so the query filters null values before executing the aggregation.
+     */
+    public void testAvgOnLongInfersNonNullAggConstraint() {
+        LogicalPlan coordinatorOptimized = allTypes().coordinatorPlan("FROM test_all | STATS avg = AVG(long)");
+        var plan = localPlan(coordinatorOptimized, TEST_SEARCH_STATS);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregateEval = as(aggregate.child(), Eval.class);
+        var filter = as(aggregateEval.child(), Filter.class);
+        var condition = as(filter.condition(), IsNotNull.class);
+        var field = as(condition.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), equalTo("long"));
+    }
+
+    /**
      * {@snippet lang="text":
      * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam
      * e{r}#7, first_name{r}#7 AS last_name#10]]

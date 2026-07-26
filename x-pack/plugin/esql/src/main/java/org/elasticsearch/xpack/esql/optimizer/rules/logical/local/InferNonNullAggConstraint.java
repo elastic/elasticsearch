@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -53,9 +54,11 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
         LogicalPlan plan = aggregate;
         var aggs = aggregate.aggregates();
         Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        aggregate.child().forEachExpression(Alias.class, alias -> aliasesBuilder.put(alias.toAttribute(), alias.child()));
+        AttributeMap<Expression> aliases = aliasesBuilder.build();
         for (var agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                Expression field = af.field();
                 // ignore literals (e.g. COUNT(1))
                 // make sure the field exists at the source and is indexed (not runtime)
 
@@ -64,12 +67,12 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                     return plan;
                 }
 
-                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
-                    nonNullAggFields.add(field);
-                } else {
+                Set<Expression> fields = resolveNonNullAggFields(af.field(), aliases, stats);
+                if (fields.isEmpty()) {
                     // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out
                     return plan;
                 }
+                nonNullAggFields.addAll(fields);
             }
         }
 
@@ -80,5 +83,33 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
             plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
         }
         return plan;
+    }
+
+    private static Set<Expression> resolveNonNullAggFields(Expression field, AttributeMap<Expression> aliases, SearchStats stats) {
+        if (field.foldable()) {
+            return Set.of();
+        }
+
+        if (field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
+            return Set.of(field);
+        }
+
+        // Surrogate aggregations can introduce an alias around the original field, for example AVG(long)
+        // becomes SUM(TO_DOUBLE(long)). Resolve that alias to keep the filter pushable to the source.
+        Set<Expression> resolvedFields = new InferIsNotNull().resolveExpressionAsRootAttributes(field, aliases);
+        if (resolvedFields.isEmpty()) {
+            return Set.of();
+        }
+
+        for (Expression resolvedField : resolvedFields) {
+            if (resolvedField instanceof FieldAttribute == false) {
+                return Set.of();
+            }
+            FieldAttribute fa = (FieldAttribute) resolvedField;
+            if (stats.isIndexed(fa.fieldName()) == false) {
+                return Set.of();
+            }
+        }
+        return resolvedFields;
     }
 }

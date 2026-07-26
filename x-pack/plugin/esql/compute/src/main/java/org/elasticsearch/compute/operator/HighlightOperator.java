@@ -318,27 +318,24 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     private boolean fillRowIndex(HighlightField[] fields) {
         memoryIndex.reset();
-        if (keepWordMatcher == null) {
-            for (HighlightField field : fields) {
-                if (field.rowText != null) {
-                    memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
-                }
-            }
-            return false;
-        }
-        // Only tokens the query could match are indexed: the rest are dropped before they ever reach
-        // MemoryIndex.addField, so hashing and sorting only ever see query terms.
         int keptTokens = 0;
         for (HighlightField field : fields) {
             if (field.rowText == null) {
                 continue;
             }
-            TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
-            KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);
-            memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
-            keptTokens += filtered.kept;
+            if (keepWordMatcher == null) {
+                memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
+            } else {
+                // Only tokens the query could match are indexed: the rest are dropped before they ever reach
+                // MemoryIndex.addField, so hashing and sorting only ever see query terms.
+                TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
+                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepWordMatcher);
+                memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
+                keptTokens += filtered.kept;
+            }
         }
-        return keptTokens == 0 && config.noMatchSize() == 0;
+        // Without filtering we can't prove the row is a miss (keptTokens stays 0), so we never short-circuit.
+        return keepWordMatcher != null && keptTokens == 0 && config.noMatchSize() == 0;
     }
 
     /**

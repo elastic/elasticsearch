@@ -55,6 +55,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -463,23 +464,24 @@ public class DataSourceModuleTests extends ESTestCase {
 
             @Override
             public Set<String> supportedCatalogs() {
-                return Set.of("catalog-a", "catalog-b", "catalog-c", "catalog-d");
+                // Ordered on purpose: DataSourceModule iterates this set directly, and Set.of's own iteration
+                // order is salt-randomized, so a LinkedHashSet is what makes the expected sequence below stable.
+                return new LinkedHashSet<>(List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d"));
             }
         };
 
         List<DataSourcePlugin> plugins = List.of(catalogPlugin);
         try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
+            // Assert the FULL sequence, not relative positions. Map.copyOf's iteration order is salt-randomized
+            // per JVM launch, so a positional assertion passes by coincidence on a large fraction of runs --
+            // measured at roughly a third for this key set, because immutable-map placement is biased for these
+            // particular strings. Pinning the exact permutation leaves a regression one chance in 120.
             List<String> order = List.copyOf(module.sourceFactories().keySet());
-            int fileAt = order.indexOf("file");
-            assertTrue("the file fallback must be registered, got " + order, fileAt >= 0);
-            // Assert the position of EVERY plugin factory, not just one. Map.copyOf's iteration order is
-            // salt-randomized per JVM launch, so with a single plugin factory a regression back to it would land
-            // the fallback last by coincidence on roughly half of runs -- a pin that passes at random is no pin.
-            for (String catalog : List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d")) {
-                int at = order.indexOf(catalog);
-                assertTrue("plugin factory [" + catalog + "] must be registered, got " + order, at >= 0);
-                assertTrue("the file fallback must come after plugin factory [" + catalog + "], got " + order, at < fileAt);
-            }
+            assertEquals(
+                "the file fallback must be registered last so plugin factories claim first",
+                List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d", "file"),
+                order
+            );
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -812,6 +814,12 @@ public class DataSourceModuleTests extends ESTestCase {
         // The stripped intermediate must never surface -- it names a file that does not exist.
         assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("[data.log]")));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("extension [.log]")));
+
+        // Mixed case must report the same normalised extension. Every other fixture here is lowercase, so without
+        // this the normalisation could be dropped and the suite would stay green.
+        IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("DATA.LOG.GZ"));
+        assertThat(mixed.getMessage(), org.hamcrest.Matchers.containsString("[DATA.LOG.GZ]"));
+        assertThat(mixed.getMessage(), org.hamcrest.Matchers.containsString("extension [.log.gz]"));
     }
 
     /**

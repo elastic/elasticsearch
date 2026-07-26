@@ -224,9 +224,10 @@ public class FormatReaderRegistry {
         if (isCompressionExtension(outer) == false) {
             return "extension [" + outer + "] does not match any registered format.";
         }
-        int lastDot = objectName.lastIndexOf('.');
-        int innerDot = objectName.lastIndexOf('.', lastDot - 1);
-        if (innerDot < 0) {
+        // Reuse the registry's own anatomy helpers rather than re-deriving dot positions: stripping the codec and
+        // re-reading the trailing extension yields the inner segment, and both come back already normalised.
+        String inner = trailingExtension(codecRegistry.stripCompressionSuffix(objectName));
+        if (inner == null) {
             return "extension ["
                 + outer
                 + "] names a compression codec, not a data format; a compressed object needs an inner format "
@@ -234,8 +235,7 @@ public class FormatReaderRegistry {
                 + outer
                 + ").";
         }
-        // Lower-cased to match the single-segment branch, which reports trailingExtension's normalised form.
-        return "extension [" + objectName.substring(innerDot).toLowerCase(Locale.ROOT) + "] does not match any registered format.";
+        return "extension [" + inner + outer + "] does not match any registered format.";
     }
 
     /**

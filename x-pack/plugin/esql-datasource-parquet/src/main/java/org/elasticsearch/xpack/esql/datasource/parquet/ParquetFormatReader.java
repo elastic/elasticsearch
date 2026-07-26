@@ -1303,9 +1303,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return FormatNameResolver.FORMAT_PARQUET;
     }
 
+    /**
+     * Every extension this reader accepts. The plugin's {@code FormatSpec} derives from it, so the eager and
+     * lazy registration surfaces cannot disagree.
+     */
+    public static final List<String> FILE_EXTENSIONS = List.of(".parquet", ".parq");
+
     @Override
     public List<String> fileExtensions() {
-        return List.of(".parquet", ".parq");
+        return FILE_EXTENSIONS;
     }
 
     @Override

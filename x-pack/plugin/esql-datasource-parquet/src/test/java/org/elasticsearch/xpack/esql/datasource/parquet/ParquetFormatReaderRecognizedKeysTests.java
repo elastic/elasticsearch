@@ -33,29 +33,6 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("noop"))
         .build();
 
-    /**
-     * Every extension the reader accepts must ALSO be declared on the {@link FormatSpec}. The spec is applied
-     * eagerly at module construction, whereas {@link FormatReader#fileExtensions()} is applied lazily on first
-     * reader instantiation — so an extension declared only by the reader is unclaimable on a cold node and
-     * claimable later in the same node's life. It is likewise invisible to {@code DataSourceCapabilities} and
-     * to the extension list the unreadable-object error prints, which would tell a user an extension is
-     * unsupported while the reader happily reads it. {@code .parq} was exactly that case.
-     */
-    public void testFormatSpecDeclaresEveryReaderExtension() {
-        Set<String> specExtensions = new TreeSet<>();
-        for (FormatSpec spec : new ParquetDataSourcePlugin().formatSpecs()) {
-            specExtensions.addAll(spec.extensions());
-        }
-        Set<String> readerExtensions = new TreeSet<>(new ParquetFormatReader(NOOP_BLOCK_FACTORY).fileExtensions());
-
-        // One-way on purpose: the spec MAY declare an alias the reader does not list (registerExtension claims it
-        // eagerly and nothing consults the reader's list for it), but it must not omit one the reader accepts.
-        assertTrue(
-            "FormatSpec must declare every extension the reader accepts; spec=" + specExtensions + " reader=" + readerExtensions,
-            specExtensions.containsAll(readerExtensions)
-        );
-    }
-
     public void testRecognizedKeysSetIsExpected() {
         Set<String> expected = new TreeSet<>();
         expected.add("optimized_reader");

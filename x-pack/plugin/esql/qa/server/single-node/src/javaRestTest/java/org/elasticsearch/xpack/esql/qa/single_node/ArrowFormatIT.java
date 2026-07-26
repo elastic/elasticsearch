@@ -69,6 +69,9 @@ public class ArrowFormatIT extends ESRestTestCase {
                   "description": {
                     "type": "keyword"
                   },
+                  "always_null": {
+                    "type": "keyword"
+                  },
                   "ip": {
                     "type": "ip"
                   },
@@ -97,12 +100,30 @@ public class ArrowFormatIT extends ESRestTestCase {
     }
 
     private VectorSchemaRoot esql(String query) throws IOException {
-        Request request = new Request("POST", "/_query?format=arrow");
+        return esql(query, "");
+    }
+
+    private VectorSchemaRoot esql(String query, String additionalParams) throws IOException {
+        String path = "/_query?format=arrow" + (additionalParams.isEmpty() ? "" : "&" + additionalParams);
+        Request request = new Request("POST", path);
         request.setJsonEntity(query);
         Response response = client().performRequest(request);
 
         assertEquals("application/vnd.apache.arrow.stream", response.getEntity().getContentType().getValue());
         return readArrow(response.getEntity().getContent());
+    }
+
+    public void testDropNullColumns() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | KEEP value, always_null, description"
+            }""", "drop_null_columns=true")) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(List.of("value", "description"), fields.stream().map(Field::getName).toList());
+
+            assertValues(root);
+            assertDescription(root);
+        }
     }
 
     public void testInteger() throws Exception {
@@ -159,7 +180,7 @@ public class ArrowFormatIT extends ESRestTestCase {
                 "query": "FROM arrow-test | SORT value | LIMIT 100"
             }""")) {
             List<Field> fields = root.getSchema().getFields();
-            assertEquals(4, fields.size());
+            assertEquals(5, fields.size());
 
             assertDescription(root);
             assertValues(root);

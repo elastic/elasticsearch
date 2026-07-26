@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -11,6 +12,8 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,6 +24,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -28,9 +32,12 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class PercentileDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("quart", ElementType.BYTES_REF),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
   private final QuantileStates.GroupingState state;
+
+  private final Warnings warnings;
 
   private final List<Integer> channels;
 
@@ -40,10 +47,11 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final double tDigestStateCompression;
 
-  PercentileDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      double percentile, double tDigestStateCompression) {
+  PercentileDoubleGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext, double percentile, double tDigestStateCompression) {
     this.percentile = percentile;
     this.tDigestStateCompression = tDigestStateCompression;
+    this.warnings = warnings;
     this.channels = channels;
     this.state = PercentileDoubleAggregator.initGrouping(driverContext, percentile, tDigestStateCompression);
     this.driverContext = driverContext;
@@ -130,11 +138,19 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int vStart = vBlock.getFirstValueIndex(valuesPosition);
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          PercentileDoubleAggregator.combine(state, groupId, vValue);
+          try {
+            PercentileDoubleAggregator.combine(state, groupId, vValue);
+          } catch (IllegalArgumentException e) {
+            warnings.registerException(e);
+            state.setFailed(groupId);
+          }
         }
       }
     }
@@ -150,8 +166,16 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         double vValue = vVector.getDouble(valuesPosition);
-        PercentileDoubleAggregator.combine(state, groupId, vValue);
+        try {
+          PercentileDoubleAggregator.combine(state, groupId, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -174,6 +198,21 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert quart.getPositionCount() == failed.getPositionCount();
     BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -184,7 +223,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch), failed.getBoolean(valuesPosition));
       }
     }
   }
@@ -202,11 +241,19 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int vStart = vBlock.getFirstValueIndex(valuesPosition);
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          PercentileDoubleAggregator.combine(state, groupId, vValue);
+          try {
+            PercentileDoubleAggregator.combine(state, groupId, vValue);
+          } catch (IllegalArgumentException e) {
+            warnings.registerException(e);
+            state.setFailed(groupId);
+          }
         }
       }
     }
@@ -222,8 +269,16 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         double vValue = vVector.getDouble(valuesPosition);
-        PercentileDoubleAggregator.combine(state, groupId, vValue);
+        try {
+          PercentileDoubleAggregator.combine(state, groupId, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -246,6 +301,21 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert quart.getPositionCount() == failed.getPositionCount();
     BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -256,7 +326,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch), failed.getBoolean(valuesPosition));
       }
     }
   }
@@ -268,11 +338,19 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
         continue;
       }
       int groupId = groups.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
       int vStart = vBlock.getFirstValueIndex(valuesPosition);
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        PercentileDoubleAggregator.combine(state, groupId, vValue);
+        try {
+          PercentileDoubleAggregator.combine(state, groupId, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -281,8 +359,16 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
       double vValue = vVector.getDouble(valuesPosition);
-      PercentileDoubleAggregator.combine(state, groupId, vValue);
+      try {
+        PercentileDoubleAggregator.combine(state, groupId, vValue);
+      } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
+      }
     }
   }
 
@@ -304,11 +390,26 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert quart.getPositionCount() == failed.getPositionCount();
     BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch), failed.getBoolean(valuesPosition));
     }
   }
 

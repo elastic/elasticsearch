@@ -15,7 +15,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
-@Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
+@Aggregator(
+    value = { @IntermediateState(name = "quart", type = "BYTES_REF"), @IntermediateState(name = "failed", type = "BOOLEAN") },
+    warnExceptions = IllegalArgumentException.class
+)
 @GroupingAggregator
 class PercentileDoubleAggregator {
 
@@ -27,8 +30,12 @@ class PercentileDoubleAggregator {
         current.add(v);
     }
 
-    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
-        state.add(inValue);
+    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue, boolean failed) {
+        if (failed) {
+            state.failed(true);
+        } else {
+            state.add(inValue);
+        }
     }
 
     public static Block evaluateFinal(QuantileStates.SingleState state, DriverContext driverContext) {
@@ -47,8 +54,12 @@ class PercentileDoubleAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue) {
-        state.add(groupId, inValue);
+    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue, boolean failed) {
+        if (failed) {
+            state.setFailed(groupId);
+        } else {
+            state.add(groupId, inValue);
+        }
     }
 
     public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {

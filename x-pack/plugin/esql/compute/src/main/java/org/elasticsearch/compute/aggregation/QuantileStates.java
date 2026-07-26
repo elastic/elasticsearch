@@ -63,6 +63,7 @@ public final class QuantileStates {
         private final CircuitBreaker breaker;
         private final TDigestState digest;
         private final Double percentile;
+        private boolean failed;
 
         SingleState(CircuitBreaker breaker, double percentile) {
             this(breaker, percentile, DEFAULT_COMPRESSION);
@@ -80,13 +81,23 @@ public final class QuantileStates {
         }
 
         void add(double v) {
+            if (failed) {
+                return;
+            }
             digest.add(v);
         }
 
         void add(BytesRef other) {
+            if (failed) {
+                return;
+            }
             try (var otherDigest = deserializeDigest(breaker, other)) {
                 digest.add(otherDigest);
             }
+        }
+
+        void failed(boolean failed) {
+            this.failed |= failed;
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
@@ -94,12 +105,15 @@ public final class QuantileStates {
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeDigest(this.digest), 1);
+            if (blocks.length > offset + 1) {
+                blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(failed, 1);
+            }
         }
 
         Block evaluateMedianAbsoluteDeviation(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            if (digest.size() == 0) {
+            if (failed || digest.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
             double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
@@ -108,7 +122,7 @@ public final class QuantileStates {
 
         Block evaluatePercentile(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
-            if (percentile == null || digest.size() == 0) {
+            if (failed || percentile == null || digest.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
             double result = digest.quantile(percentile / 100);
@@ -116,7 +130,7 @@ public final class QuantileStates {
         }
     }
 
-    static class GroupingState implements GroupingAggregatorState {
+    static class GroupingState extends AbstractFallibleArrayState {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
@@ -129,6 +143,7 @@ public final class QuantileStates {
         }
 
         GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile, double tDigestStateCompression) {
+            super(bigArrays);
             this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
@@ -147,21 +162,25 @@ public final class QuantileStates {
         }
 
         void add(int groupId, double v) {
+            if (hasFailed(groupId)) {
+                return;
+            }
             getOrAddGroup(groupId).add(v);
         }
 
         void add(int groupId, TDigestState other) {
+            if (hasFailed(groupId)) {
+                return;
+            }
             if (other != null) {
                 getOrAddGroup(groupId).add(other);
             }
         }
 
-        @Override
-        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
-            // We always enable.
-        }
-
         void add(int groupId, BytesRef other) {
+            if (hasFailed(groupId)) {
+                return;
+            }
             try (var digestToAdd = deserializeDigest(breaker, other)) {
                 getOrAddGroup(groupId).add(digestToAdd);
             }
@@ -178,7 +197,10 @@ public final class QuantileStates {
         /** Extracts an intermediate view of the contents of this state.  */
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+            try (
+                var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount());
+                var failedBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
+            ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
                     TDigestState state;
@@ -194,12 +216,16 @@ public final class QuantileStates {
                         closeState = true;
                     }
                     builder.appendBytesRef(serializeDigest(state));
+                    failedBuilder.appendBoolean(hasFailed(group));
 
                     if (closeState) {
                         state.close();
                     }
                 }
                 blocks[offset] = builder.build();
+                if (blocks.length > offset + 1) {
+                    blocks[offset + 1] = failedBuilder.build();
+                }
             }
         }
 
@@ -208,7 +234,7 @@ public final class QuantileStates {
             try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int si = selected.getInt(i);
-                    if (si >= digests.size()) {
+                    if (si >= digests.size() || hasFailed(si)) {
                         builder.appendNull();
                         continue;
                     }
@@ -227,7 +253,7 @@ public final class QuantileStates {
             try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int si = selected.getInt(i);
-                    if (si >= digests.size()) {
+                    if (si >= digests.size() || hasFailed(si)) {
                         builder.appendNull();
                         continue;
                     }
@@ -244,7 +270,11 @@ public final class QuantileStates {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> digests.get(i)).toList()), digests);
+            Releasables.close(
+                Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> digests.get(i)).toList()),
+                digests,
+                () -> super.close()
+            );
         }
     }
 }

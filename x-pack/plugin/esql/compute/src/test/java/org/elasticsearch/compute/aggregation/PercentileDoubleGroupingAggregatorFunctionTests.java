@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -34,7 +38,7 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
+        return new PercentileDoubleAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
     @Override
@@ -62,5 +66,45 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
                 assertTrue(result.isNull(position));
             }
         }
+    }
+
+    public void testNonFiniteInputReturnsNullForGroup() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(
+            List.of(
+                new Page(
+                    blockFactory.newConstantLongBlockWith(0L, 2),
+                    blockFactory.newDoubleArrayVector(new double[] { 1.0, Double.POSITIVE_INFINITY }, 2).asBlock()
+                )
+            )
+        );
+
+        List<Page> results = runner.run(simple());
+
+        assertThat(results, hasSize(1));
+        assertThat(results.get(0).getBlock(1).isNull(0), equalTo(true));
+    }
+
+    public void testNonFiniteInputReturnsNullAfterPartialAggregationForGroup() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        BlockFactory blockFactory = runner.blockFactory();
+        runner.input(
+            List.of(
+                new Page(
+                    blockFactory.newConstantLongBlockWith(0L, 2),
+                    blockFactory.newDoubleArrayVector(new double[] { 1.0, Double.POSITIVE_INFINITY }, 2).asBlock()
+                )
+            )
+        );
+
+        List<Page> results = runner.run(
+            simpleWithMode(AggregatorMode.INITIAL),
+            simpleWithMode(AggregatorMode.INTERMEDIATE),
+            simpleWithMode(AggregatorMode.FINAL)
+        );
+
+        assertThat(results, hasSize(1));
+        assertThat(results.get(0).getBlock(1).isNull(0), equalTo(true));
     }
 }

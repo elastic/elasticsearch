@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 154973
+pr: 155052
+summary: Honor gap_policy when extracting values for change_point aggregations
+type: bug

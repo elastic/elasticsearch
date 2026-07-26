@@ -34,6 +34,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -2705,12 +2706,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
@@ -3028,10 +3029,16 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
     public void testSegmentSizeTooSmallIsRejected() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "1kb").build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(settings, blockFactory));
+        QlIllegalArgumentException ex = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new NdJsonFormatReader(settings, blockFactory)
+        );
         assertThat(ex.getMessage(), Matchers.containsString("segment_size"));
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("segment_size", "1kb")));
+        QlIllegalArgumentException ex2 = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("segment_size", "1kb"))
+        );
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }
 

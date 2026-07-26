@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -1042,10 +1043,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
-        if (newSampleSize <= 0) {
-            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
-            throw new IllegalArgumentException(CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: " + newSampleSize);
-        }
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters

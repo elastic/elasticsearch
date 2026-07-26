@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -180,10 +181,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return Configured.empty(this);
         }
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
-        if (newSampleSize <= 0) {
-            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
-            throw new IllegalArgumentException(CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: " + newSampleSize);
-        }
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
 
@@ -360,10 +358,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         Settings resolved = settings == null ? Settings.EMPTY : settings;
         ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
         long bytes = value.getBytes();
-        if (bytes < MIN_SEGMENT_SIZE.getBytes()) {
-            // Operator input; ES setting validation rejects with IllegalArgumentException by convention.
-            throw new IllegalArgumentException(SEGMENT_SIZE_SETTING + " must be >= " + MIN_SEGMENT_SIZE + ", got: " + value);
-        }
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "{} must be >= {}, got: {}", SEGMENT_SIZE_SETTING, MIN_SEGMENT_SIZE, value);
         return bytes;
     }
 
@@ -384,10 +379,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
-        if (bytes < MIN_SEGMENT_SIZE.getBytes()) {
-            // User input, so IllegalArgumentException: it maps to 400 where a QlIllegalArgumentException would not.
-            throw new IllegalArgumentException(CONFIG_SEGMENT_SIZE + " must be >= " + MIN_SEGMENT_SIZE + ", got: " + parsed);
-        }
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
         return bytes;
     }
 

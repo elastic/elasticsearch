@@ -2071,7 +2071,7 @@ public class ExternalSourceResolver {
      * Tries each claiming factory in order, asynchronously. On a factory failure (sync throw from dispatch or async
      * {@code onFailure}) it records the failure and advances to the next candidate, mirroring the synchronous
      * fall-through in {@link #resolveSingleSource}. When no candidate remains it fails with the last recorded error,
-     * or a "no handler" error if none claimed the path.
+     * or the unreadable-object error if none claimed the path.
      */
     private void resolveWithFactory(
         String path,

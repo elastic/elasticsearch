@@ -33,7 +33,7 @@ public class FormatReaderRegistry {
     /**
      * Whole-file compression codecs supported for text formats on release builds, keyed by
      * {@link DecompressionCodec#name()}. {@code uncompressed} is the no-codec path and so is not listed.
-     * On snapshot builds the gate in {@link #byExtension(String)} is bypassed, so any registered codec
+     * On snapshot builds the gate in {@link #wrapWithCodec} is bypassed, so any registered codec
      * resolves; the four codecs outside this set (bzip2, snappy, lz4, brotli) each return to the GA
      * surface once benchmarked (see elastic/esql-planning#938).
      */
@@ -97,9 +97,11 @@ public class FormatReaderRegistry {
 
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         if (supplier == null) {
-            // The ONE place where "the plugin providing this format may not be installed" is correct advice:
-            // a registered format with no reader behind it is the only way to get here. Do not repeat it on the
-            // extension paths, where the storage side is already proven and only the format failed.
+            // The ONE place where "the plugin providing this format may not be installed" is correct advice: we
+            // get here for a format name this registry does not know -- a plugin absent or feature-gated on this
+            // node, or a typo'd query-time override, which reaches us unvalidated because query config can carry
+            // `format` without passing the PUT-time dataset validator. Do not repeat the advice on the extension
+            // paths, where the storage side is already proven and only the format failed.
             throw new IllegalArgumentException(
                 "No reader registered for format ["
                     + formatName
@@ -332,11 +334,11 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * Whether {@code extension} (leading dot, any case) is a registered decompression-codec suffix. Callers that
-     * need to tell "this names a codec" from "this names nothing we know" must ask rather than infer it from the
-     * shape of the object name — a suffix is a compression suffix only if a codec claims it.
+     * Whether {@code extension} (leading dot, any case) is a registered decompression-codec suffix. {@link #diagnose}
+     * asks rather than inferring it from the shape of the object name — a suffix is a compression suffix only if a
+     * codec claims it.
      */
-    public boolean isCompressionExtension(String extension) {
+    private boolean isCompressionExtension(String extension) {
         return codecRegistry != null && codecRegistry.hasCompressionExtension(extension);
     }
 

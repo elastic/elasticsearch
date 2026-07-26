@@ -48,7 +48,12 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
         }
         Set<String> readerExtensions = new TreeSet<>(new ParquetFormatReader(NOOP_BLOCK_FACTORY).fileExtensions());
 
-        assertEquals("FormatSpec must declare every extension the reader accepts", readerExtensions, specExtensions);
+        // One-way on purpose: the spec MAY declare an alias the reader does not list (registerExtension claims it
+        // eagerly and nothing consults the reader's list for it), but it must not omit one the reader accepts.
+        assertTrue(
+            "FormatSpec must declare every extension the reader accepts; spec=" + specExtensions + " reader=" + readerExtensions,
+            specExtensions.containsAll(readerExtensions)
+        );
     }
 
     public void testRecognizedKeysSetIsExpected() {

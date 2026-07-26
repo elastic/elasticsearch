@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -431,17 +432,12 @@ public final class GlobExpander {
 
     private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
         if (discoveredCount > maxDiscoveredFiles) {
-            // 400, not 500: the message tells the caller exactly what to change, so it is by construction
-            // user-actionable. QlIllegalArgumentException extends QlServerException and rendered as a 500,
-            // while the sibling "Glob pattern matched no files" in the same resolution flow is a plain
-            // IllegalArgumentException (400). Two user errors in one flow must not differ in status.
-            throw new IllegalArgumentException(
-                "Glob pattern discovered too many files ("
-                    + discoveredCount
-                    + ", limit "
-                    + maxDiscoveredFiles
-                    + "). Narrow your glob pattern, add partition filters, "
-                    + "or increase the [esql.external.max_discovered_files] cluster setting."
+            throw new QlIllegalArgumentException(
+                "Glob pattern discovered too many files ({}, limit {}). "
+                    + "Narrow your glob pattern, add partition filters, "
+                    + "or increase the [esql.external.max_discovered_files] cluster setting.",
+                discoveredCount,
+                maxDiscoveredFiles
             );
         }
     }

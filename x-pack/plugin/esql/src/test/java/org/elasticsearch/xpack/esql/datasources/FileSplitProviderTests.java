@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -1157,7 +1158,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "0b");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
-        expectThrows(IllegalArgumentException.class, () -> provider.discoverSplits(ctx));
+        expectThrows(QlIllegalArgumentException.class, () -> provider.discoverSplits(ctx));
     }
 
     public void testFileSizeExactlyEqualsSplitSizeProducesSingleSplit() {

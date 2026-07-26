@@ -41,6 +41,11 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     }
 
     @Override
+    public Block.Builder cancelPositionEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Block.Builder endPositionEntry() {
         throw new UnsupportedOperationException();
 

@@ -73,6 +73,12 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
     }
 
     @Override
+    public OrdinalsBuilder cancelPositionEntry() {
+        ordsBuilder.cancelPositionEntry();
+        return this;
+    }
+
+    @Override
     public OrdinalsBuilder endPositionEntry() {
         ordsBuilder.endPositionEntry();
         return this;

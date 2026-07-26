@@ -111,7 +111,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         final boolean serviceClosed;
         synchronized (this) {
             serviceClosed = isClosed();
-            if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
+            if (serviceClosed || cancelledAllocationIds.get(allocationId) != null) {
                 pendingRecovery = null;
             } else {
                 pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);

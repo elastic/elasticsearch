@@ -60,6 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
@@ -676,6 +677,101 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                 || Objects.equals(primaryShard.allocationId(), allocationId) == false;
         });
         awaitDirectCancellationMetric(node, 1L);
+    }
+
+    /// Verifies that an unrelated cluster state update arriving after a started-recovery cancellation (while the
+    /// master has not yet processed the resulting SHARD_FAILED) does not cause `failedAllocations` to be incorrectly
+    /// incremented. The data node resends the failure from `failedShardsCache` using a [RecoveryCancelledException].
+    public void testUnrelatedClusterStateUpdateAfterStartedCancellation() throws Exception {
+        final var masterNode = internalCluster().startMasterOnlyNode();
+        final var dataNode = internalCluster().startDataOnlyNode();
+
+        final var indexName = randomIndexName();
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+        prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var dataClusterService = internalCluster().getInstance(ClusterService.class, dataNode);
+        final var allocationId = dataClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
+
+        // Block all RecoveryCancelledException SHARD_FAILED messages so the shard remains INITIALIZING in the cluster state.
+        final var blockedCancellationFailures = new CopyOnWriteArrayList<Runnable>();
+        final var firstCancellationFailureReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof FailedShardEntry failedShard
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                    assertThat("unexpected SHARD_FAILED cancellation", failedShard.getShardId(), equalTo(shardId));
+                    firstCancellationFailureReceived.countDown();
+                    blockedCancellationFailures.add(() -> {
+                        try {
+                            handler.messageReceived(request, channel, task);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        // Cancel the started recovery and release the gate so the cancellation takes effect.
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            dataClusterService.state().term(),
+            dataClusterService.state().version(),
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        client(dataNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+
+        // Wait until the first SHARD_FAILED is blocked.
+        safeAwait(firstCancellationFailureReceived);
+
+        // Trigger an unrelated cluster state update. The data node sees shardId still INITIALIZING and resends
+        // the SHARD_FAILED from failedShardsCache using a RecoveryCancelledException.
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(
+                            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                            EnableAllocationDecider.Allocation.NONE
+                        )
+                )
+        );
+        assertRecoveryCountStats(Map.of(dataNode, stats -> stats.currentFromStore() == 0 && stats.currentFromStoreQueued() == 0));
+        waitNoPendingTasksOnAll();
+
+        // Another unrelated cluster state update. The data node applies it with shardId still INITIALIZING.
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(
+                            EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                            EnableAllocationDecider.Allocation.NONE
+                        )
+                )
+        );
+        assertRecoveryCountStats(Map.of(dataNode, stats -> stats.currentFromStore() == 0 && stats.currentFromStoreQueued() == 0));
+        waitNoPendingTasksOnAll();
+
+        // Release all blocked SHARD_FAILED messages.
+        blockedCancellationFailures.forEach(Runnable::run);
+
+        awaitClusterState(state -> state.routingTable().shardRoutingTable(shardId).primaryShard().unassigned());
+
+        final var unassignedInfo = dataClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().unassignedInfo();
+        assertNotNull(unassignedInfo);
+        assertThat("directly cancelled recovery must not increment failedAllocations", unassignedInfo.failedAllocations(), equalTo(0));
+        assertThat(
+            "directly cancelled recovery must remain unassigned as RECOVERY_CANCELLED",
+            unassignedInfo.reason(),
+            equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED)
+        );
     }
 
     private void disableAllocation() {

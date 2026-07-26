@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154459
+pr: 155058
+summary: Push MV_CONTAINS when the left argument is foldable
+type: enhancement

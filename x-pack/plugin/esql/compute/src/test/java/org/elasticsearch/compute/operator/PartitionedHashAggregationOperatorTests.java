@@ -248,8 +248,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesTwoLongOracle(results, oracle);
     }
 
-    public void testRouterNullFallsBackToSingleTable() {
-        // LONG+BYTES_REF -> LongBytesRefAdaptiveBlockHash -> router() == null -> permanent single-table.
+    public void testLongBytesRefPartitions() {
+        // LONG+BYTES_REF uses PackedValuesBlockHash with a VariableWidthBatchWork router, so the
+        // operator should convert to the partitioned path once enough distinct keys are seen.
         Map<String, Long> oracle = new HashMap<>();
         List<Page> input = randomLongBytesRefInput(3_000, 50, oracle);
 
@@ -263,13 +264,10 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        for (TaggedPage tagged : results) {
-            assertThat(
-                "LONG+BYTES_REF has no router; all output must be NONE_PARTITION",
-                tagged.partition,
-                equalTo(PartitionedHashAggregationOperator.NONE_PARTITION)
-            );
-        }
+        assertTrue(
+            "expected conversion with " + oracle.size() + " distinct LONG+BYTES_REF key pairs",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
         assertMatchesLongBytesRefOracle(results, oracle);
     }
 

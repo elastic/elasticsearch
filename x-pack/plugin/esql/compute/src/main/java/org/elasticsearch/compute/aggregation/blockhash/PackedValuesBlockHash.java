@@ -608,6 +608,170 @@ final class PackedValuesBlockHash extends BlockHash {
                 }
             };
         }
+        if (batchWork instanceof VariableWidthBatchWork vw) {
+            return new Router() {
+                private final int[] singleCursor = new int[1];
+                private final int[] chunkCursors = new int[VariableWidthBatchWork.BATCH_SIZE];
+                private final BytesRef[] brScratch = initBrScratch();
+
+                private BytesRef[] initBrScratch() {
+                    BytesRef[] a = new BytesRef[vw.bytesRefSpecIdx.length];
+                    for (int b = 0; b < a.length; b++) {
+                        a[b] = new BytesRef();
+                    }
+                    return a;
+                }
+
+                @Override
+                public int partitionHashOfRow(Page page, int position) {
+                    setupVectors(page);
+                    vw.rowKeys[0].offset = 0;
+                    vw.collectRowSizes(position, 1);
+                    vw.ensureKeyBuf(vw.rowKeys[0].length);
+                    vw.rowKeys[0].bytes = vw.keyBuf;
+                    vw.serializeColumns(position, 1, singleCursor);
+                    return (int) BytesRefSwissHash.hash64(vw.rowKeys[0]);
+                }
+
+                @Override
+                public int addRow(Page page, int position, int hash) {
+                    setupVectors(page);
+                    vw.rowKeys[0].offset = 0;
+                    vw.collectRowSizes(position, 1);
+                    vw.ensureKeyBuf(vw.rowKeys[0].length);
+                    vw.rowKeys[0].bytes = vw.keyBuf;
+                    vw.serializeColumns(position, 1, singleCursor);
+                    long hash64 = BytesRefSwissHash.hash64(vw.rowKeys[0]);
+                    return Math.toIntExact(hashOrdToGroup(vw.swiss.addWithHash(vw.rowKeys[0], hash64)));
+                }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    if (setupVectors(page)) {
+                        fillFast(count, partitionCount, partitionOf, counts);
+                    } else {
+                        fillSlow(page, count, partitionCount, nullPartition, partitionOf, counts);
+                    }
+                }
+
+                /**
+                 * Fast path: all blocks have vectors (no nulls). Process rows in chunks using
+                 * {@link VariableWidthBatchWork}'s serialization internals directly.
+                 */
+                private void fillFast(int count, int partitionCount, int[] partitionOf, int[] counts) {
+                    int positionOffset = 0;
+                    while (positionOffset < count) {
+                        int requested = Math.min(VariableWidthBatchWork.BATCH_SIZE, count - positionOffset);
+                        int chunkSize = vw.collectRowSizes(positionOffset, requested);
+                        vw.ensureKeyBuf(vw.rowKeys[chunkSize - 1].offset + vw.rowKeys[chunkSize - 1].length);
+                        for (int i = 0; i < chunkSize; i++) {
+                            vw.rowKeys[i].bytes = vw.keyBuf;
+                        }
+                        vw.serializeColumns(positionOffset, chunkSize, chunkCursors);
+                        for (int i = 0; i < chunkSize; i++) {
+                            int part = Math.floorMod((int) BytesRefSwissHash.hash64(vw.rowKeys[i]), partitionCount);
+                            partitionOf[positionOffset + i] = part;
+                            counts[part]++;
+                        }
+                        positionOffset += chunkSize;
+                    }
+                }
+
+                /**
+                 * Slow path: at least one block has nulls. Check each row individually; route null
+                 * rows to {@code nullPartition} and serialize non-null rows directly into
+                 * {@link VariableWidthBatchWork#keyBuf}.
+                 */
+                private void fillSlow(Page page, int count, int partitionCount, int nullPartition, int[] partitionOf, int[] counts) {
+                    Block[] keyBlocks = new Block[vw.specs.size()];
+                    for (int g = 0; g < vw.specs.size(); g++) {
+                        keyBlocks[g] = page.getBlock(vw.specs.get(g).channel());
+                    }
+                    for (int i = 0; i < count; i++) {
+                        boolean anyNull = false;
+                        for (Block keyBlock : keyBlocks) {
+                            if (keyBlock.isNull(i)) {
+                                anyNull = true;
+                                break;
+                            }
+                        }
+                        if (anyNull) {
+                            seenNull = true;
+                            partitionOf[i] = nullPartition;
+                            counts[nullPartition]++;
+                        } else {
+                            int sz = vw.fixedRowBase;
+                            for (int b = 0; b < vw.bytesRefSpecIdx.length; b++) {
+                                brScratch[b] = ((BytesRefBlock) keyBlocks[vw.bytesRefSpecIdx[b]]).getBytesRef(i, brScratch[b]);
+                                sz += brScratch[b].length;
+                            }
+                            vw.ensureKeyBuf(sz);
+                            vw.rowKeys[0].bytes = vw.keyBuf;
+                            vw.rowKeys[0].offset = 0;
+                            vw.rowKeys[0].length = sz;
+                            Arrays.fill(vw.keyBuf, 0, vw.nullTrackingBytes, (byte) 0);
+                            int cursor = vw.nullTrackingBytes;
+                            for (int g = 0; g < vw.specs.size(); g++) {
+                                switch (vw.specs.get(g).elementType()) {
+                                    case LONG -> {
+                                        LONG_HANDLE.set(vw.keyBuf, cursor, ((LongBlock) keyBlocks[g]).getLong(i));
+                                        cursor += Long.BYTES;
+                                    }
+                                    case INT -> {
+                                        INT_HANDLE.set(vw.keyBuf, cursor, ((IntBlock) keyBlocks[g]).getInt(i));
+                                        cursor += Integer.BYTES;
+                                    }
+                                    case DOUBLE -> {
+                                        DOUBLE_HANDLE.set(vw.keyBuf, cursor, ((DoubleBlock) keyBlocks[g]).getDouble(i));
+                                        cursor += Double.BYTES;
+                                    }
+                                    case BOOLEAN -> {
+                                        vw.keyBuf[cursor] = ((BooleanBlock) keyBlocks[g]).getBoolean(i) ? (byte) 1 : (byte) 0;
+                                        cursor += Byte.BYTES;
+                                    }
+                                    case BYTES_REF -> {
+                                        BytesRef val = brScratch[vw.gToBytesRefIdx[g]];
+                                        INT_HANDLE.set(vw.keyBuf, cursor, val.length);
+                                        System.arraycopy(val.bytes, val.offset, vw.keyBuf, cursor + Integer.BYTES, val.length);
+                                        cursor += Integer.BYTES + val.length;
+                                    }
+                                    default -> throw new IllegalStateException("unsupported type: " + vw.specs.get(g).elementType());
+                                }
+                            }
+                            int part = Math.floorMod((int) BytesRefSwissHash.hash64(vw.rowKeys[0]), partitionCount);
+                            partitionOf[i] = part;
+                            counts[part]++;
+                        }
+                    }
+                }
+
+                /**
+                 * Resolves per-page vectors on {@code vw}. Returns {@code true} when every block has
+                 * a non-null vector (no null values in the page), enabling the fast chunked path.
+                 */
+                private boolean setupVectors(Page page) {
+                    boolean allVectors = true;
+                    for (int g = 0; g < vw.specs.size(); g++) {
+                        vw.vectors[g] = page.getBlock(vw.specs.get(g).channel()).asVector();
+                        if (vw.vectors[g] == null) allVectors = false;
+                    }
+                    if (allVectors) {
+                        for (int b = 0; b < vw.brVectors.length; b++) {
+                            vw.brVectors[b] = (BytesRefVector) vw.vectors[vw.bytesRefSpecIdx[b]];
+                        }
+                    }
+                    return allVectors;
+                }
+            };
+        }
         return null;
     }
 

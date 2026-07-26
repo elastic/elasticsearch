@@ -14,12 +14,10 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -74,16 +72,21 @@ public class PartitionedHashAggregationOperator implements Operator {
      * <p>
      * Single-column schemas are always routable: every single-column {@link BlockHash}
      * implementation (Long, Int, Double, BytesRef, …) exposes a {@link BlockHash.Router}.
-     * Multi-column schemas use {@code PackedValuesBlockHash}, whose router requires all keys
-     * to be fixed-width (no {@link ElementType#BYTES_REF}). When this returns false the planner
-     * should skip PHAO+PHMO and fall through to the plain {@link HashAggregationOperator} instead.
+     * Multi-column schemas use {@code PackedValuesBlockHash}, which supports routing for any
+     * combination of {@code BOOLEAN}, {@code INT}, {@code LONG}, {@code DOUBLE}, and
+     * {@code BYTES_REF} keys. Other element types (e.g. {@code NULL}) cause
+     * {@code PackedValuesBlockHash.router()} to return {@code null} at runtime, and the operator
+     * falls back to single-table mode via {@code permanentlyUnpartitioned}.
      * </p>
      */
     public static boolean canPartition(List<BlockHash.GroupSpec> groupSpecs) {
         if (groupSpecs.size() <= 1) {
             return true;
         }
-        return groupSpecs.stream().noneMatch(gs -> gs.elementType() == ElementType.BYTES_REF);
+        return groupSpecs.stream().allMatch(gs -> switch (gs.elementType()) {
+            case BOOLEAN, INT, LONG, DOUBLE, BYTES_REF -> true;
+            default -> false;
+        });
     }
 
     /** The fixed partition every null grouping key is routed to, rather than being hashed. */

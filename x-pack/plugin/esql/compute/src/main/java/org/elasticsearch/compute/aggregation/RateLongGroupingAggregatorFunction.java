@@ -689,6 +689,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
             if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
+                // https://github.com/elastic/elasticsearch/issues/152758
+                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
             }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
@@ -711,6 +713,27 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
             blocks[offset] = rates.build();
         }
+    }
+
+    /**
+     * Verifies that every non-empty group's raw timestamps fall within the group's time bucket range.
+     * Called before any {@link #computeRate} invocation so that a mis-bucketed point is detected
+     * before it poisons the adjacent-group interpolation.
+     */
+    private boolean assertTimestampsWithinBuckets(IntVector selected, TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state == null || state.samples == 0) {
+                continue;
+            }
+            long bucketStart = tsContext.rangeStartInMillis(group) * (long) (dateFactor / 1000.0);
+            long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
+            assert state.firstTs() >= bucketStart
+                : "firstTs " + state.firstTs() + " is before bucket start " + bucketStart + " for group " + group;
+            assert state.lastTs() <= bucketEnd : "lastTs " + state.lastTs() + " is after bucket end " + bucketEnd + " for group " + group;
+        }
+        return true;
     }
 
     @Override
@@ -825,6 +848,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
         void appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
+            // growExact is deliberate: each shard contributes at most one interval per group, so this
+            // array almost never grows beyond one or two entries. growExact avoids over-allocating
+            // capacity that would be wasted per group. TODO: benchmark in isolation and switch to
+            // grow() if real-world interval counts turn out larger than expected.
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
@@ -851,7 +878,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 values.appendLong(lastValue());
                 values.appendLong(firstValue());
             } else {
-                for (int intervalId : intervals) {
+                for (int i = 0; i < intervals.length; i++) {
+                    int intervalId = intervals[i];
                     timestamps.appendLong(intervalBuffer.lastTs(intervalId));
                     timestamps.appendLong(intervalBuffer.firstTs(intervalId));
                     values.appendLong(intervalBuffer.lastValue(intervalId));

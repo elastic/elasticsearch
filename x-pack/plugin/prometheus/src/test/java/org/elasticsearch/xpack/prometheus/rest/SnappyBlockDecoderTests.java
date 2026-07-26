@@ -42,7 +42,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         byte[] original = randomByteArrayOfLength(between(1, 1000));
         byte[] compressed = snappyEncode(original);
 
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), original.length)) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), original.length)) {
             assertEquals(original.length, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -51,7 +51,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
     public void testDecodeEmpty() throws IOException {
         // Snappy block: preamble = 0 (empty)
         byte[] compressed = new byte[] { 0 };
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), 1024)) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), 1024)) {
             assertEquals(0, result.length());
         }
     }
@@ -63,7 +63,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         int maxSize = between(1, length - 1);
 
         var ex = expectThrows(Exception.class, () -> {
-            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), maxSize)) {
+            try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), maxSize)) {
                 fail("expected exception for input of length " + length + " with maxSize " + maxSize);
             }
         });
@@ -82,27 +82,39 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         // Compressed should be smaller due to repetition
         assertTrue("expected compression, got " + compressed.length + " >= " + original.length, compressed.length < original.length);
 
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), original.length)) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), original.length)) {
             assertEquals(original.length, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
     }
 
-    public void testDecodeReleasesInput() throws IOException {
+    public void testDecodeLeavesInputOpenOnSuccess() throws IOException {
         byte[] original = randomByteArrayOfLength(64);
         byte[] compressed = snappyEncode(original);
         var input = new ReleasableBytesReference(new BytesArray(compressed), () -> {});
 
         try (var result = decoder.process(input, 1024)) {
-            assertFalse("input should be released after process()", input.hasReferences());
+            assertTrue("caller should release input after successful decoding", input.hasReferences());
+            input.close();
+            assertFalse(input.hasReferences());
         }
+    }
+
+    public void testDecodeLeavesInputOpenOnFailure() {
+        var input = releasable(new byte[] { 10, (byte) 0xFF });
+
+        expectThrows(IOException.class, () -> decoder.process(input, 1024));
+
+        assertTrue("caller should release input after a decoding failure", input.hasReferences());
+        input.close();
+        assertFalse(input.hasReferences());
     }
 
     public void testDecodeMalformedInput() {
         // Preamble says 10 bytes uncompressed, then a COPY_4_BYTE_OFFSET tag with insufficient data
         byte[] garbage = new byte[] { 10, (byte) 0xFF };
         expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(garbage), () -> {}), 1024)) {
+            try (var result = decode(new ReleasableBytesReference(new BytesArray(garbage), () -> {}), 1024)) {
                 fail("expected IOException for malformed input");
             }
         });
@@ -110,7 +122,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
     public void testDecodeEmptyInput() {
         expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(new ReleasableBytesReference(BytesArray.EMPTY, () -> {}), 1024)) {
+            try (var result = decode(new ReleasableBytesReference(BytesArray.EMPTY, () -> {}), 1024)) {
                 fail("expected IOException for empty input");
             }
         });
@@ -120,7 +132,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         for (int size : new int[] { 1, 15, 16, 60, 61, 255, 256, 4096, 16384 }) {
             byte[] original = randomByteArrayOfLength(size);
             byte[] compressed = snappyEncode(original);
-            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
+            try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
                 assertEquals(size, result.length());
                 assertArrayEquals("failed for size " + size, original, BytesReference.toBytes(result));
             }
@@ -137,7 +149,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         }
         byte[] compressed = snappyEncode(original);
         assertTrue("expected compression", compressed.length < original.length);
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
             assertEquals(size, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -148,7 +160,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         int size = 32 * 1024 + between(1, 1000);
         byte[] original = randomByteArrayOfLength(size);
         byte[] compressed = snappyEncode(original);
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
             assertEquals(size, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -169,9 +181,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             System.arraycopy(pattern, 0, original, prefixLen + i * pattern.length, pattern.length);
         }
         byte[] compressed = snappyEncode(original);
-        try (
-            var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), totalSize + between(0, 1024))
-        ) {
+        try (var result = decode(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), totalSize + between(0, 1024))) {
             assertEquals(totalSize, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -191,7 +201,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             new BytesArray(compressed, split2, compressed.length - split2)
         );
 
-        try (var result = decoder.process(new ReleasableBytesReference(composite, () -> {}), original.length + between(0, 1024))) {
+        try (var result = decode(new ReleasableBytesReference(composite, () -> {}), original.length + between(0, 1024))) {
             assertEquals(original.length, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -222,7 +232,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         System.arraycopy(literal, 0, expected, literalLen, copyLength);
 
         byte[] compressed = buf.toByteArray();
-        try (var result = decoder.process(releasable(compressed), total)) {
+        try (var result = decode(releasable(compressed), total)) {
             assertEquals(total, result.length());
             assertArrayEquals(expected, BytesReference.toBytes(result));
         }
@@ -239,7 +249,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         byte[] compressed = snappyEncode(original);
         assertTrue("expected compression", compressed.length < original.length);
 
-        try (var result = decoder.process(releasable(compressed), size)) {
+        try (var result = decode(releasable(compressed), size)) {
             assertEquals(size, result.length());
             byte[] decoded = BytesReference.toBytes(result);
             for (int i = 0; i < size; i++) {
@@ -285,7 +295,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         buf.write(data);
 
         byte[] compressed = buf.toByteArray();
-        try (var result = decoder.process(releasable(compressed), length)) {
+        try (var result = decode(releasable(compressed), length)) {
             assertEquals(length, result.length());
             assertArrayEquals(data, BytesReference.toBytes(result));
         }
@@ -295,7 +305,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         // 5-byte varint that decodes to -1 (0xFFFFFFFF), triggering the negative length check
         byte[] overflow = new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x0F };
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(overflow), Long.MAX_VALUE)) {
+            try (var result = decode(releasable(overflow), Long.MAX_VALUE)) {
                 fail("should not reach here");
             }
         });
@@ -306,7 +316,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         // 5 continuation bytes → shift reaches 35, exceeding the 32-bit limit
         byte[] tooLarge = new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x00 };
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(tooLarge), Long.MAX_VALUE)) {
+            try (var result = decode(releasable(tooLarge), Long.MAX_VALUE)) {
                 fail("should not reach here");
             }
         });
@@ -334,7 +344,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         expectThrows(IOException.class, () -> {
-            try (var result = trackingDecoder.process(releasable(compressed), 40000)) {
+            try (var result = decode(trackingDecoder, releasable(compressed), 40000)) {
                 fail("expected IOException for truncated stream");
             }
         });
@@ -350,7 +360,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(compressed), 1024)) {
+            try (var result = decode(releasable(compressed), 1024)) {
                 fail();
             }
         });
@@ -369,7 +379,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(compressed), 1024)) {
+            try (var result = decode(releasable(compressed), 1024)) {
                 fail();
             }
         });
@@ -397,7 +407,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(compressed), 1024)) {
+            try (var result = decode(releasable(compressed), 1024)) {
                 fail();
             }
         });
@@ -416,7 +426,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(compressed), 10)) {
+            try (var result = decode(releasable(compressed), 10)) {
                 fail("expected IOException for zero copy offset");
             }
         });
@@ -434,7 +444,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         byte[] compressed = buf.toByteArray();
         var ex = expectThrows(IOException.class, () -> {
-            try (var result = decoder.process(releasable(compressed), 10)) {
+            try (var result = decode(releasable(compressed), 10)) {
                 fail("expected IOException for offset exceeding written bytes");
             }
         });
@@ -445,7 +455,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         // Varint byte 0x80 has continuation bit set but no following byte.
         // The partial value is 0, so the decoder treats it as an empty block.
         byte[] truncated = new byte[] { (byte) 0x80 };
-        try (var result = decoder.process(releasable(truncated), 1024)) {
+        try (var result = decode(releasable(truncated), 1024)) {
             assertEquals(0, result.length());
         }
     }
@@ -462,7 +472,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             withTrailing[i] = randomByte();
         }
 
-        try (var result = decoder.process(releasable(withTrailing), original.length)) {
+        try (var result = decode(releasable(withTrailing), original.length)) {
             assertEquals(original.length, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -498,7 +508,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             }
         }
 
-        try (var decoded = decoder.process(compressed.moveToBytesReference(), uncompressed.length + between(0, 1024))) {
+        try (var decoded = decode(compressed.moveToBytesReference(), uncompressed.length + between(0, 1024))) {
             assertThat(decoded, equalBytes(new BytesArray(uncompressed)));
         }
     }
@@ -542,6 +552,17 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         } else {
             out.write(0x01 | (length - 4 << 2) | (((offset >> 8) & 0x07) << 5));
             out.write(offset & 0xFF);
+        }
+    }
+
+    private ReleasableBytesReference decode(ReleasableBytesReference input, long maxSize) throws IOException {
+        return decode(decoder, input, maxSize);
+    }
+
+    private static ReleasableBytesReference decode(SnappyBlockDecoder decoder, ReleasableBytesReference input, long maxSize)
+        throws IOException {
+        try (input) {
+            return decoder.process(input, maxSize);
         }
     }
 

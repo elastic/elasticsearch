@@ -144,6 +144,7 @@ pivot:
     Packaging: ":Delivery/Packaging"
     Percolator: ":Search Relevance/Percolator"
     Performance: ":Performance"
+    PromQL: ":StorageEngine/PromQL"
     "Query languages": ":Query Languages/EQL, :Query Languages/SQL"
     Ranking: ":Search Relevance/Ranking"
     Recovery: ":Distributed Indexing/Recovery"

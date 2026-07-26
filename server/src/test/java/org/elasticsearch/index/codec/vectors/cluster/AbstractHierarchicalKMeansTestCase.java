@@ -160,11 +160,11 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
     protected abstract ClusteringVectorValues<V> wrapAsView(V[] centroids, int dim);
 
     public void testHKmeans() throws IOException {
-        int nClusters = random().nextInt(1, 10);
-        int nVectors = random().nextInt(nClusters * 2, nClusters * 200);
-        int dims = random().nextInt(2, 20);
+        int nClusters = random().nextInt(2, 10);
+        int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
+        int dims = random().nextInt(8, 64);
         int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
-        int maxIterations = random().nextInt(1, 100);
+        int maxIterations = HierarchicalKMeans.MAX_ITERATIONS_DEFAULT;
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
         int targetSize = (int) ((float) nVectors / (float) nClusters);
@@ -172,19 +172,41 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
 
-        HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood);
-        var serialResult = hkmeansSerial.cluster(vectors, targetSize);
-        var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
-        assertKMeansResultValid(serialResult.result(), serialOverspill, nVectors, nClusters);
-
-        int[] serialClusterSizes = new int[serialResult.centroids().length];
-        for (int k : serialResult.assignments()) {
-            serialClusterSizes[k]++;
-        }
-
+        // Warmup passes: the Panama Vector API SIMD operations (linearCombination, squareDistanceBulk,
+        // blendBatchIntoCentroid) produce different floating-point results in interpreted mode (scalar)
+        // vs JIT-compiled mode (SIMD) due to fused multiply-add using higher intermediate precision
+        // in SIMD lanes. Without warmup, the JIT compilation threshold can be crossed mid-SGD,
+        // causing serial and concurrent runs to produce different centroid positions — not due to a
+        // concurrency bug, but due to different JIT compilation states between invocations.
+        // We warm up both the serial path and the concurrent path on the same thread pool that will
+        // be used for the real comparison, because JIT compilation is triggered per-method by
+        // invocation counts — thread-pool threads that haven't executed the SIMD methods yet may
+        // still be running interpreted code while the main thread is fully compiled.
         int numWorker = randomIntBetween(2, 8);
         try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
             TaskExecutor executor = new TaskExecutor(service);
+            for (int w = 0; w < 3; w++) {
+                HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood).cluster(vectors, targetSize);
+                HierarchicalKMeans.ofConcurrent(ops, dims, executor, numWorker, maxIterations, sampleSize, clustersPerNeighborhood)
+                    .cluster(vectors, targetSize);
+            }
+
+            HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(
+                ops,
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood
+            );
+            var serialResult = hkmeansSerial.cluster(vectors, targetSize);
+            var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
+            assertKMeansResultValid(serialResult.result(), serialOverspill, nVectors, nClusters);
+
+            int[] serialClusterSizes = new int[serialResult.centroids().length];
+            for (int k : serialResult.assignments()) {
+                serialClusterSizes[k]++;
+            }
+
             HierarchicalKMeans<V> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
                 ops,
                 dims,
@@ -203,15 +225,26 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             );
             assertKMeansResultValid(concurrentResult.result(), concurrentOverspill, nVectors, nClusters);
 
-            int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
-            for (int k : concurrentResult.assignments()) {
-                concurrentClusterSizes[k]++;
-            }
-
+            // After JIT warmup, serial and concurrent produce identical results.
             assertEquals(
-                clusterSizesStandardDeviation(serialClusterSizes),
-                clusterSizesStandardDeviation(concurrentClusterSizes),
-                1e-1 * clusterSizesStandardDeviation(serialClusterSizes)
+                "Serial and concurrent produced different centroid counts",
+                serialResult.centroids().length,
+                concurrentResult.centroids().length
+            );
+            assertArrayEquals(
+                "Serial and concurrent produced different assignments",
+                serialResult.assignments(),
+                concurrentResult.assignments()
+            );
+
+            // Quality bound: with production-realistic parameters (sufficient vectors,
+            // reasonable dimensionality, production maxIterations), no cluster should
+            // exceed 25% over target size.
+            int maxAllowed = (int) (targetSize * 1.25) + 5;
+            int maxClusterSize = Arrays.stream(serialClusterSizes).max().orElse(0);
+            assertTrue(
+                "Max cluster size " + maxClusterSize + " exceeds allowed bound " + maxAllowed + " (targetSize=" + targetSize + ")",
+                maxClusterSize <= maxAllowed || serialResult.centroids().length == 1
             );
         }
     }
@@ -387,12 +420,6 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         } else {
             assertThat(overspill.size(), is(0));
         }
-    }
-
-    static float clusterSizesStandardDeviation(int[] clusterSizes) {
-        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
-        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
-        return (float) Math.sqrt(varSize);
     }
 
 }

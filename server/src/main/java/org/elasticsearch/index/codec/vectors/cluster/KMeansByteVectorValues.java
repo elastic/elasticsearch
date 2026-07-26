@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,18 +34,26 @@ public final class KMeansByteVectorValues extends ClusteringByteVectorValues {
 
     /**
      * Build an instance from on-heap data structures.
+     *
+     * @param vectors   The vectors
+     * @param docs      Array of document IDs. Maps the vector ordinal to its docID. Null if ordinal == docID.
+     * @param dim       Vector dimensions
      */
-    public static KMeansByteVectorValues build(List<byte[]> vectors, int[] docs, int dim) {
+    public static KMeansByteVectorValues build(List<byte[]> vectors, @Nullable int[] docs, int dim) {
         ByteVectorSupplier vectorSupplier = new OnHeapByteSupplier(vectors, dim);
         DocSupplier docSupplier = docs == null ? null : new OnHeapDocSupplier(docs);
         return new KMeansByteVectorValues(vectorSupplier, docSupplier, vectors.size());
     }
 
     /**
-     * Build an instance from off-heap data structures.
-     * Vectors are expected to be written as bytes one after the other.
+     * Builds an instance from off-heap data structures.
+     *
+     * @param vectors    Vectors as bytes concatenated together.
+     * @param docs       Document IDs in ordinal order, as little-endian int32. Null if ordinal == docID.
+     * @param numVectors The number of vectors
+     * @param dims       Vector dimensions
      */
-    public static KMeansByteVectorValues build(IndexInput vectors, IndexInput docs, int numVectors, int dims) throws IOException {
+    public static KMeansByteVectorValues build(IndexInput vectors, @Nullable IndexInput docs, int numVectors, int dims) throws IOException {
         OffHeapByteSupplier vectorSupplier = new OffHeapByteSupplier(vectors, dims);
         DocSupplier docSupplier;
         if (docs == null) {

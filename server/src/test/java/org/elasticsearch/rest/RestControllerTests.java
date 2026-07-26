@@ -869,6 +869,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public String getScheme() {
+                return "http";
+            }
+
+            @Override
             public HttpBody body() {
                 if (hasContent) {
                     return HttpBody.fromBytesReference(new BytesArray("test"));

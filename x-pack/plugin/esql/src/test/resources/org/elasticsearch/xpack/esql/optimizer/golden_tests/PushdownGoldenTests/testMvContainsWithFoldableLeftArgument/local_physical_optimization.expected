@@ -1,0 +1,69 @@
+LimitExec[1000[INTEGER],null]
+\_ExchangeExec[[avg_worked_seconds{f}#0, birth_date{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22],false]
+  \_ProjectExec[[avg_worked_seconds{f}#0, birth_date{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]]
+    \_FieldExtractExec[avg_worked_seconds{f}#0, birth_date{f}#1, emp_no{f}#2, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]<[],[],[]>
+      \_LimitExec[1000[INTEGER],70]
+        \_FilterExec[MVCONTAINS([[41 6c 69 63 65], [41 6e 6e 61], [50 65 74 65 72]][KEYWORD],first_name{f}#3)]
+          \_FieldExtractExec[first_name{f}#3]<[],[],[]>
+            \_EsQueryExec[employees], indexMode[standard], [_doc{f}#23], limit[], sort[] estimatedRowSize[360] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "bool" : {
+          "should" : [
+            {
+              "terms" : {
+                "first_name" : [
+                  "Alice",
+                  "Anna",
+                  "Peter"
+                ],
+                "boost" : 0.0
+              }
+            },
+            {
+              "bool" : {
+                "must_not" : [
+                  {
+                    "exists" : {
+                      "field" : "first_name",
+                      "boost" : 0.0
+                    }
+                  }
+                ],
+                "boost" : 0.0
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      }
+    ],
+    "should" : [
+      {
+        "terms" : {
+          "first_name" : [
+            "Alice",
+            "Anna",
+            "Peter"
+          ],
+          "boost" : 0.0
+        }
+      },
+      {
+        "bool" : {
+          "must_not" : [
+            {
+              "exists" : {
+                "field" : "first_name",
+                "boost" : 0.0
+              }
+            }
+          ],
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

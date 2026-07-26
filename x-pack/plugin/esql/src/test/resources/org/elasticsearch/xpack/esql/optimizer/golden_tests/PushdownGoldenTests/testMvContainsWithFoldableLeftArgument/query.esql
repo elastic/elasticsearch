@@ -1,0 +1,2 @@
+    FROM employees
+    | WHERE mv_contains(["Alice", "Anna", "Peter"], first_name)

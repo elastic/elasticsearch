@@ -256,6 +256,14 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    public void testMvContainsWithFoldableLeftArgument() {
+        String query = """
+                FROM employees
+                | WHERE mv_contains(["Alice", "Anna", "Peter"], first_name)
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     public void testMvIntersectsOnKeyword() {
         String query = """
                 FROM employees

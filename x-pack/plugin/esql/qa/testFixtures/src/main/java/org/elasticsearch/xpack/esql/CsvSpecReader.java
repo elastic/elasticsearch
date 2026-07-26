@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -151,6 +153,7 @@ public final class CsvSpecReader {
                 testCase = null;
                 data.setLength(0);
                 validateOrdering(result);
+                validateSortDeterminesOrder(result);
                 return result;
             }
             data.append(line).append("\r\n");
@@ -603,6 +606,158 @@ public final class CsvSpecReader {
             return plan instanceof OrderBy;
         } catch (Exception e) {
             return true;
+        }
+    }
+
+    /**
+     * Checks that the top-level {@code SORT} keys are sufficient to uniquely determine the order of
+     * every row in the expected output.
+     * <p>
+     * When two adjacent expected rows have identical values for <em>all</em> sort key columns that
+     * appear in the expected output header, their relative order is non-deterministic across runs —
+     * the sort does not fully break the tie. This produces the same kind of flakiness as a missing
+     * {@code SORT}, but is not caught by {@link #validateOrdering} because a {@code SORT} is present.
+     * <p>
+     * The check is skipped conservatively when:
+     * <ul>
+     *   <li>Any sort key is a complex expression (not a plain column reference) — ties cannot be
+     *       determined without evaluating the expression against actual data.</li>
+     *   <li>Any sort key column is absent from the expected output — the values are unknown.</li>
+     *   <li>Any cell value is a wildcard or range pattern (e.g. {@code {any}}, {@code 1..5}) —
+     *       the cell may match multiple values.</li>
+     * </ul>
+     */
+    private static void validateSortDeterminesOrder(CsvTestCase testCase) {
+        if (testCase.ignoreOrder || SPEC_PARSER == null) {
+            return;
+        }
+        if (hasFromSource(testCase.query) == false) {
+            return;
+        }
+        try {
+            LogicalPlan plan = SPEC_PARSER.parseQuery(testCase.query);
+
+            // Walk to the top-level OrderBy, skipping Limit and SortPreserving wrappers.
+            while (plan instanceof Limit || plan instanceof SortPreserving) {
+                plan = ((UnaryPlan) plan).child();
+            }
+            if (plan instanceof OrderBy == false) {
+                return;
+            }
+            OrderBy orderBy = (OrderBy) plan;
+
+            // Collect sort key names; bail if any key is a complex expression.
+            List<String> sortKeyNames = new ArrayList<>();
+            for (Order order : orderBy.order()) {
+                if (order.child() instanceof UnresolvedAttribute attr) {
+                    sortKeyNames.add(attr.name().toLowerCase(Locale.ROOT));
+                } else {
+                    return;
+                }
+            }
+            if (sortKeyNames.isEmpty()) {
+                return;
+            }
+
+            // Parse expected output into rows (header first, then data rows).
+            List<String[]> rows = new ArrayList<>();
+            boolean headerSeen = false;
+            for (String line : testCase.expectedResults.split("\\r?\\n")) {
+                if (line.isBlank() || line.startsWith("//") || line.startsWith("#")) {
+                    continue;
+                }
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("warning")
+                    || lower.startsWith("ignoreorder")
+                    || lower.startsWith("documents_found")
+                    || lower.startsWith("warningregex")) {
+                    continue;
+                }
+                String[] cells = line.split("\\|");
+                for (int i = 0; i < cells.length; i++) {
+                    cells[i] = cells[i].trim();
+                }
+                if (headerSeen == false) {
+                    headerSeen = true;
+                    rows.add(cells);
+                } else {
+                    rows.add(cells);
+                }
+            }
+            if (rows.size() < 3) {
+                // Need at least header + 2 data rows for a meaningful tie check.
+                return;
+            }
+
+            // Map each sort key name to its column index in the header.
+            String[] header = rows.get(0);
+            int[] sortKeyIndices = new int[sortKeyNames.size()];
+            java.util.Arrays.fill(sortKeyIndices, -1);
+            for (int col = 0; col < header.length; col++) {
+                // Header cells are of the form "name:type"; strip the type.
+                String colName = header[col].contains(":") ? header[col].substring(0, header[col].indexOf(':')).trim() : header[col].trim();
+                for (int k = 0; k < sortKeyNames.size(); k++) {
+                    if (colName.toLowerCase(Locale.ROOT).equals(sortKeyNames.get(k))) {
+                        sortKeyIndices[k] = col;
+                    }
+                }
+            }
+            // If any sort key is missing from the expected output we cannot check ties.
+            for (int idx : sortKeyIndices) {
+                if (idx < 0) {
+                    return;
+                }
+            }
+
+            // Check each pair of adjacent data rows for ties on all sort key columns.
+            List<String[]> dataRows = rows.subList(1, rows.size());
+            for (int i = 0; i < dataRows.size() - 1; i++) {
+                String[] rowA = dataRows.get(i);
+                String[] rowB = dataRows.get(i + 1);
+                boolean tied = true;
+                for (int keyIdx : sortKeyIndices) {
+                    if (keyIdx >= rowA.length || keyIdx >= rowB.length) {
+                        tied = false;
+                        break;
+                    }
+                    String a = rowA[keyIdx];
+                    String b = rowB[keyIdx];
+                    // Skip wildcard / range cells — we cannot determine the concrete value.
+                    if (a.startsWith("{") || b.startsWith("{") || a.contains("..") || b.contains("..")) {
+                        tied = false;
+                        break;
+                    }
+                    if (a.equals(b) == false) {
+                        tied = false;
+                        break;
+                    }
+                }
+                if (tied) {
+                    // If the rows are completely identical across all columns, swapping them
+                    // produces the same test output — not a real flakiness risk.
+                    if (java.util.Arrays.equals(rowA, rowB)) {
+                        continue;
+                    }
+                    String message = "Rows "
+                        + (i + 1)
+                        + " and "
+                        + (i + 2)
+                        + " have the same value(s) for sort key(s) "
+                        + sortKeyNames
+                        + " — their relative order is non-deterministic. "
+                        + "Add a tiebreaker to the SORT clause.\n"
+                        + "Query: "
+                        + testCase.query;
+                    if (Boolean.getBoolean("tests.csv.strict.ordering")) {
+                        throw new IllegalArgumentException(message);
+                    }
+                    logger.warn(message);
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            // parse failure — skip the check
         }
     }
 

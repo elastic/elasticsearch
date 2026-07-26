@@ -648,3 +648,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=downsample/100_downsample_histograms/Downsample tdigest with last value}
   issue: https://github.com/elastic/elasticsearch/issues/155028
+- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
+  method: testOverflowInGroupingProducesNullAndWarning
+  issue: https://github.com/elastic/elasticsearch/issues/150769

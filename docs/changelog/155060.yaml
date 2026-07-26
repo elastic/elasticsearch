@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154095
+pr: 155060
+summary: Generalize block position cancellation
+type: enhancement

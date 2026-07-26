@@ -52,6 +52,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
+            "aggregate_metric_double",
             "boolean",
             "cartesian_point",
             "cartesian_shape",
@@ -82,6 +83,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "first",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -109,6 +111,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "rest",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -234,15 +237,14 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             );
             case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION ->
                 CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case AGGREGATE_METRIC_DOUBLE -> CoalesceAggregateMetricDoubleEvaluator.toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
             case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DOUBLE_RANGE -> throw new UnsupportedOperationException(
-                    dataType() + " can't be coalesced"
-                );
+                SCALED_FLOAT, PARTIAL_AGG, DOUBLE_RANGE -> throw new UnsupportedOperationException(dataType() + " can't be coalesced");
         };
     }
 }

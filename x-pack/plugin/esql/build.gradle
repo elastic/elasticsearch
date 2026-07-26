@@ -453,6 +453,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "float"      : type == "float" ? "true" : "",
     "BytesRef"   : type == "BytesRef" ? "true" : "",
     "boolean"    : type == "boolean" ? "true" : "",
+    "AggregateMetricDouble": Name == "AggregateMetricDouble" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
     "LongRange"  : Name == "LongRange" ? "true" : "",
@@ -468,6 +469,14 @@ tasks.named('stringTemplates').configure {
   var floatProperties = prop("Float", "Float", "float", "FLOAT", "Float.BYTES", "FloatArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
+  var aggregateMetricDoubleProperties = prop(
+    "AggregateMetricDouble",
+    "AggregateMetricDouble",
+    "AggregateMetricDouble",
+    "AGGREGATE_METRIC_DOUBLE",
+    "",
+    ""
+  )
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
   var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
   var longRangeProperties = prop("LongRange", "LongRange", "LongRange", "LONG_RANGE", "", "")
@@ -549,6 +558,12 @@ tasks.named('stringTemplates').configure {
     it.properties = expHistoProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceExponentialHistogramEvaluator.java"
+  }
+
+  template {
+    it.properties = aggregateMetricDoubleProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceAggregateMetricDoubleEvaluator.java"
   }
 
   template {

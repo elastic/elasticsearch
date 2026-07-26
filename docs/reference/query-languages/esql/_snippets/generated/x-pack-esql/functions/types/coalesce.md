@@ -4,6 +4,7 @@
 
 | first | rest | result |
 | --- | --- | --- |
+| aggregate_metric_double | aggregate_metric_double | aggregate_metric_double |
 | boolean | boolean | boolean |
 | boolean | | boolean |
 | cartesian_point | cartesian_point | cartesian_point |

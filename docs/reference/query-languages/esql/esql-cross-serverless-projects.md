@@ -248,6 +248,27 @@ FROM data,-_origin:*    <1>
 - In CPS, `*:` resolves against all projects including the origin, the same as an unqualified expression.
 ::::
 
+#### Exclude specific indices from a project
+
+To exclude a specific index from a linked project, prefix the index with a minus sign after the project alias, such as `linked-project-1:-logs-archive`:
+
+```esql
+FROM logs*,linked-project-1:-logs-archive    <1>
+| STATS COUNT(*)
+```
+
+1. `logs*` is resolved across all projects. On `linked-project-1`, the `logs-archive` index is excluded.
+
+You can also place the minus sign on the project alias. For example, `-linked-project-1:logs-archive` is equivalent to `linked-project-1:-logs-archive`. This works for any index name or wildcard pattern other than `*`. Both forms can appear on their own.
+
+The same applies to the origin project. For example, `-_origin:logs` is equivalent to `_origin:-logs`.
+
+::::{note}
+`-linked-project-1:*` behaves differently. It is a project-level exclusion that removes the entire project and requires a preceding inclusion pattern.
+::::
+
+Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
+
 ### Combine qualified and unqualified expressions
 
 You can mix unqualified and qualified expressions in the same query:

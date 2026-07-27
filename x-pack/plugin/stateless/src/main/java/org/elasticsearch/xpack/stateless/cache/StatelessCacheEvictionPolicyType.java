@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING;
+import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 
 /**
  * Factory for stateless shared blob cache eviction policies.
@@ -56,8 +56,8 @@ public enum StatelessCacheEvictionPolicyType {
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         // Explicit configuration takes precedence when on search nodes
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)
-            && settings.hasValue(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey())) {
-            return STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.get(settings);
+            && settings.hasValue(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey())) {
+            return STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings);
         }
         // TODO: We ignore eviction policy setting on indexing node for now.
         return defaultEvictionPolicyType(settings);

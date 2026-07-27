@@ -314,7 +314,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
             .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.PINNED_WINDOW
             )
             .put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION)

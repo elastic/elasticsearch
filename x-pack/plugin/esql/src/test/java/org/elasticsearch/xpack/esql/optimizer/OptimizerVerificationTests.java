@@ -943,6 +943,43 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertEquals("Anna.*", rlike.pattern().asJavaRegex());
     }
 
+    /**
+     * NOT LIKE with a non-foldable pattern (a field reference) must be rejected at
+     * post-optimization verification. The {@code Not} wrapper must not prevent the
+     * {@code LogicalVerifier} from descending into the inner {@code UnresolvedRegexExpression}.
+     */
+    public void testNotLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name not like last_name"));
+        assertThat(err, containsString("[LIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * Same as {@link #testNotLikeNonFoldablePatternReportsError} for RLIKE.
+     */
+    public void testNotRLikeNonFoldablePatternReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name not rlike last_name"));
+        assertThat(err, containsString("[RLIKE] pattern must be a constant, received [last_name]"));
+    }
+
+    /**
+     * A plain text field (no keyword sub-field, i.e. {@code hasExact()} is false) must be
+     * accepted with a constant-expression pattern. {@code isStringAndExact} would have rejected
+     * it, producing a VerificationException, while the literal-pattern path via
+     * {@code WildcardLike} would accept it via {@code isString}. This test locks in the
+     * correct behaviour after the fix to use {@code isString} in
+     * {@code UnresolvedRegexExpression.resolveType()}.
+     * {@code gender} in mapping-basic.json is a pure text field with no keyword sub-field.
+     */
+    public void testLikeConstantExpressionOnTextField() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = optimize(defaultAnalyzer().query("from test | where gender like concat(\"M\", \"*\")"));
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        StartsWith startsWith = as(filter.condition(), StartsWith.class);
+        assertEquals("M", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
+    }
+
     public void testLikeAlwaysTrue_AsLocalRelation() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \"*\") | where abc like filter"));

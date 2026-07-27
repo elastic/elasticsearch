@@ -3,7 +3,7 @@ navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
   stack: experimental =9.5
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---
@@ -18,7 +18,7 @@ The example uses the [Ookla Open Speedtest dataset](https://github.com/teamookla
 
 Make sure you have the following:
 
-- An {{es}} deployment running version 9.5 or later, or a serverless project, with ES|QL Data Federation enabled.
+- An {{es}} deployment running version 9.5 or later, with ES|QL Data Federation enabled.
 - An [Enterprise subscription](https://www.elastic.co/subscriptions) for {{ech}}, {{ece}}, {{eck}}, or self-managed deployments.
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.

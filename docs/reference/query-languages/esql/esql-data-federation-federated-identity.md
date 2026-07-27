@@ -4,7 +4,7 @@ description: "Set up Amazon S3 federated identity for ES|QL Data Federation so E
 applies_to:
   deployment:
     ech: experimental
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---

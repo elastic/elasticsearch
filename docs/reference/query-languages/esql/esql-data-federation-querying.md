@@ -3,7 +3,7 @@ navigation_title: "Query datasets"
 description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, query external and indexed data together, and troubleshoot common issues."
 applies_to:
   stack: experimental =9.5
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---
@@ -103,15 +103,11 @@ Runtime `MATCH` on a dataset does not accept function options, requires the quer
 
 The following search functions are available for datasets:
 
-| Function | Stack | Serverless |
-|---|---|---|
-| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` | {applies_to}`serverless: experimental` |
-| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` | {applies_to}`serverless: experimental` |
-| `_score` for dataset rows | Not yet available | Not yet available |
-
-:::{tip}
-New search functions are available on {{serverless-short}} first.
-:::
+| Function | Stack |
+|---|---|
+| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` |
+| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
+| `_score` for dataset rows | Not yet available |
 
 ## Limitations
 

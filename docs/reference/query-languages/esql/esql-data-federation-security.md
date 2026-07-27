@@ -3,7 +3,7 @@ navigation_title: "Manage access"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
   stack: experimental =9.5
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---

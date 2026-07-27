@@ -3,7 +3,7 @@ navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
   stack: experimental =9.5
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---
@@ -71,7 +71,7 @@ The following data source types are supported:
 :::
 
 :::{tip}
-Amazon S3 is the first supported data source type. Support for additional storage systems, including Google Cloud Storage and Azure Blob Storage, is planned. New data source types are available on {{serverless-short}} first.
+Amazon S3 is the first supported data source type. Support for additional storage systems, including Google Cloud Storage and Azure Blob Storage, is planned.
 :::
 
 ## Supported file formats

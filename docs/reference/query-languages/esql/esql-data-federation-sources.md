@@ -3,7 +3,7 @@ navigation_title: "Connect data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation by setting up S3 data sources, configuring regions and endpoints, and authenticating access."
 applies_to:
   stack: experimental =9.5
-  serverless: experimental
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---

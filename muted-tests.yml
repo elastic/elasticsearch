@@ -760,3 +760,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
   method: testLookupDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/155185
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/153902

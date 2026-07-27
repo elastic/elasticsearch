@@ -18,21 +18,17 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class SemanticTextInferenceFieldsIT extends AbstractInferenceFieldsIT {
-    private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(
-        TaskType.SPARSE_EMBEDDING,
-        TaskType.TEXT_EMBEDDING,
-        TaskType.EMBEDDING
-    );
+public class SemanticInferenceFieldsIT extends AbstractInferenceFieldsIT {
+    private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(TaskType.EMBEDDING);
 
     @Override
     XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException {
-        return IntegrationTestUtils.generateSemanticTextMapping(fieldNameToInferenceIdMap);
+        return IntegrationTestUtils.generateSemanticMapping(fieldNameToInferenceIdMap);
     }
 
     @Override
     Object generateFieldValue() {
-        return SemanticTextFieldTests.randomSemanticTextInput();
+        return SemanticTextFieldTests.randomSemanticInput(true);
     }
 
     public void testExcludeInferenceFieldsFromSource() throws Exception {
@@ -42,7 +38,7 @@ public class SemanticTextInferenceFieldsIT extends AbstractInferenceFieldsIT {
     public void testExcludeInferenceFieldsFromSourceOldIndexVersions() throws Exception {
         excludeInferenceFieldsFromSourceTestCase(
             SUPPORTED_TASK_TYPES,
-            IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
+            IndexVersions.SEMANTIC_FIELD_TYPE,
             IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
             40
         );

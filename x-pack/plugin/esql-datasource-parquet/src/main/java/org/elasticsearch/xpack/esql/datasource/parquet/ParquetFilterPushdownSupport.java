@@ -81,7 +81,8 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         || dt == DataType.DOUBLE
         || dt == DataType.KEYWORD
         || dt == DataType.BOOLEAN
-        || dt == DataType.DATETIME;
+        || dt == DataType.DATETIME
+        || dt == DataType.DATE_NANOS;
 
     @Override
     public PushdownResult pushFilters(List<Expression> filters) {

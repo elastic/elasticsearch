@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -298,7 +299,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new QueryString(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new QueryString(source, query, options, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -306,6 +310,9 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -339,7 +346,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -347,7 +354,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        queryStringOptions.putIfAbsent(
+            TIME_ZONE_FIELD.getPreferredName(),
+            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
+        );
         return queryStringOptions;
     }
 
@@ -384,17 +394,16 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
 
     @Override
     public boolean equals(Object o) {
-        // QueryString does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var qstr = (QueryString) o;
         return Objects.equals(query(), qstr.query())
             && Objects.equals(queryBuilder(), qstr.queryBuilder())
-            && Objects.equals(configuration, qstr.configuration);
+            && Objects.equals(configuration, qstr.configuration)
+            && Objects.equals(options, qstr.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder(), configuration);
+        return Objects.hash(query(), queryBuilder(), configuration, options);
     }
 }

@@ -158,6 +158,14 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
     );
 
+    static final ValueType FLATTENED_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
+        "flattened",
+        factory -> factory.newBytesRefBlockBuilder(0),
+        block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
+        (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+    );
+
     static final ValueType IP_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
         "ip",
         factory -> factory.newBytesRefBlockBuilder(0),
@@ -226,6 +234,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
+        Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
         Map.entry(DataType.NULL, NULL_VALUES),
         Map.entry(DataType.UNSUPPORTED, NULL_VALUES),

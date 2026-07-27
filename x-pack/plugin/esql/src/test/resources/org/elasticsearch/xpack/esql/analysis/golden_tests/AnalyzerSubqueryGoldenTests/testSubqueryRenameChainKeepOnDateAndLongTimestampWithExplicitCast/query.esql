@@ -1,0 +1,6 @@
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x, x AS y
+| KEEP y
+| SORT y

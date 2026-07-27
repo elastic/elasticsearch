@@ -3,3 +3,18 @@ issues: []
 pr: 151841
 summary: Release flattened type and `field_extract`
 type: feature
+highlight:
+  notable: true
+  title: Support for `flattened` fields in ES|QL
+  body: |-
+    ES|QL now supports the `flattened` field type. Fields mapped as `flattened` were previously
+    unsupported and could not be referenced in queries. They can now be loaded and, together with
+    the new `FIELD_EXTRACT` ES|QL function, queried by sub-field.
+
+    `FIELD_EXTRACT(<flattened field>, "<sub-field>")` extracts the value of a single sub-field from a
+    `flattened` object and returns it as a `keyword`. The second argument is the literal name of the
+    sub-field exactly as it is stored, for example `FIELD_EXTRACT(attributes, "host.name")`. The dot is
+    part of the key, so the same dotted form addresses both originally-flat and originally-nested
+    sub-fields. When a sub-field holds multiple values, the result is a multi-valued `keyword`.
+
+    Both the `flattened` type support and the `FIELD_EXTRACT` function are in Technical Preview.

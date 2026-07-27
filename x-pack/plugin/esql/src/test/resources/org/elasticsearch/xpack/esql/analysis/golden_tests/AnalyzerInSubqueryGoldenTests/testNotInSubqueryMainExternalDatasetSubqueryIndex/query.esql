@@ -1,0 +1,2 @@
+FROM salaries_int
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)

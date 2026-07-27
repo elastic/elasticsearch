@@ -19,14 +19,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public record RegionPolicy(@Nullable List<String> allowedGeos, @Nullable List<CspRegion> allowedRegions, @Nullable CspRegion fallbackRegion)
+public record RegionPolicy(@Nullable List<String> allowedGeos, @Nullable List<CspRegion> allowedRegions)
     implements
         ToXContentObject,
         Writeable {
 
     public static final ParseField ALLOWED_GEOS_FIELD = new ParseField("allowed_geos");
     public static final ParseField ALLOWED_REGIONS_FIELD = new ParseField("allowed_regions");
-    public static final ParseField FALLBACK_REGION_FIELD = new ParseField("fallback_region");
 
     public static final ConstructingObjectParser<RegionPolicy, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<RegionPolicy, Void> STRICT_PARSER = createParser(false);
@@ -36,7 +35,7 @@ public record RegionPolicy(@Nullable List<String> allowedGeos, @Nullable List<Cs
         ConstructingObjectParser<RegionPolicy, Void> parser = new ConstructingObjectParser<>(
             "region_policy",
             ignoreUnknownFields,
-            args -> new RegionPolicy((List<String>) args[0], (List<CspRegion>) args[1], (CspRegion) args[2])
+            args -> new RegionPolicy((List<String>) args[0], (List<CspRegion>) args[1])
         );
         parser.declareExclusiveFieldSet(ALLOWED_GEOS_FIELD.getPreferredName(), ALLOWED_REGIONS_FIELD.getPreferredName());
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), ALLOWED_GEOS_FIELD);
@@ -45,27 +44,17 @@ public record RegionPolicy(@Nullable List<String> allowedGeos, @Nullable List<Cs
             CspRegion.createParser(ignoreUnknownFields),
             ALLOWED_REGIONS_FIELD
         );
-        parser.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            CspRegion.createParser(ignoreUnknownFields),
-            FALLBACK_REGION_FIELD
-        );
         return parser;
     }
 
     public RegionPolicy(StreamInput in) throws IOException {
-        this(
-            in.readOptionalStringCollectionAsList(),
-            in.readOptionalCollectionAsList(CspRegion::new),
-            in.readOptionalWriteable(CspRegion::new)
-        );
+        this(in.readOptionalStringCollectionAsList(), in.readOptionalCollectionAsList(CspRegion::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalStringCollection(allowedGeos);
         out.writeOptionalCollection(allowedRegions);
-        out.writeOptionalWriteable(fallbackRegion);
     }
 
     @Override
@@ -76,9 +65,6 @@ public record RegionPolicy(@Nullable List<String> allowedGeos, @Nullable List<Cs
         }
         if (allowedRegions != null) {
             builder.field(ALLOWED_REGIONS_FIELD.getPreferredName(), allowedRegions);
-        }
-        if (fallbackRegion != null) {
-            builder.field(FALLBACK_REGION_FIELD.getPreferredName(), fallbackRegion);
         }
         builder.endObject();
         return builder;

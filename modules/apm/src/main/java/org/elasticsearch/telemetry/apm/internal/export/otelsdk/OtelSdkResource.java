@@ -22,7 +22,8 @@ import org.elasticsearch.common.settings.Settings;
  * <ol>
  *   <li>The SDK defaults from {@link Resource#getDefault()}
  *   <li>Fixed Elasticsearch identity attributes set below: {@code service.name},
- *       {@code service.version}, {@code service.language.name}, plus {@code service.agent.*}.</li>
+ *       {@code service.version}, {@code service.language.name},
+ *       {@code service.runtime.name}/{@code service.runtime.version}, plus {@code service.agent.*}.</li>
  *   <li>{@code service.instance.id} from the {@code node.name} setting when configured.</li>
  *   <li>Operator-injected attributes pulled from the
  *       {@link OtelSdkSettings#TELEMETRY_RESOURCE_ATTRIBUTES} affix setting
@@ -53,6 +54,8 @@ final class OtelSdkResource {
             .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
             .put("service.language.name", "java")
+            .put("process.runtime.name", "Java")
+            .put("process.runtime.version", Runtime.version().toString())
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")

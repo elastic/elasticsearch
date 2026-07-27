@@ -69,6 +69,9 @@ The following are the available client settings. Those that must be stored in th
 `gcs.client.CLIENT_NAME.proxy.type`
 :   Proxy type for the client. Supported values are `direct` (no proxy), `http`, and `socks`. Defaults to `direct`.
 
+`gcs.client.CLIENT_NAME.resumable_write_buffer_size` {applies_to}`stack: ga 9.5`
+:   Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of data buffered in memory before each HTTP PUT request. The SDK default of `16MB` is used if this setting is not configured.
+
 
 ## Repository settings [repository-gcs-repository-settings]
 
@@ -103,9 +106,6 @@ The following settings are supported:
 
 `chunk_size`
 :   Big files can be broken down into multiple smaller blobs in the blob store during snapshotting. It is not recommended to change this value from its default unless there is an explicit reason for limiting the size of blobs in the repository. Setting a value lower than the default can result in an increased number of API calls to the Google Cloud Storage Service during snapshot create as well as restore operations compared to using the default value and thus make both operations slower as well as more costly. Specify the chunk size as a value and unit, for example: `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Google Cloud Storage Service which is `5TB`.
-
-`resumable_write_buffer_size`
-:   Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of data buffered in memory before each HTTP PUT request. The SDK default of `16MB` is used if this setting is not configured.
 
 `data_storage_class` {applies_to}`stack: ga 9.5`
 :   Sets the [GCP storage class](https://cloud.google.com/storage/docs/storage-classes) for data blobs in the repository. These blobs hold the files that make up each snapshotted shard and make up most of the repository volume, but are only read when restoring a shard or accessing its contents (for example, searchable snapshots read this data).

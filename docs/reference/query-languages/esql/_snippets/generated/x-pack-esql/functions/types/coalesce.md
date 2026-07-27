@@ -10,6 +10,7 @@
 | cartesian_shape | cartesian_shape | cartesian_shape |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
+| date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | date_range |
 | dense_vector | dense_vector | dense_vector |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram |
 | flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | flattened |

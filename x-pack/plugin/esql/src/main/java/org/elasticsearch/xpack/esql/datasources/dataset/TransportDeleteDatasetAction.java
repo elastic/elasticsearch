@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodePr
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,11 +26,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteDatasetAction.Request> {
     private final DatasetService datasetService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final DatasetResolutionService datasetResolutionService;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -54,7 +56,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.datasetService = datasetService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -72,19 +74,26 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         ActionListener<AcknowledgedResponse> listener
     ) {
         // Resolve to datasets only: `resolveDatasets` is additive, so a wildcard expands across the whole
-        // namespace — without this filter index names reach the registry. Mirrors TransportDeleteViewAction.
-        final List<String> datasetNames;
+        // namespace — without this filter index names reach the registry. Explicit names must still resolve to
+        // datasets; missing, hidden, or co-resident foreign resources are reported as not-found.
+        final DatasetResolutionService.DatasetResolutionResult result;
         try {
-            datasetNames = indexNameExpressionResolver.datasets(state.metadata(), request.indicesOptions(), request);
+            result = datasetResolutionService.resolveDatasets(
+                state,
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
         } catch (IndexNotFoundException e) {
             final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.names());
             listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
             return;
         }
-        if (datasetNames.isEmpty()) {
+        if (result.datasets().length == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
+        final List<String> datasetNames = Arrays.stream(result.datasets()).map(Dataset::name).toList();
         datasetService.deleteDatasets(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), datasetNames, listener);
     }
 

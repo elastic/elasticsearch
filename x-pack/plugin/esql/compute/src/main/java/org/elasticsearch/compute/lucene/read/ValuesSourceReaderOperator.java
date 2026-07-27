@@ -307,6 +307,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
     long bytesRead;
+    long sourceDocsLoaded;
+    long sourceFieldReads;
+    long sourceBytesLoaded;
     private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
@@ -444,11 +447,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
         long sourceBytes = storedFields.lastSourceBytesSize();
+        sourceBytesLoaded += sourceBytes;
         if (sourceBytes > lastKnownSourceSize) {
             lastKnownSourceSize = sourceBytes;
             acquireSourceLoadingReservation();
         }
         storedFields.releaseParsedSource();
+    }
+
+    void trackSourceFieldReads(int sourceBackedFieldCount) {
+        if (sourceBackedFieldCount > 0) {
+            sourceDocsLoaded++;
+            sourceFieldReads += sourceBackedFieldCount;
+        }
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -647,7 +658,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             rowsReceived,
             rowsEmitted,
             valuesLoaded,
-            bytesRead
+            bytesRead,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 

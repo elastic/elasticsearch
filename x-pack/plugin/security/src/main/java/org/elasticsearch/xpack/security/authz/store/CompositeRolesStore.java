@@ -49,13 +49,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
-import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -70,7 +69,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +78,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -117,9 +117,9 @@ public class CompositeRolesStore {
     private final ProjectResolver projectResolver;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final Cache<ProjectScoped<RoleKey>, Role> roleCache;
-    private final CacheIteratorHelper<ProjectScoped<RoleKey>, Role> roleCacheHelper;
     private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
-    private final CacheIteratorHelper<ProjectScoped<String>, Boolean> negativeLookupCacheHelper;
+    private final ReleasableLock cacheUpdateLock;
+    private final ReleasableLock cacheInvalidationLock;
     private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final AnonymousUser anonymousUser;
 
@@ -176,14 +176,15 @@ public class CompositeRolesStore {
             builder.setMaximumWeight(cacheSize);
         }
         this.roleCache = builder.build();
-        this.roleCacheHelper = new CacheIteratorHelper<>(roleCache);
         CacheBuilder<ProjectScoped<String>, Boolean> nlcBuilder = CacheBuilder.builder();
         final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
         if (nlcCacheSize >= 0) {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.negativeLookupCacheHelper = new CacheIteratorHelper<>(negativeLookupCache);
+        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+        this.cacheUpdateLock = new ReleasableLock(cacheLock.readLock());
+        this.cacheInvalidationLock = new ReleasableLock(cacheLock.writeLock());
         this.restrictedIndices = restrictedIndices;
         this.superuserRole = Role.buildFromRoleDescriptor(
             ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
@@ -420,13 +421,13 @@ public class CompositeRolesStore {
             restrictedIndices,
             listener.delegateFailureAndWrap((delegate, role) -> {
                 if (role != null && tryCache) {
-                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                         * started the request we don't put a potential stale result in the cache, hence the
-                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results.
+                    try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
+                        /* The role was built asynchronously, so an invalidation may have completed since this resolution
+                         * captured the invalidation counters. Holding the read side of the shared cache lock makes this
+                         * check-then-write atomic with respect to invalidations, which clear both caches and bump the
+                         * counters under the write side (see invalidateCachesThenBumpCounter): if an invalidation
+                         * completed after the counters were captured, the check below fails and we skip caching rather
+                         * than cache a potentially stale role.
                          *
                          * Per-project invalidation counter and the global invalidation counter must be unchanged before we cache
                          */
@@ -610,7 +611,7 @@ public class CompositeRolesStore {
             builder.workflows(workflows);
         }
         if (applicationPrivilegesMap.isEmpty()) {
-            addImplicitPrivileges(roleDescriptors, fieldPermissionsCache, implicitPrivilegesProviders, List.of(), builder, dlsFlsEnabled);
+            // No application privileges means implicit-privilege providers have nothing to resolve against, so skip them.
             listener.onResponse(builder.build());
         } else {
             final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
@@ -623,15 +624,20 @@ public class CompositeRolesStore {
                 applicationPrivilegeNames,
                 false, // TODO revisit if we should also wait for an available security index here
                 listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
+                    // Resolve each (application, resources) grant once, add it to the builder, and reuse the very same
+                    // resolved ApplicationPrivilege instances (which already carry the cached action automaton) for the
+                    // implicit-privilege providers, so providers need not rebuild a matcher over the stored actions.
+                    final List<ResolvedApplicationPrivilege> resolvedApplicationPrivileges = new ArrayList<>();
                     applicationPrivilegesMap.forEach(
-                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges).forEach(priv -> {
+                            builder.addApplicationPrivilege(priv, key.v2());
+                            resolvedApplicationPrivileges.add(new ResolvedApplicationPrivilege(priv, key.v2()));
+                        })
                     );
                     addImplicitPrivileges(
-                        roleDescriptors,
+                        resolvedApplicationPrivileges,
                         fieldPermissionsCache,
                         implicitPrivilegesProviders,
-                        appPrivileges,
                         builder,
                         dlsFlsEnabled
                     );
@@ -678,19 +684,19 @@ public class CompositeRolesStore {
     }
 
     /**
-     * Invokes each {@link ImplicitPrivilegesProvider} once per role descriptor and folds the
+     * Invokes each {@link ImplicitPrivilegesProvider} once with the resolved application-privilege grants and folds the
      * returned {@link IndicesPrivileges} into {@code builder} as implicit grants.
      *
-     * <p>Each provider is passed the subset of resolved {@link ApplicationPrivilegeDescriptor}s
-     * that the role actually references, so providers can condition their grants on which
-     * application privileges the role holds. If {@code dlsFlsEnabled} is {@code false}, any
-     * returned privilege that uses DLS or FLS is suppressed.
+     * <p>On this runtime path the provided {@link ResolvedApplicationPrivilege}s are the union across all of the user's
+     * role descriptors, which are being combined into one effective role. This is the whole-role counterpart to the
+     * per-descriptor invocation performed by {@link #addImplicitPrivilegesToRoles}. Each grant carries the already-built
+     * action automaton, so providers can test the actions a role is authorized for without reconstructing a matcher. If
+     * {@code dlsFlsEnabled} is {@code false}, any returned privilege that uses DLS or FLS is suppressed.
      */
     private static void addImplicitPrivileges(
-        Collection<RoleDescriptor> roleDescriptors,
+        Collection<ResolvedApplicationPrivilege> resolvedApplicationPrivileges,
         FieldPermissionsCache fieldPermissionsCache,
         List<ImplicitPrivilegesProvider> implicitPrivilegesProviders,
-        Collection<ApplicationPrivilegeDescriptor> appPrivileges,
         Role.Builder builder,
         boolean dlsFlsEnabled
     ) {
@@ -699,60 +705,60 @@ public class CompositeRolesStore {
         }
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
-        final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
-            .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
-        for (RoleDescriptor rd : roleDescriptors) {
-            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
-            for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
-                final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(rd, roleAppPrivs);
-                final IndicesPrivileges[] kept = implicit.stream()
-                    .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
-                    .toArray(IndicesPrivileges[]::new);
-                final int suppressed = implicit.size() - kept.length;
-                if (suppressed > 0) {
-                    logger.debug(
-                        "Suppressed [{}] implicit privilege(s) on role [{}] from provider [{}] because DLS/FLS is disabled",
-                        suppressed,
-                        rd.getName(),
-                        provider.getClass().getName()
-                    );
-                }
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, true, restrictedIndicesPrivilegesMap);
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, false, indicesPrivilegesMap);
+        for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
+            final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(resolvedApplicationPrivileges);
+            final IndicesPrivileges[] kept = implicit.stream()
+                .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
+                .toArray(IndicesPrivileges[]::new);
+            final int suppressed = implicit.size() - kept.length;
+            if (suppressed > 0) {
+                logger.debug(
+                    "Suppressed [{}] implicit privilege(s) from provider [{}] because DLS/FLS is disabled",
+                    suppressed,
+                    provider.getClass().getName()
+                );
             }
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, true, restrictedIndicesPrivilegesMap);
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, false, indicesPrivilegesMap);
         }
         addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, true);
     }
 
-    static List<ApplicationPrivilegeDescriptor> getApplicationPrivilegeDescriptors(
-        RoleDescriptor rd,
-        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
+    /**
+     * Resolves a single role descriptor's declared application privileges into {@link ResolvedApplicationPrivilege}s,
+     * pairing each resolved {@link ApplicationPrivilege} with the resources of the block it came from. This exists for the
+     * role-decoration path, which needs the resolved privileges purely to feed the implicit-privilege providers;
+     * {@link #buildRoleFromDescriptors} instead resolves them inline while building the role.
+     */
+    static List<ResolvedApplicationPrivilege> resolveApplicationPrivileges(
+        RoleDescriptor roleDescriptor,
+        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
-        if (rd.getApplicationPrivileges().length == 0) {
+        if (roleDescriptor.getApplicationPrivileges().length == 0) {
             return List.of();
         }
-        final Set<ApplicationPrivilegeDescriptor> roleAppPrivs = new LinkedHashSet<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
-            final Predicate<String> appMatches = ap.getApplication().contains("*")
-                ? Automatons.predicate(ap.getApplication())
-                : ap.getApplication()::equals;
-            for (String priv : ap.getPrivileges()) {
-                final List<ApplicationPrivilegeDescriptor> candidates = appPrivsByName.get(priv);
-                if (candidates == null) {
-                    // Either an action pattern (e.g. "data:read/*") or a reference to an undefined stored privilege; silently skip.
-                    // Providers that need action-pattern visibility can read RoleDescriptor#getApplicationPrivileges() directly.
-                    continue;
-                }
-                for (ApplicationPrivilegeDescriptor apd : candidates) {
-                    if (appMatches.test(apd.getApplication())) {
-                        roleAppPrivs.add(apd);
-                    }
-                }
-            }
+        final List<ResolvedApplicationPrivilege> resolved = new ArrayList<>();
+        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
+            final Set<String> resources = newHashSet(arp.getResources());
+            ApplicationPrivilege.get(arp.getApplication(), newHashSet(arp.getPrivileges()), storedApplicationPrivileges)
+                .forEach(priv -> resolved.add(new ResolvedApplicationPrivilege(priv, resources)));
         }
-        return new ArrayList<>(roleAppPrivs);
+        return resolved;
     }
 
+    /**
+     * Decorates each of the given role descriptors with the implicit index privileges its own application privileges
+     * would yield, returning a descriptor per input role. This backs the {@code include_implicit} option of the get-role
+     * API, whose response lists each role separately, so implicit privileges must be attributable to an individual role.
+     * <p>
+     * Accordingly, {@link ImplicitPrivilegesProvider}s are invoked <em>per role descriptor</em> here — each sees only that
+     * descriptor's resolved application privileges. This differs from runtime role building (see
+     * {@link #buildRoleFromDescriptors}), where a provider is invoked once with the union of application privileges across
+     * all of the user's roles. For a provider whose grants depend on combining application privileges from different
+     * roles, the implicit privileges reported for a role in isolation may therefore be a subset of what the user is
+     * granted at runtime. This divergence is intentional and part of the get-role API contract; see
+     * {@link ImplicitPrivilegesProvider}.
+     */
     public void addImplicitPrivilegesToRoles(
         Collection<RoleDescriptor> roleDescriptors,
         ActionListener<Collection<RoleDescriptor>> listener
@@ -770,25 +776,30 @@ public class CompositeRolesStore {
             .flatMap(arp -> Stream.of(arp.getPrivileges()))
             .collect(Collectors.toSet());
         if (applicationNames.isEmpty() || privilegeNames.isEmpty()) {
-            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, Map.of()));
+            // No application privileges to resolve means providers can grant nothing, so return the roles undecorated.
+            listener.onResponse(roleDescriptors);
             return;
         }
-        privilegeStore.getPrivileges(applicationNames, privilegeNames, false, ActionListener.wrap(appPrivileges -> {
-            final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
-                .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
-            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivsByName));
-        }, listener::onFailure));
+        privilegeStore.getPrivileges(
+            applicationNames,
+            privilegeNames,
+            false,
+            ActionListener.wrap(
+                appPrivileges -> listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivileges)),
+                listener::onFailure
+            )
+        );
     }
 
     private Collection<RoleDescriptor> decorateWithImplicitPrivileges(
         Collection<RoleDescriptor> roleDescriptors,
-        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
+        Collection<ApplicationPrivilegeDescriptor> appPrivileges
     ) {
         List<RoleDescriptor> result = new ArrayList<>();
         for (RoleDescriptor rd : roleDescriptors) {
-            List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
+            List<ResolvedApplicationPrivilege> resolvedAppPrivs = resolveApplicationPrivileges(rd, appPrivileges);
             List<IndicesPrivileges> implicitPrivileges = implicitPrivilegesProviders.stream()
-                .flatMap(p -> p.getImplicitIndicesPrivileges(rd, roleAppPrivs).stream())
+                .flatMap(p -> p.getImplicitIndicesPrivileges(resolvedAppPrivs).stream())
                 .<IndicesPrivileges>map(IndicesPrivileges.ImplicitlyGranted::new)
                 // always include implicit permissions that do not rely on DLS/FLS; omit ones that do if DLS/FLS is disabled
                 .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
@@ -825,40 +836,94 @@ public class CompositeRolesStore {
 
     public void invalidateProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
-            negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
-            roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+            invalidateCachesThenBumpCounter(
+                () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
+                () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+                () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
+            );
         } else {
             invalidateAll();
         }
     }
 
     final void removeProject(ProjectId projectId) {
-        numInvalidation.remove(projectId);
-        negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
-        roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
+            () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+            () -> numInvalidation.remove(projectId)
+        );
     }
 
     public void invalidateAll() {
-        numGlobalInvalidation.incrementAndGet();
-        negativeLookupCache.invalidateAll();
-        try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-            roleCache.invalidateAll();
-        }
+        invalidateCachesThenBumpCounter(
+            roleCache::invalidateAll,
+            negativeLookupCache::invalidateAll,
+            numGlobalInvalidation::incrementAndGet
+        );
         dlsBitsetCache.clear("role store invalidation");
     }
 
     public void invalidate(String role) {
         final ProjectId projectId = Objects.requireNonNull(projectResolver.getProjectId());
-        numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
-        roleCacheHelper.removeKeysIf(key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role));
-        negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role)),
+            () -> negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role)),
+            () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
+        );
     }
 
     public void invalidateClusterScopedRoles(Set<String> roles) {
-        numGlobalInvalidation.incrementAndGet();
-        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false);
-        negativeLookupCacheHelper.removeKeysIf(key -> roles.contains(key.value()));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false),
+            () -> removeCachedKeysIf(negativeLookupCache, key -> roles.contains(key.value())),
+            numGlobalInvalidation::incrementAndGet
+        );
+    }
+
+    /**
+     * Clears the matching entries from the role cache and the negative-lookup cache and then bumps the relevant invalidation
+     * counter, holding {@link #cacheInvalidationLock} (the exclusive/write side of the shared cache lock) for the entire
+     * operation and bumping the counter <em>last</em>.
+     * <p>
+     * Role resolution performs its invalidation-counter check and its writes to both caches under {@link #cacheUpdateLock} (the
+     * shared/read side of the same lock; see {@link #buildThenMaybeCacheRole}). Because the read and write sides are mutually
+     * exclusive, running every invalidation under the write side - with the counter bump as the final step - guarantees that a
+     * concurrent resolution observes an invalidation atomically: it either completes entirely before the invalidation (so its
+     * just-written entries are cleared by it) or entirely after it (so its counter check fails and it does not repopulate the
+     * caches with stale data).
+     * <p>
+     * Without this, a resolution could observe a half-applied invalidation - for example the role cache cleared but the negative
+     * cache not yet cleared - read a stale negative-cache entry, and re-cache an empty role that survives indefinitely, because
+     * the subsequent negative-cache clear never re-clears the role cache.
+     *
+     * @param clearRoleCache          clears the relevant entries from the role cache
+     * @param clearNegativeCache      clears the relevant entries from the negative-lookup cache
+     * @param bumpInvalidationCounter updates the relevant invalidation counter; must run last so that observing the new counter
+     *                                value implies observing both cache clears
+     */
+    private void invalidateCachesThenBumpCounter(Runnable clearRoleCache, Runnable clearNegativeCache, Runnable bumpInvalidationCounter) {
+        try (ReleasableLock ignored = cacheInvalidationLock.acquire()) {
+            clearRoleCache.run();
+            clearNegativeCache.run();
+            bumpInvalidationCounter.run();
+        }
+    }
+
+    /**
+     * Iterates the given cache and removes every key matching {@code removeIf}. Callers <b>must</b> hold
+     * {@link #cacheInvalidationLock} (the exclusive side of the shared cache lock): the underlying {@link Cache} does not permit
+     * concurrent modification while its key iterator is in use, and single-entry writes take the shared side
+     * of the same lock, so holding the exclusive side provides the required isolation.
+     */
+    private <K> void removeCachedKeysIf(Cache<K, ?> cache, Predicate<K> removeIf) {
+        assert cacheInvalidationLock.isHeldByCurrentThread()
+            : "cacheInvalidationLock must be held while iterating and removing cache entries";
+        final Iterator<K> iterator = cache.keys().iterator();
+        while (iterator.hasNext()) {
+            if (removeIf.test(iterator.next())) {
+                iterator.remove();
+            }
+        }
     }
 
     // for testing

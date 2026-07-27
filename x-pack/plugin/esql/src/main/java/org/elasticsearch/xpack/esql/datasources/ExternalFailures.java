@@ -99,9 +99,11 @@ public final class ExternalFailures {
             return iae;
         }
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
+            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
         }
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
+        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
+        // its class name instead of a useless "null", while the original cause stays chained for the stack.
+        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
     }
 
     /**

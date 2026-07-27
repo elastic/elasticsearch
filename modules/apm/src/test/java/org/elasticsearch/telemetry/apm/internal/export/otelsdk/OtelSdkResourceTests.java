@@ -33,6 +33,8 @@ public class OtelSdkResourceTests extends ESTestCase {
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), is("elasticsearch"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.version")), is(Build.current().version()));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.language.name")), is("java"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("process.runtime.name")), is("Java"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("process.runtime.version")), is(Runtime.version().toString()));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.agent.name")), is("elasticsearch-otel-sdk"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.agent.version")), is(Build.current().version()));
         assertThat(resource.getAttribute(AttributeKey.stringKey("telemetry.distro.name")), is("elasticsearch-otel-sdk"));

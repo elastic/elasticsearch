@@ -74,6 +74,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.addProfiling;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.fetchProfile;
@@ -702,7 +703,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             Transport.Connection oldVersionConnection = withTransportVersion(delegateConnection, unsupportedVersion);
 
             PlainActionFuture<FetchSearchResult> future = new PlainActionFuture<>();
-            searchTransportService.sendExecuteFetch(oldVersionConnection, shardFetchRequest, mockSearchPhaseContext, shardTarget, future);
+            searchTransportService.sendExecuteFetch(
+                oldVersionConnection,
+                shardFetchRequest,
+                mockSearchPhaseContext,
+                shardTarget,
+                future,
+                bytes -> {},
+                bytes -> {}
+            );
 
             FetchSearchResult result = future.actionGet(10, TimeUnit.SECONDS);
             result.decRef();
@@ -813,7 +822,9 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 ShardFetchSearchRequest request,
                 AbstractSearchAsyncAction<?> context,
                 SearchShardTarget shardTarget,
-                ActionListener<FetchSearchResult> listener
+                ActionListener<FetchSearchResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 traditionalFetchUsed.set(true);
                 FetchSearchResult fetchResult = new FetchSearchResult();

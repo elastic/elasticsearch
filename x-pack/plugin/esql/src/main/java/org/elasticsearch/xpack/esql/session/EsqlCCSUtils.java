@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -180,7 +181,18 @@ public class EsqlCCSUtils {
         if (executionInfo.getClusters().isEmpty()) {
             return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
         }
-        return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
+        // Use a LinkedHashSet so the local cluster (added below) is always iterated last, giving a deterministic qualified lookup
+        // expression (e.g. "cluster-a:idx,idx" rather than a hash-ordered variant) for error messages.
+        Set<String> running = new LinkedHashSet<>(
+            executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet())
+        );
+        // This is validated by CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery
+        // It happens when lookup join is in the main query, and the subqueries have ROW and remote index patterns, the remote cluster
+        // presents in executionInfo
+        if (clusterAliases.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+            running.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        return running;
     }
 
     static void updateExecutionInfoWithUnavailableClusters(

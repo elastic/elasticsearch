@@ -18,8 +18,8 @@ public class StGeotileNoLicenseIT extends StGeotileLicenseIT {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
             SpatialNoLicenseTestCase.TestSpatialPlugin.class,
-            SpatialNoLicenseTestCase.TestEsqlPlugin.class,
-            TestEncryptionServicePlugin.class
+            TestEncryptionServicePlugin.class,
+            SpatialNoLicenseTestCase.TestEsqlPlugin.class
         );
     }
 

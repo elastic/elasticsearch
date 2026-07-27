@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedWidthVector;
-import org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted;
+import org.elasticsearch.compute.data.AbstractBlockRefCounted;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.Vector;
 
 import java.lang.foreign.MemorySegment;
 
-public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Vector {
+public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractBlockRefCounted implements Vector {
 
     protected final ArrowBuf valueBuffer;
     protected final int positionCount;
@@ -100,6 +100,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         // FIXME: does this apply to Arrow buffers?
     }
 

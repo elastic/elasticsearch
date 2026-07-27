@@ -12,7 +12,9 @@ package org.elasticsearch.eirf;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -42,7 +44,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfRowReader row0 = batch.getRowReader(0);
         assertEquals("alice", row0.getStringValue(0).string());
         // 30 fits in int
-        assertEquals(EirfType.INT, row0.getTypeByte(1));
+        assertEquals(SourceValueType.INT, row0.getTypeByte(1));
         assertEquals(30, row0.getIntValue(1));
 
         EirfRowReader row1 = batch.getRowReader(1);
@@ -59,10 +61,10 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfRowReader row0 = batch.getRowReader(0);
         // 42 fits in int
-        assertEquals(EirfType.INT, row0.getTypeByte(0));
+        assertEquals(SourceValueType.INT, row0.getTypeByte(0));
         assertEquals(42, row0.getIntValue(0));
         // Long.MAX_VALUE doesn't fit in int
-        assertEquals(EirfType.LONG, row0.getTypeByte(1));
+        assertEquals(SourceValueType.LONG, row0.getTypeByte(1));
         assertEquals(Long.MAX_VALUE, row0.getLongValue(1));
 
         batch.close();
@@ -75,10 +77,10 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfRowReader row0 = batch.getRowReader(0);
         // 1.5 round-trips through float
-        assertEquals(EirfType.FLOAT, row0.getTypeByte(0));
+        assertEquals(SourceValueType.FLOAT, row0.getTypeByte(0));
         assertEquals(1.5f, row0.getFloatValue(0), 0.0f);
         // 1.23456789012345 loses precision as float
-        assertEquals(EirfType.DOUBLE, row0.getTypeByte(1));
+        assertEquals(SourceValueType.DOUBLE, row0.getTypeByte(1));
         assertEquals(1.23456789012345, row0.getDoubleValue(1), 0.0);
 
         batch.close();
@@ -92,7 +94,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfRowReader row0 = batch.getRowReader(0);
         // Should use small row since var section is tiny
         assertTrue(row0.isSmallRow());
-        assertEquals(EirfType.STRING, row0.getTypeByte(0));
+        assertEquals(SourceValueType.STRING, row0.getTypeByte(0));
         assertEquals("alice", row0.getStringValue(0).string());
 
         batch.close();
@@ -138,9 +140,9 @@ public class EirfEncoderTests extends ESTestCase {
         EirfRowReader row0 = batch.getRowReader(0);
         byte type = row0.getTypeByte(0);
         // Should be FIXED_ARRAY since all strings
-        assertEquals(EirfType.FIXED_ARRAY, type);
+        assertEquals(SourceValueType.FIXED_ARRAY, type);
 
-        EirfArrayReader reader = row0.getArrayValue(0);
+        InlineArrayReader reader = row0.getArrayValue(0);
         assertTrue(reader.next());
         assertEquals("a", reader.stringValue());
         assertTrue(reader.next());
@@ -158,20 +160,20 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(EirfType.UNION_ARRAY, row0.getTypeByte(0));
+        assertEquals(SourceValueType.UNION_ARRAY, row0.getTypeByte(0));
 
-        EirfArrayReader reader = row0.getArrayValue(0);
+        InlineArrayReader reader = row0.getArrayValue(0);
 
         assertTrue(reader.next());
-        assertEquals(EirfType.INT, reader.type());
+        assertEquals(SourceValueType.INT, reader.type());
         assertEquals(42, reader.intValue());
 
         assertTrue(reader.next());
-        assertEquals(EirfType.STRING, reader.type());
+        assertEquals(SourceValueType.STRING, reader.type());
         assertEquals("hello", reader.stringValue());
 
         assertTrue(reader.next());
-        assertEquals(EirfType.TRUE, reader.type());
+        assertEquals(SourceValueType.TRUE, reader.type());
 
         assertFalse(reader.next());
 
@@ -190,9 +192,9 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(EirfType.FIXED_ARRAY, row0.getTypeByte(0));
+        assertEquals(SourceValueType.FIXED_ARRAY, row0.getTypeByte(0));
 
-        EirfArrayReader reader = row0.getArrayValue(0);
+        InlineArrayReader reader = row0.getArrayValue(0);
         int count = 0;
         while (reader.next()) {
             assertEquals(count, reader.intValue());
@@ -208,7 +210,7 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
-        assertEquals(EirfType.UNION_ARRAY, batch.getRowReader(0).getTypeByte(0));
+        assertEquals(SourceValueType.UNION_ARRAY, batch.getRowReader(0).getTypeByte(0));
 
         batch.close();
     }
@@ -261,7 +263,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfRowReader row0 = batch.getRowReader(0);
         // Empty array: union array with 0 elements
         byte type = row0.getTypeByte(0);
-        assertTrue(EirfType.isVariable(type));
+        assertTrue(SourceValueType.isVariable(type));
 
         batch.close();
     }
@@ -344,9 +346,9 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
-        assertEquals(EirfType.INT, batch.getRowReader(0).getTypeByte(0));
+        assertEquals(SourceValueType.INT, batch.getRowReader(0).getTypeByte(0));
         assertEquals(42, batch.getRowReader(0).getIntValue(0));
-        assertEquals(EirfType.STRING, batch.getRowReader(1).getTypeByte(0));
+        assertEquals(SourceValueType.STRING, batch.getRowReader(1).getTypeByte(0));
         assertEquals("hello", batch.getRowReader(1).getStringValue(0).string());
 
         batch.close();
@@ -371,7 +373,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(EirfType.INT, row0.getTypeByte(0));
+        assertEquals(SourceValueType.INT, row0.getTypeByte(0));
         assertEquals(-100, row0.getIntValue(0));
 
         batch.close();
@@ -386,9 +388,9 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(EirfType.INT, row0.getTypeByte(0));
+        assertEquals(SourceValueType.INT, row0.getTypeByte(0));
         assertEquals(Integer.MAX_VALUE, row0.getIntValue(0));
-        assertEquals(EirfType.LONG, row0.getTypeByte(1));
+        assertEquals(SourceValueType.LONG, row0.getTypeByte(1));
         assertEquals((long) Integer.MAX_VALUE + 1, row0.getLongValue(1));
 
         batch.close();
@@ -425,11 +427,11 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(EirfType.FIXED_ARRAY, row0.getTypeByte(0));
+        assertEquals(SourceValueType.FIXED_ARRAY, row0.getTypeByte(0));
 
-        EirfArrayReader reader = row0.getArrayValue(0);
+        InlineArrayReader reader = row0.getArrayValue(0);
         assertTrue(reader.next());
-        assertEquals(EirfType.INT, reader.type());
+        assertEquals(SourceValueType.INT, reader.type());
         assertEquals(1, reader.intValue());
         assertTrue(reader.next());
         assertEquals(2, reader.intValue());

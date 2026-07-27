@@ -668,6 +668,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
         ensureStableCluster(3);
+        // Metrics might have been computed when the cluster is still forming and hence not include
+        // all the nodes. Collect them once to enable computation again so that we get metrics for all nodes.
+        getMostRecentAverageWriteLoadMetrics();
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();

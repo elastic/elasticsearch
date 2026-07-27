@@ -768,12 +768,29 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Unknown index [ds2]"));
     }
 
+    public void testHeterogeneousFromUnauthorizedDatasetDoesNotBleed() {
+        // A readable index co-located in the FROM does not let an unauthorized dataset through: the explicit unauthorized
+        // dataset still fails as Unknown index, exactly as it would alone (no existence oracle). Mirrors
+        // testExplicitUnauthorizedAmongAuthorizedThrows with a plain index in place of the authorized dataset. The
+        // per-target classification this relies on is asserted by testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget
+        // (below).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewriteWithAuthorized(relationOf("some_idx,secret_ds"), project, Set.of("some_idx"))
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [secret_ds]"));
+    }
+
     // ---- resolve(): the engine-side, per-relation expansion that the action body runs ----
 
     public void testResolveEmptyWithoutDatasets() {
         // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
         DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
-        assertThat(r.authorizedDatasets(), equalTo(Set.of()));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of()));
         assertTrue(r.nonDatasetNames().isEmpty());
     }
 
@@ -784,13 +801,16 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         // Explicit single dataset.
-        assertThat(resolve("logs_a", project, Set.of("logs_a")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_a", project, Set.of("logs_a")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // Wildcard, all authorized.
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
         // Wildcard with exclusion, applied within the relation.
-        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // No pattern can match a dataset name → empty.
-        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of()));
+        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of()));
     }
 
     public void testResolveExclusionStaysPerRelation() {
@@ -801,8 +821,11 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
-        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_b")));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
+        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_b")));
     }
 
     public void testResolveFlagsNonDatasetTargets() {
@@ -812,8 +835,22 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
         DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
-        assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of("logs_dataset")));
         assertFalse(r.nonDatasetNames().isEmpty());
+    }
+
+    public void testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget() {
+        // Mixed FROM: the index and the unauthorized dataset are classified independently in one pass — the index is a
+        // readable non-dataset target (drives the heterogeneous-FROM UnionAll index branch), the dataset is flagged
+        // unauthorized. The enforcement of that flag is asserted by testHeterogeneousFromUnauthorizedDatasetDoesNotBleed
+        // (above).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        DatasetRewriter.DatasetResolution r = resolve("some_idx,secret_ds", project, Set.of("some_idx"));
+        assertThat(r.nonDatasetNames(), containsInAnyOrder("some_idx"));
+        assertThat(r.explicitUnauthorized(), containsInAnyOrder("secret_ds"));
     }
 
     // --

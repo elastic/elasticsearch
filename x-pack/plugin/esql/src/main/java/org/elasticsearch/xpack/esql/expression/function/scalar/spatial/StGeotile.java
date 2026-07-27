@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.LinearRing;
@@ -193,7 +194,11 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
+            Object boundsValue = bounds.fold(toEvaluator.foldCtx());
+            if (boundsValue == null) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
             return spatialDocValues
@@ -214,11 +219,18 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
+        if (point == null) {
+            return null;
+        }
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {
             return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
         } else {
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
+            Object boundsValue = bounds().fold(ctx);
+            if (boundsValue == null) {
+                return null;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
             long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
             return gridId < 0 ? null : gridId;

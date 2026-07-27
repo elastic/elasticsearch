@@ -8,12 +8,23 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -201,6 +212,31 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
         return optimizer.optimize(defaultAnalyzer().query(query));
+    }
+
+    /**
+     * Plans a {@code query} that references an external dataset via {@code FROM <datasetName>}, mirroring the
+     * production path: an in-memory {@link ProjectMetadata} registers {@code datasetName} against {@code resource}
+     * so {@link DatasetRewriter} rewrites the {@code FROM} target into an (unresolved) external relation, then the
+     * analyzer resolves it using the given pre-resolved {@code schema} (see {@code GoldenTestCase#datasetMetadata}
+     * for the golden-test equivalent of this same pattern).
+     */
+    protected LogicalPlan datasetPlan(String query, String datasetName, String resource, List<Attribute> schema) {
+        assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        String dataSourceName = datasetName + "_ds";
+        ProjectMetadata datasetMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(
+                DataSourceMetadata.TYPE,
+                new DataSourceMetadata(Map.of(dataSourceName, new DataSource(dataSourceName, "test", null, Map.of())))
+            )
+            .datasets(Map.of(datasetName, new Dataset(datasetName, new DataSourceReference(dataSourceName), resource, null, Map.of())))
+            .build();
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            TEST_PARSER.parseQuery(query),
+            datasetMetadata,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        return optimize(analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten));
     }
 
     protected LogicalPlan planAirports(String query) {

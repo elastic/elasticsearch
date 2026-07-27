@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -78,12 +80,13 @@ import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLM
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -665,7 +668,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndex = project.index(index);
             assert backingIndex != null : "the data stream backing indices must exist";
-            if (IndexSettings.MODE.get(backingIndex.getSettings()) == IndexMode.TIME_SERIES) {
+            if (IndexSettings.MODE.get(backingIndex.getSettings()).isTsdb()) {
                 Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
                 assert configuredEndTime != null
                     : "a time series index must have an end time configured but [" + index.getName() + "] does not";
@@ -1011,9 +1014,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * Issues a request to delete the provided index through the transport action deduplicator.
+     * Issues a request to delete the provided index through the transport action deduplicator. If the index is a searchable
+     * snapshot index mounted by the data stream lifecycle's convert-to-frozen transition, the backing snapshot is also deleted
+     * once the index deletion is acknowledged.
      */
-    private void deleteIndexOnce(ProjectId projectId, String indexName, String reason) {
+    private void deleteIndexOnce(ProjectId projectId, String indexName, String reason, @Nullable FrozenBackingSnapshot backingSnapshot) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId, deleteIndexRequest),
@@ -1025,9 +1030,34 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName),
                 signallingErrorRetryInterval
             ),
-            (req, reqListener) -> deleteIndex(projectId, deleteIndexRequest, reason, reqListener)
+            (req, reqListener) -> deleteIndex(projectId, deleteIndexRequest, reason, backingSnapshot, reqListener)
         );
     }
+
+    /**
+     * Identifies the repository and snapshot name backing an index that was mounted as a searchable snapshot by the data
+     * stream lifecycle's convert-to-frozen transition, so that the backing snapshot can be deleted alongside the index.
+     * Returns {@code null} if the index is not such a mounted searchable snapshot.
+     */
+    @Nullable
+    private static FrozenBackingSnapshot dlmCreatedBackingSnapshot(IndexMetadata indexMetadata) {
+        if (indexMetadata.isSearchableSnapshot() == false || DLM_CREATED_SETTING.get(indexMetadata.getSettings()) == false) {
+            return null;
+        }
+        Settings settings = indexMetadata.getSettings();
+        String repository = settings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+        String snapshotName = settings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY);
+        if (Strings.hasText(repository) == false || Strings.hasText(snapshotName) == false) {
+            return null;
+        }
+        return new FrozenBackingSnapshot(repository, snapshotName);
+    }
+
+    /**
+     * Identifies the repository and snapshot backing a searchable snapshot index mounted by the data stream lifecycle's
+     * convert-to-frozen transition.
+     */
+    private record FrozenBackingSnapshot(String repository, String snapshotName) {}
 
     /**
      * Issues a request to add a WRITE index block for the provided index through the transport action deduplicator.
@@ -1229,7 +1259,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                         // let's start simple and reevaluate
                         String indexName = backingIndex.getIndex().getName();
-                        deleteIndexOnce(project.id(), indexName, "the lapsed [" + dataRetention + "] retention period");
+                        deleteIndexOnce(
+                            project.id(),
+                            indexName,
+                            "the lapsed [" + dataRetention + "] retention period",
+                            dlmCreatedBackingSnapshot(backingIndex)
+                        );
                     }
                 }
             }
@@ -1244,7 +1279,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                     // let's start simple and reevaluate
                     String indexName = failureIndex.getIndex().getName();
-                    deleteIndexOnce(project.id(), indexName, "the lapsed [" + failureRetention + "] retention period");
+                    deleteIndexOnce(
+                        project.id(),
+                        indexName,
+                        "the lapsed [" + failureRetention + "] retention period",
+                        dlmCreatedBackingSnapshot(failureIndex)
+                    );
                 }
             }
         }
@@ -1507,7 +1547,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         });
     }
 
-    private void deleteIndex(ProjectId projectId, DeleteIndexRequest deleteIndexRequest, String reason, ActionListener<Void> listener) {
+    private void deleteIndex(
+        ProjectId projectId,
+        DeleteIndexRequest deleteIndexRequest,
+        String reason,
+        @Nullable FrozenBackingSnapshot backingSnapshot,
+        ActionListener<Void> listener
+    ) {
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1
             : "Data stream lifecycle deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
@@ -1518,6 +1564,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
                     logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
+                    if (backingSnapshot != null) {
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                    }
                 } else {
                     logger.trace(
                         "The delete request for index [{}] was not acknowledged. Data stream lifecycle service will retry on the"
@@ -1534,6 +1583,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(projectId, targetIndex);
+                    if (backingSnapshot != null) {
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                    }
                     listener.onResponse(null);
                     return;
                 }
@@ -1546,6 +1598,52 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
                 listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Best-effort deletion of the snapshot backing a frozen searchable snapshot index that data stream lifecycle just deleted.
+     * Failures are logged but do not fail the retention run: any snapshot left behind here is reclaimed later by the periodic
+     * data stream lifecycle frozen cleanup's orphaned snapshot scan.
+     */
+    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex) {
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            backingSnapshot.repository(),
+            backingSnapshot.snapshotName()
+        );
+        client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info(
+                    "Data stream lifecycle deleted backing snapshot [{}] from repository [{}] for deleted frozen index [{}]",
+                    backingSnapshot.snapshotName(),
+                    backingSnapshot.repository(),
+                    sourceIndex
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof SnapshotMissingException) {
+                    logger.trace(
+                        "Data stream lifecycle did not delete backing snapshot [{}] for index [{}] as it was already deleted",
+                        backingSnapshot.snapshotName(),
+                        sourceIndex
+                    );
+                    return;
+                }
+                logger.warn(
+                    () -> Strings.format(
+                        "Data stream lifecycle failed to delete backing snapshot [%s] from repository [%s] for deleted frozen "
+                            + "index [%s]; it will be reclaimed by the periodic data stream lifecycle frozen cleanup",
+                        backingSnapshot.snapshotName(),
+                        backingSnapshot.repository(),
+                        sourceIndex
+                    ),
+                    e
+                );
             }
         });
     }

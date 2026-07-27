@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154534
+pr: 154969
+summary: Fix categorize + topn pushdown
+type: bug

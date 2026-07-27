@@ -18,8 +18,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -27,6 +32,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
 
@@ -284,6 +290,96 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * ArrayOrderInlineNull-encoded multi-valued docs use the same ANY-value (OR) semantics as SeparateCount,
+     * but decoded via a different code path ({@code arrayOrder=true}).
+     */
+    public void testMultiValuedArrayOrder() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                // doc 0: ["world", "hello"] (document order, not sorted) -> "hello" equals term
+                addArrayOrderDoc(writer, fieldName, "world", "hello");
+                // doc 1: ["foo", "bar"] -> neither equals term
+                addArrayOrderDoc(writer, fieldName, "foo", "bar");
+                // doc 2: single-valued "hello" -> equals term
+                addArrayOrderDoc(writer, fieldName, "hello");
+
+                BytesRef term = new BytesRef("hello");
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term, true)));
+                }
+            }
+        }
+    }
+
+    /**
+     * A {@code null} slot in an ArrayOrderInlineNull-encoded doc must be skipped, not matched or crash decoding.
+     */
+    public void testMultiValuedArrayOrderWithNullSlot() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                // doc 0: [null, "world", "hello"] -> "hello" equals term
+                addArrayOrderDocWithNull(writer, fieldName, "world", "hello");
+                // doc 1: [null, "foo", "bar"] -> neither equals term
+                addArrayOrderDocWithNull(writer, fieldName, "foo", "bar");
+
+                BytesRef term = new BytesRef("hello");
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term, true)));
+                }
+            }
+        }
+    }
+
+    public void testChecksCircuitBreakerWhenReaderOpened() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addSingleValueDoc(writer, fieldName, "hello");
+                addSingleValueDoc(writer, fieldName, "world");
+                try (IndexReader reader = writer.getReader()) {
+                    // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit
+                    // test, so we substitute a breaker that always trips to verify the scanning query consults it and passes 0 bytes.
+                    AtomicLong checkpointedBytes = new AtomicLong(-1);
+                    CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+                        @Override
+                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                            checkpointedBytes.set(bytes);
+                            throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                        }
+                    };
+                    ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+
+                    Query present = new ScanningBinaryDocValuesTermQuery(fieldName, new BytesRef("hello"), false);
+                    expectThrows(CircuitBreakingException.class, () -> searcher.count(present));
+                    // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
+                    assertEquals(0L, checkpointedBytes.get());
+
+                    // A field absent from the segment opens no binary doc values reader, so the checkpoint must not fire.
+                    checkpointedBytes.set(-1);
+                    Query absent = new ScanningBinaryDocValuesTermQuery("missing", new BytesRef("hello"), false);
+                    assertEquals(0, searcher.count(absent));
+                    assertEquals(-1L, checkpointedBytes.get());
+
+                    // With no breaker configured the query runs normally.
+                    searcher.setCircuitBreaker(null);
+                    assertEquals(1, searcher.count(present));
+                }
+            }
+        }
+    }
+
     public void testEqualsAndHashCode() {
         ScanningBinaryDocValuesTermQuery q1 = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("term"), false);
         ScanningBinaryDocValuesTermQuery q2 = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("term"), false);
@@ -321,6 +417,28 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
         var countField = NumericDocValuesField.indexedField(fieldName + ".counts", field.count());
         document.add(field);
         document.add(countField);
+        writer.addDocument(document);
+    }
+
+    static void addArrayOrderDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
+        LuceneDocument document = new LuceneDocument();
+        if (values.length == 1) {
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(document, fieldName, new BytesRef(values[0]));
+        } else {
+            for (String value : values) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(document, fieldName, new BytesRef(value));
+            }
+        }
+        writer.addDocument(document);
+    }
+
+    /** Records a leading {@code null} slot followed by {@code values}, in document order. */
+    static void addArrayOrderDocWithNull(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
+        LuceneDocument document = new LuceneDocument();
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(document, fieldName);
+        for (String value : values) {
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(document, fieldName, new BytesRef(value));
+        }
         writer.addDocument(document);
     }
 

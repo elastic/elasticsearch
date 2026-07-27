@@ -24,6 +24,13 @@
         }
       ]
     },
+    "params": {
+      "force": {
+        "type": "boolean",
+        "default": false,
+        "description": "If true, the region policy will be applied even if it would deny access to inference endpoints that are currently in use by ingest pipelines or semantic text fields."
+      }
+    },
     "body": {
       "description": "The region policy configuration",
       "required": true

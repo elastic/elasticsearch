@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[FROMPARTIAL($$partial$$d{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#1,true[BOOLEAN],PT0S[TIME_DURATION])) AS d#2]]
+  \_UnionAll[[$$partial$$d{r$}#0]]
+    |_Aggregate[[],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#3,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#3,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#0]]
+    | \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#3, salary{r}#4, dept{r}#5]
+    \_Aggregate[[],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#6,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#6,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#0]]
+      \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#6, salary{r}#7, dept{r}#8]

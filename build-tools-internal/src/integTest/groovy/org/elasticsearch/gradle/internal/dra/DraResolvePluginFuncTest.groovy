@@ -27,7 +27,7 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
-        configurationCacheCompatible = false
+        disableConfigurationCache("DraResolvePlugin resolves artifacts at configuration time")
 
         // elasticsearch.dra-artifacts is applied by AbstractGradleInternalPluginFuncTest
         buildFile << """

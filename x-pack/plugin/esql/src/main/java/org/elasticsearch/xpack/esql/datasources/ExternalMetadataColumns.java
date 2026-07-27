@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -50,6 +52,7 @@ public final class ExternalMetadataColumns {
     public static final String INDEX_MODE = "_index_mode";
     public static final String TSID = MetadataAttribute.TSID_FIELD;
     public static final String SIZE = MetadataAttribute.SIZE;
+    public static final String SLICE = SliceIndexing.PARAM_NAME;
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side
@@ -72,8 +75,12 @@ public final class ExternalMetadataColumns {
         names.add(TSID);
         names.add(SIZE);
         // _tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; gate matches.
-        if (MetadataAttribute.isSupported(DataTierFieldMapper.NAME)) {
+        if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
             names.add(DataTierFieldMapper.NAME);
+        }
+        // _slice is backed by _routing doc values on slice-enabled indices; not available on external datasets.
+        if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
+            names.add(SLICE);
         }
         PER_FILE_CONSTANT_NAMES = Collections.unmodifiableSet(names);
     }
@@ -107,6 +114,7 @@ public final class ExternalMetadataColumns {
     static {
         var names = new LinkedHashSet<>(STANDARD_NAMES);
         names.add(DataTierFieldMapper.NAME); // unconditional: reservation is build-mode-independent
+        names.add(SLICE); // unconditional: reservation is flag-state-independent
         RESERVED_NAMES = Collections.unmodifiableSet(names);
     }
 
@@ -160,7 +168,7 @@ public final class ExternalMetadataColumns {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
             case VERSION -> version;
-            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME -> null;
+            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

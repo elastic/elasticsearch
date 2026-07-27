@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.CartesianValidator;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -86,6 +87,11 @@ public enum SpatialCoordinateTypes {
             final long yi = XYEncodingUtils.encode((float) y);
             return (yi & 0xFFFFFFFFL) | xi << 32;
         }
+
+        @Override
+        public GeometryValidator validator() {
+            return CartesianValidator.INSTANCE;
+        }
     },
     UNSPECIFIED {
         @Override
@@ -145,11 +151,8 @@ public enum SpatialCoordinateTypes {
     }
 
     public BytesRef wktToWkb(String wkt) {
-        // TODO: we should be able to transform WKT to WKB without building the geometry
-        // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(validator(), false, wkt);
-            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+            return new BytesRef(WellKnownBinary.fromWKT(wkt, ByteOrder.LITTLE_ENDIAN, false, validator()));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }

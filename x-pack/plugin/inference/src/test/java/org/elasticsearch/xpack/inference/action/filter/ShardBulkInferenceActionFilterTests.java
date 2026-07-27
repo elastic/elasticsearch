@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -1207,11 +1206,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputExceedingMaxSizeIsRejected() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
         // 8 base64 chars without padding decode to 6 bytes, which exceeds the 2 byte limit.
         InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAAAA");
@@ -1226,17 +1220,30 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     /**
+     * A base64 data URI with an empty payload (e.g. {@code data:image/png;base64,}) carries no data to embed and should be rejected with a
+     * {@code 400 Bad Request} before any inference is performed. The failure message should identify the field and the offending source
+     * field, matching the shape of the oversized-input failure.
+     */
+    public void testBase64InputWithEmptyPayloadIsRejected() throws Exception {
+        assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
+
+        // A valid data URI prefix with no base64 payload after the comma.
+        InferenceString emptyPayload = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,");
+
+        BulkItemResponse.Failure failure = runSingleInputThroughFilter(ByteSizeValue.ofBytes(1024), emptyPayload);
+        assertNotNull("a base64 input with an empty payload should be rejected", failure);
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("Input for field [semantic_field] from source field [semantic_field]"));
+        assertThat(failure.getMessage(), containsString("has an empty base64 payload"));
+    }
+
+    /**
      * A base64 input whose decoded size is exactly at the configured maximum should be accepted. This also verifies that base64 padding
      * characters are correctly excluded from the decoded size calculation: without accounting for padding, the inputs below would be
      * computed as larger than their true decoded size and incorrectly rejected.
      */
     public void testBase64InputAtMaxSizeWithPaddingIsAccepted() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         // "AAA=" -> 4 base64 chars with one padding char -> 2 decoded bytes, exactly at the 2 byte limit.
         InferenceString singlePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAA=");
         assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(2), singlePadding));
@@ -1552,11 +1559,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 throw new AssertionError("model with inference ID [" + entry.getInferenceId() + "] not found in model map");
             }
 
-            Object inputObject = randomSemanticInput(
-                useLegacyFormat == false
-                    && model.getTaskType() == TaskType.EMBEDDING
-                    && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-            );
+            Object inputObject = randomSemanticInput(useLegacyFormat == false && model.getTaskType() == TaskType.EMBEDDING);
             docMap.put(field, inputObject);
             expectedDocMap.put(field, inputObject);
 

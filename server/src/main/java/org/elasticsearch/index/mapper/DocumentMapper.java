@@ -202,7 +202,7 @@ public class DocumentMapper {
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            if (settings.getMode() == IndexMode.TIME_SERIES) {
+            if (settings.getMode().isTsdb()) {
                 for (String match : mappingLookup.getMatchingFieldNames(path)) {
                     mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
                 }

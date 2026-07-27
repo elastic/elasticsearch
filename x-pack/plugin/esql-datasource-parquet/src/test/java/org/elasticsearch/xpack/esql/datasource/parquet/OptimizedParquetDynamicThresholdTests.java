@@ -32,11 +32,13 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -46,8 +48,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
@@ -80,9 +84,8 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -128,6 +131,32 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         );
 
         assertThat(rows.size(), equalTo(0));
+    }
+
+    public void testBufferedRowsSurviveNoFurtherCandidatesFlipBetweenHasNextAndNext() throws Exception {
+        // Deterministic reproduction of the intermittent NoSuchElementException from next(): a single row
+        // group of materialized rows, and a bound that prunes nothing so the first hasNext() decodes the
+        // group and leaves rowsRemainingInGroup > 0. We then flip the early-termination flag (as a
+        // concurrent TopN worker would) between hasNext() and next(). next() must still drain the
+        // already-decoded batch; before the fix hasNext() consulted the flag first and turned the
+        // available batch into a NoSuchElementException.
+        byte[] data = writeLongParquet(REQUIRED_LONG_SCHEMA, 64L * 1024 * 1024, 1024, 500, i -> (long) i);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(true, false).get();
+        channel.offer(10_000L); // bound above every value, so no row group is skipped
+        DynamicThreshold threshold = new DynamicThreshold("id", ElementType.LONG, true, false, channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("id"), 128))
+        ) {
+            assertTrue("first hasNext() must materialize the row group", iterator.hasNext());
+            channel.markNoFurtherCandidates();
+            Page page = iterator.next();
+            try {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     public void testNullsLastCanSkipNullAndDominatedRowGroups() throws Exception {
@@ -207,6 +236,65 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         assertThat(rows.size(), equalTo(500));
     }
 
+    /**
+     * The TopN threshold rail's unit matrix — the regression floor for touching {@code rawValueFromStats}.
+     *
+     * <p>The threshold bound is published from DECODED blocks; the row-group statistics it is compared against hold
+     * the file's RAW values. Those agree only when decode is the identity. One arm of {@code rawValueFromStats}
+     * serves EVERY {@code INT64} sort column, so a change there touches the identity cells too — this pins each one
+     * so a conversion slip cannot silently turn a working sort into a wrong one.
+     *
+     * <p>Ascending is the safe direction by accident: an under-scaled raw stat reads as SMALLER than the bound, so
+     * nothing is dominated and nothing is skipped. Descending is where a skew drops the row groups holding the true
+     * maximum, which is why every skew cell below is asserted DESC.
+     */
+    public void testThresholdUnitMatrixOverInt64SortColumns() throws Exception {
+        // rows 0..999 as raw values; the largest live in the LAST row group, so a skewed DESC threshold skips them.
+        // scale = what decode multiplies a raw value by, so the bound below lands in each cell's DECODED domain.
+        record Cell(String name, MessageType schema, @Nullable String declaredFormat, long scale) {}
+        List<Cell> cells = List.of(
+            // Identity cells only. This unit harness reads a bare projection, which cannot faithfully set up a
+            // RESCALED sort column: it has no way to declare the ESQL type (only a format), and the descriptor it
+            // hands the iterator does not carry the file's timestamp unit the way the production read path does. So
+            // the rescaling cells are proven end to end instead, over a real declaration: the declared-FORMAT rescale
+            // (epoch_second over a bare int64) by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate,
+            // and the ANNOTATION rescale (TIMESTAMP(MICROS) -> date_nanos / declared date / declared long) by
+            // FromDatasetIT#testScalingDifferentialOverAnnotatedSortColumns. What this test guards is the other
+            // direction: the identity reads must keep pruning exactly as they do today, since one arm of
+            // rawValueFromStats serves every INT64 sort column.
+            new Cell("bare INT64, no declaration", REQUIRED_LONG_SCHEMA, null, 1L),
+            new Cell("TIMESTAMP(MILLIS) -> datetime", annotatedLong(LogicalTypeAnnotation.TimeUnit.MILLIS), null, 1L),
+            new Cell("TIMESTAMP(NANOS) -> date_nanos", annotatedLong(LogicalTypeAnnotation.TimeUnit.NANOS), null, 1L)
+        );
+
+        List<String> broken = new ArrayList<>();
+        for (Cell cell : cells) {
+            byte[] data = writeLongParquet(cell.schema(), 1L, 2 * 1024 * 1024, 1_000, i -> (long) i);
+            // The bound is what TopN publishes: a DECODED value, here the decode of row 500. Descending dominance is
+            // `rawMax < bound`. A correct rail lifts row 999's raw stat into the decoded domain (999*scale >= bound)
+            // and keeps it. A unit-blind rail compares the RAW 999 against a bound that is `scale` times too large,
+            // decides the group is dominated, and skips the rows holding the true maximum. With scale == 1 the two
+            // are the same comparison, which is exactly why those cells are correct today and must stay so.
+            long decodedBound = 500L * cell.scale();
+            List<Long> rows = readIdsWithThreshold(data, threshold(decodedBound, false, false), cell.declaredFormat());
+            if (rows.contains(999L) == false) {
+                broken.add(
+                    "[" + cell.name() + "] dropped the true maximum: raw stats were compared against a decoded bound of " + decodedBound
+                );
+            }
+        }
+        assertTrue("the threshold rail skipped row groups it had no right to skip:\n  " + String.join("\n  ", broken), broken.isEmpty());
+    }
+
+    /** An INT64 carrying a timestamp annotation, so the decode's unit differs from the file's raw values. */
+    private static MessageType annotatedLong(LogicalTypeAnnotation.TimeUnit unit) {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, unit))
+            .named("id")
+            .named("threshold_test");
+    }
+
     private DynamicThreshold threshold(long value, boolean ascending, boolean nullsFirst) {
         SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending, nullsFirst);
         SharedNumericThreshold channel = supplier.get();
@@ -267,9 +355,16 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
     }
 
     private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+        return readIdsWithThreshold(data, threshold, null);
+    }
+
+    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold, @Nullable String declaredFormat) throws IOException {
         try (
             threshold;
-            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("id"), 128))
+            CloseableIterator<Page> iterator = reader(threshold, declaredFormat).read(
+                storageObject(data),
+                FormatReadContext.of(List.of("id"), 128)
+            )
         ) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -288,7 +383,13 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
     }
 
     private ParquetFormatReader reader(DynamicThreshold threshold) {
-        return (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(threshold);
+        return reader(threshold, null);
+    }
+
+    /** @param declaredFormat a declared date format on the sort column, or {@code null} for an inferred read. */
+    private ParquetFormatReader reader(DynamicThreshold threshold, @Nullable String declaredFormat) {
+        ParquetFormatReader base = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withDynamicThreshold(threshold);
+        return declaredFormat == null ? base : (ParquetFormatReader) base.withDeclaredDateFormats(Map.of("id", declaredFormat));
     }
 
     private byte[] writeLongParquet(MessageType schema, long rowGroupSize, int pageSize, int rows, ValueForPosition valueForPosition)

@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.foreign
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 /**
  * Exercises the plugin's wiring in a real Gradle invocation. Validation of the actual processor's
@@ -116,7 +117,7 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
 
     def "wires foreignLibraryProcessor onto the annotation processor path and runs it"() {
         when:
-        def result = gradleRunner('processForeignAnnotations', '-g', gradleUserHome).build()
+        def result = gradleRunner('processForeignAnnotations').build()
 
         then:
         result.task(":processForeignAnnotations").outcome == TaskOutcome.SUCCESS

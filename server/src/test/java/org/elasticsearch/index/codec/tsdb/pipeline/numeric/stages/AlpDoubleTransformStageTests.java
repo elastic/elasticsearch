@@ -148,6 +148,53 @@ public class AlpDoubleTransformStageTests extends AbstractTransformStageTestCase
         assertTransformRoundTrip(new AlpDoubleTransformStage(blockSize), values);
     }
 
+    public void testRoundTripCanonicalNaN() throws IOException {
+        assertSpecialValueRoundTrip(NumericUtils.doubleToSortableLong(Double.NaN));
+    }
+
+    public void testRoundTripNonCanonicalNaN() throws IOException {
+        // NOTE: build the sortable long from raw bits since doubleToSortableLong canonicalizes the NaN payload.
+        assertSpecialValueRoundTrip(sortableFromRawBits(0x7FF8000000000001L));
+    }
+
+    public void testRoundTripPositiveInfinity() throws IOException {
+        assertSpecialValueRoundTrip(NumericUtils.doubleToSortableLong(Double.POSITIVE_INFINITY));
+    }
+
+    public void testRoundTripNegativeInfinity() throws IOException {
+        assertSpecialValueRoundTrip(NumericUtils.doubleToSortableLong(Double.NEGATIVE_INFINITY));
+    }
+
+    public void testRoundTripDoubleMaxValue() throws IOException {
+        assertSpecialValueRoundTrip(NumericUtils.doubleToSortableLong(Double.MAX_VALUE));
+    }
+
+    public void testRoundTripNegativeZeroDistinctFromPositiveZero() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(10.0 + i * 0.01);
+        }
+        values[3] = NumericUtils.doubleToSortableLong(-0.0);
+        values[4] = NumericUtils.doubleToSortableLong(0.0);
+        assertNotEquals(values[3], values[4]);
+        assertTransformRoundTrip(new AlpDoubleTransformStage(blockSize), values);
+    }
+
+    public void testRoundTripMixedSpecialBlock() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(10.0 + i * 0.01);
+        }
+        values[0] = NumericUtils.doubleToSortableLong(Double.NaN);
+        values[1] = NumericUtils.doubleToSortableLong(Double.POSITIVE_INFINITY);
+        values[2] = NumericUtils.doubleToSortableLong(Double.NEGATIVE_INFINITY);
+        values[3] = NumericUtils.doubleToSortableLong(-0.0);
+        values[4] = NumericUtils.doubleToSortableLong(Double.MAX_VALUE);
+        assertTransformRoundTrip(new AlpDoubleTransformStage(blockSize), values);
+    }
+
     public void testRoundTripHighExceptionRateFallsThrough() throws IOException {
         final int blockSize = randomBlockSize();
         final long[] values = new long[blockSize];
@@ -178,5 +225,21 @@ public class AlpDoubleTransformStageTests extends AbstractTransformStageTestCase
             }
         }
         assertMultiBlockTransformRoundTrip(new AlpDoubleTransformStage(blockSize), blocks);
+    }
+
+    private static void assertSpecialValueRoundTrip(long specialSortable) throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(10.0 + i * 0.01);
+        }
+        // NOTE: a lone special value in an ALP-friendly block lands as an exception, exercising the
+        // verbatim exception store rather than a whole-block pass-through.
+        values[randomIntBetween(0, blockSize - 1)] = specialSortable;
+        assertTransformRoundTrip(new AlpDoubleTransformStage(blockSize), values);
+    }
+
+    private static long sortableFromRawBits(long rawBits) {
+        return rawBits ^ ((rawBits >> 63) & 0x7FFFFFFFFFFFFFFFL);
     }
 }

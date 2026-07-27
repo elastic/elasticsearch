@@ -583,7 +583,7 @@ $$$dense-vector-index-options$$$
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
 `precondition` {applies_to}`stack: ga 9.4`
-:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`.
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`. Cannot be changed after the field is created.
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
@@ -597,11 +597,15 @@ $$$dense-vector-index-options$$$
     * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
+    :   For `bbq_disk` fields with `auto_calibrate: true`, mapping `oversample` is a fallback when a segment has no calibrated value. When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
 :   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
+
+`auto_calibrate` {applies_to}`stack: ga 9.5`
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus. Segments containing fewer than 10,000 vectors after merging are not calibrated and, when not otherwise specified in the mappings, use the default oversampling factor of 3.0x. Defaults to `false`. Cannot be changed after the field is created. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
 :::::
 
 

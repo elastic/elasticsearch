@@ -337,16 +337,6 @@ EXPORT void vec_doti8_bulk_sparse_2(
     doti8_bulk<const int8_t*, sparse_mapper, 4, 2>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-EXPORT void vec_doti8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    doti8_bulk<const int8_t*, sparse_mapper, 4, 2>(
-        ptrs, b, dims, 0, NULL, 8, results);
-}
-
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
 // subtracts, then madd for squared accumulation.
 template<int offsetRegs>
@@ -528,16 +518,6 @@ EXPORT void vec_sqri8_bulk_sparse_2(
     sqri8_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-EXPORT void vec_sqri8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    sqri8_bulk<const int8_t*, sparse_mapper>(
-        ptrs, b, dims, 0, NULL, 8, results);
-}
-
 // --- Cosine i8 (signed) AVX-512 ---
 // Computes cosine similarity: sum(a*b) / sqrt(sum(a*a) * sum(b*b))
 // Uses sign-extension like dot/sqr i8, with 3 accumulators (sum, a_norm, b_norm).
@@ -700,14 +680,4 @@ EXPORT void vec_cosi8_bulk_sparse_2(
     const int32_t count,
     f32_t* results) {
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk8_2(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

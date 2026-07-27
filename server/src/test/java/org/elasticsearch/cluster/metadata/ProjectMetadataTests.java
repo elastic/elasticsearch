@@ -90,14 +90,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ProjectMetadataTests extends ESTestCase {
 
-    /**
-     * Preamble for {@code ensureNoNameCollisions}. The enumeration is gated by the ES|QL external data sources
-     * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
-     */
+    /** Preamble for {@code ensureNoNameCollisions}. */
     private static String collisionPreamble() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            ? "index, alias, data stream, view, and dataset names need to be unique"
-            : "index, alias, data stream, and view names need to be unique";
+        return "index, alias, data stream, view, and dataset names need to be unique";
     }
 
     /** {@link #collisionPreamble()} followed by " but the following duplicates were found " — trailing space, no open bracket. */
@@ -2260,7 +2255,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // columnar:
         var columnarTemplate = new Template(Settings.builder().put("index.mode", "columnar").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
@@ -2295,7 +2289,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // logsdb_columnar:
         var columnarLogsdbTemplate = new Template(
             Settings.builder().put("index.mode", "logsdb_columnar").build(),

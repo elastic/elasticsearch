@@ -38,7 +38,7 @@ public class RangeMax extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "date",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns the end value of a date range.",
         description = "Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.",
         examples = @Example(file = "date_range", tag = "range_max")

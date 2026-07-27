@@ -24,21 +24,22 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -55,7 +56,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean profile;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
-    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -66,8 +66,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
-    private String projectRouting;
-    private ApproximationSettings approximation;
+
+    private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
+    /**
+     * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
+     * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
+     * must be supplied in exactly one place — see that method.
+     */
+    private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -100,7 +106,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = source.profile;
         this.includeCCSMetadata = source.includeCCSMetadata;
         this.includeExecutionMetadata = source.includeExecutionMetadata;
-        this.timeZone = source.timeZone;
         this.locale = source.locale;
         this.filter = source.filter;
         this.pragmas = source.pragmas;
@@ -111,8 +116,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
-        this.projectRouting = source.projectRouting;
-        this.approximation = source.approximation;
+        this.requestSettings.putAll(source.requestSettings);
+        this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
     }
 
@@ -224,14 +229,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
-    }
-
-    public void timeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
-    }
-
-    public ZoneId timeZone() {
-        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -374,21 +371,61 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    public EsqlQueryRequest projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
+    public <T> EsqlQueryRequest set(QuerySettingDef<T> def, T value) {
+        if (value == null) {
+            requestSettings.remove(def);
+        } else {
+            requestSettings.put(def, value);
+        }
         return this;
     }
 
-    public String projectRouting() {
-        return projectRouting;
+    /**
+     * Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the
+     * {@code ResolvedSettings} from {@link QuerySettings#resolve}.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T get(QuerySettingDef<T> def) {
+        T value = (T) requestSettings.get(def);
+        return value != null ? value : def.defaultValue();
     }
 
-    public EsqlQueryRequest approximation(ApproximationSettings approximation) {
-        this.approximation = approximation;
-        return this;
+    public Map<QuerySettingDef<?>, Object> requestSettings() {
+        // Immutable snapshot: callers read (resolve, telemetry) but must go through set() to mutate (it enforces null-removes).
+        return Map.copyOf(requestSettings);
     }
 
-    public ApproximationSettings approximation() {
-        return approximation;
+    Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
+        return canonicalRequestSettings;
+    }
+
+    /**
+     * Folds the canonical {@code settings.{}} block into {@link #requestSettings}. A setting with a legacy
+     * top-level body field (e.g. {@code time_zone}) may be supplied at the top level, under {@code settings.{}},
+     * or in both — as long as the two agree. Supplying it in both places with <em>different</em> values is a
+     * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is harmless, so we accept
+     * it rather than nitpick a redundant duplicate. The check runs after the whole body is parsed, so it is
+     * independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
+     * intentional and unaffected here, because {@code SET} is reconciled later, off the request settings.
+     */
+    void applyCanonicalRequestSettings() {
+        for (Map.Entry<QuerySettingDef<?>, Object> e : canonicalRequestSettings.entrySet()) {
+            QuerySettingDef<?> def = e.getKey();
+            if (requestSettings.containsKey(def) && Objects.equals(requestSettings.get(def), e.getValue()) == false) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + def.name()
+                        + "] has conflicting values at the top level of the request body and under ["
+                        + RequestXContent.SETTINGS_FIELD.getPreferredName()
+                        + "]; specify it in only one place, or with the same value in both."
+                );
+            }
+            if (e.getValue() == null) {
+                requestSettings.remove(def);
+            } else {
+                requestSettings.put(def, e.getValue());
+            }
+        }
+        canonicalRequestSettings.clear();
     }
 }

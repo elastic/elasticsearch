@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152627
+summary: Route source resolver off SEARCH pool
+type: bug

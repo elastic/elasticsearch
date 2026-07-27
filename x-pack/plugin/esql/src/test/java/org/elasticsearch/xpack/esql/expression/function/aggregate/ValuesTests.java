@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.BaseMatcher;
@@ -29,6 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,6 +44,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
@@ -49,7 +53,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
-            MultiRowTestCaseSupplier.dateRangeCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),

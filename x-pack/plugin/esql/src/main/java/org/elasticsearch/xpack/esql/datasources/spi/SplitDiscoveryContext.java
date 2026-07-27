@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
@@ -43,7 +44,11 @@ public record SplitDiscoveryContext(
     ExternalSchema querySchema,
     @Nullable ExternalSchema unifiedSchema,
     int maxRecordBytes,
-    BooleanSupplier isCancelled
+    BooleanSupplier isCancelled,
+    // The declared read-instructions (renames / declared-type columns / date formats). Lets split discovery make the
+    // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
+    // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
+    DeclaredReadSpec declaredReadSpec
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -62,7 +67,8 @@ public record SplitDiscoveryContext(
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -84,7 +90,8 @@ public record SplitDiscoveryContext(
             querySchema,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -107,7 +114,8 @@ public record SplitDiscoveryContext(
             querySchema,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -123,5 +131,6 @@ public record SplitDiscoveryContext(
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
         isCancelled = isCancelled != null ? isCancelled : () -> false;
+        declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
     }
 }

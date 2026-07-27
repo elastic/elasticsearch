@@ -200,6 +200,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     @Override
+    protected boolean rebuildServiceHolderForEachTest() {
+        return true;
+    }
+
+    @Override
     protected IndexReaderManager getIndexReaderManager() {
         // note that because token pruning for sparse vector types are on by default now
         // we have to have at least one document with the `semantic.inference.chunks.embeddings`

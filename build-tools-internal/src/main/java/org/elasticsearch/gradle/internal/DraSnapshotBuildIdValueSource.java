@@ -137,7 +137,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         }
     }
 
-    private static String resolveByHash(HttpClient client, String baseUrl, String version, String hash) throws Exception {
+    static String resolveByHash(HttpClient client, String baseUrl, String version, String hash) throws Exception {
         String buildId = version + "-" + hash;
         String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
         HttpResponse<String> response = client.send(
@@ -151,7 +151,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
      * Fetches the latest DRA snapshot build ID for {@code branch} without comparing commit hashes.
      * Used for {@code dra} mode where the caller always wants the newest pre-built snapshot.
      */
-    private static String resolveLatestBuildId(HttpClient client, ObjectMapper mapper, String baseUrl, String version, String branch)
+    static String resolveLatestBuildId(HttpClient client, ObjectMapper mapper, String baseUrl, String version, String branch)
         throws Exception {
         String latestUrl = baseUrl + "/elasticsearch/latest/" + branch + ".json";
         HttpResponse<String> latestResponse = client.send(
@@ -179,7 +179,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
      * {@code auto} mode so that a stale snapshot does not silently replace a newer
      * local build.
      */
-    private static String resolveByLatest(
+    static String resolveByLatest(
         HttpClient client,
         ObjectMapper mapper,
         String baseUrl,

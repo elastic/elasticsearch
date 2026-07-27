@@ -21,22 +21,30 @@ public class HttpDataSourcePluginTests extends ESTestCase {
 
     private final HttpDataSourcePlugin plugin = new HttpDataSourcePlugin();
 
+    private static boolean httpEnabled() {
+        return ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled();
+    }
+
+    private static boolean localEnabled() {
+        return ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled();
+    }
+
     public void testHttpValidatorRegisteredWhenFlagEnabled() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
         assertNotNull("http validator should be registered when the flag is enabled", http);
         assertEquals("http", http.type());
     }
 
     public void testLocalValidatorRegisteredWhenFlagEnabled() {
-        assumeTrue("requires local datasource feature flag", ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires external datasources feature flag", localEnabled());
         DataSourceValidator local = plugin.datasourceValidators(Settings.EMPTY).get("local");
         assertNotNull("local validator should be registered when the flag is enabled", local);
         assertEquals("local", local.type());
     }
 
     public void testHttpValidatorAcceptsHttpAndHttpsSchemes() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
         // No dataset settings supplied, so the validated settings come back empty for both schemes.
         assertTrue(http.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()).isEmpty());
@@ -44,39 +52,48 @@ public class HttpDataSourcePluginTests extends ESTestCase {
     }
 
     public void testHttpValidatorRejectsNonHttpScheme() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
         expectThrows(ValidationException.class, () -> http.validateDataset(Map.of(), "file:///tmp/data.csv", Map.of()));
         expectThrows(ValidationException.class, () -> http.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of()));
     }
 
     public void testLocalValidatorAcceptsFileScheme() {
-        assumeTrue("requires local datasource feature flag", ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires external datasources feature flag", localEnabled());
         DataSourceValidator local = plugin.datasourceValidators(Settings.EMPTY).get("local");
         assertNotNull(local.validateDataset(Map.of(), "file:///tmp/data.csv", Map.of()));
     }
 
     public void testLocalValidatorRejectsNonFileScheme() {
-        assumeTrue("requires local datasource feature flag", ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires external datasources feature flag", localEnabled());
         DataSourceValidator local = plugin.datasourceValidators(Settings.EMPTY).get("local");
         expectThrows(ValidationException.class, () -> local.validateDataset(Map.of(), "http://example.org/data.csv", Map.of()));
     }
 
     public void testEmptyDatasourceSettingsAccepted() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
         assertTrue(http.validateDatasource(Map.of()).isEmpty());
     }
 
-    public void testAuthNoneDatasourceSettingAccepted() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+    public void testAuthAnonymousDatasourceSettingAccepted() {
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
-        assertTrue(http.validateDatasource(Map.of("auth", "none")).containsKey("auth"));
+        assertTrue(http.validateDatasource(Map.of("auth", "anonymous")).containsKey("auth"));
     }
 
     public void testDatasourceSettingsRejected() {
-        assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires http datasource feature flag", httpEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
         expectThrows(ValidationException.class, () -> http.validateDatasource(Map.of("region", "us-east-1")));
+    }
+
+    public void testLocalEnabledWhenOnlyHttpFlagOff() {
+        // Local does not require ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG — the two flags are independent.
+        // This test verifies local is available even when the http sub-flag is off (local flag on).
+        assumeTrue("requires local flag", ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        assumeFalse("only when http flag is off", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
+        assertNotNull("local validator should be present", plugin.datasourceValidators(Settings.EMPTY).get("local"));
+        assertTrue("file scheme should be registered", plugin.supportedSchemes().contains("file"));
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -56,7 +57,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @FunctionInfo(
         returnType = "date_range",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Converts a value to a date_range.",
         description = """
             Converts an input value to a `date_range` value.
@@ -90,7 +91,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
-            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId());
+            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()));
             BuildFactory fromString = (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter);
             lazyEvaluators = Map.ofEntries(
                 Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),

@@ -14,15 +14,12 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -35,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -49,25 +47,13 @@ import static org.hamcrest.Matchers.greaterThan;
  * {@link ExternalParquetNumericTopNSideChannelIT}.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTestCase {
+public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalDataSourceIT {
 
     private static final TimeValue LONG_TIMEOUT = TimeValue.timeValueMinutes(2);
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -76,7 +62,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testRowGroupSkipAscendingMonotonicData() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, ExternalParquetStringTopNSideChannelIT::key);
         try {
             // Correctness only: whether any row group is physically skipped depends on the async
@@ -91,7 +76,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testRowGroupSkipDescendingMonotonicData() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, ExternalParquetStringTopNSideChannelIT::key);
         try {
             QueryResult result = runTopN(file, "name DESC", 10);
@@ -102,7 +86,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testSinglePageRowGroupNegativeControlReadsWholeGroup() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(2_000, 64L * 1024 * 1024, 2 * 1024 * 1024, ExternalParquetStringTopNSideChannelIT::key);
         try {
             QueryResult result = runTopN(file, "name ASC", 10);
@@ -114,7 +97,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testNullsFirstEarlyTermination() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> i < 100 ? null : key(i));
         try {
             QueryResult result = runTopN(file, "name ASC NULLS FIRST", 50);
@@ -128,7 +110,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testNullsLastDoesNotTriggerEarlyTermination() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> i < 100 ? null : key(i));
         try {
             QueryResult result = runTopN(file, "name ASC NULLS LAST", 10);
@@ -140,7 +121,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
     }
 
     public void testOverlappingRowGroupsKeepCorrectness() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(500, 1L, 2 * 1024 * 1024, i -> key((i * 37) % 1_000));
         try {
             QueryResult result = runTopN(file, "name ASC", 50);
@@ -155,8 +135,70 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
         }
     }
 
+    /**
+     * Regression for esql-planning#1010: sorting a {@code UTF8}-annotated Parquet column that actually
+     * holds malformed UTF-8 (e.g. Spark output) must not throw {@link ArrayIndexOutOfBoundsException}
+     * from the TopN Utf8 encoder. The reader sanitizes such bytes to {@code U+FFFD} on read, so the sort
+     * completes and every returned value is well-formed UTF-8.
+     */
+    public void testSortOverInvalidUtf8DoesNotCrash() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        byte[][] names = {
+            { (byte) 0xF8, (byte) 0xFF },              // lead bytes that index past the 248-entry table
+            { (byte) 0xC3, (byte) 0x28 },              // truncated 2-byte sequence
+            "valid".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            { (byte) 0xED, (byte) 0xA0, (byte) 0x80 }, // surrogate half
+        };
+        Path file = writeParquetFileRawNames(names);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | SORT name ASC | LIMIT 100 | KEEP name";
+            try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
+                // Reaching this point at all is the regression check: the malformed lead bytes previously
+                // threw ArrayIndexOutOfBoundsException from the TopN Utf8 encoder before any rows returned.
+                List<List<Object>> rows = getValuesList(response);
+                assertEquals(names.length, rows.size());
+                List<String> values = new ArrayList<>(rows.size());
+                for (List<Object> row : rows) {
+                    values.add(row.get(0) == null ? null : bytesRefToString(row.get(0)));
+                }
+                assertTrue("valid value must round-trip unchanged", values.contains("valid"));
+                // Every malformed input surfaces sanitized, carrying the replacement character.
+                long sanitized = values.stream().filter(v -> v != null && v.indexOf('\uFFFD') >= 0).count();
+                assertEquals(names.length - 1L, sanitized);
+            }
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    private Path writeParquetFileRawNames(byte[][] names) throws IOException {
+        Path tempFile = createTempDir().resolve("invalid_utf8_names.parquet");
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message test { optional binary name (UTF8); required binary payload (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < names.length; i++) {
+                Group group = factory.newGroup();
+                group.add("name", Binary.fromConstantByteArray(names[i]));
+                group.add("payload", "payload_" + i);
+                writer.write(group);
+            }
+        }
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
     private QueryResult runTopN(Path file, String order, int limit) throws IOException {
-        String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | SORT " + order + " | LIMIT " + limit + " | KEEP name, payload";
+        String dataset = registerDataset("string_topn_sc", StoragePath.fileUri(file), Map.of());
+        String query = "FROM " + dataset + " | SORT " + order + " | LIMIT " + limit + " | KEEP name, payload";
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
         try (var response = run(request, LONG_TIMEOUT)) {
@@ -217,49 +259,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractEsqlIntegTes
         }
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 
     private static String bytesRefToString(Object cell) {

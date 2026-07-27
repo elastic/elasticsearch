@@ -300,6 +300,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
             services.indexNameExpressionResolver(),
+            services.projectResolver(),
             client,
             services.xContentRegistry(),
             transformParsingContext

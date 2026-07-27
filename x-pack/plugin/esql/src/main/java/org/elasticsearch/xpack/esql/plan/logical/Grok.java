@@ -99,6 +99,12 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
         return pattern(source, pattern, MatcherWatchdog.noop());
     }
 
+    /**
+     * Builds a parser using the given watchdog to interrupt expensive matches. Used by the local execution
+     * planner to bind the node-local {@code esql.grok.watchdog.max_execution_time} setting to the matcher
+     * that will actually run against real data; parsing/deserialization use the no-op watchdog above since
+     * they never execute the pattern against untrusted input.
+     */
     public static Parser pattern(Source source, String pattern, MatcherWatchdog matcherWatchdog) {
         try {
             var builtinPatterns = GrokBuiltinPatterns.get(true);
@@ -124,13 +130,12 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     }
 
     private static Grok readFrom(StreamInput in) throws IOException {
-        PlanStreamInput planIn = (PlanStreamInput) in;
-        Source source = Source.readFrom(planIn);
+        Source source = Source.readFrom((PlanStreamInput) in);
         return new Grok(
             source,
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString(), planIn.grokMatcherWatchdog()),
+            Grok.pattern(source, in.readString()),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }

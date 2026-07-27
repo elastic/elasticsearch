@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -788,7 +789,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

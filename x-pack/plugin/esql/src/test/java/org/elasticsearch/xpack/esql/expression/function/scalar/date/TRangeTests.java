@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matchers;
 
@@ -272,7 +273,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                     TEST_SOURCE,
                     randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text())
                         .now(testCase.now())
-                        .zoneId(testCase.timezone)
+                        .setting(QuerySettings.TIME_ZONE, testCase.timezone)
                         .build()
                 );
             }));

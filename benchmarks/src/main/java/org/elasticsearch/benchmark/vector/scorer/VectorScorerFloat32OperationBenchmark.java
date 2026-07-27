@@ -30,12 +30,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
@@ -66,7 +63,6 @@ public class VectorScorerFloat32OperationBenchmark {
     public VectorSimilarityType function;
 
     private LuceneFunction<float[]> luceneImpl;
-    private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -93,11 +89,6 @@ public class VectorScorerFloat32OperationBenchmark {
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
-        nativeImpl = vectorSimilarityFunctions.getHandle(switch (function) {
-            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
-            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
-            default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -119,20 +110,20 @@ public class VectorScorerFloat32OperationBenchmark {
 
     @Benchmark
     public float nativeWithNativeSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
     public float nativeWithHeapSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();

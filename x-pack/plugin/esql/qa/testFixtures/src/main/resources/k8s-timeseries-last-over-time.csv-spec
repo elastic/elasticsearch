@@ -506,6 +506,7 @@ events:long | pod:keyword | time_bucket:datetime
 ;
 
 last_over_time_with_inline_filter_group_by_all
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: fix_group_by_all_aggregation_filters
 required_capability: metrics_group_by_all
 TS k8s

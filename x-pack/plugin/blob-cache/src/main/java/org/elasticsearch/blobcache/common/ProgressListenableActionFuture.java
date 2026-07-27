@@ -55,6 +55,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     private List<PositionAndListener> listeners;
     private long progress;
     private volatile boolean completed;
+    private volatile boolean success;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
@@ -86,6 +87,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         this.end = end;
         this.progress = start;
         this.completed = false;
+        this.success = false;
         this.unconditionalProgressConsumer = unconditionalProgressConsumer;
         this.progressConsumer = progressConsumer;
         assert invariant();
@@ -116,9 +118,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
             splitPoint,
             end,
-            p -> { if (lower.isDone()) onProgress(p); },
+            p -> { if (lower.success) onProgress(p); },
             originalProgressConsumer == null ? null : p -> {
-                if (lower.isDone()) originalProgressConsumer.accept(p);
+                if (lower.success) originalProgressConsumer.accept(p);
             }
         );
 
@@ -252,6 +254,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
+        assert this.success == false : "success cannot be set twice";
+        this.success = success;
         final List<PositionAndListener> listenersToExecute;
         assert invariant();
         synchronized (this) {

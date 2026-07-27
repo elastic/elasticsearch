@@ -9,14 +9,10 @@
 
 package org.elasticsearch.nativeaccess;
 
-import java.lang.invoke.MethodHandle;
+import java.lang.foreign.MemorySegment;
 
 /**
  * Utility interface providing vector similarity functions.
- *
- * <p> MethodHandles are returned to avoid a static reference to MemorySegment,
- * which is not in the currently lowest compile version, JDK 17. Code consuming
- * the method handles will, by definition, require access to MemorySegment.
  */
 public interface VectorSimilarityFunctions {
 
@@ -223,37 +219,393 @@ public interface VectorSimilarityFunctions {
          *     <li>Score results, as 4-byte floats</li>
          * </ol>
          */
-        BULK_SPARSE,
-        /**
-         * Scores 8 vectors against a single query vector.
-         * <p>
-         * Method handle takes arguments
-         * {@code (MemorySegment a0, a1, a2, a3, a4, a5, a6, a7, MemorySegment query, int dims, MemorySegment results)}:
-         * <ol>
-         *     <li>a0 through a7: the 8 vector segments to score</li>
-         *     <li>query: the query vector segment</li>
-         *     <li>dims: number of dimensions</li>
-         *     <li>results: segment of at least 8 floats receiving the scores</li>
-         * </ol>
-         */
-        BULK8
+        BULK_SPARSE
     }
 
-    MethodHandle getHandle(Function function, DataType dataType, Operation operation);
+    // --- INT7U: dot product and square distance ---
 
-    MethodHandle getBFloat16Handle(Function function, BFloat16QueryType queryType, Operation operation);
+    int dotProductI7u(MemorySegment a, MemorySegment b, int length);
 
-    MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
+    void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
 
-    MethodHandle applyCorrectionsEuclideanBulk();
+    void dotProductI7uBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
 
-    MethodHandle applyCorrectionsMaxInnerProductBulk();
+    void dotProductI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
-    MethodHandle applyCorrectionsDotProductBulk();
+    int squareDistanceI7u(MemorySegment a, MemorySegment b, int length);
 
-    MethodHandle bbqApplyCorrectionsEuclideanBulk();
+    void squareDistanceI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
 
-    MethodHandle bbqApplyCorrectionsMaxInnerProductBulk();
+    void squareDistanceI7uBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
 
-    MethodHandle bbqApplyCorrectionsDotProductBulk();
+    void squareDistanceI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    // --- INT4: dot product only ---
+
+    int dotProductI4(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductI4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductI4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void dotProductI4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    // --- INT8: cosine, dot product, square distance ---
+
+    float cosineI8(MemorySegment a, MemorySegment b, int length);
+
+    void cosineI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void cosineI8BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void cosineI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    float dotProductI8(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductI8BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void dotProductI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    float squareDistanceI8(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceI8BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void squareDistanceI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    // --- FLOAT32: dot product and square distance ---
+
+    float dotProductF32(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    float squareDistanceF32(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    // --- BFloat16 ---
+
+    float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductDBF16QF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductDBF16QF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    float squareDistanceDBF16QF32(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceDBF16QF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceDBF16QF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    float dotProductDBF16QBF16(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductDBF16QBF16BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    float squareDistanceDBF16QBF16(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceDBF16QBF16BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    // --- BBQ: dot product for all BBQ types ---
+
+    long dotProductD1Q1(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD1Q1Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD1Q1BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    long dotProductD1Q4(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD1Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD1Q4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    long dotProductD2Q2(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD2Q2Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD2Q2BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    long dotProductD2Q4(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD2Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD2Q4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    long dotProductD2Q4Packed(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD2Q4PackedBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD2Q4PackedBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    long dotProductD4Q4(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductD4Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void dotProductD4Q4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
+    // --- Corrections (DiskBBQ) ---
+
+    float applyCorrectionsEuclideanBulk(
+        MemorySegment corrections,
+        int bulkSize,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment scores
+    );
+
+    float applyCorrectionsMaxInnerProductBulk(
+        MemorySegment corrections,
+        int bulkSize,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment scores
+    );
+
+    float applyCorrectionsDotProductBulk(
+        MemorySegment corrections,
+        int bulkSize,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment scores
+    );
+
+    // --- Corrections (BBQ inline layout) ---
+
+    float bbqApplyCorrectionsEuclideanBulk(
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        byte readComponentSumAsInt,
+        MemorySegment scores
+    );
+
+    float bbqApplyCorrectionsMaxInnerProductBulk(
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        byte readComponentSumAsInt,
+        MemorySegment scores
+    );
+
+    float bbqApplyCorrectionsDotProductBulk(
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        byte readComponentSumAsInt,
+        MemorySegment scores
+    );
 }

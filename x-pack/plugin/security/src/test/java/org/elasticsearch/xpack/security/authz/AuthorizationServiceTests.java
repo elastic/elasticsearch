@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -4091,7 +4090,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
         assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            request.getResolvedIndexExpressions().authorizationFailureTemplate(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
                     + " with effective roles [partial-access-role] on indices [-*], "
@@ -4178,20 +4177,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
-            Set.of()
-        );
-    }
-
-    private static ResolvedIndexExpression resolvedIndexExpression(
-        String original,
-        Set<String> localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
-        ElasticsearchException exception
-    ) {
-        return new ResolvedIndexExpression(
-            original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             Set.of()
         );
     }

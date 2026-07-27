@@ -24,8 +24,10 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,8 +37,8 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 
 abstract class AbstractBinaryDocValuesQuery extends Query {
 
-    final String fieldName;
-    final Predicate<BytesRef> matcher;
+    protected final String fieldName;
+    protected final Predicate<BytesRef> matcher;
     // Whether the field stores its multi-valued binary doc values in the ArrayOrderInlineNull format rather than the SeparateCount format.
     // The two encodings are not interchangeable, so the decoder must be chosen up front.
     final boolean arrayOrderInlineNull;
@@ -50,6 +52,9 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. These are full-column scans, so every surviving decoder actually
+        // decodes and allocates its buffer - the circuit breaker is the primary guard here.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -58,6 +63,8 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                 if (iterator == null) {
                     return null;
                 }
+                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -139,6 +146,34 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     return false; // all-null array or empty array: no non-null value to match
                 }
                 return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
+    }
+
+    /**
+     * Iterator for the {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull
+     * KeyedArrayOrderInlineNull} format used by flattened fields in columnar mode. Unlike
+     * {@link #arrayOrderInlineNullIterator}, slots carry a {@code key\0value} prefix so the predicate tests the full
+     * keyed value and the reader must skip past the key to find it.
+     */
+    protected static DocIdSetIterator keyedInlineNullIterator(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        Predicate<BytesRef> predicate,
+        float cost
+    ) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
+            final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                values.advance(counts.docID());
+                return reader.matchKeyedInlineNull(values.binaryValue(), counts.longValue(), predicate);
             }
 
             @Override

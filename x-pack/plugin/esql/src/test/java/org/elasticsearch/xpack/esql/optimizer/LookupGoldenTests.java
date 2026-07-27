@@ -121,6 +121,25 @@ public class LookupGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Regression for when {@code LOOKUP JOIN} looks like:
+     * {@snippet lang="esql" :
+     *   | LOOKUP JOIN test_lookup ON lhs_kw == rhs_kw AND MATCH(rhs_field, "engineer")
+     * }
+     * <p>
+     *     The bulk-lookup optimization runs before {@code PushFiltersToSource}, leaving
+     *     MATCH stranded in a {@code FilterExec} that needs real shard contexts.
+     * </p>
+     */
+    public void testKeywordLookupWithMatchInJoinCondition() {
+        assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+        builder("""
+            FROM employees
+            | RENAME first_name as first_left
+            | LOOKUP JOIN test_lookup ON first_left == first_name AND MATCH(job, "engineer")
+            """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
+    }
+
+    /**
      * WHERE clause with a pushable right-only filter (equality on a keyword field).
      * The logical optimizer pushes it into the join's right side.
      * The bulk lookup optimization does not apply because the join condition is on an INTEGER field.

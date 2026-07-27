@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -26,7 +28,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -39,6 +42,7 @@ public class MvCount extends AbstractMultivalueFunction {
         .name("mv_count");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "integer",
         briefSummary = "Counts the values in a multi-value field.",
         description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
@@ -54,6 +58,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
                 "flattened",
                 "geo_point",
@@ -85,7 +90,18 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentable(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override

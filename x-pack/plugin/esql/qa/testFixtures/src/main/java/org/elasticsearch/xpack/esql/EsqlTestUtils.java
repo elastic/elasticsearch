@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -786,8 +787,14 @@ public final class EsqlTestUtils {
     private EsqlTestUtils() {}
 
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
+        // No manual normalize here — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride,
+        // so this matches production exactly.
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, statement.setting(QuerySettings.TIME_ZONE))
+            .withOverride(
+                QuerySettings.APPROXIMATION,
+                new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build()
+            );
         return new Configuration(
-            statement.setting(QuerySettings.TIME_ZONE),
             Instant.now(),
             Locale.US,
             null,
@@ -802,8 +809,7 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null,
-            new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build(),
+            resolved,
             Map.of()
         );
     }
@@ -1146,6 +1152,20 @@ public final class EsqlTestUtils {
     }
 
     /**
+     * Resolves a single classpath resource by its exact name, stripping
+     * any leading "/" (resource names looked up via the classloader must
+     * not start with "/"). This is a fast alternative to
+     * {@link #classpathResources(String)} for callers who already know
+     * the exact resource name and don't need pattern matching.
+     */
+    public static URL classpathResource(String name) {
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        return EsqlTestUtils.class.getClassLoader().getResource(name);
+    }
+
+    /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
      *
@@ -1226,10 +1246,17 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     * Generate a literal with a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
+        return new Literal(EMPTY, randomLiteralValue(type), type);
+    }
+
+    /**
+     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     */
+    public static Object randomLiteralValue(DataType type) {
+        return switch (type) {
             case BOOLEAN -> randomBoolean();
             case BYTE -> randomByte();
             case SHORT -> randomShort();
@@ -1290,10 +1317,18 @@ public final class EsqlTestUtils {
                 "can't make random values for [" + type.typeName() + "]"
             );
             case TDIGEST -> EsqlTestUtils.randomTDigest();
-        }, type);
+        };
     }
 
     public static ExponentialHistogram randomExponentialHistogram() {
+        return randomExponentialHistogram(false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static ExponentialHistogram randomExponentialHistogram(boolean zeroThresholdIsZero) {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         int numBuckets = randomIntBetween(4, 300);
@@ -1314,7 +1349,7 @@ public final class EsqlTestUtils {
             rawValues
         );
         // Setup a proper zeroThreshold based on a random chance
-        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+        if (zeroThresholdIsZero == false && histo.zeroBucket().count() > 0 && randomBoolean()) {
             double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
             double zeroThreshold = smallestNonZeroValue * randomDouble();
             try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
@@ -1357,7 +1392,7 @@ public final class EsqlTestUtils {
     }
 
     public static BytesRef randomHistogram() {
-        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        List<Double> values = ESTestCase.randomList(randomIntBetween(0, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
         List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
@@ -1733,6 +1768,22 @@ public final class EsqlTestUtils {
         }
     }
 
+    /**
+     * Strips any surrounding quotes and lower-cases a single index token so it can be compared against the set of
+     * {@link #convertSubqueryToRemoteIndices(String, Set) both-cluster} index names. Only exact single-index names are matched;
+     * wildcard/multi-index patterns fall through to the default {@code *:index,index} rewrite.
+     */
+    private static String unquoteIndexName(String index) {
+        index = index.trim();
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+        return unquote(index, numOfQuotes).trim().toLowerCase(Locale.ROOT);
+    }
+
     private static String quote(String index, int numOfQuotes) {
         return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
     }
@@ -1751,6 +1802,24 @@ public final class EsqlTestUtils {
      * existing behaviour.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery) {
+        return convertSubqueryToRemoteIndices(testQuery, Set.of());
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote indices for a given test case.
+     *
+     * @param bothClusterIndices index names (lower-cased) that are ingested into <em>both</em> the local and the remote cluster — namely
+     *                          enrich source indices and lookup indices. These are rewritten to the remote-only pattern {@code *:index}
+     *                          instead of {@code *:index,index}: since the same rows exist on both clusters, the {@code *:index,index}
+     *                          union would match them twice and double-count. Regular indices live on a single cluster,
+     *                          so {@code *:index,index} matches them exactly once and is used for everything not in this set. This mirrors
+     *                          the handling in {@link #addRemoteIndices} for the top-level (non-subquery) FROM command.
+     *
+     * <p>Note: like {@link #splitIgnoringParentheses}, this method is not string-literal-aware. A literal {@code (}, {@code )}, or
+     * {@code |} inside a quoted string would be miscounted. The csv-spec test corpus contains no such literals in subquery tests, so this
+     * matches existing behavior.
+     */
+    public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
         String query = testQuery;
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
@@ -1782,7 +1851,7 @@ public final class EsqlTestUtils {
         // may contain FROM subqueries that do need rewriting.
         if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
             for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
             }
             return String.join(" | ", mainFromCommandAndTheRest);
         }
@@ -1808,10 +1877,13 @@ public final class EsqlTestUtils {
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
                 String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
                 transformed.add("(" + transformedSubquery + ")");
             } else {
-                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, false));
+                // Indices that live on both clusters (enrich source / lookup indices) must become
+                // remote-only (*:index) to avoid double-counting; everything else uses *:index,index.
+                boolean remoteOnly = bothClusterIndices.contains(unquoteIndexName(indexPatternOrSubquery));
+                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, remoteOnly));
             }
         }
         // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
@@ -1820,7 +1892,7 @@ public final class EsqlTestUtils {
         // that follow the source command. Non-subquery parenthesised groups (value lists, function
         // arguments, boolean groupings) are left structurally unchanged.
         for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
         }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
@@ -1841,8 +1913,10 @@ public final class EsqlTestUtils {
      * but the surrounding structure is otherwise left unchanged.
      *
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     *
+     * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
      */
-    private static String rewriteSubqueriesInExpression(String segment) {
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         while (i < segment.length()) {
@@ -1867,11 +1941,11 @@ public final class EsqlTestUtils {
                     || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
                     // This group is a subquery body — rewrite it recursively.
                     // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
-                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent) + ")";
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
                 } else {
                     // Not a direct subquery body (value list, function args, boolean grouping, …).
                     // Recurse into the raw content to catch any nested subquery inside it.
-                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content) + ")";
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
                 }
                 result.append(rewrittenGroup);
                 i = j;

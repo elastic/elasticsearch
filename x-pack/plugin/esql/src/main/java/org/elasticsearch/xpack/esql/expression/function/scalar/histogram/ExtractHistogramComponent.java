@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -60,12 +62,14 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         .histogramUnary((source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT))
         .description("Returns the count of observations stored in a native histogram.")
         .example("histogram_count(increase(http_request_duration_seconds[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("histogram_count");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_SUM = PromqlFunctionDefinition.def()
         .histogramUnary((source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM))
         .description("Returns the sum of observations stored in a native histogram.")
         .example("histogram_sum(increase(http_request_duration_seconds[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("histogram_sum");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_AVG = PromqlFunctionDefinition.def()
@@ -78,6 +82,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         )
         .description("Returns the arithmetic average of observations stored in a native histogram.")
         .example("histogram_avg(increase(http_request_duration_seconds[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("histogram_avg");
 
     private final Expression field;
@@ -91,7 +96,11 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "double" }, briefSummary = "Extracts a component value from a histogram.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double" },
+        briefSummary = "Extracts a component value from a histogram."
+    )
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,

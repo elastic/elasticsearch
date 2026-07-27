@@ -2,13 +2,13 @@
 // Uses {{employees_multifile_split}} template which resolves to multifile_split/*.<format>.
 // The split fixture contains the full employees dataset partitioned into 3 same-schema files.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the flipped format ITs (TSV/NDJSON/Java-Parquet) register the dataset and run the FROM query
-// verbatim; the other backends rebuild the equivalent EXTERNAL query. The glob template has no index twin, so
-// the dataset keeps the bare name employees_multifile_split.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
+// format ITs (TSV/NDJSON/Java-Parquet) register the dataset on every storage backend and run the FROM query
+// verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture). The glob template
+// has no index twin, so the dataset keeps the bare name employees_multifile_split.
 
 readAllEmployeesMultiFile
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -19,7 +19,8 @@ count:long
 ;
 
 aggregateMultiFileByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -27,13 +28,13 @@ FROM employees_multifile_split
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 multiFileSalaryStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -44,7 +45,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 ;
 
 multiFileFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -62,7 +63,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 multiFileEvalAndAggregate
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -78,7 +79,7 @@ count:long | avg_salary:double | salary_category:keyword
 ;
 
 multiFileSumSalary
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -89,7 +90,7 @@ total_salary:long
 ;
 
 multiFileFilterByEmployee
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -103,7 +104,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 // File metadata: verify multiple distinct files are read
 
 multiFileDistinctFileCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
@@ -115,7 +116,7 @@ names:long
 ;
 
 multiFileGroupByFile
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
@@ -128,7 +129,7 @@ files:long | total:long
 ;
 
 multiFileMetadataSizePositive
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 

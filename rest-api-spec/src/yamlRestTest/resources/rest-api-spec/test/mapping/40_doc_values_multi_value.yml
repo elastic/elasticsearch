@@ -1,15 +1,38 @@
 ---
+"doc_values object form rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.extended_form_only_in_columnar"]
+      reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
+
+  - do:
+      catch: /unsupported doc_values configuration/
+      indices.create:
+        index: test_non_columnar_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+
+---
 "multi_value=false is enforced per document not per segment":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format"
+      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
 
   - do:
       indices.create:
         index: test_per_document
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -47,15 +70,20 @@
 ---
 "multi_value=false mapping serialization roundtrip":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format"
+      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
 
   - do:
       indices.create:
         index: test_roundtrip
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -72,15 +100,20 @@
 ---
 "multi_value=false on multi-field sub rejects parent array":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value=false enforcement on indexing"
+      reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
       indices.create:
         index: test_multifield_sub
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:
@@ -113,15 +146,20 @@
 ---
 "multi_value=false on multi-field parent rejects parent array":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value=false enforcement on indexing"
+      reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
       indices.create:
         index: test_multifield_parent
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:
@@ -145,14 +183,20 @@
 ---
 "index.mapping.doc_values.multi_value=false defaults all fields to single-valued":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_default
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -179,14 +223,20 @@
 ---
 "field-level multi_value overrides index.mapping.doc_values.multi_value":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_override
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -217,14 +267,20 @@
 ---
 "index.mapping.doc_values.multi_value=false mapping round-trip":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_roundtrip
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:

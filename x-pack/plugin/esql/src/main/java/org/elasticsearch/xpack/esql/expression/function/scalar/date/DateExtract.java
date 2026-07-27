@@ -22,11 +22,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -52,6 +55,7 @@ public class DateExtract extends EsqlConfigurationFunction {
     private ChronoField chronoField;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
         briefSummary = "Extracts parts of a date, like year, month, day, hour.",
         description = "Extracts parts of a date, like year, month, day, hour.",
@@ -140,18 +144,38 @@ public class DateExtract extends EsqlConfigurationFunction {
             }
 
             if (isNanos) {
-                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantNanosEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             } else {
-                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantMillisEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             }
         }
 
         var chronoEvaluator = toEvaluator.apply(children().get(0));
 
         if (isNanos) {
-            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         } else {
-            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractMillisEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         }
 
     }

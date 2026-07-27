@@ -110,6 +110,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date_range",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date_range"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "dense_vector",
           "optional" : false,
           "description" : "Expression to evaluate."

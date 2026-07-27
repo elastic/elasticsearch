@@ -9,6 +9,8 @@ mapped_pages:
 
 Parses a Uniform Resource Identifier (URI) string and extracts its components as an object. This URI object includes properties for the URI’s domain, path, fragment, port, query, scheme, user info, username, and password.
 
+The processor uses [java.net.URI](https://docs.oracle.com/en/java/javase/24/docs/api/java.base/java/net/URI.html) to parse the URI string, which as of Java 24 supports [RFC 2396](https://datatracker.ietf.org/doc/html/rfc2396), amended by [RFC 2732](https://datatracker.ietf.org/doc/html/rfc2732). The most recent URI syntax RFC is [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986), meaning this processor might not parse URIs that depend on [features specific to RFC 3986](https://www.rfc-editor.org/info/rfc3986/#appendix-D) as expected.
+
 $$$uri-parts-options$$$
 
 | Name | Required | Default | Description |

@@ -39,6 +39,7 @@ import java.util.concurrent.Semaphore;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -101,7 +102,7 @@ public class FiltersCancellationIT extends ESIntegTestCase {
             client().admin().indices().prepareCreate(INDEX).setMapping(mapping).get();
         }
 
-        int DOCS_PER_BULK = 100_000;
+        int DOCS_PER_BULK = 1_000;
         for (int i = 0; i < NUM_DOCS; i += DOCS_PER_BULK) {
             BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < DOCS_PER_BULK; j++) {
@@ -109,6 +110,12 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                 bulk.add(prepareIndex(INDEX).setId(Integer.toString(docId)).setSource(NUMERIC_FIELD, docId));
             }
             bulk.get();
+            // Wait for all shard copies to be started so the flush below reaches every copy in the replication
+            // group. Right after the index is created a replica can still be initializing, which would make the
+            // broadcast flush report fewer successful shards than the total (with no failures) and trip the assertion.
+            ensureGreen(INDEX);
+            // Flush to clear all the assertion translog *stuff*. Else we can oom the cluster.
+            assertAllSuccessful(client().admin().indices().prepareFlush(INDEX).get());
         }
 
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();

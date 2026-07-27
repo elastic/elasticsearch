@@ -85,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -265,7 +266,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
             if (elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
                 indexRandomly(dir, codec, numDocs, doc -> {
-                    float[] vector = randomVector(dimension);
+                    float[] vector = randomFloatVector(dimension);
                     doc.add(new KnnFloatVectorField("vector", vector, similarity));
                 });
             } else {
@@ -590,20 +591,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     static void addRandomKnnVectors(Document doc) {
         int numFields = randomFrom(1, 3);
         for (int f = 0; f < numFields; f++) {
-            doc.add(new KnnFloatVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
+            doc.add(new KnnFloatVectorField("knnvector-" + f, randomFloatVector(DEFAULT_VECTOR_DIMENSION)));
         }
     }
 
     static void addRandomBloomFilterField(Document doc) {
         doc.add(new BloomFilterField(randomAlphaOfLength(5)));
-    }
-
-    private static float[] randomVector(int dimension) {
-        float[] vec = new float[dimension];
-        for (int i = 0; i < vec.length; i++) {
-            vec[i] = randomFloat();
-        }
-        return vec;
     }
 
     static void addRandomFields(Document doc) {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -90,25 +91,22 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
+        new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
-            .withTypeMapping(removeFields("first_name", "last_name"))
-            .withDynamic("false")
+        new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
+            removeFields("first_name", "last_name")
+        ).withDynamic("false").noSubfields(),
+        new TestDataset("employees_gender_text", "mapping-default.json", "employees.csv").withTypeMapping(Map.of("gender", "text"))
             .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
-            .withTypeMapping(Map.of("gender", "text"))
-            .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
-            .withTypeMapping(removeFields("gender"))
+        new TestDataset("employees_no_gender", "mapping-default.json", "employees.csv").withTypeMapping(removeFields("gender"))
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
-            .withTypeMapping(removeFields("short"))
+        new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
-            .withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -136,6 +134,13 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
+        new TestDataset(
+            "partial_mapping_mv_no_source_sample_data",
+            "mapping-partial_mapping_no_source_sample_data.json",
+            "partial_mapping_mv_sample_data.csv"
+        ),
         new TestDataset(
             "partial_message_types_lookup",
             "mapping-partial_message_types_lookup.json",
@@ -176,6 +181,7 @@ public class CsvTestsDataLoader {
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("hash_algorithms"),
         new TestDataset("firewall_logs").noData(),
         new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
         new TestDataset("app_logs").noData(),
@@ -205,6 +211,9 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
         new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
@@ -255,6 +264,13 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("text_state_mapped"),
+        new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
+        new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
@@ -270,6 +286,10 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
+        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
+        new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
+            .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
         new TestDataset("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
@@ -313,6 +333,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
+            .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
@@ -356,6 +378,10 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
+        new ViewConfig("employees_via_alias"),
+        new ViewConfig("partial_mapping_view"),
+        new ViewConfig("partial_mapping_view_message_wildcard"),
+        new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
@@ -377,6 +403,15 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
+
+    /**
+     * Index aliases created unconditionally alongside the main test indices. These are not tied
+     * to view support — any csv-spec test may reference them. Non-view tests that use wildcard
+     * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
+     * deduplicates an alias and its backing index into a single logical source.
+     */
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>
@@ -497,6 +532,9 @@ public class CsvTestsDataLoader {
                 }
                 if (policies) {
                     loadEnrichPolicies(client);
+                }
+                if (indexes) {
+                    loadAliasesIntoEs(client);
                 }
                 if (views) {
                     loadViewsIntoEs(client);
@@ -633,6 +671,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
+        loadAliasesIntoEs(client, indicesToLoad);
     }
 
     /**
@@ -727,6 +766,37 @@ public class CsvTestsDataLoader {
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    private static void loadAliasesIntoEs(RestClient client) throws IOException {
+        loadAliasesIntoEs(client, null);
+    }
+
+    /**
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
+     * only aliases whose backing index is in that list are created — aliases for indices that were
+     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     */
+    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
+        logger.info("Loading aliases");
+        for (var alias : ALIAS_CONFIGS.values()) {
+            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+                continue;
+            }
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(
+                "{\"actions\":[{\"add\":{\"index\":\"" + alias.indexName() + "\",\"alias\":\"" + alias.aliasName() + "\"}}]}"
+            );
+            try {
+                client.performRequest(request);
+            } catch (ResponseException e) {
+                // Alias may already exist (idempotent re-load); ignore 400
+                if (e.getResponse().getStatusLine().getStatusCode() != 400) {
+                    throw e;
+                }
+            }
         }
     }
 
@@ -990,7 +1060,7 @@ public class CsvTestsDataLoader {
 
     record Column(String name, String type) {}
 
-    public record Document(String id, StringBuilder json) {}
+    public record Document(String id, String slice, StringBuilder json) {}
 
     public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
         try (BufferedReader reader = reader(resource)) {
@@ -1055,6 +1125,7 @@ public class CsvTestsDataLoader {
             int lineNumber = 1;
             Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
@@ -1081,11 +1152,13 @@ public class CsvTestsDataLoader {
                     }
                     // id, document
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+
                     builder.append(
                         "{\"index\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1131,6 +1204,7 @@ public class CsvTestsDataLoader {
     private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
         StringBuilder row = new StringBuilder("{");
         String id = null;
+        String slice = null;
         for (int i = 0; i < entries.length; i++) {
             // ignore values that belong to subfields and don't add them to the bulk request
             if (subFieldsIndices.contains(i) == false) {
@@ -1143,6 +1217,11 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
+                if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
+                    slice = entries[i];
+                    continue;
+                }
+
                 try {
                     // add a comma after the previous value, only when there was actually a value before
                     if (i > 0 && row.length() > 1) {
@@ -1173,7 +1252,7 @@ public class CsvTestsDataLoader {
             }
         }
         row.append("}\n");
-        return new Document(id, row);
+        return new Document(id, slice, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
@@ -1530,6 +1609,9 @@ public class CsvTestsDataLoader {
             return getResourceString("/views/" + name + ".esql");
         }
     }
+
+    /** An index alias to create alongside the main test indices. */
+    public record AliasConfig(String aliasName, String indexName) {}
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

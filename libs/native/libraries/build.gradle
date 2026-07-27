@@ -38,7 +38,7 @@ configurations.consumable('nativeLibs') {
 }
 
 var zstdVersion = "1.5.7"
-var vecVersion = "1.0.133"
+var vecVersion = "1.0.134"
 var pqrsVersion = "0.2.0"
 
 repositories {

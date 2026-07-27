@@ -115,6 +115,56 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         );
     }
 
+    /**
+     * The local (coordinating) cluster is always available and is never skip_unavailable, but it is only tracked as a running
+     * cluster in the execution info when the query actually resolved a local index. A cross-cluster query whose lookup is scoped
+     * to the local cluster - e.g. a ROW- or local-only sourced {@code LOOKUP JOIN} sitting next to a remote branch such as
+     * {@code FROM cluster-a:logs-*, (ROW ... | LOOKUP JOIN lookup ON ...)} - therefore requests the local cluster even though it
+     * is absent from the execution info. {@link EsqlCCSUtils#onlyRunning} must retain it so the lookup index is resolved locally
+     * instead of against an empty cluster expression.
+     */
+    public void testOnlyRunningRetainsRequestedLocalClusterWhenNotTracked() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        // Only a remote cluster is tracked; the local cluster is not registered at all (and thus is not a running cluster).
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+
+        // The untracked local cluster is retained when requested.
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS)), equalTo(Set.of(LOCAL_CLUSTER_ALIAS)));
+        // It is retained alongside a running remote in a mixed scope.
+        assertThat(
+            EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS)),
+            equalTo(Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS))
+        );
+        // It is not conjured up when it was not requested.
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(REMOTE1_ALIAS)), equalTo(Set.of(REMOTE1_ALIAS)));
+    }
+
+    /**
+     * The local cluster is retained even when it is tracked but not in a running state (e.g. marked skipped): a join on a local
+     * source executes on the coordinator regardless, so its lookup index must still be resolved locally. Running/skipped
+     * filtering continues to apply to remote clusters.
+     */
+    public void testOnlyRunningRetainsRequestedLocalClusterWhenSkipped() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "", false, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+
+        // Local is kept despite being skipped, while the skipped remote is dropped.
+        assertThat(
+            EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS)),
+            equalTo(Set.of(LOCAL_CLUSTER_ALIAS))
+        );
+    }
+
     private static void assertIndexPattern(String indexPattern, Matcher<Iterable<? extends String>> matcher) {
         assertThat(Set.of(Strings.splitStringByCommaToArray(indexPattern)), matcher);
     }

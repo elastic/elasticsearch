@@ -51,7 +51,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
-        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

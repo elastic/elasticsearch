@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 137475
+pr: 153831
+summary: Ensure cancelled `_field_caps` tasks are removed from the tasks API
+type: bug

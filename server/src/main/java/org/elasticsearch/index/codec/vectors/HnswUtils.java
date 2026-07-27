@@ -76,14 +76,13 @@ public final class HnswUtils {
             final NeighborHood hood = neighborhoods[c];
             final int[] rawCandidates = hood == null ? new int[0] : hood.neighbors();
 
-            scorer.setScoringOrdinal(c);
             int numValid = 0;
             for (int raw : rawCandidates) {
                 if (raw == c || raw < 0 || raw >= n) continue;
-                candidateNodes[numValid] = raw;
-                candidateScores[numValid] = scorer.score(raw);
-                numValid++;
+                candidateNodes[numValid++] = raw;
             }
+            scorer.setScoringOrdinal(c);
+            scorer.bulkScore(candidateNodes, candidateScores, numValid);
 
             // Re-sort by similarity descending (nearest first) using the scorer's metric, which may differ
             // from the metric used to build the original neighborhood.

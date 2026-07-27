@@ -154,8 +154,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            null,
-            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -291,7 +289,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     clusterService.state(),
                     startContext.config.getSource().getIndex(),
                     startContext.config.getDest().getIndex(),
-                    null,
                     SourceDestValidations.ALL_VALIDATIONS,
                     l.map(ignored -> startContext)
                 );
@@ -832,7 +829,12 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
         @Override
         protected String[] indicesOfInterest(TaskParams params) {
-            return new String[] { MlConfigIndex.indexName(), MlStatsIndex.indexPattern(), AnomalyDetectorsIndex.jobStateIndexPattern() };
+            String[] statePatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
+            String[] indices = new String[statePatterns.length + 2];
+            System.arraycopy(statePatterns, 0, indices, 0, statePatterns.length);
+            indices[statePatterns.length] = MlStatsIndex.indexPattern();
+            indices[statePatterns.length + 1] = MlConfigIndex.indexName();
+            return indices;
         }
 
         @Override

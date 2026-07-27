@@ -25,16 +25,24 @@ public class NoAuthDataSourceConfigurationTests extends ESTestCase {
         assertNull(NoAuthDataSourceConfiguration.fromMap(Map.of()));
     }
 
-    public void testAuthNoneAccepted() {
-        NoAuthDataSourceConfiguration config = NoAuthDataSourceConfiguration.fromMap(Map.of("auth", "none"));
+    public void testAuthAnonymousAccepted() {
+        NoAuthDataSourceConfiguration config = NoAuthDataSourceConfiguration.fromMap(Map.of("auth", "anonymous"));
         assertNotNull(config);
-        assertEquals("none", config.get("auth"));
+        assertEquals("anonymous", config.get("auth"));
     }
 
-    public void testAuthNoneIsCaseInsensitive() {
-        NoAuthDataSourceConfiguration config = NoAuthDataSourceConfiguration.fromMap(Map.of("auth", "NONE"));
+    public void testAuthAnonymousIsCaseInsensitive() {
+        NoAuthDataSourceConfiguration config = NoAuthDataSourceConfiguration.fromMap(Map.of("auth", "ANONYMOUS"));
         assertNotNull(config);
-        assertEquals("none", config.get("auth"));
+        assertEquals("anonymous", config.get("auth"));
+    }
+
+    public void testDeprecatedAuthNoneCanonicalizedToAnonymous() {
+        // Symmetric with the file-based sources: the former value name is accepted, canonicalized, and warns.
+        NoAuthDataSourceConfiguration config = NoAuthDataSourceConfiguration.fromMap(Map.of("auth", "none"));
+        assertNotNull(config);
+        assertEquals("anonymous", config.get("auth"));
+        assertWarnings("auth value [none] is deprecated; the canonical value is [anonymous]");
     }
 
     public void testUnsupportedAuthValueRejected() {

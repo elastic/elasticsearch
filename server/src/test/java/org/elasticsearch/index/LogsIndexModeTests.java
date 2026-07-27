@@ -166,7 +166,6 @@ public class LogsIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(buildSettings()));
     }
 

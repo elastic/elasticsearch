@@ -2,11 +2,21 @@
 
 ## Description
 
-Use `MATCH` to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on the specified field. Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+Use `MATCH` to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on the specified field or expression. Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
 Match can be used on fields from the text family like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md),
 as well as other field types like keyword, boolean, dates, and numeric types.
 When Match is used on a [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) field, it will perform a semantic query on the field.
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+`MATCH` can also search expressions that are not backed by an index, such as
+computed columns produced by `EVAL`, `STATS`, or other commands.
+When the target is not an indexed field, the search evaluates by scanning
+values row by row, which may be slower on large datasets.
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are not supported.
+Additionally, `MATCH` on an expression does not contribute to the relevance score
+when using `METADATA _score`.
 
 Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options
 for the match query.

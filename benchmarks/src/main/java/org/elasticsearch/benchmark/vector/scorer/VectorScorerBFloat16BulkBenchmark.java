@@ -16,6 +16,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -115,7 +116,7 @@ public class VectorScorerBFloat16BulkBenchmark extends VectorScorerBulkBenchmark
                 }
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override

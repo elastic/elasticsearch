@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
@@ -114,16 +113,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     public void testCountPositionsWithoutIncrements() throws IOException {
         Analyzer analyzer = createMockAnalyzer();
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
-    }
-
-    @Override
-    protected boolean supportsMultiValueParameter() {
-        return true;
-    }
-
-    @Override
-    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_NUMERIC;
     }
 
     private Analyzer createMockAnalyzer() {

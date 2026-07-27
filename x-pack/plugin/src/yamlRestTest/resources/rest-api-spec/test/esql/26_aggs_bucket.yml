@@ -298,8 +298,8 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket]
-      reason: "BUCKET exposes interval metadata on grouping columns"
+          capabilities: [column_metadata_bucket_v2]
+      reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
       bulk:
@@ -315,7 +315,7 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test_dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
+          query: 'SET column_metadata=true; FROM test_dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
 
   - match:    { columns.0.name: date }
   - is_false: columns.0._meta
@@ -329,7 +329,7 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          query: 'SET column_metadata=true; FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
 
   - match:    { columns.0.name: c }
   - match:    { columns.0.type: long }
@@ -338,17 +338,88 @@
   - match:    { columns.1.type: double }
   - match:    { columns.1._meta.bucket.interval: 10.0 }
 
-  # Sanity: a query without BUCKET produces no _meta on any column.
+  # Sanity: even with metadata enabled, a query without BUCKET produces no _meta on any column.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test_numbers | STATS c = COUNT(*) BY number'
+          query: 'SET column_metadata=true; FROM test_numbers | STATS c = COUNT(*) BY number'
 
   - match:    { columns.0.name: c }
   - is_false: columns.0._meta
   - match:    { columns.1.name: number }
+  - is_false: columns.1._meta
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET column_metadata=?1; FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          params: [true]
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # column_metadata is also settable via the request body's settings.{} block, not just in-query SET.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: true
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Explicitly disabling via the request body is equivalent to omitting it.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: false
+
+  - match:    { columns.1.name: b }
+  - is_false: columns.1._meta
+
+  # A JSON string "true" is accepted like the JSON boolean true (general XContent leniency for a
+  # VALUE_STRING token spelling "true"/"false", not something column_metadata opts into specifically).
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: "true"
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Unlike a string, a JSON number isn't coerced to boolean — it's rejected outright.
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: 1
+
+  # Sanity: without column_metadata in either surface, the response has no _meta.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+
+  - match:    { columns.1.name: b }
   - is_false: columns.1._meta
 
 ---
@@ -359,8 +430,8 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket]
-      reason: "BUCKET exposes interval metadata on grouping columns"
+          capabilities: [column_metadata_bucket_v2]
+      reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
       bulk:
@@ -375,7 +446,7 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
+          query: 'SET column_metadata=true; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
           columnar: true
 
   - match:    { columns.0.name: c }
@@ -393,8 +464,8 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, approximation_v7]
-      reason: "BUCKET exposes interval metadata; approximation exposes its own metadata. Both must coexist."
+          capabilities: [column_metadata_bucket_v2, approximation_v7]
+      reason: "BUCKET metadata gated behind SET column_metadata=true; approximation exposes its own metadata. Both must coexist."
 
   - do:
       bulk:
@@ -405,13 +476,14 @@
 
   # When approximation is enabled, the response contains both the bucket grouping column (with bucket
   # metadata) and the synthetic _approximation_* columns (with approximation metadata). Both _meta maps
-  # must surface side by side without colliding.
+  # must surface side by side without colliding. Note: approximation metadata is self-gated by the
+  # approximation setting itself; the column_metadata gate covers non-approximation metadata only.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET approximation={"rows":10000}; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
+          query: 'SET approximation={"rows":10000}; SET column_metadata=true; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
 
   - match:    { columns.0.name: c }
   - is_false: columns.0._meta
@@ -433,8 +505,8 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, tbucket]
-      reason: "TBUCKET exposes interval metadata on grouping columns"
+          capabilities: [column_metadata_bucket_v2, tbucket]
+      reason: "TBUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
       indices.create:
@@ -471,7 +543,7 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_metrics | STATS max(metric) BY tb = TBUCKET(30 minutes)'
+          query: 'SET column_metadata=true; TS ts_metrics | STATS max(metric) BY tb = TBUCKET(30 minutes)'
 
   - is_false: columns.0._meta
   - match:    { columns.1.name: tb }

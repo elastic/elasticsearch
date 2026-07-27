@@ -19,10 +19,8 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -63,7 +61,6 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     // columnarEnabled must be set before the cluster starts (ClassRule.before() runs before @BeforeClass),
@@ -72,7 +69,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            columnarEnabled = randomBoolean();
         }
     }).around(cluster);
 

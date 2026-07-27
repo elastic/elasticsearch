@@ -19,6 +19,8 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
@@ -42,13 +45,29 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
 
     private final AsyncExternalSourceBuffer buffer;
+    /** Node telemetry sink; {@link ExternalSourceMetrics#NOOP} when none is wired (tests, connector factory path). */
+    private final ExternalSourceMetrics externalSourceMetrics;
+    /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
+    private final String scheme;
+    /**
+     * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
+     * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
+     * proxy: a query with several external-source scans records one observation per scan.
+     */
+    private final long operatorStartNanos = System.nanoTime();
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer) {
+        this(buffer, ExternalSourceMetrics.NOOP, null);
+    }
+
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, ExternalSourceMetrics externalSourceMetrics, String scheme) {
         this.buffer = buffer;
+        this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
+        this.scheme = scheme;
     }
 
     @Override
@@ -57,6 +76,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         try {
             final var page = buffer.pollPage();
             if (page != null) {
+                if (pagesEmitted == 0) {
+                    // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
+                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme);
+                }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
                 return page;
@@ -107,7 +130,32 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Override
     public void close() {
         emitPendingWarnings();
+        recordParseAndSplits();
         finish();
+    }
+
+    /**
+     * Publishes the operator's final parse counters to node telemetry. Called once from {@link #close()} (the
+     * driver guarantees a single close). Best-effort: an instrumentation failure must never break teardown.
+     */
+    private void recordParseAndSplits() {
+        // Per-operator split count: this operator's own processed-split total, NOT buffer.splitsTotal() (which on
+        // the slice-queue path is the GLOBAL sliceQueue.totalSlices() shared across every parallel operator — using
+        // it would make each of N parallel operators record the whole-query total, inflating parse.splits_scanned).
+        // The single-file / multi-file paths run one operator instance, so splitsProcessed converges to the same
+        // value splitsTotal held there.
+        long splitsProcessed = buffer.splitsProcessed();
+        // Skip a scan that did no work (failed/empty open): recording parse/splits with all-zero values would
+        // seed the parse/splits/duration histograms with zero observations. Mirrors the read-stall millis<=0
+        // guard rationale — an empty scan is not a data point about parse throughput or split fan-out.
+        if (rowsEmitted == 0 && splitsProcessed == 0) {
+            return;
+        }
+        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
+        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
+        // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
+        externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme);
+        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme);
     }
 
     /**
@@ -304,6 +352,32 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return capturedSourceMetadata;
         }
 
+        /**
+         * Number of canonical-stripe contributions this scan harvested across all files — the
+         * cold-harvest vs miss signal. A scan that committed stripes ({@code > 0}) has populated the
+         * coordinator's stats so a future identical query can short-circuit warm; a scan that committed
+         * none ({@code == 0}, e.g. a safe-miss / harvest-scope-none re-scan) leaves the next query cold.
+         * <p>
+         * Derived from {@link #capturedSourceMetadata} rather than carried as a separate wire field: a
+         * stripe-addressed contribution is exactly one carrying {@link ExternalStats#STRIPE_ORDINAL_KEY}
+         * (with {@link ExternalStats#STRIPE_SIZE_KEY}, which marks it cacheable). Counts every such
+         * fragment, including sibling fragments of the same stripe, since each is a committed unit of
+         * harvest work; this is a "did harvest happen, and how much" signal, not the deduped final
+         * stripe count.
+         */
+        public long stripesCommitted() {
+            long count = 0;
+            for (List<Map<String, Object>> contributions : capturedSourceMetadata.values()) {
+                for (Map<String, Object> contribution : contributions) {
+                    if (contribution.containsKey(ExternalStats.STRIPE_ORDINAL_KEY)
+                        && contribution.containsKey(ExternalStats.STRIPE_SIZE_KEY)) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
         @Override
         public boolean partial() {
             return partial;
@@ -394,6 +468,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
             builder.field("read_nanos", readNanos);
+            builder.field("stripes_committed", stripesCommitted());
             builder.field("partial", partial);
             builder.startObject("format_reader");
             if (formatReader != null) {

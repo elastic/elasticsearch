@@ -148,38 +148,61 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
-            case START_OBJECT -> inferObjectSchema(parser, field);
-            case VALUE_STRING -> {
-                String text = parser.getText();
-                if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
-                    field.addType(DataType.DATETIME);
+            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. A field seen as both a
+            // scalar and an object across sampled records resolves to whichever shape was observed
+            // first (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored
+            // here for schema-inference purposes so buildSchema never emits both a scalar attribute
+            // and nested children for the same name (elastic/esql-planning#1028). The decoder applies
+            // ErrorPolicy to the actual conflicting value at read time.
+            case START_OBJECT -> {
+                if (field.types.isEmpty() == false) {
+                    parser.skipChildren();
                 } else {
-                    field.addType(DataType.KEYWORD);
+                    inferObjectSchema(parser, field);
+                }
+            }
+            case VALUE_STRING -> {
+                if (field.children == null) {
+                    String text = parser.getText();
+                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
+                        field.addType(DataType.DATETIME);
+                    } else {
+                        field.addType(DataType.KEYWORD);
+                    }
                 }
             }
             case VALUE_NUMBER_INT -> {
-                switch (parser.getNumberType()) {
-                    case INT:
-                        field.addType(DataType.INTEGER);
-                        return;
-                    case LONG:
-                        field.addType(DataType.LONG);
-                        return;
-                    case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE);
-                        var location = parser.getTokenLocation();
-                        logger.debug(
-                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
-                            parser.getText(),
-                            location.getLineNr(),
-                            location.getColumnNr()
-                        );
+                if (field.children == null) {
+                    switch (parser.getNumberType()) {
+                        case INT:
+                            field.addType(DataType.INTEGER);
+                            return;
+                        case LONG:
+                            field.addType(DataType.LONG);
+                            return;
+                        case BIG_INTEGER: {
+                            field.addType(DataType.DOUBLE);
+                            var location = parser.getTokenLocation();
+                            logger.debug(
+                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                                parser.getText(),
+                                location.getLineNr(),
+                                location.getColumnNr()
+                            );
+                        }
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
+            case VALUE_NUMBER_FLOAT -> {
+                if (field.children == null) {
+                    field.addType(DataType.DOUBLE); // conservative size
+                }
+            }
+            case VALUE_TRUE, VALUE_FALSE -> {
+                if (field.children == null) {
+                    field.addType(DataType.BOOLEAN);
+                }
+            }
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }

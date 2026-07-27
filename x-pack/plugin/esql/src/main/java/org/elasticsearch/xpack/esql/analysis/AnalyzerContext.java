@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,8 +44,8 @@ public class AnalyzerContext {
     private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
-    private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
 
@@ -172,16 +173,16 @@ public class AnalyzerContext {
         return projectMetadata;
     }
 
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
-    }
-
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
+    }
+
+    /**
+     * Header warnings collected during analysis but emitted only once the {@code Verifier} has passed, so a query that fails
+     * verification produces no warnings.
+     */
+    public Set<String> deferredHeaderWarnings() {
+        return deferredHeaderWarnings;
     }
 
     /**

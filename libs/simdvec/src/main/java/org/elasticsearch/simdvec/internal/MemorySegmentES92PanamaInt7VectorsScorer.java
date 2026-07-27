@@ -21,6 +21,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -60,24 +61,17 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
     }
 
-    private byte[] scratch;
+    protected final BufferScratch scratch = new BufferScratch();
 
     public MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
         IndexInputUtils.checkInputType(in);
     }
 
-    protected byte[] getScratch(int len) {
-        if (scratch == null || scratch.length < len) {
-            scratch = new byte[len];
-        }
-        return scratch;
-    }
-
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
+        return IndexInputUtils.withSlice(in, dimensions, scratch::get, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
@@ -162,7 +156,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch::get, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
             return null;
         });
@@ -241,7 +235,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch::get, memorySegment -> {
             applyCorrectionsBulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,
@@ -276,20 +270,23 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         float ly = (queryUpperInterval - ay) * SEVEN_BIT_SCALE;
         float y1 = queryComponentSum;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
-                .sub(ax)
-                .mul(SEVEN_BIT_SCALE);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES,
+                memorySegment,
+                4L * bulkSize + (long) i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            ).sub(ax).mul(SEVEN_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
                 memorySegment,
-                8 * bulkSize + i * Integer.BYTES,
+                8L * bulkSize + (long) i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
                 memorySegment,
-                12 * bulkSize + i * Float.BYTES,
+                12L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES, scores, i);

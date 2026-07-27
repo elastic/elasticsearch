@@ -22,6 +22,8 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -43,7 +45,6 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
@@ -75,28 +76,25 @@ public class ConfigurationTestUtils {
         var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
-        return new ConfigurationBuilder(
-            new Configuration(
-                zoneId,
-                now,
-                locale,
-                username,
-                clusterName,
-                randomQueryPragmas(),
-                truncation,
-                defaultTruncation,
-                query,
-                profile,
-                tables,
-                System.nanoTime(),
-                false,
-                tsTruncation,
-                defaultTsTruncation,
-                null,
-                null,
-                Map.of()
-            )
-        ).grokMatcherWatchdogMs(randomLongBetween(0, 5000)).build();
+        return new Configuration(
+            now,
+            locale,
+            username,
+            clusterName,
+            randomQueryPragmas(),
+            truncation,
+            defaultTruncation,
+            query,
+            profile,
+            tables,
+            System.nanoTime(),
+            false,
+            tsTruncation,
+            defaultTsTruncation,
+            // No manual normalize — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride.
+            ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, zoneId),
+            Map.of()
+        );
     }
 
     public static ConfigurationBuilder randomConfigurationBuilder() {

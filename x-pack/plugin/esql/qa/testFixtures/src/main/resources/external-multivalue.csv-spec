@@ -6,20 +6,20 @@
 // `multi_value_syntax` key (ConfigKeyValidator), so this spec carries the SAME queries WITHOUT the
 // WITH clause — each format reads its native MV representation.
 //
-// SISTER FILE: csv-multivalue.csv-spec carries the identical 9 query shapes with the brackets opt-in
+// SISTER FILE: csv-multivalue.csv-spec carries the identical employees query shapes with the brackets opt-in
 // for the CSV reader path. When adding / changing a query here, mirror it there (or vice versa).
 //
 // EsqlSpecTestCase (single-node / mixed-cluster / multi-cluster / multi-node, no AbstractExternalSource
 // resolver) is gated OUT by a fileName-based assumeFalseLogging — the local CSV reader on these clusters
 // would default to multi_value_syntax: none and misalign columns on the bracket-MV employees.csv.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the flipped format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset and run the
-// FROM query verbatim; the other backends rebuild the equivalent EXTERNAL query. employees / books collide
-// with their ES|QL index twins, so the datasets are named employees_ds / books_ds.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
+// format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset on every storage backend and run the
+// FROM query verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture).
+// employees / books collide with their ES|QL index twins, so the datasets are named employees_ds / books_ds.
 
 mvExpandFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 ;
 
 mvCountFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -52,7 +52,7 @@ emp_no:integer | job_positions:keyword | cnt:integer
 ;
 
 mvConcatFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -66,7 +66,7 @@ emp_no:integer | joined:keyword
 ;
 
 mvDedupeFromSplit2
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -80,7 +80,7 @@ emp_no:integer | deduped:double          | first_name:keyword
 ;
 
 filterFirstRowAllColumns
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -93,7 +93,7 @@ birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword 
 ;
 
 mvDedupeFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -107,7 +107,7 @@ emp_no:integer | deduped:keyword
 ;
 
 mvMinFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -121,7 +121,7 @@ emp_no:integer | mn:keyword
 ;
 
 mvMaxFromSplit
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -135,7 +135,7 @@ emp_no:integer | mx:keyword
 ;
 
 mvAppendFromScalars
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -157,7 +157,7 @@ emp_no:integer | job_positions:keyword
 
 # requires further guards, TODO
 completion-Ignore
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update
@@ -176,7 +176,7 @@ War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
 
 externalRerankBooks
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: rerank
 required_capability: datasource_file_readers_no_text_type
 dataset: books_ds: "{{books}}"
@@ -197,7 +197,7 @@ book_no:keyword | title:keyword                                         | author
 ;
 
 topSnippetsFunction
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: top_snippets_function
 required_capability: datasource_file_readers_no_text_type
 dataset: books_ds: "{{books}}"
@@ -213,7 +213,7 @@ book_no:keyword|title:keyword                        |description:keyword       
 ;
 
 scoreFunction
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: top_snippets_function
 required_capability: score_function
 required_capability: datasource_file_readers_no_text_type
@@ -227,4 +227,58 @@ FROM books_ds
 
 book_no:keyword|title:keyword                        |description:keyword                                                                                 |score:double
 9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
+;
+
+// mv_like / mv_rlike over a dataset: FROM <dataset> has no Lucene index, so the predicate runs on the
+// compute-engine evaluator — the path these functions take in production for datasets, exercised here
+// across every native-array format reader. Must agree with the index-backed mvLikeField/mvRLikeField
+// tests over the identical data. Sister shapes with the brackets opt-in live in csv-multivalue.csv-spec.
+mvLikeFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10002 AND mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+// The two-valued contract on the dataset path: emp 10003 has no job_positions, so mv_like is false (never
+// null) and NOT includes it; emp 10004's values are all non-Senior, so NOT includes it too.
+mvLikeNotFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10004 AND NOT mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10003
+10004
+;
+
+mvRLikeFromDataset
+required_capability: fn_mv_rlike
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10004 AND mv_rlike(job_positions, "Senior.*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
 ;

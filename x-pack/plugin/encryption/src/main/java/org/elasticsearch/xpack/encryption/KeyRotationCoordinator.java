@@ -251,12 +251,17 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    private void advanceKeyLifecycle(ProjectEncryptionKeyMetadata metadata, long now) {
+    private void advanceKeyLifecycle(ProjectEncryptionKeyMetadata metadata, long now, boolean wasRotating) {
         if (metadata.isUnwrapFailed()) {
             logger.debug("project encryption key: skipping lifecycle advancement in degraded state");
             return;
         }
         if (rotationDisabled()) {
+            return;
+        }
+        if (wasRotating) {
+            // In-flight ReEncryptApplyTasks would lose their CAS check if the active key rotated now.
+            logger.debug("project encryption key: deferring lifecycle advancement; re-encryption from previous tick still in progress");
             return;
         }
         long activeKeyAge = now - metadata.getGeneratedAt(metadata.getActiveKeyId());
@@ -305,11 +310,13 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         long now = threadPool.absoluteTimeInMillis();
-        rotate(metadata, now);
-        advanceKeyLifecycle(metadata, now);
+        // Snapshot before rotate() — reflects the previous tick's in-flight state, not this tick's.
+        boolean wasRotating = rotating.get();
+        rotate(metadata);
+        advanceKeyLifecycle(metadata, now, wasRotating);
     }
 
-    private void rotate(ProjectEncryptionKeyMetadata metadata, long now) {
+    private void rotate(ProjectEncryptionKeyMetadata metadata) {
         String activeKeyId = metadata.getActiveKeyId();
         List<EncryptedDataHandler<?>> pending = handlers.stream().filter(h -> metadata.isHandlerOnActive(h.customName()) == false).toList();
         if (pending.isEmpty()) {

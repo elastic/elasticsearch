@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 153270
+pr: 153675
+summary: Fix off-by-one in `ZeroBucket.index()` due to rounding errors
+type: bug

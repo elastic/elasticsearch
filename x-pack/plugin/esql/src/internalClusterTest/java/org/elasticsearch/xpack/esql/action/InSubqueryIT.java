@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -745,6 +746,34 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             deleteViews("red_ids");
+        }
+    }
+
+    /**
+     * Regression test: a request-level {@code filter} makes {@code EsqlSession.analyzeWithRetry}
+     * re-run {@code Analyzer.analyze} on the same parsed plan after a {@code VerificationException},
+     * revisiting the {@code ViewUnionAll} built for the two unioned views -- whose
+     * {@code namedSubqueries} map {@code asSubqueryMap} already drained on the first pass (see
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAllTests#testReplaceChildrenDoesNotMutateOriginalInstance}).
+     * <p>
+     * Before we corrected a bug this was failing with {@link java.util.NoSuchElementException}.
+     */
+    public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainViewUnionAll() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        try {
+            installView("red_ids", "FROM test | WHERE color == \"red\" | KEEP id");
+            installView("blue_ids", "FROM test | WHERE color == \"blue\" | KEEP id");
+
+            var request = syncEsqlQueryRequest("""
+                FROM test
+                | EVAL bogus = totally_bogus_column_xyz + 1
+                | WHERE id IN (FROM red_ids, blue_ids | KEEP id)
+                | KEEP id
+                """).filter(new RangeQueryBuilder("id").gte(0));
+            expectThrows(VerificationException.class, () -> run(request).close());
+        } finally {
+            deleteViews("red_ids", "blue_ids");
         }
     }
 

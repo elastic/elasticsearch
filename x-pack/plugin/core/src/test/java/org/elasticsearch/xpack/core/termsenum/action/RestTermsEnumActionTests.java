@@ -21,6 +21,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -59,7 +60,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         usageService,
         TelemetryProvider.NOOP
     );
-    private static RestTermsEnumAction action = new RestTermsEnumAction();
+    private static RestTermsEnumAction action = new RestTermsEnumAction(CrossProjectModeDecider.NOOP);
 
     /**
      * Configures {@link NodeClient} to stub {@link TermsEnumAction} transport action.

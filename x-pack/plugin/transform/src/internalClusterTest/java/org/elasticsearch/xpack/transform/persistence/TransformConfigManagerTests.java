@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -90,6 +91,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         transformConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             client(),
             xContentRegistry(),
             new TransformParsingContext(false)

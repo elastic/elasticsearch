@@ -1014,7 +1014,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
         // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
         // that the whole cluster has a consistent view of which node is the master.
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setTimeout(TEST_REQUEST_TIMEOUT)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(internalCluster().size()))
+            .get();
     }
 
     /**
@@ -1387,7 +1391,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
 
         // Some indices merge away the _id field
-        final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        final var pruneIdField = engineConfig.getIndexSettings().getMode().isTsdb();
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
 
         // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
@@ -2839,7 +2843,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+        if (randomizeColumnarIdMode()) {
             mocks.add(RandomizeColumnarIdModePlugin.class);
         }
         return Collections.unmodifiableList(mocks);
@@ -2910,7 +2914,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     combinedTemplateMappings,
                     indexVersion,
                     additionalSettings) -> {
-                    if (templateIndexMode == IndexMode.TIME_SERIES) {
+                    if (IndexMode.isTsdb(templateIndexMode)) {
                         // Don't randomly enable columnar id mode, if time series index mode has been enabled.
                         // Enabling columnar id isn't possible because tsdb always uses synthetic id.
                         return;

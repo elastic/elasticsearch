@@ -6053,7 +6053,6 @@ message:keyword | type:keyword
 
 // See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchOnEmployees
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: join_lookup_v12
 required_capability: match_function
 required_capability: propagate_empty_relation_past_joins

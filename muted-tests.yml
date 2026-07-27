@@ -361,9 +361,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
-- class: org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroidTests
-  method: testReduceRandom
-  issue: https://github.com/elastic/elasticsearch/issues/153353
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147534
@@ -541,18 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testMountPartialCopyAndRecoversCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/154614
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testBlobStoreCacheWithFullCopyInMixedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/154615
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testMountFullCopyAndRecoversCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/154616
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testBlobStoreCacheWithPartialCopyInMixedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/154617
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testAccessTokensWorkInMixedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154618
@@ -657,3 +642,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.inner_hits/10_basic/Inner hits with disabled _source}
+  issue: https://github.com/elastic/elasticsearch/issues/155041
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search/350_point_in_time/delete invalid PIT returns error}
+  issue: https://github.com/elastic/elasticsearch/issues/155066

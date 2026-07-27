@@ -12,8 +12,8 @@ package org.elasticsearch.columnar;
 /**
  * Format-wide identity and versioning constants for ColumNAR.
  *
- * <p>The version stamp is written once per segment. Writers always emit {@link #VERSION_CURRENT};
- * readers accept any version in {@code [VERSION_START, VERSION_CURRENT]} and branch on it.
+ * <p>The version stamp is written into every ColumNAR file. Writers always emit {@link #VERSION_CURRENT};
+ * readers accept any version in {@code [VERSION_START, VERSION_CURRENT]}.
  */
 public final class ColumnarFormat {
 

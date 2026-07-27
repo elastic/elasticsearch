@@ -16,11 +16,10 @@ import org.apache.lucene.util.packed.PackedInts;
 import java.io.IOException;
 import java.util.Arrays;
 
-/** Frame-of-reference bit-packs a block: a {@code vint} bits-per-value then the packed longs. Frozen id 0. */
+/** Frame-of-reference bit-packs a block: a {@code vint} bits-per-value then the packed longs. Frozen id 0x40. */
 public final class ForTerminal implements BlockTerminal {
 
-    // Terminal ids occupy a separate id space from transform ids in the Registry; use a distinct
-    // range (0x40+) so a terminal id is never confused with a transform id when debugging.
+    // Distinct id range (0x40+) so terminal and transform ids never collide.
     static final byte ID = (byte) 0x40;
 
     private final DocValuesForUtil forUtil;

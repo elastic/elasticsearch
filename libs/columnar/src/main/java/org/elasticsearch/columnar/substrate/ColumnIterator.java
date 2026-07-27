@@ -26,7 +26,7 @@ import java.io.IOException;
  */
 public abstract class ColumnIterator extends DocIdSetIterator {
 
-    /** The 0-based position of the current document among all documents that have a value. */
+    /** The current document's value ordinal. */
     public abstract int index();
 
     /**

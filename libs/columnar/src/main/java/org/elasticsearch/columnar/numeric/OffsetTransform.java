@@ -19,7 +19,7 @@ public final class OffsetTransform implements BlockTransform {
 
     static final byte ID = 1;
 
-    /** Shared stateless instance; the transform holds no per-block state. */
+    /** Shared stateless instance. */
     public static final OffsetTransform INSTANCE = new OffsetTransform();
 
     @Override

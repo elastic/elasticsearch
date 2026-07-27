@@ -56,11 +56,7 @@ public final class MultiLevelSkipIndexCodec implements SkipIndexCodec {
         return new NumericColumnSkipper(meta, data);
     }
 
-    /**
-     * The incremental writer. Values are fed per document during the value-encode pass; encoded skip
-     * bytes accumulate in {@link #buffer} and are appended to the data output only in {@link #finish},
-     * because the value blocks are being written to that same output as this writer is fed.
-     */
+    /** The incremental {@link Writer}; skip bytes accumulate in {@link #buffer} until {@link #finish}. */
     private static final class MultiLevelWriter implements Writer {
         private final ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         private final List<SkipAccumulator> accumulators = new ArrayList<>();
@@ -87,8 +83,7 @@ public final class MultiLevelSkipIndexCodec implements SkipIndexCodec {
         @Override
         public void add(long value) {
             if (valueIndex == 0) {
-                // The interval boundary is decided from the document's first value, exactly as the
-                // old per-doc loop did before touching the accumulator.
+                // The interval boundary is decided from the document's first value.
                 if (accumulator != null && accumulator.isDone(currentValueCount, value, currentDoc)) {
                     globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
                     globalMinValue = Math.min(globalMinValue, accumulator.minValue);

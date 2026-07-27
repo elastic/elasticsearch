@@ -32,8 +32,8 @@ public final class ColumnarCodecUtil {
     }
 
     /**
-     * Checks a ColumNAR index header on {@code in} and returns the on-disk version, which callers
-     * branch on. Accepts any version in {@code [VERSION_START, VERSION_CURRENT]}.
+     * Checks a ColumNAR index header on {@code in}, accepting any version in
+     * {@code [VERSION_START, VERSION_CURRENT]}, and returns the on-disk version.
      */
     public static int checkHeader(IndexInput in, String name, byte[] segmentId, String segmentSuffix) throws IOException {
         return CodecUtil.checkIndexHeader(in, name, ColumnarFormat.VERSION_START, ColumnarFormat.VERSION_CURRENT, segmentId, segmentSuffix);

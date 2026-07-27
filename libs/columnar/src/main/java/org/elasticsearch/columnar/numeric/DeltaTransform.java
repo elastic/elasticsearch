@@ -19,7 +19,7 @@ public final class DeltaTransform implements BlockTransform {
 
     static final byte ID = 0;
 
-    /** Shared stateless instance; the transform holds no per-block state. */
+    /** Shared stateless instance. */
     public static final DeltaTransform INSTANCE = new DeltaTransform();
 
     @Override
@@ -60,7 +60,6 @@ public final class DeltaTransform implements BlockTransform {
                 strictSteps++;
             }
             if (up && down) {
-                // both directions seen: not monotonic, no need to scan the rest
                 return false;
             }
         }

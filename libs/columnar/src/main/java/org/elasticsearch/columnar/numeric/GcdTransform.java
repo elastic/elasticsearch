@@ -20,7 +20,7 @@ public final class GcdTransform implements BlockTransform {
 
     static final byte ID = 2;
 
-    /** Shared stateless instance; the transform holds no per-block state. */
+    /** Shared stateless instance. */
     public static final GcdTransform INSTANCE = new GcdTransform();
 
     @Override

@@ -29,16 +29,14 @@ public interface BlockBytesCodec {
     byte id();
 
     /**
-     * Emits one block's bytes. Identity runs {@code encoder} straight into {@code out}; a
-     * compressor buffers the encoder's output and writes the compressed form instead. The number of
-     * bytes written is delimited by the column's block offsets, so no length prefix is required.
+     * Emits one block's bytes by running {@code encoder} into {@code out}. The number of bytes written
+     * is delimited by the column's block offsets, so no length prefix is required.
      */
     void write(BlockEncoder encoder, DataOutput out) throws IOException;
 
     /**
-     * Returns a {@link DataInput} over the raw (decompressed) bytes of one block, given {@code in}
-     * positioned at the block's first byte and the block region's byte {@code length}. Identity
-     * returns {@code in} directly; a compressor reads {@code length} bytes and inflates them.
+     * Returns a {@link DataInput} over one block's bytes, given {@code in} positioned at the block's
+     * first byte and the block region's byte {@code length}.
      */
     DataInput read(IndexInput in, int length) throws IOException;
 

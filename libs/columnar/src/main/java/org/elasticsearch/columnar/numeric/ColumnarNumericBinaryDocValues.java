@@ -110,7 +110,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
     /**
      * A streaming cursor that reads this column's values directly off the data input — block-decoded,
-     * without a payload round-trip. A bulk loader for fast iteration.
+     * without a payload round-trip.
      */
     public NumericColumnValues directValues() {
         return new NumericColumnValues() {

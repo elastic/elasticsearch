@@ -33,7 +33,7 @@ public enum ColumnarFieldType {
         return id;
     }
 
-    /** A numeric type is stored on the adaptive long column (doubles as sortable longs). */
+    /** Whether this is a numeric type ({@code LONG} or {@code DOUBLE}). */
     public boolean isNumeric() {
         return this == LONG || this == DOUBLE;
     }

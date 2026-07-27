@@ -79,7 +79,6 @@ public final class NumericPipeline {
 
         private static BlockTransform transform(byte id) {
             return switch (id) {
-                // Transforms are stateless, so the shared singletons are reused.
                 case DeltaTransform.ID -> DeltaTransform.INSTANCE;
                 case OffsetTransform.ID -> OffsetTransform.INSTANCE;
                 case GcdTransform.ID -> GcdTransform.INSTANCE;

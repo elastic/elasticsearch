@@ -127,11 +127,8 @@ public final class NumericColumnWriter {
                 }
             }
             if (inBlock > 0) {
-                // Pad the final partial block by repeating the last real value rather than with zeros.
-                // Zero-padding a monotonic block (timestamps/counters) would break delta/offset detection
-                // and bloat the last block; repeating the last value keeps padding harmless — equal steps
-                // don't affect monotonic detection, deltas are 0, and values stay in range. The padding is
-                // ignored on read (only the real value count is decoded).
+                // Pad the final partial block by repeating the last real value, not zeros: zero-padding a
+                // monotonic block would break delta/offset detection. The padding is ignored on read.
                 for (int i = inBlock; i < BLOCK_SIZE; i++) {
                     buffer[i] = buffer[inBlock - 1];
                 }

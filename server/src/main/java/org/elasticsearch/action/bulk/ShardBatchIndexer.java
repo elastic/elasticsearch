@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -135,7 +136,7 @@ public final class ShardBatchIndexer {
             // The chunk's operations map 1:1 to the rows [chunkStart, chunkEnd); pass the matching slice so the
             // engine can write them as a single Translog.IndexBatch record.
             final SourceBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, chunkBatch);
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(new EngineBatch(operations, chunkBatch));
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
@@ -225,7 +226,7 @@ public final class ShardBatchIndexer {
                 // operations are the contiguous run [chunkStart, chunkStart + operations.size()); pass the matching slice
                 // so the engine writes them as a single Translog.IndexBatch record.
                 final SourceBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, chunkBatch);
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(new EngineBatch(operations, chunkBatch));
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();

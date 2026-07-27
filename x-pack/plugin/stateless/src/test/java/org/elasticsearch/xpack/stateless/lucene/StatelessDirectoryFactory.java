@@ -179,7 +179,8 @@ public final class StatelessDirectoryFactory {
                 cacheService,
                 cacheBlobReaderService,
                 MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                shardId
+                shardId,
+                false
             );
 
             var blobStore = new FsBlobStore(8192, dataPath, true);

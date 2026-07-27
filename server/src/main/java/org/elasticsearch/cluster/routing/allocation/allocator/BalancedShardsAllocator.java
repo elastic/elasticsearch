@@ -82,9 +82,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
-    public static final String MOVE_NOT_PREFERRED_REASON = "move(not-preferred)";
-    public static final String MOVE_CANNOT_REMAIN_REASON = "move(cannot-remain)";
-    public static final String REBALANCE_REASON = "move(rebalance)";
+
+    public enum MoveType {
+        CANNOT_REMAIN("move(cannot-remain)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
+        NOT_PREFERRED("move(not-preferred)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
+        REBALANCE("move(rebalance)", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
+
+        private final String reason;
+        private final ShardRouting.RecoveryPriority recoveryPriority;
+
+        MoveType(String reason, ShardRouting.RecoveryPriority recoveryPriority) {
+            this.reason = reason;
+            this.recoveryPriority = recoveryPriority;
+        }
+
+        public String reason() {
+            return reason;
+        }
+
+        public ShardRouting.RecoveryPriority recoveryPriority() {
+            return recoveryPriority;
+        }
+    }
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",
@@ -914,7 +933,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
                     } else {
-                        executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
+                        executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
                         if (completeEarlyOnShardAssignmentChange) {
                             return true;
                         }
@@ -940,7 +959,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             moveDecision.getCanRemainDecision()
                         );
                     }
-                    executeMove(shardRouting, index, moveDecision, MOVE_NOT_PREFERRED_REASON);
+                    executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
                 } else {
@@ -991,7 +1010,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
 
-        private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
+        private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, MoveType type) {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
             sourceNode.removeShard(index, shardRouting);
@@ -999,8 +1018,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardRouting,
                 targetNode.getNodeId(),
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                reason,
-                allocation.changes()
+                type.reason(),
+                allocation.changes(),
+                type.recoveryPriority()
             );
             final ShardRouting shard = relocatingShards.v2();
             targetNode.addShard(projectIndex(shard), shard);
@@ -1666,8 +1686,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         projectIndex(shard),
                         canAllocateOrRebalance == Type.YES
                             /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, REBALANCE_REASON, allocation.changes()).v1()
-                            : shard.relocate(minNode.getNodeId(), shardSize)
+                            ? routingNodes.relocateShard(
+                                shard,
+                                minNode.getNodeId(),
+                                shardSize,
+                                MoveType.REBALANCE.reason(),
+                                allocation.changes(),
+                                ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+                            ).v1()
+                            : shard.relocate(minNode.getNodeId(), shardSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING)
                     );
                     return true;
                 }

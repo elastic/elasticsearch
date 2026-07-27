@@ -173,10 +173,12 @@ public class ClusterInfoSimulator {
         }
         final long expectedShardSize = startedShard.getExpectedShardSize();
         if (sourceNodeId != null) {
+            // Use an arbitrary recovery priority, it does not affect the simulation:
+            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATE_REBALANCING;
             final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
                 .initialize(sourceNodeId, null, expectedShardSize)
                 .moveToStarted(expectedShardSize)
-                .relocate(startedShard.currentNodeId(), expectedShardSize)
+                .relocate(startedShard.currentNodeId(), expectedShardSize, recoveryPriority)
                 .getTargetRelocatingShard();
             simulateShardStarted(relocatingShard, false);
         } else {

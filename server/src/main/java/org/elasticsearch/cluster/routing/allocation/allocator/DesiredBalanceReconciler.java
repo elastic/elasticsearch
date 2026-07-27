@@ -533,12 +533,14 @@ public class DesiredBalanceReconciler {
                             shardRouting.currentNodeId(),
                             moveTarget.getId()
                         );
+                        BalancedShardsAllocator.MoveType moveType = getMoveType(canRemainDecision);
                         routingNodes.relocateShard(
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            getReason(canRemainDecision),
-                            allocation.changes()
+                            moveType.reason(),
+                            allocation.changes(),
+                            moveType.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -562,13 +564,13 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        private static String getReason(Decision canRemainDecision) {
+        private static BalancedShardsAllocator.MoveType getMoveType(Decision canRemainDecision) {
             return switch (canRemainDecision.type()) {
-                case NO -> BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON;
-                case NOT_PREFERRED -> BalancedShardsAllocator.MOVE_NOT_PREFERRED_REASON;
+                case NO -> BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                case NOT_PREFERRED -> BalancedShardsAllocator.MoveType.NOT_PREFERRED;
                 default -> {
                     assert false : "All moves should have canRemain NO or NOT_PREFERRED";
-                    yield "move";
+                    yield null;
                 }
             };
         }
@@ -643,8 +645,9 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            BalancedShardsAllocator.REBALANCE_REASON,
-                            allocation.changes()
+                            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+                            allocation.changes(),
+                            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());

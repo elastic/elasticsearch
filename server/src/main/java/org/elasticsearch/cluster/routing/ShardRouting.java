@@ -220,7 +220,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         boolean primary,
         RecoverySource recoverySource,
         UnassignedInfo unassignedInfo,
-        Role role
+        Role role,
+        RecoveryPriority recoveryPriority
     ) {
         return new ShardRouting(
             shardId,
@@ -229,9 +230,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.UNASSIGNED,
             recoverySource,
-            // TODO: Populate this with the correct priority. For now, we use the higher of the two choices for a recovery from unassigned.
-            // As long as master-side recovery throttling is in effect, the priority is not that important.
-            RecoveryPriority.UNASSIGNED_EXISTING,
+            recoveryPriority,
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
@@ -592,7 +591,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      *
      * @param relocatingNodeId id of the node to relocate the shard
      */
-    public ShardRouting relocate(String relocatingNodeId, long expectedShardSize) {
+    public ShardRouting relocate(String relocatingNodeId, long expectedShardSize, RecoveryPriority recoveryPriority) {
         assert state == ShardRoutingState.STARTED : "current shard has to be started in order to be relocated " + this;
         return new ShardRouting(
             shardId,
@@ -601,9 +600,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             ShardRoutingState.RELOCATING,
             recoverySource,
-            // TODO: Populate this with the correct priority. For now, we use the highest of the three choices for a relocation.
-            // As long as master-side recovery throttling is in effect, the priority is not that important.
-            RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            recoveryPriority,
             null,
             relocationFailureInfo,
             AllocationId.newRelocation(allocationId),

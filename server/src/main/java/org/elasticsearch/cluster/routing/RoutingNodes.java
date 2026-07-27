@@ -517,14 +517,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         String nodeId,
         long expectedShardSize,
         String reason,
-        RoutingChangesObserver changes
+        RoutingChangesObserver changes,
+        ShardRouting.RecoveryPriority recoveryPriority
     ) {
         ensureMutable();
         relocatingShards++;
         if (isDedicatedFrozenNode(nodeId)) {
             relocatingFrozenShards++;
         }
-        ShardRouting source = startedShard.relocate(nodeId, expectedShardSize);
+        ShardRouting source = startedShard.relocate(nodeId, expectedShardSize, recoveryPriority);
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
@@ -587,7 +588,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
                                 "restarting relocation",
-                                routingChangesObserver
+                                routingChangesObserver,
+                                sourceShard.recoveryPriority()
                             );
                         } else {
                             ShardRouting reinitializedReplica = reinitReplica(routing);

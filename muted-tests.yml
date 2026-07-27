@@ -729,3 +729,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:ip.conditional}
   issue: https://github.com/elastic/elasticsearch/issues/155164
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/155167

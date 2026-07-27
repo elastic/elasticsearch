@@ -430,7 +430,7 @@ public final class GlobExpander {
     }
 
     private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
-        Check.argument(
+        Check.clientError(
             discoveredCount <= maxDiscoveredFiles,
             "Glob pattern discovered too many files ({}, limit {}). Narrow your glob pattern, add partition "
                 + "filters, or increase the [esql.external.max_discovered_files] cluster setting.",

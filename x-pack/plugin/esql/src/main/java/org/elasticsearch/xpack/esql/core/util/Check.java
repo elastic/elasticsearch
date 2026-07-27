@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
  *
  * <p>Two families, and the choice between them decides the HTTP status the caller sees:
  * <ul>
- *   <li>{@link #argument} rejects <b>caller-supplied input</b> — a bad setting value, an unusable request.
+ *   <li>{@link #clientError} rejects <b>caller-supplied input</b> — a bad setting value, an unusable request.
  *       It throws {@link IllegalArgumentException}, which {@code ExceptionsHelper#status} maps to 400.</li>
  *   <li>{@link #isTrue}, {@link #notNull} and friends guard <b>internal invariants</b> — states that are
  *       unreachable unless there is a bug. They throw {@link QlIllegalArgumentException}, which despite its name
@@ -26,10 +26,11 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 public abstract class Check {
 
     /**
-     * Rejects invalid caller-supplied input with an {@link IllegalArgumentException} (400). Use in preference to
-     * {@link #isTrue} whenever the condition can be false because of something a user or operator supplied.
+     * Fails with a <b>client</b> error (400) when {@code expression} is false. Use whenever the condition can be
+     * false because of something a user or operator supplied; use {@link #isTrue}, which fails with a server
+     * error (500), for conditions only a bug can violate.
      */
-    public static void argument(boolean expression, String message, Object... values) {
+    public static void clientError(boolean expression, String message, Object... values) {
         if (expression == false) {
             throw new IllegalArgumentException(LoggerMessageFormat.format(message, values));
         }

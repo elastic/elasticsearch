@@ -1152,6 +1152,20 @@ public final class EsqlTestUtils {
     }
 
     /**
+     * Resolves a single classpath resource by its exact name, stripping
+     * any leading "/" (resource names looked up via the classloader must
+     * not start with "/"). This is a fast alternative to
+     * {@link #classpathResources(String)} for callers who already know
+     * the exact resource name and don't need pattern matching.
+     */
+    public static URL classpathResource(String name) {
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        return EsqlTestUtils.class.getClassLoader().getResource(name);
+    }
+
+    /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
      *
@@ -1754,6 +1768,22 @@ public final class EsqlTestUtils {
         }
     }
 
+    /**
+     * Strips any surrounding quotes and lower-cases a single index token so it can be compared against the set of
+     * {@link #convertSubqueryToRemoteIndices(String, Set) both-cluster} index names. Only exact single-index names are matched;
+     * wildcard/multi-index patterns fall through to the default {@code *:index,index} rewrite.
+     */
+    private static String unquoteIndexName(String index) {
+        index = index.trim();
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+        return unquote(index, numOfQuotes).trim().toLowerCase(Locale.ROOT);
+    }
+
     private static String quote(String index, int numOfQuotes) {
         return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
     }
@@ -1772,6 +1802,24 @@ public final class EsqlTestUtils {
      * existing behaviour.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery) {
+        return convertSubqueryToRemoteIndices(testQuery, Set.of());
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote indices for a given test case.
+     *
+     * @param bothClusterIndices index names (lower-cased) that are ingested into <em>both</em> the local and the remote cluster — namely
+     *                          enrich source indices and lookup indices. These are rewritten to the remote-only pattern {@code *:index}
+     *                          instead of {@code *:index,index}: since the same rows exist on both clusters, the {@code *:index,index}
+     *                          union would match them twice and double-count. Regular indices live on a single cluster,
+     *                          so {@code *:index,index} matches them exactly once and is used for everything not in this set. This mirrors
+     *                          the handling in {@link #addRemoteIndices} for the top-level (non-subquery) FROM command.
+     *
+     * <p>Note: like {@link #splitIgnoringParentheses}, this method is not string-literal-aware. A literal {@code (}, {@code )}, or
+     * {@code |} inside a quoted string would be miscounted. The csv-spec test corpus contains no such literals in subquery tests, so this
+     * matches existing behavior.
+     */
+    public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
         String query = testQuery;
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
@@ -1803,7 +1851,7 @@ public final class EsqlTestUtils {
         // may contain FROM subqueries that do need rewriting.
         if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
             for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
             }
             return String.join(" | ", mainFromCommandAndTheRest);
         }
@@ -1829,10 +1877,13 @@ public final class EsqlTestUtils {
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
                 String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
                 transformed.add("(" + transformedSubquery + ")");
             } else {
-                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, false));
+                // Indices that live on both clusters (enrich source / lookup indices) must become
+                // remote-only (*:index) to avoid double-counting; everything else uses *:index,index.
+                boolean remoteOnly = bothClusterIndices.contains(unquoteIndexName(indexPatternOrSubquery));
+                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, remoteOnly));
             }
         }
         // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
@@ -1841,7 +1892,7 @@ public final class EsqlTestUtils {
         // that follow the source command. Non-subquery parenthesised groups (value lists, function
         // arguments, boolean groupings) are left structurally unchanged.
         for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
         }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
@@ -1862,8 +1913,10 @@ public final class EsqlTestUtils {
      * but the surrounding structure is otherwise left unchanged.
      *
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     *
+     * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
      */
-    private static String rewriteSubqueriesInExpression(String segment) {
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         while (i < segment.length()) {
@@ -1888,11 +1941,11 @@ public final class EsqlTestUtils {
                     || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
                     // This group is a subquery body — rewrite it recursively.
                     // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
-                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent) + ")";
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
                 } else {
                     // Not a direct subquery body (value list, function args, boolean grouping, …).
                     // Recurse into the raw content to catch any nested subquery inside it.
-                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content) + ")";
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
                 }
                 result.append(rewrittenGroup);
                 i = j;

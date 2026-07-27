@@ -231,6 +231,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
@@ -322,7 +323,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
-    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
+    exports org.elasticsearch.reservedstate.service
+        to
+            org.elasticsearch.multiproject,
+            org.elasticsearch.serverless.multiproject,
+            org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;

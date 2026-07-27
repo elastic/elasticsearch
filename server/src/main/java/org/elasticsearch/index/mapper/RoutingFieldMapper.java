@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -43,6 +45,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -392,6 +395,37 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         } else {
             targetDoc.add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
+        }
+    }
+
+    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
+    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
+
+    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
+    // inverted index or stored value (matches SortedDocValuesField.indexedField).
+    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        final BytesRef[] routings = context.routings();
+        if (routings == null) {
+            return;
+        }
+        if (docValues) {
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
+            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
+        } else {
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
+            for (int d = 0; d < routings.length; d++) {
+                if (routings[d] != null) {
+                    context.addFieldNamesColumnar(d, fieldType().name());
+                }
+            }
         }
     }
 

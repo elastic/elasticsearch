@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -42,9 +45,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
- * {@link NdJsonPageIteratorTests} covers end-to-end correctness across types; these tests focus on
- * the reusable {@code keywordScratch} buffer introduced to remove per-field allocation churn.
+ * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, schema-shape conflicts,
+ * declared formats, and block-builder allocation sizing. Sibling {@link NdJsonPageIteratorTests}
+ * covers end-to-end correctness across types.
  */
 public class NdJsonPageDecoderTests extends ESTestCase {
 
@@ -1016,36 +1019,41 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * One decodable JSON token per declarable type, so a test can sweep {@link DeclaredSchemaValidator#declarableTypes()}
+     * and fail loudly when a newly declarable type has no fixture rather than silently skipping it.
+     */
+    private static final Map<DataType, String> DECLARABLE_TOKEN = Map.of(
+        DataType.KEYWORD,
+        "\"abc\"",
+        DataType.TEXT,
+        "\"abc\"",
+        DataType.LONG,
+        "123",
+        DataType.INTEGER,
+        "123",
+        DataType.DOUBLE,
+        "1.5",
+        DataType.BOOLEAN,
+        "true",
+        DataType.DATETIME,
+        "\"2020-01-01T00:00:00.000Z\"",
+        DataType.DATE_NANOS,
+        "\"2020-01-01T00:00:00.000Z\"",
+        DataType.UNSIGNED_LONG,
+        "18446744073709551615",
+        DataType.IP,
+        "\"192.168.0.1\""
+    );
+
+    /**
      * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
      * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
      * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the
      * unsigned_long bug.
      */
     public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
-        Map<DataType, String> token = Map.of(
-            DataType.KEYWORD,
-            "\"abc\"",
-            DataType.TEXT,
-            "\"abc\"",
-            DataType.LONG,
-            "123",
-            DataType.INTEGER,
-            "123",
-            DataType.DOUBLE,
-            "1.5",
-            DataType.BOOLEAN,
-            "true",
-            DataType.DATETIME,
-            "\"2020-01-01T00:00:00.000Z\"",
-            DataType.DATE_NANOS,
-            "\"2020-01-01T00:00:00.000Z\"",
-            DataType.UNSIGNED_LONG,
-            "18446744073709551615",
-            DataType.IP,
-            "\"192.168.0.1\""
-        );
         for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
-            String cell = token.get(type);
+            String cell = DECLARABLE_TOKEN.get(type);
             assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
             try (Page page = decodeOneColumn("{\"v\":" + cell + "}\n", type, ErrorPolicy.STRICT)) {
                 assertNotNull("no page for declared [" + type + "]", page);
@@ -1054,5 +1062,225 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 assertFalse("declared [" + type + "] produced a null cell — missing decode arm?", block.isNull(0));
             }
         }
+    }
+
+    // --- lenient scratch-builder sizing ---
+
+    /**
+     * Batch size for the scratch-sizing tests. Large enough that one page-sized builder reservation
+     * ({@code batchSize * Long.BYTES}) is unmistakable next to the tens of bytes a record-sized scratch
+     * builder reserves.
+     */
+    private static final int LENIENT_BATCH_SIZE = 32 * 1024;
+
+    /** What a LONG builder charges for a page-sized backing array. */
+    private static final long PAGE_SIZED_BYTES = (long) LENIENT_BATCH_SIZE * Long.BYTES;
+
+    /**
+     * The lenient decode path builds a fresh set of scratch builders for every record so a mid-record parse
+     * error can be discarded without corrupting the page. Those builders hold exactly one record, so they must
+     * be sized for one record: sizing them at {@code batchSize} zero-fills a page-sized array and reserves it on
+     * the breaker once per record, which is the dominant cost of the lenient path on a large file.
+     * <p>
+     * Asserted as a count of page-sized reservations: only the once-per-page builders set up in
+     * {@code decodePage} may make one, so the total is the number of projected columns whose builders draw on
+     * {@code breaker} — regardless of how many records were decoded. A per-record page-sized scratch turns that
+     * into {@code columns * (1 + records)}.
+     */
+    private static void assertScratchIsRecordSized(CountingBreaker breaker, int pageSizedColumns) {
+        assertEquals(
+            "only the once-per-page builders may reserve page-sized memory; more means the lenient per-record "
+                + "scratch builders are page-sized again",
+            pageSizedColumns,
+            breaker.reservationsOfAtLeast(PAGE_SIZED_BYTES)
+        );
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.used());
+    }
+
+    /**
+     * {@code error_mode: null_field} ({@link ErrorPolicy#PERMISSIVE}) decodes through the per-record scratch
+     * builders. Covers a multivalue array (exercising the scratch's grow-on-demand path now that it no longer
+     * starts page-sized), a single value, a missing field, a keyword column, and a dotted column reached through
+     * {@code setupBuilders}' recursion — so the nested arm is held to the same sizing as the flat one. Pins that
+     * the decoded values are unchanged alongside the allocation invariant.
+     * <p>
+     * The KEYWORD column is not counted: {@code BytesRefBlockBuilder} backs onto {@code BytesRefArray} over
+     * {@link BigArrays#NON_RECYCLING_INSTANCE}, which draws on no breaker. Its sizing is covered by
+     * {@link #testLenientCostsNoMoreThanStrictForEveryDeclarableType}.
+     */
+    public void testLenientScratchBuildersAreRecordSizedNotPageSized() throws IOException {
+        String ndjson = """
+            {"v":[1,2,3],"w":10,"k":"a","a":{"b":100}}
+            {"v":42,"w":20,"k":"b","a":{"b":200}}
+            {"w":30,"k":"c","a":{"b":300}}
+            {"v":[7,8],"w":40,"k":"d","a":{"b":400}}
+            """;
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(
+                    attribute("v", DataType.LONG),
+                    attribute("w", DataType.LONG),
+                    attribute("k", DataType.KEYWORD),
+                    attribute("a.b", DataType.LONG)
+                ),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://lenient-scratch",
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            BytesRefBlock k = page.getBlock(2);
+            LongBlock nested = page.getBlock(3);
+            BytesRef scratch = new BytesRef();
+
+            assertEquals(3, v.getValueCount(0));
+            int i0 = v.getFirstValueIndex(0);
+            assertEquals(1L, v.getLong(i0));
+            assertEquals(2L, v.getLong(i0 + 1));
+            assertEquals(3L, v.getLong(i0 + 2));
+
+            assertEquals(42L, v.getLong(v.getFirstValueIndex(1)));
+            assertTrue("missing field nulls the cell", v.isNull(2));
+
+            assertEquals(2, v.getValueCount(3));
+            int i3 = v.getFirstValueIndex(3);
+            assertEquals(7L, v.getLong(i3));
+            assertEquals(8L, v.getLong(i3 + 1));
+
+            for (int p = 0; p < 4; p++) {
+                assertFalse("w present at " + p, w.isNull(p));
+                assertEquals((p + 1) * 10L, w.getLong(w.getFirstValueIndex(p)));
+                assertFalse("a.b present at " + p, nested.isNull(p));
+                assertEquals((p + 1) * 100L, nested.getLong(nested.getFirstValueIndex(p)));
+            }
+            assertMvAt(k, 0, scratch, List.of("a"));
+            assertMvAt(k, 1, scratch, List.of("b"));
+            assertMvAt(k, 2, scratch, List.of("c"));
+            assertMvAt(k, 3, scratch, List.of("d"));
+        }
+        assertScratchIsRecordSized(breaker, 3);
+    }
+
+    /**
+     * The same invariant across every declarable type, stated against the strict path.
+     * <p>
+     * The two assertions above count reservations made through the block factory's breaker, which covers the
+     * fixed-width types but not {@code keyword}/{@code text}/{@code ip}: those back onto a {@code BytesRefArray}
+     * charged to {@link BigArrays} instead. Wiring one counter into both places and comparing lenient against
+     * strict covers every type uniformly — strict decodes the same records into the same page builders with no
+     * scratch at all, so it is the natural baseline for what the data legitimately costs, and no knowledge of how
+     * {@code BigArrays} splits a large allocation into reservations is needed to state the claim.
+     * <p>
+     * Sweeping {@link DeclaredSchemaValidator#declarableTypes()} rather than naming types means a type that
+     * becomes declarable later is held to this invariant automatically, and one whose builder is special-cased
+     * out of the shared {@code setupBuilders} path fails here rather than silently regressing.
+     */
+    public void testLenientCostsNoMoreThanStrictForEveryDeclarableType() throws IOException {
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = DECLARABLE_TOKEN.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            String ndjson = ("{\"v\":" + cell + "}\n").repeat(5);
+            assertEquals(
+                "lenient decoding of ["
+                    + type
+                    + "] must not reserve page-scale memory that strict does not: any excess is per-record "
+                    + "scratch sized for a whole page",
+                pageScaleReservations(type, ndjson, ErrorPolicy.STRICT),
+                pageScaleReservations(type, ndjson, ErrorPolicy.PERMISSIVE)
+            );
+        }
+    }
+
+    /**
+     * Decodes one page of a single {@code type} column under {@code policy} and returns how many reservations
+     * were page-scale. One counting breaker serves both the block factory and {@link BigArrays} so that
+     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The floor is one
+     * {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES BigArrays page}: a builder holding a whole batch always reaches
+     * it (the narrowest declarable type, boolean, charges a byte per position, and the string types' offset
+     * arrays are charged in page units), while a builder holding one record never comes close. Do not raise this
+     * to the batch size in bytes — the string types' page-scale reservations land below that, and the sweep would
+     * silently compare zero against zero for keyword, text and ip.
+     */
+    private int pageScaleReservations(DataType type, String ndjson, ErrorPolicy policy) throws IOException {
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        breaker.reset();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", type)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                policy,
+                "test://lenient-scratch-" + type.typeName(),
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull("no page for declared [" + type + "]", page);
+            assertEquals(5, page.getPositionCount());
+            Block block = page.getBlock(0);
+            assertFalse("declared [" + type + "] produced a null cell", block.isNull(0));
+        }
+        assertEquals("every reservation for [" + type + "] released once decoder and page are closed", 0L, breaker.used());
+        return breaker.reservationsOfAtLeast(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
+    }
+
+    /**
+     * {@code error_mode: skip_row} ({@link ErrorPolicy#LENIENT}) takes the same scratch path, including when a
+     * poisoned record is dropped whole and its scratch builders are released without reaching the page.
+     */
+    public void testLenientScratchBuildersAreRecordSizedUnderSkipRow() throws IOException {
+        String ndjson = """
+            {"v":[1,"bad"],"w":10}
+            {"v":5,"w":20}
+            {"v":[6,7],"w":30}
+            """;
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.LENIENT,
+                "test://lenient-scratch-skip-row",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals("the poisoned record is dropped whole", 2, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            assertEquals(5L, v.getLong(v.getFirstValueIndex(0)));
+            assertEquals(20L, w.getLong(w.getFirstValueIndex(0)));
+            assertEquals(2, v.getValueCount(1));
+            int i1 = v.getFirstValueIndex(1);
+            assertEquals(6L, v.getLong(i1));
+            assertEquals(7L, v.getLong(i1 + 1));
+            assertEquals(30L, w.getLong(w.getFirstValueIndex(1)));
+        }
+        assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
+        assertScratchIsRecordSized(breaker, 2);
     }
 }

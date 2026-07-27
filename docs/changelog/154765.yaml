@@ -1,0 +1,16 @@
+area: ES|QL
+highlight:
+  body: |-
+    The `match_phrase` function can now work with runtime expressions; it
+    no longer needs to be pushed down as a Lucene query to the shard. When
+    matching on a runtime expression, the function is evaluated on-the-fly for
+    each row: a `text` expression is analyzed and matches when all query terms
+    appear in order at consecutive positions, while a `keyword` expression
+    must equal the query string exactly, preserving the term query semantics
+    of `match_phrase` on a mapped keyword field.
+  notable: true
+  title: match_phrase can now operate on runtime expressions
+issues: []
+pr: 154765
+summary: match_phrase can now operate on runtime expressions
+type: enhancement

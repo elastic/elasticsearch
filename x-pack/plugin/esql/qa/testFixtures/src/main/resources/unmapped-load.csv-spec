@@ -4118,8 +4118,9 @@ required_capability: optional_fields_v5
 required_capability: optional_fields_fix_resolution_with_request_filter
 request_time_filter: 2023-10-23T00:00:00.000Z,2023-10-23T23:59:59.999Z
 
-// The @timestamp filter prunes ul_logs (2017) from field_caps; id is mapped (integer) only there. It must resolve to its real
-// integer type with null values, not be loaded from _source as keyword. See #154708.
+// The @timestamp filter prunes ul_logs (2017) from field_caps; id is mapped (integer) only there. Without the fix id resolves as an
+// unmapped keyword field, so the reported type is wrongly keyword instead of integer (values are null either way: id is absent from
+// sample_data's _source and ul_logs is excluded at execution). See #154708.
 SET unmapped_fields="load"\;
 FROM sample_data, ul_logs
 | KEEP @timestamp, id

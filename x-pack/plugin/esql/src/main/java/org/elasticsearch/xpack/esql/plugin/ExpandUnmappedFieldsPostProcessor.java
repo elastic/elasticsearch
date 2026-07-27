@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -26,8 +28,10 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -40,7 +44,7 @@ import java.util.TreeSet;
  * unique field name. Rows that do not carry a given field get {@code null} in that column.
  * <p>
  * TODO we double parse the JSON here: once for computing the union of all the field names, and the second for the actual expansion. We
- *  could avoid that if we used a different structure instead of JSON here, e.g., one column for names and one column for values.
+ *  could avoid that if we used a different structure instead of JSON, e.g., one column for names and one column for values.
  */
 class ExpandUnmappedFieldsPostProcessor {
     /**
@@ -79,21 +83,32 @@ class ExpandUnmappedFieldsPostProcessor {
                 if (unmappedBlock.isNull(row)) {
                     continue;
                 }
-                fieldNames.addAll(parseJson(unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch)).keySet());
+                fieldNames.addAll(parseJson(getBytesRef(unmappedBlock, row, scratch)).keySet());
             }
         }
         return fieldNames;
     }
 
     /** Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per field name. */
-    private static List<Attribute> buildSchema(List<Attribute> schema, int unmappedIdx, List<String> sortedFieldNames) {
-        List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + sortedFieldNames.size());
+    private static List<Attribute> buildSchema(List<Attribute> schema, int unmappedIdx, List<String> fieldNames) {
+        List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + fieldNames.size());
+        Set<String> existingNames = new HashSet<>();
         for (int i = 0; i < schema.size(); i++) {
             if (i != unmappedIdx) {
-                newSchema.add(schema.get(i));
+                Attribute attribute = schema.get(i);
+                newSchema.add(attribute);
+                existingNames.add(attribute.name());
             }
         }
-        for (String name : sortedFieldNames) {
+        for (String name : fieldNames) {
+            if (existingNames.contains(name)) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Conflict in unmapped field name: field '%s' appears both the schema and the _unmapped_fields JSON",
+                        name
+                    )
+                );
+            }
             newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
         }
         return newSchema;
@@ -121,7 +136,7 @@ class ExpandUnmappedFieldsPostProcessor {
     private static Page rewritePage(
         int unmappedIdx,
         int blockCount,
-        List<String> sortedFieldNames,
+        List<String> fieldNames,
         BlockFactory blockFactory,
         Page page,
         BytesRef scratch,
@@ -146,17 +161,17 @@ class ExpandUnmappedFieldsPostProcessor {
         try {
             Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
             for (int row = 0; row < page.getPositionCount(); row++) {
-                var rowMap = unmappedBlock.isNull(row)
-                    ? Map.of()
-                    : parseJson(unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch));
+                var rowMap = unmappedBlock.isNull(row) ? Map.of() : parseJson(getBytesRef(unmappedBlock, row, scratch));
+                var bytesRefBuilder = new BytesRefBuilder();
                 int builderIndex = 0;
-                for (String fieldName : sortedFieldNames) {
+                for (String fieldName : fieldNames) {
                     var builder = builders[builderIndex++];
                     Object val = rowMap.get(fieldName);
                     if (val == null) {
                         builder.appendNull();
                     } else {
-                        builder.appendBytesRef(new BytesRef(String.valueOf(val)));
+                        bytesRefBuilder.copyChars(String.valueOf(val));
+                        builder.appendBytesRef(bytesRefBuilder.get());
                     }
                 }
             }
@@ -175,9 +190,21 @@ class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
+    private static BytesRef getBytesRef(BytesRefBlock unmappedBlock, int row, BytesRef scratch) {
+        if (unmappedBlock.getValueCount(row) != 1) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "Expected exactly one value in _unmapped_fields block at row %d, but got %d",
+                    row,
+                    unmappedBlock.getValueCount(row)
+                )
+            );
+        }
+        return unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
+    }
+
     private static Map<String, Object> parseJson(BytesRef ref) {
-        BytesArray bytes = new BytesArray(ref.bytes, ref.offset, ref.length);
-        return XContentHelper.convertToMap(bytes, false, XContentType.JSON).v2();
+        return XContentHelper.convertToMap(new BytesArray(ref.bytes, ref.offset, ref.length), false, XContentType.JSON).v2();
     }
 
     private ExpandUnmappedFieldsPostProcessor() {/* static class. */}

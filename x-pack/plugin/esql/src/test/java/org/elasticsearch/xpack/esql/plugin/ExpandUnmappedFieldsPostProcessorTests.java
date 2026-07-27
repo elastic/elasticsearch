@@ -1,0 +1,194 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plugin;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.session.Result;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
+public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
+    public void testExpandsAcrossPagesUnioningFieldNames() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'pet':'Rex','city':'Berlin'}")))),
+                page(bf, List.of(row(2, jsonObject("{'pet':'Max','zip':'10115'}"))))
+            )
+        );
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(expanded, not(sameInstance(result)));
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "city", "pet", "zip")));
+            assertThat(dataTypes(expanded), equalTo(List.of(DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD)));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1).entry("city", "Berlin").entry("pet", "Rex"),
+                    matchesMap().entry(INT_ATTR, 2).entry("pet", "Max").entry("zip", "10115")
+                )
+            );
+            assertThat(expanded.configuration(), sameInstance(result.configuration()));
+            assertThat(expanded.completionInfo(), sameInstance(result.completionInfo()));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testReturnsSameResultWhenNoUnmappedFieldsAttribute() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr()), List.of(page(bf, List.of(row(1)))));
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(expanded, sameInstance(result));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNullAndEmptyUnmappedValuesContributeNoFields() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, null), row(2, jsonObject("{}")), row(3, jsonObject("{'a':'x'}")))))
+        );
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2), matchesMap().entry(INT_ATTR, 3).entry("a", "x"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testAllNullUnmappedProducesNoExpandedColumns() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, null), row(2, null)))));
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            // _unmapped_fields is dropped and nothing replaces it.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNonStringJsonValuesAreStringified() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}")))))
+        );
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested", "{x=1}"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    private static Result result(List<Attribute> schema, List<Page> pages) {
+        return new Result(schema, pages, Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, null);
+    }
+
+    private static Attribute intAttr() {
+        return new ReferenceAttribute(Source.EMPTY, null, INT_ATTR, DataType.INTEGER);
+    }
+
+    private static UnmappedFieldsAttribute unmappedAttr() {
+        return new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+    }
+
+    /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */
+    private static Page page(BlockFactory bf, List<List<Object>> rows) {
+        return new Page(BlockUtils.fromList(bf, rows));
+    }
+
+    /** A single row of column values; accepts {@code null} cells (unlike {@link List#of}). */
+    private static List<Object> row(Object... values) {
+        return Arrays.asList(values);
+    }
+
+    /** Turns single quotes into double quotes so JSON literals read without escaping. */
+    private static String jsonObject(String singleQuoted) {
+        return singleQuoted.replace('\'', '"');
+    }
+
+    private static List<String> names(Result r) {
+        return r.schema().stream().map(Attribute::name).toList();
+    }
+
+    private static List<DataType> dataTypes(Result r) {
+        return r.schema().stream().map(Attribute::dataType).toList();
+    }
+
+    /** One map per row holding only the non-null cells (a null expanded cell means the row lacked that field). */
+    private static List<Map<String, Object>> nonNullRows(Result r) {
+        List<Attribute> schema = r.schema();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Page page : r.pages()) {
+            for (int row = 0; row < page.getPositionCount(); row++) {
+                Map<String, Object> cells = new LinkedHashMap<>();
+                for (int col = 0; col < schema.size(); col++) {
+                    Object value = valueAt(page.getBlock(col), row);
+                    if (value != null) {
+                        cells.put(schema.get(col).name(), value);
+                    }
+                }
+                rows.add(cells);
+            }
+        }
+        return rows;
+    }
+
+    private static @Nullable Object valueAt(Block block, int row) {
+        Object value = BlockUtils.toJavaObject(block, row);
+        return value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value;
+    }
+
+    private static final String INT_ATTR = "emp_no";
+}

@@ -428,7 +428,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // This allows both truly unmapped fields (which use a source-based loader) and
             // dynamic subfields of flattened fields (which use the keyed block loader) to
             // produce real values rather than ConstantNull.
-            return name.equals(fullFieldName) || super.isMappedField(name);
+            return name.equals(unmappedEsField.getName()) || super.isMappedField(name);
         }
 
         @Override

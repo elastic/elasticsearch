@@ -275,10 +275,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             executor.submit(queuedTask); // sits in the queue; has not started
 
             assertEquals("Queued task should not have started yet", 1, queuedTask.started.getCount());
-            assertTrue(
-                "transitionSubmitted must return true for a queued task",
-                executor.transitionSubmitted(projectId, "queued-index")
-            );
+            assertTrue("transitionSubmitted must return true for a queued task", executor.transitionSubmitted(projectId, "queued-index"));
 
             block.countDown();
         }

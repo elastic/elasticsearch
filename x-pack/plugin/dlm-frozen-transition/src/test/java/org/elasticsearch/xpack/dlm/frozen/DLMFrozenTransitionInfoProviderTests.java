@@ -64,10 +64,7 @@ public class DLMFrozenTransitionInfoProviderTests extends DLMFrozenTransitionExe
             executor.submit(task);
             safeAwait(started);
 
-            assertThat(
-                provider.getTransitionStatus(projectId, "running-index"),
-                equalTo(FrozenTransitionInfoProvider.Status.RUNNING)
-            );
+            assertThat(provider.getTransitionStatus(projectId, "running-index"), equalTo(FrozenTransitionInfoProvider.Status.RUNNING));
 
             block.countDown();
         }

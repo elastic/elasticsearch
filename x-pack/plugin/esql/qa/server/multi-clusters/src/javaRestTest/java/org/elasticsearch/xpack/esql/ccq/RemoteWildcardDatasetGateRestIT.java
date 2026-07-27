@@ -77,13 +77,14 @@ public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
 
     public void testFlagOffRemoteWildcardResolvesToIndexNotDataset() throws Exception {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
-        // Datasets must exist on both clusters; a BWC leg where either side predates the feature correctly skips.
-        List<String> datasetCapability = List.of(EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName());
+        // The wildcard-dataset gate must exist on both clusters; a BWC leg where either side predates it (and so still
+        // rejects a remote wildcard dataset) correctly skips.
+        List<String> gateCapability = List.of(EsqlCapabilities.Cap.DATASET_WILDCARDS_GATE.capabilityName());
         try (RestClient remoteClient = remoteClusterClient()) {
             assumeTrue(
-                "FROM <dataset> requires the capability on both clusters",
-                clusterHasCapability("POST", "/_query", List.of(), datasetCapability).orElse(false)
-                    && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), datasetCapability).orElse(false)
+                "wildcard-dataset gate required on both clusters",
+                clusterHasCapability("POST", "/_query", List.of(), gateCapability).orElse(false)
+                    && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), gateCapability).orElse(false)
             );
         }
 

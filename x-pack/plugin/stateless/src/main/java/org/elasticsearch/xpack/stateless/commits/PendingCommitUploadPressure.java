@@ -103,7 +103,8 @@ public class PendingCommitUploadPressure implements IndexingPressureContributor 
         }
     }
 
-    public long getPendingBytesLimit() {
+    // Package-private: exposed only so tests can drive inputs relative to the heap-derived limit.
+    long getPendingBytesLimit() {
         return pendingBytesLimit;
     }
 }

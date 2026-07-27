@@ -895,6 +895,9 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicy(client, ENRICH_POLICIES.get(policy));
             }
         }
+        // Create aliases for all target indices that have a matching ALIAS_CONFIG.
+        // Aliases are automatically dropped when their backing index is deleted, so no explicit cleanup is needed.
+        loadAliasesIntoEs(client, new ArrayList<>(target));
     }
 
     private static Set<String> availableSubset(Collection<String> names, Set<String> available) {

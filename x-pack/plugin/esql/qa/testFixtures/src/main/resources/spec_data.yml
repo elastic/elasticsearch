@@ -122,6 +122,9 @@ indices:
   settings: "colors_with_slice-settings.json"
   capabilities:
   - "metadata_slice"
+- index: "conv_from_keyword"
+  mapping: "mapping-conv_from_keyword.json"
+  data: "conv_from_keyword.csv"
 - index: "countries_bbox"
   mapping: "mapping-countries_bbox.json"
   data: "countries_bbox.csv"
@@ -630,6 +633,9 @@ views:
   - "where_in_subquery_with_view"
 - name: "employees_not_rehired"
 - name: "employees_rehired"
+- name: "employees_via_alias"
+  capabilities:
+  - "views_alias_deduplication_bugfix"
 - name: "partial_mapping_mv_view"
 - name: "partial_mapping_view"
 - name: "partial_mapping_view_message_wildcard"
@@ -670,7 +676,7 @@ categories:
   core:
     # General-purpose tests covering ES|QL commands, functions, and expressions across a broad
     # range of index types and data shapes.
-    indices: ["addresses", "addresses_no_continent", "addresses_text", "ages", "airport_city_boundaries", "airports", "airports_mp", "airports_no_doc_values", "airports_not_indexed", "airports_not_indexed_nor_doc_values", "airports_web", "alerts", "all_types", "all_types_mv", "all_types_no_short", "all_types_short_as_long", "app_logs", "apps", "apps_short", "base_conversion", "books", "cartesian_multipolygons", "client_cidr", "clientips", "clientips_lookup", "colors", "colors_cmyk", "colors_with_slice", "countries_bbox", "date_extract_fields", "date_nanos", "date_nanos_union_types", "datenanos-k8s", "decades", "dense_vector", "dense_vector_arithmetic", "dense_vector_coalesce", "distances", "employees", "employees_gender_text", "employees_incompatible", "employees_no_gender", "employees_no_names", "event_alerts", "event_empty", "event_logs", "exp_histo_sample", "firewall_logs", "flattened_many", "flattened_otel_logs", "hash_algorithms", "heights", "host_inventory", "hosts", "hosts_ip_is_kwd", "json_logs", "k8s", "k8s-downsampled", "k8s_retyped", "k8s_stored_source", "k8s_unmapped", "languages", "languages_lookup", "languages_lookup_non_unique_key", "languages_mixed_numerics", "languages_nested_fields", "logs", "many_numbers", "message_types", "message_types_lookup", "missing_ip_sample_data", "multi_column_joinable", "multi_column_joinable_lookup", "multivalue_points", "mv_decades", "mv_sample_data", "mv_text", "no_mapping_date_extract_fields", "no_mapping_sample_data", "ownerships", "partial_mapping_excluded_source_sample_data", "partial_mapping_no_source_sample_data", "partial_mapping_sample_data", "sample__data_ts_nanos_lookup", "sample_data", "sample_data_str", "sample_data_ts_long", "sample_data_ts_nanos", "semantic_text", "service_owners", "system_metrics", "tdigest_standard_index", "threat_list", "trim_test", "ul_logs", "voyager", "web_logs"]
+    indices: ["addresses", "addresses_no_continent", "addresses_text", "ages", "airport_city_boundaries", "airports", "airports_mp", "airports_no_doc_values", "airports_not_indexed", "airports_not_indexed_nor_doc_values", "airports_web", "alerts", "all_types", "all_types_mv", "all_types_no_short", "all_types_short_as_long", "app_logs", "apps", "apps_short", "base_conversion", "books", "cartesian_multipolygons", "client_cidr", "clientips", "clientips_lookup", "colors", "colors_cmyk", "colors_with_slice", "conv_from_keyword", "countries_bbox", "date_extract_fields", "date_nanos", "date_nanos_union_types", "datenanos-k8s", "decades", "dense_vector", "dense_vector_arithmetic", "dense_vector_coalesce", "distances", "employees", "employees_gender_text", "employees_incompatible", "employees_no_gender", "employees_no_names", "event_alerts", "event_empty", "event_logs", "exp_histo_sample", "firewall_logs", "flattened_many", "flattened_otel_logs", "hash_algorithms", "heights", "host_inventory", "hosts", "hosts_ip_is_kwd", "json_logs", "k8s", "k8s-downsampled", "k8s_retyped", "k8s_stored_source", "k8s_unmapped", "languages", "languages_lookup", "languages_lookup_non_unique_key", "languages_mixed_numerics", "languages_nested_fields", "logs", "many_numbers", "message_types", "message_types_lookup", "missing_ip_sample_data", "multi_column_joinable", "multi_column_joinable_lookup", "multivalue_points", "mv_decades", "mv_sample_data", "mv_text", "no_mapping_date_extract_fields", "no_mapping_sample_data", "ownerships", "partial_mapping_excluded_source_sample_data", "partial_mapping_no_source_sample_data", "partial_mapping_sample_data", "sample__data_ts_nanos_lookup", "sample_data", "sample_data_str", "sample_data_ts_long", "sample_data_ts_nanos", "semantic_text", "service_owners", "system_metrics", "tdigest_standard_index", "threat_list", "trim_test", "ul_logs", "voyager", "web_logs"]
     enrich: ["ages_policy", "city_boundaries", "city_names", "clientip_policy", "colors_policy", "languages_policy"]
   core_join:
     # Tests primarily exercising join operations: LOOKUP JOIN and ENRICH (a specialised join over
@@ -684,7 +690,7 @@ categories:
   norows:
     indices: []
   spatial:
-    indices: ["airport_city_boundaries", "airports", "airports_mp", "airports_no_doc_values", "airports_not_indexed", "airports_not_indexed_nor_doc_values", "airports_web", "cartesian_multipolygons", "cartesian_multipolygons_no_doc_values", "countries_bbox", "countries_bbox_web", "distances", "multivalue_geometries", "multivalue_points"]
+    indices: ["airport_city_boundaries", "airports", "airports_mp", "airports_no_doc_values", "airports_not_indexed", "airports_not_indexed_nor_doc_values", "airports_web", "cartesian_multipolygons", "cartesian_multipolygons_no_doc_values", "conv_from_keyword", "countries_bbox", "countries_bbox_web", "distances", "multivalue_geometries", "multivalue_points"]
     enrich: ["city_boundaries", "city_locations"]
   textmap:
     indices: ["flattened_keyed", "flattened_many", "flattened_otel_logs", "flattened_typed", "host_info_lookup", "host_threat_list", "path_lookup", "ts_flattened"]
@@ -695,7 +701,7 @@ categories:
   views:
     indices: ["addresses", "airports", "airports_mp", "all_types", "all_types_no_short", "apps_short", "books", "cloned_sample_data", "colors", "colors_unmapped", "dense_vector", "dense_vector_unmapped", "employees", "employees_gender_text", "employees_incompatible", "employees_no_gender", "employees_no_mv", "employees_no_names", "k8s", "k8s-downsampled", "k8s_unmapped", "keyword_languages_lookup", "languages", "languages_lookup", "languages_lookup_non_unique_key", "many_numbers", "no_mapping_date_extract_fields", "no_mapping_sample_data", "partial_mapping_excluded_source_sample_data", "partial_mapping_mv_no_source_sample_data", "partial_mapping_mv_sample_data", "partial_mapping_no_source_sample_data", "partial_mapping_sample_data", "partial_message_types_lookup", "sample_data", "text_state_mapped", "text_state_nonexistent", "text_state_unmapped"]
     enrich: ["languages_policy"]
-    views: ["airports_mp_filtered", "country_addresses", "country_airports", "country_languages", "employees_all", "employees_extra", "employees_in_subquery", "employees_in_subquery_conjunction", "employees_in_subquery_conjunction_view", "employees_in_subquery_disjunction", "employees_in_subquery_disjunction_view", "employees_in_subquery_nested", "employees_in_subquery_nested_view", "employees_in_subquery_stats", "employees_in_subquery_stats_view", "employees_in_subquery_view", "employees_not_rehired", "employees_rehired", "partial_mapping_mv_view", "partial_mapping_view", "partial_mapping_view_message_wildcard", "view_k8s_downsampled_first_bucket", "view_k8s_downsampled_low_tx_count", "view_k8s_early_window", "view_k8s_max_bytes_by_cluster", "view_k8s_max_rate", "view_k8s_mixed_subqueries", "view_row_constants", "view_row_employees_subquery", "view_row_eval", "view_with_subquery"]
+    views: ["airports_mp_filtered", "country_addresses", "country_airports", "country_languages", "employees_all", "employees_extra", "employees_in_subquery", "employees_in_subquery_conjunction", "employees_in_subquery_conjunction_view", "employees_in_subquery_disjunction", "employees_in_subquery_disjunction_view", "employees_in_subquery_nested", "employees_in_subquery_nested_view", "employees_in_subquery_stats", "employees_in_subquery_stats_view", "employees_in_subquery_view", "employees_not_rehired", "employees_rehired", "employees_via_alias", "partial_mapping_mv_view", "partial_mapping_view", "partial_mapping_view_message_wildcard", "view_k8s_downsampled_first_bucket", "view_k8s_downsampled_low_tx_count", "view_k8s_early_window", "view_k8s_max_bytes_by_cluster", "view_k8s_max_rate", "view_k8s_mixed_subqueries", "view_row_constants", "view_row_employees_subquery", "view_row_eval", "view_with_subquery"]
 files:
   # spec file (without .csv-spec) -> category
   absent: "core"

@@ -207,10 +207,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             null,
             DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             null,
-            FrozenTransitionStatus.QUEUED
+            FrozenTransitionStatus.NOT_SUPPORTED
         );
         Map<String, Object> withFrozenMap = getXContentMap(withFrozen, null, null);
-        assertThat(withFrozenMap.get("frozen_transition_status"), is("queued"));
+        assertThat(withFrozenMap.get("frozen_transition_status"), is("not_supported"));
         assertThat(withFrozenMap.containsKey("frozen"), is(false));
 
         ExplainIndexDataStreamLifecycle withoutFrozen = new ExplainIndexDataStreamLifecycle(

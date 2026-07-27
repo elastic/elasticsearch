@@ -147,9 +147,9 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
 
     /**
      * Computes the frozen tier transition status for the given index, or {@code null} if frozen tier transition
-     * state should not be reported: no frozen transition implementation is installed, the index is a failure-store
-     * index (DLM frozen transitions only ever apply to backing indices), its lifecycle does not configure
-     * {@code frozen_after}, or the transition has already completed.
+     * state should not be reported: the index is a failure-store index (DLM frozen transitions only ever apply to
+     * backing indices), its lifecycle does not configure {@code frozen_after}, or the transition has already
+     * completed.
      */
     private FrozenTransitionStatus computeFrozenTransitionStatus(
         ProjectState state,
@@ -158,14 +158,16 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         DataStreamLifecycle lifecycle,
         Map<String, Set<Index>> pastFrozenAfterByDataStream
     ) {
-        if (frozenTransitionInfoProvider.infoAvailable() == false
-            || lifecycle == null
+        if (lifecycle == null
             || lifecycle.frozenAfter() == null
             || parentDataStream.isFailureStoreIndex(idxMetadata.getIndex().getName())) {
             return null;
         }
         if (DataStreamLifecycleService.frozenTransitionCompleted(idxMetadata)) {
             return null;
+        }
+        if (frozenTransitionInfoProvider.infoAvailable() == false) {
+            return FrozenTransitionStatus.NOT_SUPPORTED;
         }
 
         if (DataStreamLifecycleService.indexMarkedForFrozen(idxMetadata)) {

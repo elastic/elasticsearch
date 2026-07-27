@@ -22,9 +22,8 @@ import java.util.Locale;
 public interface FrozenTransitionInfoProvider {
 
     /**
-     * Returns whether a frozen tier transition implementation is actually installed. The lifecycle explain API uses
-     * this to decide whether to report frozen tier transition state at all: without an installed implementation, a
-     * transition can never run, so reporting a status would be misleading rather than merely "not started yet".
+     * Returns whether a frozen tier transition implementation is actually installed. The lifecycle explain API reports
+     * {@code not_supported} for a configured backing index when this returns {@code false}.
      */
     boolean infoAvailable();
 

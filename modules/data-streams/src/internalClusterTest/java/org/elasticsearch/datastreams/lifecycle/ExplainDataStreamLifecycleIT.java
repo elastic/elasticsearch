@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.FrozenTransitionStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -250,6 +251,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainFailuresLifecycle() throws Exception {
         // Failure indices are always managed unless explicitly disabled.
+        DataStreamLifecycle failureStoreLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueMillis(1))
+            .build();
         putComposableIndexTemplate(
             "id1",
             """
@@ -267,7 +271,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).lifecycle(failureStoreLifecycle).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -305,7 +309,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
-                // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
+                // DLM frozen transitions do not apply to failure-store indices.
                 assertThat(explainIndex.getFrozenTransitionStatus(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
@@ -551,10 +555,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         });
     }
 
-    public void testExplainLifecycleFrozenTransitionAbsentWithoutPlugin() throws Exception {
+    public void testExplainLifecycleFrozenTransitionNotSupportedWithoutPlugin() throws Exception {
         // This test cluster does not load the dlm-frozen-transition plugin (see ExplainDataStreamLifecycleIT#nodePlugins),
         // so a transition can never actually run here regardless of frozen_after being configured. The explain response
-        // must therefore omit the frozen block entirely rather than report misleading status.
+        // reports that the configured transition is not supported.
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .enabled(true)
             .frozenAfter(TimeValue.timeValueMillis(1))
@@ -586,7 +590,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         assertThat(response.getIndices().size(), is(2));
         for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
             assertThat(explainIndex.isManagedByLifecycle(), is(true));
-            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransitionStatus(), nullValue());
+            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransitionStatus(), is(FrozenTransitionStatus.NOT_SUPPORTED));
         }
     }
 

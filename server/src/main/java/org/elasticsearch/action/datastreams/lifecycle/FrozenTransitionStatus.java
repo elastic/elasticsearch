@@ -31,7 +31,9 @@ public enum FrozenTransitionStatus {
     /** The transition has been submitted to the executor and is waiting in its queue. */
     QUEUED,
     /** The transition is actively executing on the current master node. */
-    RUNNING;
+    RUNNING,
+    /** The lifecycle configures {@code frozen_after}, but no frozen tier transition plugin is installed. */
+    NOT_SUPPORTED;
 
     @Override
     public String toString() {

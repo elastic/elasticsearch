@@ -29,19 +29,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
-    private final Set<String> capabilities;
-
-    /**
-     * @param frozenTransitionInfoAvailable whether a {@code FrozenTransitionInfoProvider} implementation is
-     *                                       installed. The {@code frozen_transition_explain} capability is only
-     *                                       advertised when this is {@code true}, since without an implementation
-     *                                       the explain API never reports frozen tier transition state.
-     */
-    public RestExplainDataStreamLifecycleAction(boolean frozenTransitionInfoAvailable) {
-        this.capabilities = frozenTransitionInfoAvailable
-            ? Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY, "frozen_transition_explain")
-            : Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
-    }
+    private static final Set<String> CAPABILITIES = Set.of(
+        DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
+        "frozen_transition_explain"
+    );
 
     @Override
     public String getName() {
@@ -76,6 +67,6 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return capabilities;
+        return CAPABILITIES;
     }
 }

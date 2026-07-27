@@ -94,9 +94,6 @@
         - method: PUT
           path: /_data_stream/{name}/_lifecycle
           capabilities: [ "dlm.frozen_after" ]
-        - method: GET
-          path: /{index}/_lifecycle/explain
-          capabilities: [ "frozen_transition_explain" ]
   - do:
       allowed_warnings:
         - "index template [template-with-lifecycle-frozen] has index patterns [managed-data-stream-frozen] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle-frozen] will take precedence during new index creation"

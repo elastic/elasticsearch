@@ -1017,7 +1017,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onFailure(Exception e) {
                 assert assertClosedOrRejectionFailure(e);
                 // Release pressure now — this VBCC will never be removed via the handleUploadedBcc path.
-                commitState.releaseUploadPressureIfPending(virtualBcc.getPrimaryTermAndGeneration().generation());
+                commitState.releaseUploadPressureIfPending(virtualBcc);
                 ShardCommitState.State state = commitState.state;
                 if (commitState.isClosed()) {
                     logger.debug(
@@ -2150,13 +2150,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Removes the given BCC generation from {@code pendingUploadBccGenerations} and releases its
-         * estimated heap pressure, if the entry is still present. Called from {@code onFailure} when an
-         * upload permanently fails, since the normal {@link #handleUploadedBcc} path is never reached.
+         * Removes the given VBCC from {@code pendingUploadBccGenerations} and releases its estimated heap
+         * pressure, if the entry is still present. Called from {@code onFailure} when an upload permanently
+         * fails, since the normal {@link #handleUploadedBcc} path is never reached. The release is gated on
+         * the atomic {@code remove} returning non-null so it happens exactly once even if the success or
+         * close paths race for the same generation.
          */
-        synchronized void releaseUploadPressureIfPending(long bccGeneration) {
-            var removed = pendingUploadBccGenerations.remove(bccGeneration);
+        synchronized void releaseUploadPressureIfPending(VirtualBatchedCompoundCommit virtualBcc) {
+            var removed = pendingUploadBccGenerations.remove(virtualBcc.getPrimaryTermAndGeneration().generation());
             if (removed != null) {
+                assert removed == virtualBcc : "removed VBCC does not match the one whose upload failed";
                 pendingCommitUploadPressure.markVbccUploaded(removed);
             }
         }

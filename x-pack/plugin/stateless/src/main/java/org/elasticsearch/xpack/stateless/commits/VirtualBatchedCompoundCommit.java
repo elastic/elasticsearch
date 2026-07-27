@@ -756,9 +756,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     /**
      * The total bytes this VBCC has materialized on the JVM heap for its compound-commit headers.
-     * Maintained incrementally as headers are appended (O(1) to read). Excludes internal files and
-     * replicated ranges (streamed lazily from the Lucene directory) and padding (a shared static
-     * buffer), none of which retain per-VBCC heap.
      */
     long getHeaderBytes() {
         return headerBytes.get();

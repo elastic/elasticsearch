@@ -1519,8 +1519,16 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeColumn() {
-        return new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
     }
 
     @Override
@@ -1551,11 +1559,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
         // TODO: make the batch return these column builders to wire up recycling
-        final EscfColumnBuilder terms = emitTerms ? mergeColumn() : null;
-        final EscfColumnBuilder binaryDvs = emitDvs ? mergeColumn() : null;
-        final EscfColumnBuilder dvCounts = emitDvs ? mergeColumn() : null;
-        final EscfColumnBuilder fallback = emitFallback ? mergeColumn() : null;
-        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeColumn() : null;
+        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null;
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null;
 
         int currentDoc = -1;
         boolean ignoredThisDoc = false;

@@ -63,6 +63,8 @@ public final class EscfColumnBuilder {
     private int lastWrittenRow = -1;
     /** {@code true} between {@link #beginArray} and {@link #endArray}. */
     private boolean arrayOpen;
+    /** When set via {@link #lockScalar}, asserts that every scalar write uses this exact kind. {@code -1} = unrestricted. */
+    private byte lockedKind = -1;
 
     public EscfColumnBuilder(CollisionPolicy policy) {
         this(policy, BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -85,6 +87,16 @@ public final class EscfColumnBuilder {
         if (canHint()) {
             current = newScalarWithBackfill(kind);
         }
+    }
+
+    /**
+     * Like {@link #hintScalar}, but also locks the column to {@code kind}: any subsequent scalar write
+     * of a different kind triggers an assertion error. Use when the caller statically knows the kind
+     * and a type mismatch is always a programming error (e.g. Lucene column builders).
+     */
+    public void lockScalar(byte kind) {
+        hintScalar(kind);
+        lockedKind = kind;
     }
 
     /**
@@ -341,10 +353,6 @@ public final class EscfColumnBuilder {
         appendBytesElement(EscfColumnKind.STRING, SourceValueType.STRING, value.bytes(), value.offset(), value.length());
     }
 
-    public void appendBinary(BytesRef value) {
-        appendBytesElement(EscfColumnKind.BINARY, SourceValueType.BINARY, value.bytes, value.offset, value.length);
-    }
-
     private void appendBytesElement(byte childKind, byte typeByte, byte[] bytes, int off, int len) {
         if (current instanceof ArrayBuilder ab) {
             if (ab.childKind() == UNSET_ARRAY_KIND || ab.childKind() == childKind) {
@@ -420,6 +428,8 @@ public final class EscfColumnBuilder {
 
     /** Writes a scalar value at a fresh row {@code row}. */
     private void newRowScalar(int row, byte kind, long longBits, double dbl, byte[] bytes, int off, int len) {
+        assert lockedKind == -1 || kind == lockedKind
+            : "column locked to " + EscfColumnKind.name(lockedKind) + " but received " + EscfColumnKind.name(kind);
         assert row > lastWrittenRow : nonDecreasing(row);
         fillGapTo(row);
         if (current == null) {
@@ -446,6 +456,8 @@ public final class EscfColumnBuilder {
 
     /** Applies a second value for the last written row (multi-value). */
     private void sameRowScalar(byte kind, long longBits, double dbl, byte[] bytes, int off, int len) {
+        assert lockedKind == -1 || kind == lockedKind
+            : "column locked to " + EscfColumnKind.name(lockedKind) + " but received " + EscfColumnKind.name(kind);
         if (current instanceof ArrayBuilder ab) {
             if (ab.childKind() == kind || ab.childKind() == UNSET_ARRAY_KIND) {
                 appendScalarAsElement(ab, kind, longBits, dbl, bytes, off, len);

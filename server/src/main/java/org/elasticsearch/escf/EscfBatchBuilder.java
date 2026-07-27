@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -69,7 +70,7 @@ public final class EscfBatchBuilder implements Releasable {
      * Drains the staged row into {@code partitionKey}'s column builders and returns its
      * zero-based row index within that partition.
      *
-     * @throws IllegalStateException if {@link #beginRow()} was not called for the current row
+     * @throws IllegalStateException if {@link EscfRowBuffer#finishRow()} was not called for the current row
      */
     public int commit(int partitionKey) {
         if (rowBuffer.isStarted() == false) {
@@ -93,14 +94,17 @@ public final class EscfBatchBuilder implements Releasable {
      * The partition entry is cleared; calling this twice for the same key is an error.
      */
     public EscfBatch buildPartition(int partitionKey) {
-        final Partition partition = getOrCreatePartition(partitionKey);
+        final Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
+        if (partition == null) {
+            throw new IllegalStateException("no committed rows for partition [" + partitionKey + "] (already built or never written)");
+        }
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
         final EscfColumnData[] columns = new EscfColumnData[leafCount];
         for (int c = 0; c < leafCount; c++) {
             columns[c] = partition.builders.get(c).finish(partition.docCount);
         }
-        // Clear the partition so close() skips it and a double-build is caught.
+        // Clear the partition so close() skips it; a second call throws above.
         partitions[partitionKey] = null;
         // Each column owns its recycler-backed buffers; the batch releases them all on close.
         return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
@@ -120,7 +124,7 @@ public final class EscfBatchBuilder implements Releasable {
     /** Returns the full dot-separated path for leaf column {@code columnIndex}, with caching. */
     public String columnPath(int columnIndex) {
         if (columnIndex >= cachedPath.length) {
-            cachedPath = Arrays.copyOf(cachedPath, ArrayUtil.oversize(columnIndex + 1, Long.BYTES));
+            cachedPath = Arrays.copyOf(cachedPath, ArrayUtil.oversize(columnIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         String path = cachedPath[columnIndex];
         if (path == null) {
@@ -174,6 +178,7 @@ public final class EscfBatchBuilder implements Releasable {
     private Partition getOrCreatePartition(int partitionKey) {
         assert partitionKey >= 0 : "partition key must be a non-negative shard index, got " + partitionKey;
         if (partitionKey >= partitions.length) {
+            // Shard indices are bounded well below Integer.MAX_VALUE, so newCap never overflows.
             int newCap = partitions.length;
             while (partitionKey >= newCap) {
                 newCap <<= 1;

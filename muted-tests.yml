@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:folding.mvDouble_Equals_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/155105
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/155106
 
 # Examples:
 #

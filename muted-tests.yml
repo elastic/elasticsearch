@@ -757,3 +757,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testRemoteFailureSkipUnavailableTrue
   issue: https://github.com/elastic/elasticsearch/issues/155120
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testCCSExecutionOnSearchesWithLimit0
+  issue: https://github.com/elastic/elasticsearch/issues/155121

@@ -52,8 +52,9 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
 import org.elasticsearch.escf.EscfColumnKind;
-import org.elasticsearch.escf.EscfRowColumnBuilder;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
@@ -1517,6 +1518,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             && fieldType().isDimension() == false;
     }
 
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
@@ -1545,13 +1559,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
         // TODO: make the batch return these column builders to wire up recycling
-        final EscfRowColumnBuilder terms = emitTerms ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder binaryDvs = emitDvs ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder dvCounts = emitDvs ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder fallback = emitFallback ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder fallbackCounts = emitFallback
-            ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE)
-            : null;
+        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null;
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null;
 
         int currentDoc = -1;
         boolean ignoredThisDoc = false;

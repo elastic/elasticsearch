@@ -376,7 +376,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /**
      * Returns the pressure tracker for pending commit uploads. Register it with
-     * {@link org.elasticsearch.index.IndexingPressureMonitor#addContributor} to enable write-path
+     * {@link org.elasticsearch.index.IndexingPressure#addContributor} to enable write-path
      * back-pressure when the pending upload queue grows too large.
      */
     public PendingCommitUploadPressure getPendingCommitUploadPressure() {

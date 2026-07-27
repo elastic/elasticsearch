@@ -628,7 +628,10 @@ public class IndexingPressure implements IndexingPressureMonitor {
         listeners.add(listener);
     }
 
-    @Override
+    /**
+     * Registers a {@link IndexingPressureContributor} that can reject writes when an external resource
+     * (e.g. an unbounded downstream queue) is under pressure.
+     */
     public void addContributor(IndexingPressureContributor contributor) {
         contributors.add(contributor);
     }
@@ -637,5 +640,24 @@ public class IndexingPressure implements IndexingPressureMonitor {
         for (var contributor : contributors) {
             contributor.checkAndMaybeReject();
         }
+    }
+
+    /**
+     * A source of additional write-path back-pressure, registered via {@link #addContributor}. If the
+     * contributor's internal limit is exceeded it should throw
+     * {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException} to reject the
+     * operation, with enough context (current value, limit) for operators to act on it.
+     *
+     * <p>Implementations must be thread-safe and must not block or do significant work, as
+     * {@link #checkAndMaybeReject()} runs on every coordinating and primary indexing operation.
+     */
+    public interface IndexingPressureContributor {
+        /**
+         * Called before each indexing operation is admitted. Throws
+         * {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException} if this
+         * contributor's limit is currently exceeded (rejecting the op with HTTP 429); returns normally
+         * otherwise.
+         */
+        void checkAndMaybeReject();
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.IndexingPressureMonitor.IndexingPressureContributor;
+import org.elasticsearch.index.IndexingPressure.IndexingPressureContributor;
 
 import java.util.concurrent.atomic.AtomicLong;
 

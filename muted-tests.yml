@@ -693,3 +693,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:string.mvStringNotEqualsMultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/155148
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept}
+  issue: https://github.com/elastic/elasticsearch/issues/155149

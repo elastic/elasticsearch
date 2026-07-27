@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -566,6 +567,15 @@ public class ExternalSourceResolver {
             );
             wrapped.initCause(rejected);
             return wrapped;
+        }
+        // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
+        // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
+        // above (see ExternalFailures). Unwrapped rather than re-wrapped -- the type's byte counts are the payload.
+        CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        if (breaking != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
+            return breaking;
         }
         // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
         // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an

@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -2467,6 +2469,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
         assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
+     * A breaker trip keeps its 429 through a wrapper. It carries its own status like the outage and rejection
+     * cases, so recovering only the client error would have left this one masked as a 500 the moment a cache
+     * loader wrapped it.
+     */
+    public void testABreakerTripKeepsIts429ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        CircuitBreakingException original = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException("wrapped", original));
+
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mapped));
+        assertSame(original, mapped);
     }
 
     /**

@@ -4762,6 +4762,146 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testEvictionDegradationTriggersOnExcessiveRejections() throws Exception {
+        final int numRegions = randomIntBetween(4, 20);
+        final long regionSize = size(1L);
+        // 95% threshold is always crossed when the never-evict policy rejects all numRegions entries
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "95%")
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m")
+            .put("path.home", createTempDir())
+            .build();
+        final AtomicInteger policyCallCount = new AtomicInteger(0);
+        final var evicted = new AtomicBoolean(false);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final EvictionPolicy<TestCacheKey> neverEvict = new EvictionPolicy<>() {
+            @Override
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> {
+                    policyCallCount.incrementAndGet();
+                    return false;
+                };
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {
+                evicted.set(true);
+            }
+        };
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                neverEvict
+            )
+        ) {
+            // the never-evict policy rejects all regions, crossing the threshold and triggering degradation
+            final boolean decayed = fillAndMaybeDecay(cacheService, taskQueue);
+            evictRandomly(cacheService, regionSize, decayed);
+            assertThat(policyCallCount.get(), equalTo(numRegions));
+            assertTrue(evicted.get());
+        }
+    }
+
+    public void testEvictionDegradationPeriodLifecycle() throws Exception {
+        final int numRegions = randomIntBetween(4, 20);
+        final long regionSize = size(1L);
+        final long degradationPeriodMillis = TimeUnit.SECONDS.toMillis(10);
+        // threshold of 50%: degradation triggers after numRegions/2 rejections
+        final int expectedThreshold = (int) (numRegions * 0.5);
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "50%")
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "10s")
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+
+        // policy that always rejects eviction and records how many times its predicate is called
+        final AtomicInteger policyCallCount = new AtomicInteger(0);
+        final EvictionPolicy<TestCacheKey> countingNeverEvict = new EvictionPolicy<>() {
+            @Override
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> {
+                    policyCallCount.incrementAndGet();
+                    return false;
+                };
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                countingNeverEvict
+            )
+        ) {
+
+            boolean decayed = fillAndMaybeDecay(cacheService, taskQueue);
+
+            // scan 1 (time=0): policy consulted until threshold, degradation starts
+            evictRandomly(cacheService, regionSize, decayed);
+            assertThat(policyCallCount.get(), equalTo(expectedThreshold + 1));
+            decayed = fillAndMaybeDecay(cacheService, taskQueue);
+            policyCallCount.set(0);
+
+            // scan 2 (time=9999ms): period active, policy bypassed
+            taskQueue.runTasksUpToTimeInOrder(degradationPeriodMillis - 1);
+            evictRandomly(cacheService, regionSize, decayed);
+            assertThat(policyCallCount.get(), equalTo(0));
+            decayed = fillAndMaybeDecay(cacheService, taskQueue);
+            policyCallCount.set(0);
+
+            // scan 3 (time=10001ms): period expired, policy consulted again
+            taskQueue.runTasksUpToTimeInOrder(degradationPeriodMillis + 1);
+            evictRandomly(cacheService, regionSize, decayed);
+            assertThat(policyCallCount.get(), greaterThan(0));
+        }
+    }
+
+    private boolean fillAndMaybeDecay(SharedBlobCacheService<TestCacheKey> cacheService, DeterministicTaskQueue taskQueue) {
+        final boolean shouldDecay = randomBoolean();
+        while (cacheService.freeRegionCount() > 0) {
+            cacheService.get(generateCacheKey(), size(1), 0);
+        }
+        if (shouldDecay) {
+            cacheService.maybeScheduleDecayAndNewEpoch();
+        }
+        taskQueue.runAllRunnableTasks();
+        return shouldDecay;
+    }
+
+    private void evictRandomly(SharedBlobCacheService<TestCacheKey> cacheService, long regionSize, boolean decayed) {
+        if (decayed == false) {
+            cacheService.get(generateCacheKey(), regionSize, 0);
+        } else {
+            assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(true));
+        }
+    }
+
     private record TestCacheKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
 
     private static TestCacheKey randomTestCacheKey(ShardId shardId) {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -314,6 +316,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
         TimeValue.timeValueSeconds(0L),                         // min
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
+     * scan before the cache enters an eviction degradation period. When {@code rejectedCount / numRegions} exceeds
+     * this ratio the policy is bypassed for the duration of {@link #SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
+     * Defaults to {@code 100%}, which disables the feature.
+     */
+    public static final Setting<RatioValue> SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = new Setting<>(
+        SHARED_CACHE_SETTINGS_PREFIX + "eviction_policy_degradation.threshold",
+        "100%",
+        RatioValue::parseRatioValue,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. Defaults to {@code 0} (disabled).
+     * Set to a non-zero duration together with a threshold below {@code 100%} to fully enable degradation mode.
+     */
+    public static final Setting<TimeValue> SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING = Setting.timeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "eviction_policy_degradation.period",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 
@@ -2265,6 +2291,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final long initialDecayPollCount;
 
         private final EvictionPolicy<KeyType> evictionPolicy;
+        private final int evictionDegradationThreshold;
+        private final long evictionDegradationPeriodMillis;
+        private volatile long evictionDegradationStartMillis = -1L;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings, EvictionPolicy<KeyType> evictionPolicy) {
@@ -2286,6 +2315,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
             // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
             this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
+            this.evictionDegradationThreshold = (int) (numRegions * SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
+                .getAsRatio());
+            this.evictionDegradationPeriodMillis = SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
         }
 
         @Override
@@ -2742,7 +2774,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long startNanos = relativeNanosProvider.getAsLong();
             final int[] entriesScanned = new int[1];
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming.chunk);
+            final Predicate<CacheRegion<KeyType>> canEvict = createEvictionPredicate(incoming.chunk);
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned, canEvict);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
@@ -2877,7 +2909,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
             synchronized (SharedBlobCacheService.this) {
                 afterLockAndBeforeScanningNanoTime = relativeNanosProvider.getAsLong();
-                final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming);
+                final Predicate<CacheRegion<KeyType>> canEvict = createEvictionPredicate(incoming);
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
                     if (canEvict.test(entry.chunk) == false) {
@@ -2900,6 +2932,42 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entriesScanned
             );
             return found;
+        }
+
+        private boolean isInEvictionDegradationPeriod() {
+            final long startMillis = evictionDegradationStartMillis;
+            if (startMillis < 0L) {
+                return false;
+            }
+            return threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationPeriodMillis;
+        }
+
+        private Predicate<CacheRegion<KeyType>> createEvictionPredicate(CacheRegion<KeyType> incoming) {
+            if (isInEvictionDegradationPeriod()) {
+                return Predicates.always();
+            }
+            final Predicate<CacheRegion<KeyType>> policyPredicate = evictionPolicy.createPredicate(incoming);
+            return new Predicate<>() {
+                int rejectedCount = 0;
+
+                @Override
+                public boolean test(CacheRegion<KeyType> region) {
+                    if (policyPredicate.test(region)) {
+                        return true;
+                    }
+                    if (++rejectedCount > evictionDegradationThreshold) {
+                        evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
+                        logger.info(
+                            "Eviction policy degraded: policy rejected over {}/{} regions; bypassing policy for {}",
+                            evictionDegradationThreshold,
+                            numRegions,
+                            TimeValue.timeValueMillis(evictionDegradationPeriodMillis)
+                        );
+                        return true;
+                    }
+                    return false;
+                }
+            };
         }
 
         private void computeDecay() {

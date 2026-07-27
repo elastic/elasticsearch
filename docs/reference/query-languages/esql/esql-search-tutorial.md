@@ -291,11 +291,12 @@ slower than searching an indexed field on large datasets.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 `MATCH_PHRASE` can search computed values the same way, requiring the query
-terms to appear together in order:
+terms to appear together in order. This example also demonstrates the `TO_TEXT`
+function, which converts the `keyword`-type output from `CONCAT` to `text`.
 
 ```esql
 FROM cooking_blog
-| EVAL summary = CONCAT(title, " by ", author)
+| EVAL summary = TO_TEXT(CONCAT(title, " by ", author))
 | WHERE MATCH_PHRASE(summary, "fluffy pancakes")
 | KEEP title, author
 | LIMIT 1000

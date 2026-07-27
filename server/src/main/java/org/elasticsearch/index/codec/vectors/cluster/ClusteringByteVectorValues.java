@@ -18,7 +18,7 @@ import java.io.IOException;
  * so that the same instance can be used with the generic k-means infrastructure.
  */
 public abstract sealed class ClusteringByteVectorValues extends ByteVectorValues implements ClusteringVectorValues<byte[]> permits
-    KMeansByteVectorValues, ConcatenatedClusteringByteVectorValues {
+    KMeansByteVectorValues, ConcatenatedClusteringByteVectorValues, ClusteringByteVectorValuesSlice {
 
     @Override
     public abstract ClusteringByteVectorValues copy() throws IOException;

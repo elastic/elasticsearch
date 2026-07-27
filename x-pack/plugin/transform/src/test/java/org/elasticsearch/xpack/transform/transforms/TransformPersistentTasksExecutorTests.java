@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,9 +52,11 @@ import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -66,6 +69,7 @@ import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
@@ -81,8 +85,11 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
+import static org.elasticsearch.xpack.core.common.notifications.Level.WARNING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -513,6 +520,210 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         verify(transformServices.auditor(), times(1)).audit(any(), eq(transformId), any());
         // ...but the "Automatically retrying" loop-warning must never fire, since no retry is scheduled
         verify(transformServices.auditor(), never()).warning(any(), any());
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/ml-team/issues/1623: after a node hosting the transform's task leaves
+     * the cluster, the task is reassigned and {@code nodeOperation} reloads the transform's stored state from
+     * {@code .transform-internal-*}. If that read transiently fails (e.g. the shard hasn't recovered onto another node
+     * yet), an <b>unattended</b> transform must retry the load indefinitely instead of failing -- unattended transforms
+     * are contractually never supposed to require manual intervention, but {@code TransformTask#fail} has no
+     * unattended check, so previously any caller that reached it (like this reassignment path) could fail one anyway.
+     */
+    public void testNodeOperationRetriesTransientStateLoadForUnattendedTransform() throws Exception {
+        var transformId = "testUnattendedStateLoadRetry";
+        var failFirstCall = new AtomicBoolean(true);
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformStoredDoc(
+                String tid,
+                boolean allowNoMatch,
+                ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> listener
+            ) {
+                if (failFirstCall.compareAndSet(true, false)) {
+                    listener.onFailure(new IllegalStateException("shard temporarily unavailable"));
+                } else {
+                    super.getTransformStoredDoc(tid, allowNoMatch, listener);
+                }
+            }
+        };
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var transformServices = transformServices(transformsConfigManager, transformScheduler);
+        var taskExecutor = buildTaskExecutor(transformServices);
+
+        var params = taskParams(transformId);
+        putUnattendedTransformConfiguration(transformsConfigManager, transformId);
+
+        // mockTransformTask()'s default stub fails this test outright if task.fail(...) is ever invoked, so reaching the
+        // assertions below already proves the transient failure did not fail the task.
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // skip waiting for the scheduler to run the retry and just rerun it now -- this time the load succeeds
+        transformScheduler.scheduleNow(transformId);
+
+        verify(task).start(isNull(), any());
+        // unattended retries are still observable: one INFO-level audit for the single tolerated attempt
+        verify(transformServices.auditor(), times(1)).audit(eq(INFO), eq(transformId), any());
+        verify(transformServices.auditor(), never()).audit(eq(WARNING), any(), any());
+    }
+
+    /**
+     * Unattended transforms retry a transient reassignment-load failure indefinitely (see
+     * {@link #testNodeOperationRetriesTransientStateLoadForUnattendedTransform}), but that must not mean the retries are
+     * silent: an unattended transform stuck retrying this load forever needs an audit trail an operator can find. It also
+     * must not spam the audit log once per {@code frequency} tick forever, so the audit is throttled the same way
+     * {@code TransformFailureHandler.logRetry} throttles repeated indexer run-time failures
+     * ({@code TransformFailureHandler.LOG_FAILURE_EVERY}).
+     */
+    public void testNodeOperationThrottlesAuditForRepeatedUnattendedStateLoadRetry() throws Exception {
+        var transformId = "testUnattendedStateLoadRetryThrottled";
+        // Fail the first 11 attempts (counts 1..11), then let the 12th succeed.
+        var failuresRemaining = new AtomicInteger(11);
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformStoredDoc(
+                String tid,
+                boolean allowNoMatch,
+                ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> listener
+            ) {
+                if (failuresRemaining.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+                    listener.onFailure(new IllegalStateException("shard temporarily unavailable"));
+                } else {
+                    super.getTransformStoredDoc(tid, allowNoMatch, listener);
+                }
+            }
+        };
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var transformServices = transformServices(transformsConfigManager, transformScheduler);
+        var taskExecutor = buildTaskExecutor(transformServices);
+
+        var params = taskParams(transformId);
+        putUnattendedTransformConfiguration(transformsConfigManager, transformId);
+
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock()); // attempt 1 -- fails, audited (first attempt)
+        for (int attempt = 2; attempt <= 11; attempt++) {
+            // attempts 2-9, 11 are throttled; attempt 10 is audited (LOG_FAILURE_EVERY)
+            transformScheduler.scheduleNow(transformId);
+        }
+        transformScheduler.scheduleNow(transformId); // attempt 12 -- succeeds
+
+        verify(task).start(isNull(), any());
+        // audited only for attempts 1 and 10 -- the other 9 tolerated failures were throttled
+        verify(transformServices.auditor(), times(2)).audit(eq(INFO), eq(transformId), any());
+        verify(transformServices.auditor(), never()).audit(eq(WARNING), any(), any());
+    }
+
+    /**
+     * Regression test for the follow-up to https://github.com/elastic/ml-team/issues/1623: an attended transform's
+     * stored-state load must retry a transient failure up to its configured {@code num_failure_retries} limit -- like the
+     * indexer run-time failure path (TransformFailureHandler) already does -- rather than failing on the very first
+     * transient error at this reassignment-time site.
+     */
+    public void testNodeOperationRetriesTransientStateLoadForAttendedTransformThenFailsAtLimit() throws Exception {
+        var transformId = "testAttendedStateLoadFailsAtLimit";
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformStoredDoc(
+                String tid,
+                boolean allowNoMatch,
+                ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> listener
+            ) {
+                listener.onFailure(new IllegalStateException("shard temporarily unavailable"));
+            }
+        };
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var transformServices = transformServices(transformsConfigManager, transformScheduler);
+        var taskExecutor = buildTaskExecutor(transformServices);
+
+        var params = taskParams(transformId);
+        // Forced attended with a small explicit limit (not putTransformConfiguration's random settings): randomTransformConfig
+        // can randomize unattended to true or the retry limit to something other than 2, which would make this test flaky.
+        putAttendedTransformConfiguration(transformsConfigManager, transformId, 2);
+
+        var task = mockTransformTask();
+        var failCalled = new AtomicBoolean(false);
+        doAnswer(ans -> {
+            failCalled.set(true);
+            ActionListener<Void> listener = ans.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(task).fail(any(), any(), any());
+
+        taskExecutor.nodeOperation(task, params, mock()); // attempt 1 (count=1, within limit of 2) -- retries
+        assertFalse(failCalled.get());
+
+        transformScheduler.scheduleNow(transformId); // attempt 2 (count=2, within limit of 2) -- retries
+        assertFalse(failCalled.get());
+
+        transformScheduler.scheduleNow(transformId); // attempt 3 (count=3, exceeds limit of 2) -- gives up
+        assertTrue(failCalled.get());
+        verify(task, never()).start(any(), any());
+        // no further retry was scheduled -- the failure is now terminal
+        assertNull(transformScheduler.getStats().peekTransformName());
+        // one retry-warning audit per tolerated attempt (attempts 1 and 2), none for the terminal 3rd
+        verify(transformServices.auditor(), times(2)).audit(eq(WARNING), eq(transformId), any());
+    }
+
+    /**
+     * Companion to {@link #testNodeOperationRetriesTransientStateLoadForAttendedTransformThenFailsAtLimit}: an attended
+     * transform whose transient failure count stays under its configured limit eventually succeeds and starts normally,
+     * without ever reaching {@code task.fail(...)}.
+     */
+    public void testNodeOperationRetriesTransientStateLoadForAttendedTransformThenSucceeds() throws Exception {
+        var transformId = "testAttendedStateLoadRetrySucceeds";
+        var failFirstCall = new AtomicBoolean(true);
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformStoredDoc(
+                String tid,
+                boolean allowNoMatch,
+                ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> listener
+            ) {
+                if (failFirstCall.compareAndSet(true, false)) {
+                    listener.onFailure(new IllegalStateException("shard temporarily unavailable"));
+                } else {
+                    super.getTransformStoredDoc(tid, allowNoMatch, listener);
+                }
+            }
+        };
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
+
+        var params = taskParams(transformId);
+        putAttendedTransformConfiguration(transformsConfigManager, transformId, 2);
+
+        // mockTransformTask()'s default stub fails this test outright if task.fail(...) is ever invoked, so reaching the
+        // assertion below already proves the single transient failure (well within the limit of 2) did not fail the task.
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // skip waiting for the scheduler to run the retry and just rerun it now -- this time the load succeeds
+        transformScheduler.scheduleNow(transformId);
+
+        verify(task).start(isNull(), any());
+    }
+
+    private void putAttendedTransformConfiguration(TransformConfigManager configManager, String transformId, int numFailureRetries) {
+        var base = TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT);
+        var attendedConfig = new TransformConfig.Builder(base).setSettings(
+            new SettingsConfig.Builder().setUnattended(false).setNumFailureRetries(numFailureRetries).build()
+        ).build();
+        configManager.putTransformConfiguration(attendedConfig, ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e)));
+    }
+
+    private void putUnattendedTransformConfiguration(TransformConfigManager configManager, String transformId) {
+        var base = TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT);
+        // A fresh SettingsConfig.Builder (rather than one copied from base.getSettings()) so num_failure_retries stays unset:
+        // unattended forbids setting it explicitly (validation error), and randomTransformConfig may have randomized it.
+        var unattendedConfig = new TransformConfig.Builder(base).setSettings(new SettingsConfig.Builder().setUnattended(true).build())
+            .build();
+        configManager.putTransformConfiguration(unattendedConfig, ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e)));
     }
 
     public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {

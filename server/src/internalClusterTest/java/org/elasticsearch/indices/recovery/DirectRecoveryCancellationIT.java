@@ -692,6 +692,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -800,6 +801,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var index2Name = randomIndexName();
         prepareCreate(index2Name).setSettings(indexSettings(1, 0).build()).execute();
         awaitRecoveryCountStats(Map.of(dataNode, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+        waitNoPendingTasksOnAll();
 
         final var index2 = resolveIndex(index2Name);
         final var shardId2 = new ShardId(index2, 0);

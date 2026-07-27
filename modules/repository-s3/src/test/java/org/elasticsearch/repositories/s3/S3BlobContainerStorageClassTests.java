@@ -275,7 +275,7 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
         assertStorageClass("STANDARD", sourceBlobName);
 
         // Copy with SNAPSHOT_DATA purpose — destination should receive the configured data storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(dataStorageClass, destBlobName);
     }
@@ -292,7 +292,7 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
         assertStorageClass("STANDARD", sourceBlobName);
 
         // Copy with SNAPSHOT_METADATA purpose — destination should receive the configured metadata storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(metadataStorageClass, destBlobName);
     }

@@ -209,7 +209,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_DATA purpose so the destination is assigned the configured data storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(dataStorageClass, destBlobName);
     }
@@ -226,7 +226,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_METADATA purpose so the destination is assigned the configured metadata storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(metadataStorageClass, destBlobName);
     }

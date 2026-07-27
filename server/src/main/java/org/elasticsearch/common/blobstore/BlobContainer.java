@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -241,6 +242,7 @@ public interface BlobContainer {
      * @param blobName            The name of the blob to copy to
      * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
      *                            for very large blobs)
+     * @param executor            Executor for concurrent part copies, {@code null} means parts are copied serially
      * @throws NoSuchFileException If the source blob does not exist
      * @throws IOException        If the operation generates an IO error
      */
@@ -249,7 +251,8 @@ public interface BlobContainer {
         BlobContainer sourceBlobContainer,
         String sourceBlobName,
         String blobName,
-        long blobSize
+        long blobSize,
+        @Nullable Executor executor
     ) throws IOException {
         throw new UnsupportedOperationException("this blob container does not support copy");
     }

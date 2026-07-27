@@ -323,7 +323,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobContainer sourceContainer = new S3BlobContainer(sourceBlobPath, sourceBlobStore);
 
         if (doCopy) {
-            blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize);
+            blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, null);
         } else {
             blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
         }
@@ -582,13 +582,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         );
 
         if (stage == 0) {
-            assertEquals("Failed to upload parts for [" + blobName + "]", e.getMessage());
+            assertEquals("Failed to execute concurrent multipart operation for [" + blobName + "]", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else if (stage == 1) {
-            assertEquals("Unable to upload object [" + blobName + "] using concurrent multipart upload", e.getMessage());
+            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else {
-            assertEquals("Failed to upload parts for [" + blobName + "]", e.getMessage());
+            assertEquals("Failed to execute concurrent multipart operation for [" + blobName + "]", e.getMessage());
             assertSame(providerException, e.getCause());
         }
 
@@ -695,7 +695,14 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
         when(client.copyObject(captor.capture())).thenReturn(CopyObjectResponse.builder().build());
 
-        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, blobName, randomLongBetween(1, 10_000));
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            blobName,
+            randomLongBetween(1, 10_000),
+            null
+        );
 
         final CopyObjectRequest request = captor.getValue();
         assertEquals(sourceBucketName, request.sourceBucket());
@@ -704,6 +711,138 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(destinationBlobPath.buildAsString() + blobName, request.destinationKey());
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
+
+        closeMockClient(blobStore);
+    }
+
+    public void testConcurrentMultipartCopyAborted() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String sourceBlobName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final long blobSize = ByteSizeUnit.MB.toBytes(765);
+        final long copyPartSize = ByteSizeUnit.MB.toBytes(150);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(copyPartSize);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.supportsConditionalWrites()).thenReturn(false);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
+
+        final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
+        when(sourceBlobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+
+        final S3Client client = configureMockClient(blobStore);
+        final String uploadId = randomAlphaOfLength(25);
+        final AwsServiceException s3Exception = S3Exception.builder().message("Expected failure").build();
+
+        // stages: 0=uploadPartCopy throws S3Exception, 1=complete throws S3Exception
+        final int stage = randomInt(1);
+
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        if (stage == 0) {
+            when(client.uploadPartCopy(any(UploadPartCopyRequest.class))).thenThrow(s3Exception);
+        } else {
+            when(client.uploadPartCopy(any(UploadPartCopyRequest.class))).thenAnswer(
+                inv -> UploadPartCopyResponse.builder().copyPartResult(b -> b.eTag(randomAlphaOfLength(20))).build()
+            );
+            when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(s3Exception);
+        }
+
+        final ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
+        when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
+        final S3BlobContainer sourceContainer = new S3BlobContainer(BlobPath.EMPTY, sourceBlobStore);
+
+        final IOException e = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, Runnable::run)
+        );
+
+        if (stage == 0) {
+            assertEquals("Failed to execute concurrent multipart operation for [" + blobName + "]", e.getMessage());
+            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
+        } else {
+            assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());
+            assertThat(e.getCause(), instanceOf(AwsServiceException.class));
+        }
+
+        verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
+        final AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
+        assertEquals(bucketName, abortRequest.bucket());
+        assertEquals(blobName, abortRequest.key());
+        assertEquals(uploadId, abortRequest.uploadId());
+
+        closeMockClient(blobStore);
+    }
+
+    public void testConcurrentMultipartCopySingleThread() throws Exception {
+        testConcurrentMultipartCopy(true);
+    }
+
+    public void testConcurrentMultipartCopyMultipleThreads() throws Exception {
+        testConcurrentMultipartCopy(false);
+    }
+
+    void testConcurrentMultipartCopy(boolean singleThread) throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String sourceBucketName = randomAlphaOfLengthBetween(1, 10);
+        final String sourceBlobName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final int nbParts = randomIntBetween(2, 5);
+        final long minPartSize = S3Repository.MIN_PART_SIZE_USING_MULTIPART.getBytes();
+        final long copyPartSize = randomLongBetween(minPartSize, minPartSize * 2);
+        // nbParts = ceil(blobSize / copyPartSize)
+        final long blobSize = randomLongBetween((nbParts - 1) * copyPartSize + 1, nbParts * copyPartSize);
+        assert nbParts == (blobSize + copyPartSize - 1) / copyPartSize;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(copyPartSize);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.supportsConditionalWrites()).thenReturn(false);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
+
+        final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
+        when(sourceBlobStore.bucket()).thenReturn(sourceBucketName);
+
+        final S3Client client = configureMockClient(blobStore);
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(randomAlphaOfLength(25)).build()
+        );
+
+        final int numThreads = singleThread ? 1 : nbParts;
+        final CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        when(client.uploadPartCopy(any(UploadPartCopyRequest.class))).thenAnswer(inv -> {
+            safeAwait(barrier);
+            return UploadPartCopyResponse.builder().copyPartResult(b -> b.eTag("test-etag")).build();
+        });
+        when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            CompleteMultipartUploadResponse.builder().build()
+        );
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
+        final S3BlobContainer sourceContainer = new S3BlobContainer(BlobPath.EMPTY, sourceBlobStore);
+
+        final ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+        try {
+            executorService.submit(() -> {
+                blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize, executorService);
+                return null;
+            }).get();
+        } finally {
+            ESTestCase.terminate(executorService);
+        }
+
+        verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(client, times(nbParts)).uploadPartCopy(any(UploadPartCopyRequest.class));
+        verify(client, times(1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
 
         closeMockClient(blobStore);
     }

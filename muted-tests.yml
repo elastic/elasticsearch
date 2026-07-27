@@ -660,3 +660,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.inner_hits/10_basic/Inner hits with disabled _source}
   issue: https://github.com/elastic/elasticsearch/issues/155041
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search/350_point_in_time/delete invalid PIT returns error}
+  issue: https://github.com/elastic/elasticsearch/issues/155066

@@ -91,6 +91,7 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
+        new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
         new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
@@ -332,6 +333,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
+            .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
@@ -375,6 +378,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
+        new ViewConfig("employees_via_alias"),
         new ViewConfig("partial_mapping_view"),
         new ViewConfig("partial_mapping_view_message_wildcard"),
         new ViewConfig("partial_mapping_mv_view"),
@@ -399,6 +403,15 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
+
+    /**
+     * Index aliases created unconditionally alongside the main test indices. These are not tied
+     * to view support — any csv-spec test may reference them. Non-view tests that use wildcard
+     * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
+     * deduplicates an alias and its backing index into a single logical source.
+     */
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>
@@ -519,6 +532,9 @@ public class CsvTestsDataLoader {
                 }
                 if (policies) {
                     loadEnrichPolicies(client);
+                }
+                if (indexes) {
+                    loadAliasesIntoEs(client);
                 }
                 if (views) {
                     loadViewsIntoEs(client);
@@ -655,6 +671,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
+        loadAliasesIntoEs(client, indicesToLoad);
     }
 
     /**
@@ -749,6 +766,37 @@ public class CsvTestsDataLoader {
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    private static void loadAliasesIntoEs(RestClient client) throws IOException {
+        loadAliasesIntoEs(client, null);
+    }
+
+    /**
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
+     * only aliases whose backing index is in that list are created — aliases for indices that were
+     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     */
+    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
+        logger.info("Loading aliases");
+        for (var alias : ALIAS_CONFIGS.values()) {
+            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+                continue;
+            }
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(
+                "{\"actions\":[{\"add\":{\"index\":\"" + alias.indexName() + "\",\"alias\":\"" + alias.aliasName() + "\"}}]}"
+            );
+            try {
+                client.performRequest(request);
+            } catch (ResponseException e) {
+                // Alias may already exist (idempotent re-load); ignore 400
+                if (e.getResponse().getStatusLine().getStatusCode() != 400) {
+                    throw e;
+                }
+            }
         }
     }
 
@@ -1561,6 +1609,9 @@ public class CsvTestsDataLoader {
             return getResourceString("/views/" + name + ".esql");
         }
     }
+
+    /** An index alias to create alongside the main test indices. */
+    public record AliasConfig(String aliasName, String indexName) {}
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

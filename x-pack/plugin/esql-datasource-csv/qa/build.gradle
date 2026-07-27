@@ -8,7 +8,6 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -224,9 +223,14 @@ tasks.named('javaRestTest') {
 // exactly once for the entire suite. No variants are declared — the IT classes are
 // hand-written in src/csvSpecTest/java/ because the generator hardcodes a 6-parameter
 // constructor and compressed tests need 8 (format, StorageBackend).
-esqlCsvSpecTests {
-  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-  packageName = 'org.elasticsearch.xpack.esql.qa.csv'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 // Provide the generated CSV and TSV fixtures as test resources for the csvSpecTest source
@@ -246,7 +250,6 @@ tasks.named('processCsvSpecTestResources').configure {
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures',
     'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
-  dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

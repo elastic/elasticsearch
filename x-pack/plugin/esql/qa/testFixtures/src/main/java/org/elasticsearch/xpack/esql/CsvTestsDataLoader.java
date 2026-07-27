@@ -807,13 +807,140 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
+        deleteViews(client, VIEW_CONFIGS.keySet());
+    }
+
+    /** Deletes exactly the named views (used by the per-category delta on a category switch). No-op if absent. */
+    public static void deleteViews(RestClient client, Collection<String> viewNames) throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
+            logger.debug("Deleting views {}", viewNames);
+            for (String name : viewNames) {
+                deleteView(client, name);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
+        }
+    }
+
+    /**
+     * Moves the cluster's loaded index and enrich-policy data from the {@code currentIndices} set to the
+     * {@code targetIndices} set by applying only the delta: deletes the indices/policies no longer needed, creates the
+     * ones newly needed, and leaves shared ones untouched. Index data is fixed per index name, so a kept index is
+     * already correct. This avoids the wipe-and-reload cost of {@link #deleteAllData} while leaving the loaded set
+     * exactly equal to {@code targetIndices}, so a bare {@code FROM *} stays scoped to the loaded set.
+     *
+     * <p>The sets are the <em>requested</em> index names (e.g. a category's indices, or a suite's fixed override), not
+     * pre-filtered; availability filtering happens here, mirroring {@link #loadDataSetIntoEs}: datasets unsupported on
+     * this cluster (e.g. {@code semantic_text} without an inference service) are neither created nor counted, and
+     * deleting an absent index is a no-op. Enrich policies are taken from the caller's declared lists
+     * ({@code currentEnrich}/{@code targetEnrich}) rather than auto-derived from source indices, and are skipped
+     * entirely on time-series-only clusters. Views are handled separately by the caller because they load through the
+     * admin client and honour a capability check. Pass empty collections when nothing is loaded yet (every target index
+     * and policy is then a create).
+     */
+    public static void syncIndicesAndEnrich(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        Collection<String> currentIndices,
+        Collection<String> targetIndices,
+        Collection<String> currentEnrich,
+        Collection<String> targetEnrich
+    ) throws IOException {
+        Set<String> available = new HashSet<>();
+        for (TestDataset dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            capabilityCheck
+        )) {
+            available.add(dataset.indexName());
+        }
+
+        Set<String> current = availableSubset(currentIndices, available);
+        Set<String> target = availableSubset(targetIndices, available);
+        Set<String> currentEnrichSet = timeSeriesOnly ? Set.of() : applyEnrichFilter(currentEnrich);
+        Set<String> targetEnrichSet = timeSeriesOnly ? Set.of() : applyEnrichFilter(targetEnrich);
+
+        // Delete what is no longer needed: enrich policies first (they reference source indices), then indices.
+        for (String policy : currentEnrichSet) {
+            if (targetEnrichSet.contains(policy) == false) {
+                deleteEnrichPolicy(client, policy);
+            }
+        }
+        List<String> indicesToDelete = new ArrayList<>();
+        for (String index : current) {
+            if (target.contains(index) == false) {
+                indicesToDelete.add(index);
+            }
+        }
+        for (String index : indicesToDelete) {
+            deleteIndex(client, index);
+        }
+
+        // Create what is newly needed: indices first (enrich executes against them), then enrich policies.
+        List<String> indicesToCreate = new ArrayList<>();
+        for (String index : target) {
+            if (current.contains(index) == false) {
+                indicesToCreate.add(index);
+            }
+        }
+        loadDatasetsIntoEs(client, indicesToCreate);
+        for (String policy : targetEnrichSet) {
+            if (currentEnrichSet.contains(policy) == false) {
+                loadEnrichPolicy(client, ENRICH_POLICIES.get(policy));
+            }
+        }
+    }
+
+    private static Set<String> availableSubset(Collection<String> names, Set<String> available) {
+        Set<String> out = new HashSet<>();
+        for (String name : names) {
+            if (available.contains(name)) {
+                out.add(name);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Returns the subset of {@code declared} enrich policies that pass the {@code tests.spec_enrich_policies} filter
+     * (if set). When no filter is active, all declared policies are returned unchanged.
+     */
+    private static Set<String> applyEnrichFilter(Collection<String> declared) {
+        if (specEnrichPolicies == null) {
+            return new HashSet<>(declared);
+        }
+        Set<String> result = new HashSet<>();
+        for (String policy : declared) {
+            if (specEnrichPolicies.contains(policy)) {
+                result.add(policy);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Wipes ALL test data (views, enrich policies, indices) from the cluster so the next category can be loaded into a
+     * clean slate. Deleting an absent resource is ignored, so this is safe regardless of which subset was actually
+     * loaded.
+     *
+     * <p>A full wipe — rather than deleting only the leaving category's declared indices — is required because
+     * categories share indices, and because a load pulls in dependencies that are not listed in a category's own index
+     * set (enrich source indices, and the indices queried by view definitions). A subset delete leaves those behind, so
+     * the next category's load collides with {@code resource_already_exists_exception}. This mirrors CsvIT's unload-all
+     * behaviour on a category switch and makes teardown independent of which category was previously loaded (including
+     * across the per-variant test classes that share one cluster within a single JVM).
+     */
+    public static void deleteAllData(RestClient client) throws IOException {
+        deleteViews(client);
+        deleteEnrichPolicies(client);
+        for (TestDataset dataset : CSV_DATASET.values()) {
+            deleteIndex(client, dataset.indexName());
         }
     }
 

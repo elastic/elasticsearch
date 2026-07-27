@@ -3,8 +3,6 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
-
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
@@ -43,10 +41,14 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
-esqlCsvSpecTests {
-    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-    packageName = 'org.elasticsearch.xpack.esql.qa.multi_node'
-    variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 tasks.named('javaRestTestTestingConventions').configure {
@@ -114,28 +116,15 @@ tasks.named('javaRestTest') {
   systemProperty 'tests.rest.socket_timeout', '60'
 }
 
-// Generated csv-spec classes live in per-category sub-packages; each category runs as its own task against a
-// cluster loaded with exactly that category's data (see GenerateEsqlSpecTestsTask / EsqlSpecTestCase). The
-// "external" category is omitted: its dataset-backed specs only run on the external-source suites.
-def esqlCsvSpecCategories = ['core', 'norows', 'spatial', 'textmap', 'timeseries', 'vectors', 'views']
-
-def csvSpecCategoryTasks = esqlCsvSpecCategories.collect { category ->
-  tasks.register("csvSpecTests_${category}", StandaloneRestIntegTestTask) {
-    usesDefaultDistribution("to be triaged")
-    maxParallelForks = 1
-    systemProperty 'tests.rest.client_timeout', '60'
-    systemProperty 'tests.rest.socket_timeout', '60'
-    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-    classpath = sourceSets.csvSpecTest.runtimeClasspath
-    filter {
-      includeTestsMatching "org.elasticsearch.xpack.esql.qa.multi_node.${category}.*"
-    }
-    dependsOn generateEsqlSpecTests
-  }
-}
-def csvSpecTests = tasks.register('csvSpecTests') {
-  description = 'Runs all per-category csv-spec test tasks.'
-  dependsOn csvSpecCategoryTasks
+// The whole csv-spec suite runs in one JVM against one cluster; EsqlSpecTestCase groups execution by category and
+// swaps the cluster's data on category change.
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
 }
 tasks.named('check').configure { dependsOn csvSpecTests }
 

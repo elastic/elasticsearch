@@ -8,7 +8,6 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -168,9 +167,14 @@ tasks.named('check').configure { dependsOn 'checkNoJavaRestTestClasses' }
 // from any other tests that may be added to javaRestTest in the future.
 // No variants are declared — the IT class is hand-written in src/csvSpecTest/java/ because
 // the generator hardcodes a 6-parameter constructor and ORC tests need 7 (StorageBackend).
-esqlCsvSpecTests {
-  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-  packageName = 'org.elasticsearch.xpack.esql.qa.orc'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 // Provide the generated ORC fixtures as test resources for the csvSpecTest source set,
@@ -184,7 +188,6 @@ tasks.named('processCsvSpecTestResources').configure {
 // guard is not shared with any other test classes.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   dependsOn generateOrcFixtures
-  dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

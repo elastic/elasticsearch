@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
@@ -45,10 +44,14 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
-esqlCsvSpecTests {
-    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-    packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
-    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlSpecIT'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 // ESQL is available in 8.11 or later
@@ -68,24 +71,12 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
   }
 
-  // One csv-spec task per data category (classes live in per-category sub-packages). The "external" category is
-  // omitted here (dataset-backed specs run only on the external-source suites).
-  def esqlCsvSpecCategories = ['core', 'norows', 'spatial', 'textmap', 'timeseries', 'vectors', 'views']
-  def csvSpecCategoryTests = esqlCsvSpecCategories.collect { category ->
-    tasks.register("v${bwcVersion}#csvSpecTests_${category}", StandaloneRestIntegTestTask) {
-      usesBwcDistribution(bwcVersion)
-      systemProperty("tests.old_cluster_version", bwcVersion)
-      maxParallelForks = 1
-      testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-      classpath = sourceSets.csvSpecTest.runtimeClasspath
-      filter {
-        includeTestsMatching "org.elasticsearch.xpack.esql.qa.mixed.${category}.*"
-      }
-      dependsOn generateEsqlSpecTests
-    }
-  }
-  def csvSpecTest = tasks.register("v${bwcVersion}#csvSpecTests") {
-    dependsOn csvSpecCategoryTests
+  def csvSpecTest = tasks.register("v${bwcVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {

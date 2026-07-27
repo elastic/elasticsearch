@@ -2864,13 +2864,14 @@ c:long | _index:keyword
 100    | employees_incompatible
 ;
 
-emptyRelationBeforeSemiJoinBeforeMarkJoinWithMatch
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndMatchPhrase
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
 
 FROM books
 | WHERE book_no IN (FROM books | KEEP book_no) AND false
-| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
 | STATS c = COUNT(*)
 ;
 
@@ -2878,9 +2879,10 @@ c:long
 0
 ;
 
-nonEmptyRelationBeforeMarkJoinWithMatch
+propagateEmptyRelationWithNonEmptyRelationBeforeMarkJoinAndMatchFunction
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
 
 FROM books
 | WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
@@ -2892,13 +2894,14 @@ c:long
 0
 ;
 
-nonEmptyRelationBeforeSemiJoinBeforeMarkJoinWithMatch
+propagateEmptyRelationWithNonEmptyRelationBeforeSemiJoinMarkJoinAndMatchOperator
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
 
 FROM books
 | WHERE book_no IN (FROM books | KEEP book_no) AND true
-| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
 | STATS c = COUNT(*)
 ;
 
@@ -2906,9 +2909,10 @@ c:long
 79
 ;
 
-emptyRelationBeforeAntiJoinBeforeMarkJoinWithMatch
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinMarkJoinAndMatchFunction
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
 
 FROM books
 | WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
@@ -2920,13 +2924,14 @@ c:long
 0
 ;
 
-nonEmptyRelationBeforeMarkJoinBeforeMarkJoinWithMatch
+propagateEmptyRelationWithNonEmptyRelationBeforeTwoMarkJoinAndMatchOperator
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
 
 FROM books
 | WHERE book_no IN (FROM books | KEEP book_no) OR 1 > 1
-| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
 | STATS c = COUNT(*)
 ;
 
@@ -2934,13 +2939,14 @@ c:long
 79
 ;
 
-emptyRelationBeforeAntiJoinBeforeSemiJoinWithMatch
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinSemiJoinAndMatchPhrase
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
 
 FROM books
 | WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
-| WHERE author RLIKE ".*" AND book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE author RLIKE ".*" AND book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
 | STATS c = COUNT(*)
 ;
 
@@ -2948,13 +2954,29 @@ c:long
 0
 ;
 
-emptyRelationBeforeAntiJoinBeforeAntiJoinWithMatch2
+propagateEmptyRelationWithEmptyRelationBeforeTwoAntiJoinAndMatchFunction
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
 
 FROM books
 | WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
 | WHERE author RLIKE ".*" AND book_no NOT IN (FROM books | KEEP book_no) AND match(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndKnn
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE hex_code IN (FROM colors | KEEP hex_code) AND false
+| WHERE color RLIKE ".*" OR hex_code IN (FROM colors | KEEP hex_code) AND knn(rgb_vector, [0, 0, 0])
 | STATS c = COUNT(*)
 ;
 
@@ -3005,22 +3027,9 @@ emp_no:integer
 10003
 ;
 
-propagateEmptyRelationSemiJoinWithDownstreamStats
-required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
-
-FROM employees
-| WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-0
-;
-
 propagateEmptyRelationAntiJoinBothSidesEmpty
 required_capability: where_in_subquery_without_view
-required_capability: propagate_empty_relation_past_in_subquery
+required_capability: propagate_empty_relation_past_where_in_subquery
 
 FROM employees
 | WHERE false

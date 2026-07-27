@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -886,6 +887,36 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testExchangeFailurePropagatesThroughDriver() {
+        DriverContext driverContext = driverContext();
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        IllegalStateException expected = new IllegalStateException("remote fetch exchange failed");
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {}
+
+            @Override
+            Exception getFailure(String nodeId) {
+                return expected;
+            }
+        };
+        RemoteFetchOperator operator = new RemoteFetchOperator(
+            driverContext,
+            0,
+            fields,
+            outputFields,
+            null,
+            ConfigurationAware.CONFIGURATION_MARKER,
+            2,
+            client
+        );
+        var runner = new TestDriverRunner().builder(driverContext).input(new Page(handles(driverContext), carry(driverContext)));
+
+        IllegalStateException actual = expectThrows(IllegalStateException.class, () -> runner.run(operator));
+        assertSame(expected, actual);
+    }
+
     public void testIsBlockedWaitsForRemoteFetchEvenWhenMoreInputCanBeAccepted() {
         DriverContext driverContext = driverContext();
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
@@ -1121,6 +1152,10 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             return exchangesByNode.values().stream().mapToInt(exchange -> exchange.pages.size()).sum();
         }
 
+        Exception getFailure(String nodeId) {
+            return null;
+        }
+
         abstract void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles);
 
         @Override
@@ -1178,7 +1213,7 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
             @Override
             public Exception getFailure() {
-                return null;
+                return RecordingClient.this.getFailure(nodeId);
             }
 
             @Override

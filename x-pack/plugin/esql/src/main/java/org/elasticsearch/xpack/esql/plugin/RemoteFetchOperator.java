@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Fetches deferred fields from the owning data nodes after the coordinator has narrowed the candidate set.
  */
 public final class RemoteFetchOperator implements Operator {
-    record GroupPages(List<Page> pages, boolean hasPositionMapping) {}
+    record GroupPages(List<Page> pages, boolean hasPositionMapping, int handleCount) {}
 
     public record Factory(
         int handleChannel,
@@ -112,7 +112,7 @@ public final class RemoteFetchOperator implements Operator {
         List<GroupPages> pagesByGroup() {
             List<GroupPages> pagesByGroup = new ArrayList<>(groups.size());
             for (PendingGroup group : groups) {
-                pagesByGroup.add(new GroupPages(group.pages, group.hasPositionMapping));
+                pagesByGroup.add(new GroupPages(group.pages, group.hasPositionMapping, group.group.handles.size()));
             }
             return pagesByGroup;
         }
@@ -645,6 +645,12 @@ public final class RemoteFetchOperator implements Operator {
         if (pagesByGroup.stream().anyMatch(g -> g != null && g.hasPositionMapping())) {
             return mergeFetchedPageWithFiltering(inputPage, groupByPosition, offsetByPosition, pagesByGroup);
         }
+        FetchedRowRef[] fetchedRows = resolveFetchedRows(groupByPosition, offsetByPosition, buildGroupMappings(pagesByGroup));
+        for (FetchedRowRef rowRef : fetchedRows) {
+            if (rowRef == null) {
+                throw new IllegalStateException("remote fetch response did not contain the expected row");
+            }
+        }
         Block[] outputBlocks = new Block[inputPage.getBlockCount() + outputFields.size()];
         Block.Builder[] builders = new Block.Builder[outputFields.size()];
         boolean success = false;
@@ -656,9 +662,9 @@ public final class RemoteFetchOperator implements Operator {
             for (int field = 0; field < outputFields.size(); field++) {
                 builders[field] = PlannerUtils.toElementType(outputFields.get(field).dataType())
                     .newBlockBuilder(inputPage.getPositionCount(), driverContext.blockFactory());
-                for (int position = 0; position < inputPage.getPositionCount(); position++) {
-                    List<Page> fetchedPages = pagesByGroup.get(groupByPosition[position]).pages();
-                    copyFetchedPosition(builders[field], fetchedPages, field, offsetByPosition[position]);
+                for (FetchedRowRef rowRef : fetchedRows) {
+                    Page fetchedPage = pagesByGroup.get(rowRef.group()).pages().get(rowRef.pageIndex());
+                    builders[field].copyFrom(fetchedPage.getBlock(field), rowRef.position(), rowRef.position() + 1);
                 }
                 outputBlocks[inputPage.getBlockCount() + field] = builders[field].build();
             }
@@ -686,15 +692,14 @@ public final class RemoteFetchOperator implements Operator {
         int[] offsetByPosition,
         List<GroupPages> pagesByGroup
     ) {
-        // Build a per-group lookup from original handle offset -> (pageIndex, row) in the fetched pages
-        List<Map<Integer, FetchedRowRef>> groupMappings = buildGroupMappings(pagesByGroup);
+        FetchedRowRef[] fetchedRows = resolveFetchedRows(groupByPosition, offsetByPosition, buildGroupMappings(pagesByGroup));
 
-        // Walk the input positions and keep only those that survived the pushdown filter
+        // Keep only input positions whose corresponding rows survived the pushdown filter.
         int[] survivingPositions = new int[inputPage.getPositionCount()];
         List<FetchedRowRef> keptRows = new ArrayList<>(inputPage.getPositionCount());
         int survivors = 0;
         for (int position = 0; position < inputPage.getPositionCount(); position++) {
-            FetchedRowRef rowRef = groupMappings.get(groupByPosition[position]).get(offsetByPosition[position]);
+            FetchedRowRef rowRef = fetchedRows[position];
             if (rowRef != null) {
                 survivingPositions[survivors++] = position;
                 keptRows.add(rowRef);
@@ -733,50 +738,35 @@ public final class RemoteFetchOperator implements Operator {
         }
     }
 
-    private static List<Map<Integer, FetchedRowRef>> buildGroupMappings(List<GroupPages> pagesByGroup) {
-        List<Map<Integer, FetchedRowRef>> mappings = new ArrayList<>(pagesByGroup.size());
+    private static FetchedRowRef[][] buildGroupMappings(List<GroupPages> pagesByGroup) {
+        FetchedRowRef[][] mappings = new FetchedRowRef[pagesByGroup.size()][];
         for (int group = 0; group < pagesByGroup.size(); group++) {
             GroupPages groupPages = pagesByGroup.get(group);
-            Map<Integer, FetchedRowRef> mapping = new HashMap<>();
-            if (groupPages != null) {
-                List<Page> pages = groupPages.pages();
-                if (groupPages.hasPositionMapping()) {
-                    for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
-                        Page page = pages.get(pageIndex);
-                        IntBlock positionBlock = page.getBlock(page.getBlockCount() - 1);
-                        for (int row = 0; row < page.getPositionCount(); row++) {
-                            int pos = positionBlock.getInt(positionBlock.getFirstValueIndex(row));
-                            FetchedRowRef prev = mapping.put(pos, new FetchedRowRef(group, pageIndex, row));
-                            if (prev != null) {
-                                throw new IllegalStateException("remote fetch returned duplicate position [" + pos + "]");
-                            }
-                        }
+            FetchedRowRef[] mapping = new FetchedRowRef[groupPages.handleCount()];
+            int runningOffset = 0;
+            List<Page> pages = groupPages.pages();
+            for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
+                Page page = pages.get(pageIndex);
+                IntBlock positionBlock = groupPages.hasPositionMapping() ? page.getBlock(page.getBlockCount() - 1) : null;
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    int position = positionBlock == null ? runningOffset++ : positionBlock.getInt(positionBlock.getFirstValueIndex(row));
+                    if (mapping[position] != null) {
+                        throw new IllegalStateException("remote fetch returned duplicate position [" + position + "]");
                     }
-                } else {
-                    int runningOffset = 0;
-                    for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
-                        Page page = pages.get(pageIndex);
-                        for (int row = 0; row < page.getPositionCount(); row++) {
-                            mapping.put(runningOffset++, new FetchedRowRef(group, pageIndex, row));
-                        }
-                    }
+                    mapping[position] = new FetchedRowRef(group, pageIndex, row);
                 }
             }
-            mappings.add(mapping);
+            mappings[group] = mapping;
         }
         return mappings;
     }
 
-    private static void copyFetchedPosition(Block.Builder builder, List<Page> fetchedPages, int fieldIndex, int flattenedPosition) {
-        int position = flattenedPosition;
-        for (Page page : fetchedPages) {
-            if (position < page.getPositionCount()) {
-                builder.copyFrom(page.getBlock(fieldIndex), position, position + 1);
-                return;
-            }
-            position -= page.getPositionCount();
+    private static FetchedRowRef[] resolveFetchedRows(int[] groupByPosition, int[] offsetByPosition, FetchedRowRef[][] groupMappings) {
+        FetchedRowRef[] fetchedRows = new FetchedRowRef[groupByPosition.length];
+        for (int position = 0; position < groupByPosition.length; position++) {
+            fetchedRows[position] = groupMappings[groupByPosition[position]][offsetByPosition[position]];
         }
-        throw new IllegalStateException("remote fetch response did not contain the expected row");
+        return fetchedRows;
     }
 
     private static void releasePagesByGroup(List<GroupPages> pagesByGroup) {

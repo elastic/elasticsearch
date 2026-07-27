@@ -763,3 +763,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testExplainCCS
   issue: https://github.com/elastic/elasticsearch/issues/155122
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/155123

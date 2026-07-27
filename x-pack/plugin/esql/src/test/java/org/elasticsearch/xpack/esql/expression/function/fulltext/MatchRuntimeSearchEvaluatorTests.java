@@ -8,34 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.junit.After;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -43,7 +25,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -55,54 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * {@code to_text(...)} case), and exact value matching on every other type. Multivalue (any-value match), null/missing
  * positions, and the thread-safety of the shared per-thread scratch {@link BytesRef} are exercised too.
  */
-public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
-
-    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    @After
-    public void allMemoryReleased() {
-        for (CircuitBreaker breaker : breakers) {
-            assertThat(breaker.getUsed(), equalTo(0L));
-        }
-    }
-
-    /** A field evaluator that simply hands back the block at channel 0 of the page. */
-    private static final ExpressionEvaluator.Factory FIELD_AT_0 = context -> new ExpressionEvaluator() {
-        @Override
-        public Block eval(Page page) {
-            Block block = page.getBlock(0);
-            block.incRef();
-            return block;
-        }
-
-        @Override
-        public long baseRamBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public void close() {}
-    };
-
-    private static EvaluatorMapper.ToEvaluator toEvaluator() {
-        return new EvaluatorMapper.ToEvaluator() {
-            @Override
-            public ExpressionEvaluator.Factory apply(Expression expression) {
-                return FIELD_AT_0;
-            }
-
-            @Override
-            public FoldContext foldCtx() {
-                return FoldContext.small();
-            }
-        };
-    }
-
-    private DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
-    }
+public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvaluatorTests {
 
     private static Match runtimeMatch(DataType fieldType, Object queryValue, DataType queryType) {
         ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", fieldType);
@@ -110,36 +44,6 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         Match match = new Match(Source.EMPTY, field, query, null);
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
-    }
-
-    /**
-     * Builds the runtime evaluator for {@code match} and runs it over a single field block (built from the breaking
-     * block factory so {@link #allMemoryReleased()} verifies nothing leaks), returning the per-position boolean
-     * results ({@code null} only if a position could not be evaluated, which never happens for these inputs).
-     */
-    private Boolean[] evaluate(Match match, Function<BlockFactory, Block> fieldBuilder) {
-        DriverContext context = driverContext();
-        Block fieldBlock = fieldBuilder.apply(context.blockFactory());
-        ExpressionEvaluator.Factory factory = match.toEvaluator(toEvaluator());
-        try (ExpressionEvaluator evaluator = factory.get(context)) {
-            Page page = new Page(fieldBlock);
-            try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {
-                Boolean[] out = new Boolean[result.getPositionCount()];
-                for (int p = 0; p < out.length; p++) {
-                    out[p] = result.isNull(p) ? null : result.getBoolean(result.getFirstValueIndex(p));
-                }
-                return out;
-            } finally {
-                page.releaseBlocks();
-            }
-        }
-    }
-
-    private static Block bytesRefBlock(BlockFactory factory, Consumer<BytesRefBlock.Builder> build) {
-        try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(4)) {
-            build.accept(builder);
-            return builder.build();
-        }
     }
 
     // ---- text: analyzed full-text matching (the to_text case) ----

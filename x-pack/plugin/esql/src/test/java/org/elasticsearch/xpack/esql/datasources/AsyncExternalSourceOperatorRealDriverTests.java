@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.InputStream;
 import java.time.Instant;
@@ -84,9 +86,8 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
     private ThreadPool driverThreadPool;
     private ExecutorService producerExec;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startExecutors() {
         driverThreadPool = new TestThreadPool(
             "real-driver-tests",
             new FixedExecutorBuilder(
@@ -101,14 +102,13 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
         producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "real-driver-producer"));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopExecutors() throws Exception {
         try {
             producerExec.shutdownNow();
             assertTrue(producerExec.awaitTermination(10, TimeUnit.SECONDS));
         } finally {
             terminate(driverThreadPool);
-            super.tearDown();
         }
     }
 

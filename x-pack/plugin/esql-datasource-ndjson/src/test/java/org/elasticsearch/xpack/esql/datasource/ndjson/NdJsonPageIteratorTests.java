@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -71,9 +72,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -3246,7 +3246,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             case DOUBLE -> DataType.DOUBLE;
             case NULL -> DataType.NULL;
             case BYTES_REF -> DataType.KEYWORD;
-            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE ->
                 throw new IllegalArgumentException("Unsupported block type: " + block.elementType());
         };
     }

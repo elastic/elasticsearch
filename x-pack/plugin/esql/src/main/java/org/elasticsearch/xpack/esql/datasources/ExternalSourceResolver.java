@@ -496,7 +496,7 @@ public class ExternalSourceResolver {
         resolveSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
-            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isStrict(declaredMapping) == false
+            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
                 ? applyNonStrictOverlay(resolvedSource, declaredMapping)
                 : resolvedSource;
             resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
@@ -634,7 +634,7 @@ public class ExternalSourceResolver {
 
         // Strict declaration is the entire schema: build directly from the declaration (one bounded anchor footer read
         // for columnar coercibility), no inference. The non-strict overlay is applied by the caller after this returns.
-        if (isStrict(declaredMapping)) {
+        if (isDeclaredSchema(declaredMapping)) {
             listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
             return;
         }
@@ -699,7 +699,7 @@ public class ExternalSourceResolver {
         // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
         // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
         // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
-        if (isStrict(declaredMapping)) {
+        if (isDeclaredSchema(declaredMapping)) {
             listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, hivePartitioning, config, declaredMapping));
             return;
         }
@@ -2286,7 +2286,7 @@ public class ExternalSourceResolver {
         }
     }
 
-    private static boolean isStrict(@Nullable DatasetMapping declaredMapping) {
+    private static boolean isDeclaredSchema(@Nullable DatasetMapping declaredMapping) {
         return declaredMapping != null
             && declaredMapping.mappings() != null
             && declaredMapping.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
@@ -2318,7 +2318,12 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
+        // The one place the reading mode is read: it selects the schema's PROVENANCE and is consumed here, never
+        // travelling. A strict schema is a DECLARED claim about the file (bind by name, report absent columns);
+        // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
+        // read-time decision keys on the provenance the data node receives, not on the mode.
+        SchemaProvenance provenance = isDeclaredSchema(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
     }
 
     /**
@@ -2706,10 +2711,13 @@ public class ExternalSourceResolver {
      * (e.g. a timestamp column declared {@code ip}) would surface as an internal block type mismatch deep in the
      * engine or as silent nulls; reject it here, at resolution, with an actionable message instead.
      * <p>
-     * The same walk polices a declared date {@code format}: on a file-typed format it only ever takes effect as the
-     * string&rarr;date parse pattern, so a format on a column whose physical type is not a string could never apply
-     * and is rejected rather than silently ignored. (On text formats the format is always honored — the parse IS the
-     * coercion — so text never reaches this check.)
+     * The same walk polices a declared date {@code format}: on a file-typed format it takes effect either as the
+     * string&rarr;date parse pattern or as the epoch unit / parse dialect of a numeric column ({@code epoch_second} on
+     * an {@code int64} column, {@code yyyyMMdd} on a numeric token). A format is rejected where it could never apply: a
+     * boolean/ip physical is already refused by the preceding type check (it cannot coerce to a date at all), and an
+     * already-temporal physical (an annotated timestamp declared with a format) — which passes the type check as an
+     * identity coercion — is caught here. (On text formats the format is always honored — the parse IS the coercion —
+     * so text never reaches this check.)
      * <p>
      * {@code parquet-rs} (in {@link #FILE_TYPED_FORMATS} but not {@link #COERCING_FILE_TYPED_FORMATS}) keeps the
      * strict equality check: its Arrow conversion layer has no coercion hook yet.
@@ -2746,7 +2754,7 @@ public class ExternalSourceResolver {
                         + " declare the file's type and cast in the query if needed"
                 );
             }
-            if (e.getValue().format() != null && isStringType(inferredType) == false) {
+            if (e.getValue().format() != null && isStringType(inferredType) == false && isNumericType(inferredType) == false) {
                 throw new IllegalArgumentException(
                     "[format] on column ["
                         + e.getKey()
@@ -2754,7 +2762,8 @@ public class ExternalSourceResolver {
                         + sourceType
                         + "] datasets when the file's column type is ["
                         + inferredType.typeName().toLowerCase(Locale.ROOT)
-                        + "]; a format only applies when parsing a string column into a date"
+                        + "]; a format applies when parsing a string column into a date,"
+                        + " or as the epoch unit / parse dialect of a numeric column"
                 );
             }
         }
@@ -2762,6 +2771,16 @@ public class ExternalSourceResolver {
 
     private static boolean isStringType(DataType type) {
         return type == DataType.KEYWORD || type == DataType.TEXT;
+    }
+
+    /**
+     * Whether a declared date {@code format} can apply to this physical type as the epoch unit / parse dialect of a
+     * numeric column ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}). Excludes temporals
+     * ({@code datetime}/{@code date_nanos}): an annotated timestamp is already an instant, so a format on it could never
+     * apply and stays rejected.
+     */
+    private static boolean isNumericType(DataType type) {
+        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
     }
 
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(

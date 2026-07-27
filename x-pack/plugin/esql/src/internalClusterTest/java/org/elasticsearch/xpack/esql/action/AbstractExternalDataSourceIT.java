@@ -460,4 +460,23 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         }
         return nodes;
     }
+
+    /**
+     * Every {@link AsyncExternalSourceOperator.Status} across the query's driver profiles. Lets a caller assert on the
+     * <em>real I/O</em> a scan performed (splits totalled, bytes read), not merely the post-prune profile counters —
+     * the two differ exactly when the read path scans files the pruning already eliminated. Requires
+     * {@code profile(true)}.
+     */
+    protected static List<AsyncExternalSourceOperator.Status> externalScanStatuses(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
+        List<AsyncExternalSourceOperator.Status> statuses = new ArrayList<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
+    }
 }

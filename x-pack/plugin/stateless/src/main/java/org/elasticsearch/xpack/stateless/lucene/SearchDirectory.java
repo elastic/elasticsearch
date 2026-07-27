@@ -252,7 +252,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 currentMetadata = Map.copyOf(updated);
                 assert filesRemoved;
 
-                if (filesRemoved && cacheService.isCacheBoostPreferenceEnabled()) {
+                if (filesRemoved && cacheService.isEvictObsoleteRegionsEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
                 }
             } finally {
@@ -350,6 +350,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     @Override
     StatelessSharedBlobCacheService getCacheService() {
         return super.getCacheService();
+    }
+
+    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet
+    /// completed. Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it,
+    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
+    long pendingObsoleteRegionsEvictionTasks() {
+        return submittedObsoleteRegionsEvictionTasks.get();
     }
 
     // TODO this method works because we never prune old commits files
@@ -582,16 +589,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return metadata;
     }
 
-    @Nullable
-    public BlobLocation getBlobLocationForFile(String fileName) {
-        BlobFileRanges blobFileRanges = currentMetadata.get(fileName);
-        if (blobFileRanges != null) {
-            return blobFileRanges.blobLocation();
-        }
-        return null;
-    }
-
-    // used in tests only
+    /// Retrieves the [BlobFileRanges] metadata for a specific file by its name.
+    ///
+    /// @param fileName the name of the file for which to retrieve the metadata
+    /// @return the [BlobFileRanges] associated with the specified file,
+    ///         or `null` if no metadata is found for the given file name
     @Nullable
     public BlobFileRanges getBlobFileRangesForFile(String fileName) {
         return currentMetadata.get(fileName);

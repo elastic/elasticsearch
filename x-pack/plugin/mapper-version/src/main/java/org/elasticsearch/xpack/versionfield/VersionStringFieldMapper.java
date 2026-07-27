@@ -257,7 +257,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 ? rewriteMethod
                 : FuzzyQuery.defaultRewriteMethod(maxExpansions);
             FuzzyQuery query = new FuzzyQuery(
-                new Term(name(), (BytesRef) value),
+                new Term(name(), BytesRefs.toBytesRef(value)),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,

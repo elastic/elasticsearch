@@ -117,6 +117,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -404,6 +405,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
             );
         }
+        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        if (randomBoolean()) {
+            builder.put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            );
+        }
         return builder;
     }
 
@@ -644,12 +652,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 String blobName,
                 long blobSize,
                 BlobContainer.BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 if (failWrites) {
                     failIfNeeded(purpose, blobName);
                 }
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
             }
 
             @Override

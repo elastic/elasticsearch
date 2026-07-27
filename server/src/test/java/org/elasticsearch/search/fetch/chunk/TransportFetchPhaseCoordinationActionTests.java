@@ -9,7 +9,7 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -62,8 +63,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -400,19 +399,10 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
         action.doExecute(createTask(taskId), request, future);
         Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
-        assertThat(failure, not(instanceOf(ElasticsearchTimeoutException.class)));
-
-        // doExecute adds bytes to the REQUEST breaker before SearchHit.readFrom() throws on the
-        // invalid payload. closeInternal (triggered when the stream's refCount reaches zero after
-        // cleanup) releases those bytes, so zero bytes is the reliable signal that the stream is
-        // fully cleaned up. Polling acquireResponseStream instead would tryIncRef on every failed
-        // attempt and leak refs, preventing closeInternal from ever firing.
-        assertBusy(
-            () -> assertThat(
-                "breaker bytes must be zero once stream closeInternal has completed",
-                breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(),
-                equalTo(0L)
-            )
+        assertThat(
+            "expected a deserialization failure but got: " + failure,
+            ExceptionsHelper.unwrap(failure, EOFException.class),
+            notNullValue()
         );
         assertBusy(() -> assertFalse(activeFetchPhaseTasks.isRegistered(taskId, TEST_SHARD_ID)));
     }

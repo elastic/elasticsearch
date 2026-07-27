@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -701,12 +700,14 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         // Block all RecoveryCancelledException SHARD_FAILED messages so the shard remains INITIALIZING in the cluster state.
         final var blockedCancellationFailures = new CopyOnWriteArrayList<Runnable>();
         final var firstCancellationFailureReceived = new CountDownLatch(1);
+        final var allCancellationFailuresReceived = new CountDownLatch(3);
         MockTransportService.getInstance(masterNode)
             .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
                 if (request instanceof FailedShardEntry failedShard
                     && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
                     assertThat("unexpected SHARD_FAILED cancellation", failedShard.getShardId(), equalTo(shardId));
                     firstCancellationFailureReceived.countDown();
+                    allCancellationFailuresReceived.countDown();
                     blockedCancellationFailures.add(() -> {
                         try {
                             handler.messageReceived(request, channel, task);
@@ -760,7 +761,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertRecoveryCountStats(Map.of(dataNode, stats -> stats.currentFromStore() == 0 && stats.currentFromStoreQueued() == 0));
         waitNoPendingTasksOnAll();
 
-        assertThat("expected at least 3 SHARD_FAILED to have been sent", blockedCancellationFailures.size(), greaterThanOrEqualTo(3));
+        // Expect at least 3 SHARD_FAILED to have been sent
+        safeAwait(allCancellationFailuresReceived);
 
         // Release all blocked SHARD_FAILED messages.
         blockedCancellationFailures.forEach(Runnable::run);

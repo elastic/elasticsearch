@@ -534,18 +534,21 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
+        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
         routingNodes.relocateShard(
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",
             0L,
             "test",
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            recoveryPriority
         );
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
         assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertThat(routingNodes.node("node-1").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
+        assertThat(routingNodes.node("node-3").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
         assertThat(routingNodes.unassigned().ignored(), empty());
     }
 

@@ -318,11 +318,6 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
             this.docValuesParameters = DocValuesParameter.of(
-                () -> DocValuesParameter.defaultValues(
-                    indexSettings,
-                    DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
-                    DocValuesParameter.Values.Cardinality.HIGH
-                ),
                 DocValuesParameter.defaultValues(
                     indexSettings,
                     DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,

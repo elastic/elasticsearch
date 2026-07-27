@@ -178,11 +178,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.indexSettings = indexSettings;
             this.indexMode = indexSettings.getMode();
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                () -> FieldMapper.DocValuesParameter.defaultValues(
-                    indexSettings,
-                    FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
-                ),
                 FieldMapper.DocValuesParameter.defaultValues(
                     indexSettings,
                     FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,

@@ -82,7 +82,6 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1101,28 +1100,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.directoryMetricsDelta() : EMPTY_SUPPLIER;
     }
 
-    private Supplier<DirectoryMetrics> captureDirectoryMetrics() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.captureDirectoryMetrics() : EMPTY_SUPPLIER;
-    }
-
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        DirectoryMetrics delta = metricsDelta.get();
-        long workerBytesRead = context.getWorkerThreadsBytesRead();
-        if (workerBytesRead > 0L) {
-            DirectoryMetrics.Builder workerMetrics = new DirectoryMetrics.Builder();
-            workerMetrics.add(StoreMetrics.NAME, new StoreMetrics(workerBytesRead));
-            delta = delta.merge(workerMetrics.build());
-        }
-        result.setDirectoryMetrics(delta);
+        result.setDirectoryMetrics(metricsDelta.get().merge(context.getWorkerThreadsMetrics()));
     }
 
-    private static void setFetchDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        if (context.currentThreadStoreMetrics() == null) {
-            setDirectoryMetrics(result, metricsDelta, context);
+    private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
             return;
         }
-        long fetchBytesRead = context.getFetchThreadsBytesRead() + context.getWorkerThreadsBytesRead();
-        result.setDirectoryMetrics(metricsDelta.get().withMetric(StoreMetrics.NAME, new StoreMetrics(fetchBytesRead)));
+        result.setDirectoryMetrics(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()));
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1244,8 +1230,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() throws Exception {
                 final long startTime;
                 final SearchOperationListener opsListener;
-                final Supplier<DirectoryMetrics> metricsDelta = captureDirectoryMetrics();
-
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
                 startTime = System.nanoTime();
                 opsListener = searchContext.indexShard().getSearchOperationListener();
@@ -1266,7 +1250,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
                         searchExecutor,
-                        newFetchBuildListener(opsListener, searchContext, startTime, metricsDelta, fetchResult, closeOnce),
+                        newFetchBuildListener(opsListener, searchContext, startTime, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
                 } catch (Exception e) {
@@ -1304,12 +1288,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchOperationListener opsListener,
         SearchContext searchContext,
         long startTime,
-        Supplier<DirectoryMetrics> metricsDelta,
         FetchSearchResult fetchResult,
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
-            setFetchDirectoryMetrics(fetchResult, metricsDelta, searchContext);
+            setFetchDirectoryMetrics(fetchResult, searchContext);
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
@@ -1684,31 +1667,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PitReaderContext readerContext = null;
         try {
             long newKey = idGenerator.incrementAndGet();
+
+            readerContext = new PitReaderContext(
+                contextId,
+                indexService,
+                shard,
+                reader,
+                keepAliveInMillis,
+                relocatedReshardingMetadata,
+                relocatedSplitShardCountSummary,
+                0L
+            );
+            reader = null;
+            final ReaderContext finalReaderContext = readerContext;
+            final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+            searchOperationListener.onNewReaderContext(finalReaderContext);
+            readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+            putRelocatedReaderContext(newKey, readerContext);
+
             // Check that we don't already have a relocation mapping for this context id
             final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
-            if (previous == null) {
-                readerContext = new PitReaderContext(
-                    contextId,
-                    indexService,
-                    shard,
-                    reader,
-                    keepAliveInMillis,
-                    relocatedReshardingMetadata,
-                    relocatedSplitShardCountSummary,
-                    0L
-                );
-                reader = null;
-                final ReaderContext finalReaderContext = readerContext;
-                final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-                searchOperationListener.onNewReaderContext(finalReaderContext);
-                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
-                putRelocatedReaderContext(newKey, readerContext);
+            if (previous != null) {
+                // another thread beat us creating the relocation mapping, clean up the context we just put and reuse the previous mapping
+                ReaderContext removed = removeReaderContext(new ShardSearchContextId(sessionId, newKey));
+                removed.close();
                 readerContext = null;
-                return finalReaderContext;
-            } else {
-                // we already have a mapping for this context, dont add a new one and use the existing instead
-                return activeReaders.get(new ShardSearchContextId(sessionId, previous, contextId.getSearcherId()));
+                return activeReaders.get(contextId);
             }
+            readerContext = null;
+            return finalReaderContext;
         } finally {
             Releasables.close(reader, readerContext);
         }
@@ -1718,7 +1705,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         activeReaders.putRelocatedReader(mappingKey, context);
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            removeReaderContext(context.id(), "index not found during putRelocatedReaderContext");
+            // The relocation mapping has not been created yet at this point, so we must remove
+            // by the local key rather than by context.id() (which would look up via relocationMap).
+            removeReaderContext(new ShardSearchContextId(sessionId, mappingKey), "index not found during putRelocatedReaderContext");
             throw new IndexNotFoundException(index);
         }
     }
@@ -1890,7 +1879,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 minimumDocsPerSlice,
                 memoryAccountingBufferSize,
                 circuitBreaker,
-                Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService::currentThreadStoreMetrics : null
+                Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService::directoryMetricsDelta : DirectoryMetrics.Capture.NOOP
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -2380,6 +2369,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .filter(c -> c.indexShard().shardId().equals(shardId))
             .map(c -> (PitReaderContext) c)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns the number of relocated context mappings in this SearchService
+     */
+    int getRelocationMapSize() {
+        return this.activeReaders.relocationMapSize();
     }
 
     /**

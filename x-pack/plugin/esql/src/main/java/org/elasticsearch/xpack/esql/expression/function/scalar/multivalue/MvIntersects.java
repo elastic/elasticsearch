@@ -21,28 +21,38 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * Function that takes two multivalued expressions and checks if any values of one expression(subset) are
@@ -61,7 +71,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     <li>null, null &rArr; false (&empty; ∩ &empty; is an empty set)</li>
  * </ul>
  */
-public class MvIntersects extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvIntersects extends BinaryScalarFunction implements EvaluatorMapper, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvIntersects",
@@ -69,7 +79,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersects.class)
         .binary(MvIntersects::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "lucene_pushdown")
         .name("mv_intersects");
 
     @FunctionInfo(
@@ -184,30 +194,41 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
     }
 
     @Override
+    public boolean foldable() {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return true;
+        }
+        return super.foldable();
+    }
+
+    @Override
     public Object fold(FoldContext ctx) {
+        if (Expressions.isGuaranteedNull(left()) || Expressions.isGuaranteedNull(right())) {
+            return false;
+        }
         return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var lefType = PlannerUtils.toElementType(left().dataType());
+        var leftType = PlannerUtils.toElementType(left().dataType());
         var rightType = PlannerUtils.toElementType(right().dataType());
 
-        if (lefType == ElementType.NULL || rightType == ElementType.NULL) {
+        if (leftType == ElementType.NULL || rightType == ElementType.NULL) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
-        if (lefType != rightType) {
+        if (leftType != rightType) {
             throw new EsqlIllegalArgumentException(
                 "Incompatible data types for mv_intersects, left type({}) value({}) and right type({}) value({}) don't match.",
-                lefType,
+                leftType,
                 left(),
                 rightType,
                 right()
             );
         }
 
-        return switch (lefType) {
+        return switch (leftType) {
             case BOOLEAN -> new MvIntersectsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvIntersectsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvIntersectsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
@@ -215,6 +236,66 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
             case LONG -> new MvIntersectsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        // TODO: when one of the arguments has a null type, the expression can be folded early
+        if (left().dataType() == DataType.NULL || right().dataType() == DataType.NULL) {
+            return Translatable.NO;
+        }
+
+        // TODO: Add Lucene pushdown for spatial types too
+        DataType dataType = left().dataType();
+        if (dataType.isNumeric() == false
+            && DataType.isString(dataType) == false
+            && dataType.isDate() == false
+            && dataType != DataType.VERSION
+            && dataType != DataType.IP
+            && dataType != DataType.BOOLEAN) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable()) {
+            Object literalValue = literalValueOf(right());
+            if (literalValue == null) {
+                return Translatable.NO;
+            }
+            if (literalValue instanceof List<?> list && list.isEmpty()) {
+                return Translatable.NO;
+            }
+            return Translatable.YES;
+        }
+        if (pushdownPredicates.isPushableFieldAttribute(right()) && left().foldable()) {
+            Object literalValue = literalValueOf(left());
+            if (literalValue == null) {
+                return Translatable.NO;
+            }
+            if (literalValue instanceof List<?> list && list.isEmpty()) {
+                return Translatable.NO;
+            }
+            return Translatable.YES;
+        }
+        return Translatable.NO;
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        Expression fieldExpression;
+        Expression foldableExpression;
+        if (pushdownPredicates.isPushableFieldAttribute(left())) {
+            fieldExpression = left();
+            foldableExpression = right();
+        } else {
+            fieldExpression = right();
+            foldableExpression = left();
+        }
+        Object literalValue = literalValueOf(foldableExpression);
+        List<?> values = literalValue instanceof List ? (List<?>) literalValue : List.of(literalValue);
+
+        LinkedHashSet<Object> terms = new LinkedHashSet<>();
+        values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, fieldExpression.dataType())));
+
+        return new TermsQuery(source(), handler.nameOf(fieldExpression), terms);
     }
 
     /*

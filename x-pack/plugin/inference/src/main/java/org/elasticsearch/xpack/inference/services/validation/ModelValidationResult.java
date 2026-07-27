@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 
-public interface ModelValidator {
-    void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener);
-}
+/**
+ * Holds the result of model validation, including the validated model and whether the validator started
+ * a model deployment as part of validation.
+ */
+public record ModelValidationResult(Model model, boolean deploymentStarted) {}

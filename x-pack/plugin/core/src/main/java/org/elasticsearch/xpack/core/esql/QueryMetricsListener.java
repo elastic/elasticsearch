@@ -34,7 +34,7 @@ public interface QueryMetricsListener {
      */
     String READ_NANOS = "read_nanos";
     /**
-     * Time spent on discovering spilts, from queryProfile.splitDiscoveryNanos()
+     * Time spent on discovering splits, from queryProfile.splitDiscoveryNanos()
      */
     String SPLIT_DISCOVERY_NANOS = "split_discovery_nanos";
     /**

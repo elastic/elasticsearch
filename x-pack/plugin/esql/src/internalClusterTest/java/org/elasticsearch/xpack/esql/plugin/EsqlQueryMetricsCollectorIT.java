@@ -135,7 +135,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         // external datasource drove the result.
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
-        // This assertion FAILS with the current code, demonstrating the false negative:
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
     }
 }

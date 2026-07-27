@@ -2,7 +2,7 @@
 navigation_title: "Cluster settings"
 description: "Reference for ES|QL Data Federation cluster settings. Tune object limits, control request concurrency, and adjust file discovery and caching."
 applies_to:
-  stack: preview =9.5
+  stack: experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch

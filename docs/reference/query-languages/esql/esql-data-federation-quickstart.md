@@ -2,8 +2,8 @@
 navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
-  stack: preview =9.5
-  serverless: preview
+  stack: experimental =9.5
+  serverless: experimental
 products:
   - id: elasticsearch
 ---

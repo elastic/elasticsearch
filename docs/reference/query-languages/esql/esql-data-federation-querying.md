@@ -2,8 +2,8 @@
 navigation_title: "Query datasets"
 description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, combine datasets with indices, and troubleshoot common issues."
 applies_to:
-  stack: preview =9.5
-  serverless: preview
+  stack: experimental =9.5
+  serverless: experimental
 products:
   - id: elasticsearch
 ---
@@ -105,8 +105,8 @@ The following search functions are available for datasets:
 
 | Function | Stack | Serverless |
 |---|---|---|
-| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: preview 9.5` | {applies_to}`serverless: preview` |
-| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: preview 9.6` | {applies_to}`serverless: preview` |
+| [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: experimental 9.5` | {applies_to}`serverless: experimental` |
+| [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` | {applies_to}`serverless: experimental` |
 | `_score` for dataset rows | Not yet available | Not yet available |
 
 :::{tip}

@@ -2,8 +2,8 @@
 navigation_title: "Add datasets"
 description: "Create ES|QL Data Federation datasets to query files in external storage. Choose file formats, adjust Parquet and CSV parsing, and control schema inference."
 applies_to:
-  stack: preview =9.5
-  serverless: preview
+  stack: experimental =9.5
+  serverless: experimental
 products:
   - id: elasticsearch
 ---

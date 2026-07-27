@@ -2,8 +2,8 @@
 navigation_title: "Overview"
 description: "ES|QL Data Federation queries data in external cloud storage from Elasticsearch without ingestion. Covers use cases, supported data source types, and file formats."
 applies_to:
-  stack: preview =9.5
-  serverless: preview
+  stack: experimental =9.5
+  serverless: experimental
 products:
   - id: elasticsearch
 ---

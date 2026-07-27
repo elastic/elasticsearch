@@ -454,7 +454,7 @@ For more information about upgrades, see [Upgrading {{es}}](docs-content://deplo
 
 ### Query datasets across clusters
 ```{applies_to}
-stack: preview =9.5
+stack: experimental =9.5
 ```
 
 You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.

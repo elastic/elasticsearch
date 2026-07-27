@@ -22,7 +22,9 @@ When a data source includes credentials, {{es}} encrypts them using the cluster 
 
 The cluster state encryption key is available automatically in most environments, including {{ech}}, {{ece}}, {{eck}}, and {{serverless-short}}.
 
-By default, if the cluster state encryption key is not available when you create a data source, a `PUT /_query/data_source` request that includes credentials returns a `503` error. On upgraded self-managed clusters, the encryption password is not configured automatically. Add `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` to the keystore on every node, then call `POST /_nodes/reload_secure_settings`.
+By default, if the cluster state encryption key is not available when you create a data source, a `PUT /_query/data_source` request that includes credentials returns a `503` error.
+
+On upgraded self-managed clusters, the encryption password is not configured automatically. To configure a cluster state encryption key, add `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` to the keystore on every node, then call `POST /_nodes/reload_secure_settings`.
 
 :::{warning}
 Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.

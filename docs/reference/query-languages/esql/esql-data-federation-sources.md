@@ -77,13 +77,15 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 
 ### Create or update a data source
 
-`PUT` creates a new data source or replaces an existing one entirely with one exception. Secrets you omit from the request are carried forward from the existing definition rather than cleared, so you can update non-secret settings without re-sending credentials. The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct, create a dataset that references the data source and query it.
+`PUT` creates a new data source or replaces an existing one entirely with one exception. Secrets you omit from the request are carried forward from the existing definition rather than cleared, so you can update non-secret settings without re-sending credentials.
+
+The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct, create a dataset that references the data source and query it.
 
 :::{important}
 Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.
 :::
 
-A cluster holds at most 100 data sources by default. Creating one past the limit fails; raise it with the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
+A cluster holds at most 100 data sources by default. In {{stack}} deployments, if you need more than 100 data sources, then you can raise the limit using the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
 
 ::::{tab-set}
 :group: api-ref
@@ -176,7 +178,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source" \
 
 ### Delete a data source
 
-Deletes one or more data sources by name. You can pass a comma-separated list. The request is all-or-nothing: if any named data source does not exist, the request returns a `404` and nothing is deleted.
+Deletes one or more data sources by name. You can pass a comma-separated list. If any named data source does not exist, the request returns a `404` and nothing is deleted.
 
 ::::{tab-set}
 :group: api-ref

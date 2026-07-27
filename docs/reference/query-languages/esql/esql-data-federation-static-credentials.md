@@ -12,9 +12,7 @@ products:
 
 Static credentials let {{es}} read a private Amazon S3 data source using an AWS access key and secret key. You grant an IAM identity read-only access to your objects, generate a long-lived access key for it, and enter that key when you connect the data source.
 
-:::{tip}
 Setup involves steps in both AWS and Elastic: create the IAM identity and access key in AWS, then enter the key when connecting the data source in Elastic.
-:::
 
 You can use this page in two ways:
 
@@ -32,10 +30,14 @@ To follow this guide, you need:
 - An S3 bucket containing the file or files you want to query.
 - A role with the cluster manage privilege, or a `global.data_source` privilege, to create the data source. Refer to [Manage access](esql-data-federation-security.md).
 
+## Connect to AWS with static credentials
+
+Follow these steps to create and use dedicated credentials for use with Data Federation.
+
 :::::::{stepper}
 
 ::::::{step} Create a read-only IAM policy
-{{es}} reads your objects through an IAM identity, so first create an IAM policy that grants read-only access to only the objects you want to query. This policy is the part specific to this integration.
+{{es}} reads your objects through an IAM identity, so first create an IAM policy that grants read-only access to only the objects you want to query in AWS. This policy is the part specific to this integration.
 
 The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
 

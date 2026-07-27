@@ -146,7 +146,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     private final Float lambda;
     private final Integer size;
 
-    DiversifyRetrieverBuilder(
+    public DiversifyRetrieverBuilder(
         RetrieverSource innerRetriever,
         ResultDiversificationType diversificationType,
         String diversificationField,

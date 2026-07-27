@@ -32,7 +32,8 @@ import java.util.Set;
  * <p>ORC is not in the released ship set yet, so format registration is gated on
  * {@link #ESQL_EXTERNAL_ORC_FEATURE_FLAG}: the reader is available in snapshot/development builds and
  * disabled in release. When the gate is off the {@code orc} format and {@code .orc} extension are not
- * registered, so an ORC dataset resolves to the generic "No format reader registered" rejection.
+ * registered, so an ORC dataset resolves to the generic cannot-determine-how-to-read rejection, which
+ * names the formats that ARE registered.
  */
 public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
 

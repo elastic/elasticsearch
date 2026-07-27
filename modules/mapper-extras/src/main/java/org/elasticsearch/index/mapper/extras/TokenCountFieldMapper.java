@@ -45,13 +45,21 @@ public class TokenCountFieldMapper extends FieldMapper {
         return (TokenCountFieldMapper) in;
     }
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        true,
-        true,
-        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
-    );
+    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
+        }
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
+        return new FieldMapper.DocValuesParameter.Values(
+            true,
+            FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+            multiValue,
+            nullability,
+            onFailure
+        );
+    }
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -84,7 +92,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             super(name);
             this.indexSettings = indexSettings;
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                DEFAULT_DOC_VALUES_PARAMS,
+                defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );

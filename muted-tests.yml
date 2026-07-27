@@ -646,9 +646,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testHivePartitionShadowWarningReachesClient
   issue: https://github.com/elastic/elasticsearch/issues/153780
-- class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
-  method: testContinuousEvents
-  issue: https://github.com/elastic/elasticsearch/issues/153782
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {delta_byte_array}
   issue: https://github.com/elastic/elasticsearch/issues/153841

@@ -161,10 +161,7 @@ public class JDKVectorLibraryBBQGuardPageTests extends ESTestCase {
                 MemorySegment querySeg = arena.allocateAtPageEnd(packedQuery);
 
                 // Build address table
-                MemorySegment addressesSeg = arena.allocate(
-                    ValueLayout.ADDRESS.byteSize() * numVecs,
-                    ValueLayout.ADDRESS.byteAlignment()
-                );
+                MemorySegment addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
                 for (int i = 0; i < numVecs; i++) {
                     addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, docSegments[i]);
                 }

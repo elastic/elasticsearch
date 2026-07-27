@@ -405,6 +405,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
             );
         }
+        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        if (randomBoolean()) {
+            builder.put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            );
+        }
         return builder;
     }
 

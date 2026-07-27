@@ -520,9 +520,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testConsecutiveRotations
-  issue: https://github.com/elastic/elasticsearch/issues/152472
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/152794
@@ -535,9 +532,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testConjunctionOfRangeFiltersMatchesBruteForce
   issue: https://github.com/elastic/elasticsearch/issues/152887
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/152913
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -550,9 +544,6 @@ tests:
 - class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152929
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testEachInstallOrRotationAddsExactlyOneNewKey
-  issue: https://github.com/elastic/elasticsearch/issues/153024
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
@@ -700,9 +691,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCompletesWithMultipleHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/153747
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591

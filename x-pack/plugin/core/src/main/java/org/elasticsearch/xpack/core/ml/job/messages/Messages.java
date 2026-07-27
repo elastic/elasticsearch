@@ -175,6 +175,16 @@ public final class Messages {
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =
         "CPS migration: project_routing defaulted to [{0}] to preserve local search scope. Use the update API to change the scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB =
+        "Cannot update project_routing for datafeed [{0}] while job [{1}] is {2}."
+            + " Close the job so a rollback model snapshot can be retained.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT =
+        "Cannot update project_routing for datafeed [{0}] because job [{1}] has no model snapshot to use as a rollback point."
+            + " Open the job, ingest data, then close it before changing scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION =
+        "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
+        "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"
@@ -198,6 +208,16 @@ public final class Messages {
             + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."
             + " This is likely caused by the data distribution shift."
             + " Consider reviewing model snapshots if the anomalies are not meaningful.";
+    public static final String JOB_AUDIT_DATAFEED_FIELD_TYPE_CONFLICT =
+        "Cross-project field conflict for datafeed [{0}]: field [{1}] has incompatible types across linked projects"
+            + ": {2}. Align index mappings across projects or narrow project_routing to projects with a consistent schema.";
+    public static final String DATAFEED_TIME_FIELD_TYPE_CONFLICT =
+        "Cannot run datafeed [{0}]: required time field [{1}] has conflicting types across projects in scope: {2}."
+            + " Fix mappings so [{1}] uses the same type in every project in scope, or exclude the conflicting project(s) via"
+            + " project_routing.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_EXCLUDED_FIELD_CONFLICT =
+        "Datafeed [{0}] excluded project [{1}] from this run: required time field [{2}] has conflicting types: {3}."
+            + " Fix mappings in [{1}] to resume searching it, or remove it from project_routing.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";

@@ -14,11 +14,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowBuilder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Logic-only tests for {@link ShardBatchIndexer#canUseBatchIndexing(BulkShardRequest, boolean)}. Separated out
@@ -32,20 +39,15 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         return new IndexRequest("index").id(id).source(XContentType.JSON, "title", "hello", "count", 42, "tag", "bulk");
     }
 
-    /** Builds an EirfBatch with the given number of docs, each with title/count/tag fields. */
-    private static EirfBatch buildBatch(int numDocs) {
-        EirfRowBuilder builder = new EirfRowBuilder();
+    private static EscfBatch buildBatch(int numDocs) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            builder.startDocument();
-            builder.setString("title", "doc-" + i);
-            builder.setInt("count", i);
-            builder.setString("tag", "batch");
-            builder.endDocument();
+            sources.add(new BytesArray("{\"title\":\"doc-" + i + "\",\"count\":" + i + ",\"tag\":\"batch\"}"));
         }
-        return builder.build();
+        return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
-    private static BulkShardRequest requestWithBatch(BulkItemRequest[] items, EirfBatch batch) {
+    private static BulkShardRequest requestWithBatch(BulkItemRequest[] items, SourceBatch batch) {
         BulkShardRequest request = new BulkShardRequest(SHARD_ID, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
         request.setBulkShardBatch(new BulkShardBatch(batch));
         return request;
@@ -55,59 +57,59 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         return new BulkShardRequest(SHARD_ID, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
     }
 
-    public void testCanUseBatchIndexingAllIndex() {
+    public void testCanUseBatchIndexingAllIndex() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
-        try (EirfBatch batch = buildBatch(2)) {
+        try (EscfBatch batch = buildBatch(2)) {
             assertTrue(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), true));
         }
     }
 
-    public void testCanUseBatchIndexingAllCreate() {
+    public void testCanUseBatchIndexingAllCreate() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1").create(true)),
             new BulkItemRequest(1, indexRequest("2").create(true)) };
-        try (EirfBatch batch = buildBatch(2)) {
+        try (EscfBatch batch = buildBatch(2)) {
             assertTrue(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), true));
         }
     }
 
-    public void testCanUseBatchIndexingMixedIndexAndCreate() {
+    public void testCanUseBatchIndexingMixedIndexAndCreate() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2").create(true)) };
-        try (EirfBatch batch = buildBatch(2)) {
+        try (EscfBatch batch = buildBatch(2)) {
             assertTrue(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), true));
         }
     }
 
-    public void testCanUseBatchIndexingContainsDelete() {
+    public void testCanUseBatchIndexingContainsDelete() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, new DeleteRequest("index", "2")) };
-        try (EirfBatch batch = buildBatch(2)) {
+        try (EscfBatch batch = buildBatch(2)) {
             assertFalse(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), true));
         }
     }
 
-    public void testCanUseBatchIndexingContainsUpdate() {
+    public void testCanUseBatchIndexingContainsUpdate() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, new UpdateRequest("index", "2")) };
-        try (EirfBatch batch = buildBatch(2)) {
+        try (EscfBatch batch = buildBatch(2)) {
             assertFalse(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), true));
         }
     }
 
-    public void testCanUseBatchIndexingDisabled() {
+    public void testCanUseBatchIndexingDisabled() throws IOException {
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        try (EirfBatch batch = buildBatch(1)) {
+        try (EscfBatch batch = buildBatch(1)) {
             assertFalse(ShardBatchIndexer.canUseBatchIndexing(requestWithBatch(items, batch), false));
         }
     }
 
-    public void testCanUseBatchIndexingRequiresEirfBatch() {
+    public void testCanUseBatchIndexingRequiresBatch() {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };

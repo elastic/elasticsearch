@@ -669,3 +669,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
   method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
   issue: https://github.com/elastic/elasticsearch/issues/153700
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:folding.version_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/155141
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.weightedAvgWeightMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/155142
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:folding.mvBoolean_NotEquals_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/155143
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/155144
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/155145

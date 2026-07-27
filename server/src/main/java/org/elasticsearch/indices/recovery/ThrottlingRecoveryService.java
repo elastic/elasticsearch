@@ -31,12 +31,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -76,7 +76,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// instances whose [CancellationState] is either [CancellationState#PENDING] (cancellation recorded, but not yet confirmed
     /// actioned) or [CancellationState#CONFIRMED] (recovery removed from the queue or confirmed cancelled after starting).
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
-    private final Map<String, CancelledRecovery> cancelledAllocationIds = new ConcurrentHashMap<>();
+    private final Map<String, CancelledRecovery> cancelledAllocationIds = new HashMap<>();
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
@@ -114,38 +114,37 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         synchronized (this) {
             cancellation = cancelledAllocationIds.get(allocationId);
             serviceClosed = isClosed();
-            if (serviceClosed || cancellation != null) {
-                pendingRecovery = null;
+            if (cancellation != null) {
                 cancelledAllocationIds.put(allocationId, cancellation.confirmed());
-            } else {
+            } else if (serviceClosed == false) {
                 pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             }
         }
 
-        if (pendingRecovery == null) {
-            if (serviceClosed) {
-                logger.debug("service is closed, aborting recovery: {}", recoveryState);
-                RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
-            } else {
-                logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
-                final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
-                // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
-                // after service close so this runnable should never get rejected.
-                executor.execute(() -> {
-                    RecoveryListener.wrapPreservingContext(recoveryListener, context)
-                        .onRecoveryFailure(
-                            new RecoveryCancelledException(
-                                recoveryState.getShardId(),
-                                recoveryState.getSourceNode(),
-                                recoveryState.getTargetNode()
-                            ),
-                            cancellation.state() != CancellationState.CONFIRMED
-                        );
-                    schedulingListener.onRecoveryCancelledBeforeQueuing(recoveryType, RecoveryRole.TARGET);
-                });
-            }
+        if (serviceClosed) {
+            logger.debug("service is closed, aborting recovery: {}", recoveryState);
+            RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
+            return;
+        }
+        if (cancellation != null) {
+            logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
+            final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
+            // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
+            // after service close so this runnable should never get rejected.
+            executor.execute(() -> {
+                RecoveryListener.wrapPreservingContext(recoveryListener, context)
+                    .onRecoveryFailure(
+                        new RecoveryCancelledException(
+                            recoveryState.getShardId(),
+                            recoveryState.getSourceNode(),
+                            recoveryState.getTargetNode()
+                        ),
+                        cancellation.state() != CancellationState.CONFIRMED
+                    );
+                schedulingListener.onRecoveryCancelledBeforeQueuing(recoveryType, RecoveryRole.TARGET);
+            });
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
@@ -332,15 +331,21 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
-                final String allocId = recovery.allocationId();
-                final CancelledRecovery cancelledRecovery = cancelledAllocationIds.get(allocId);
-                assert cancelledRecovery != null && cancelledRecovery.state() != CancellationState.CONFIRMED;
-                cancelledAllocationIds.put(allocId, cancelledRecovery.confirmed());
+                confirmCancelledRecovery(recovery.allocationId());
                 schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
             }
         });
         final RecoveryListener releaseSlot = RecoveryListener.runAfter(handleCancellation, () -> releaseSlot(recovery));
         return RecoveryListener.wrapPreservingContext(releaseSlot, recovery.context);
+    }
+
+    private synchronized void confirmCancelledRecovery(String allocationId) {
+        if (isClosed()) {
+            return;
+        }
+        final CancelledRecovery cancelled = cancelledAllocationIds.get(allocationId);
+        assert cancelled != null;
+        cancelledAllocationIds.put(allocationId, cancelled.confirmed());
     }
 
     private void releaseSlot(PendingRecovery recovery) {

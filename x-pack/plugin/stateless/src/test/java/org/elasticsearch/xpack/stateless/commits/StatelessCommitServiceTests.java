@@ -2723,7 +2723,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * rejects new indexing operations. Once the uploads drain, the tracked pressure returns to zero.
      */
     public void testBackpressureRejectsWhenPendingUploadsAccumulate() throws Exception {
-        int numCommits = 5;
+        int numCommits = randomIntBetween(2, 10);
         AtomicInteger uploadCount = new AtomicInteger(0);
         CountDownLatch blockPool = new CountDownLatch(1);
         // Tiny limit so a small pending backlog trips back-pressure; maxCommits=1 → one VBCC per commit.

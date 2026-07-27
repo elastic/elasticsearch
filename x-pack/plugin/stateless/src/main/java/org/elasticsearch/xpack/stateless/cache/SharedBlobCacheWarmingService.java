@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -789,10 +788,12 @@ public class SharedBlobCacheWarmingService {
                 : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
             try (var listeners = new RefCountingListener(listener)) {
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
-                if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || searchOfflineWarmingEnabled)) {
+                final boolean isOfflineWarmingEnabled = searchOfflineWarmingEnabled;
+                if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || isOfflineWarmingEnabled)) {
                     SubscribableListener.<Map<BlobFile, WarmTarget>>newForked(l1 -> {
                         if (endTargetsToWarm == null) {
-                            Map<BlobFile, WarmTarget> targetsToWarmComputed = ConcurrentCollections.newConcurrentMap();
+                            Map<BlobFile, Long> offsetsToWarmPerBlobFile = ConcurrentCollections.newConcurrentMap();
+                            Map<BlobFile, Long> blobSizes = ConcurrentCollections.newConcurrentMap();
                             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                                 commit.commitFiles(),
                                 // do not pass in any previously read BCC, because we actually want to ensure that the
@@ -804,21 +805,39 @@ public class SharedBlobCacheWarmingService {
                                 // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
                                 throttledTaskRunner.asExecutor(),
                                 referencedCompoundCommit -> {
-                                    if (searchOfflineWarmingEnabled) {
+                                    if (isOfflineWarmingEnabled) {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        targetsToWarmComputed.merge(
+                                        offsetsToWarmPerBlobFile.merge(
                                             referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
+                                            offset,
+                                            Math::max
+                                        );
+                                    }
+                                },
+                                (blobFile, bccSize) -> {
+                                    if (isOfflineWarmingEnabled) {
+                                        assert offsetsToWarmPerBlobFile.containsKey(blobFile);
+                                        blobSizes.put(blobFile, bccSize);
+                                    }
+                                },
+                                l1.map(aVoid -> {
+                                    Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
+                                    for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
+                                        assert blobSizes.containsKey(blobFile);
+                                        targetsToWarm.put(
+                                            blobFile,
                                             // We use timestamps only when cache boost preference feature is enabled, which in turn requires
                                             // internal files replicated content for search shards to be enabled. However, the current
                                             // branch is taken only when replicated content feature is disabled, so we can safely avoid
                                             // calculating the timestamp and use an unknown timestamp here.
-                                            WarmTarget.withUnknownTimestamp(offset),
-                                            WarmTarget::merge
+                                            WarmTarget.withUnknownTimestamp(
+                                                offsetsToWarmPerBlobFile.get(blobFile),
+                                                blobSizes.get(blobFile)
+                                            )
                                         );
                                     }
-                                },
-                                (blobFile, bccSize) -> {},
-                                l1.map(aVoid -> targetsToWarmComputed)
+                                    return targetsToWarm;
+                                })
                             );
                         } else {
                             l1.onResponse(endTargetsToWarm);
@@ -872,22 +891,12 @@ public class SharedBlobCacheWarmingService {
      * A blob region to warm: the up-to (exclusive) offset in the blob to fetch, together with the representative data timestamp
      * to stamp the warmed regions with.
      */
-    public record WarmTarget(long endOffset, long timestampMillis) {
+    public record WarmTarget(long endOffset, long blobSize, long timestampMillis) {
         /**
          * A target with an unknown timestamp, for callers that only know how far to warm.
          */
-        public static WarmTarget withUnknownTimestamp(long endOffset) {
-            return new WarmTarget(endOffset, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
-        }
-
-        /**
-         * Combines two targets aggregated for the same blob: warm the furthest offset and keep the most recent known timestamp.
-         */
-        public static WarmTarget merge(WarmTarget a, WarmTarget b) {
-            return new WarmTarget(
-                Math.max(a.endOffset, b.endOffset),
-                BlobFileRanges.mostRecentKnownTimestamp(a.timestampMillis, b.timestampMillis)
-            );
+        public static WarmTarget withUnknownTimestamp(long endOffset, long blobSize) {
+            return new WarmTarget(endOffset, blobSize, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
         }
     }
 

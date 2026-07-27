@@ -761,7 +761,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     fakeNode.searchDirectory,
                     Map.of(
                         new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()),
-                        WarmTarget.withUnknownTimestamp(endOffset)
+                        WarmTarget.withUnknownTimestamp(endOffset, vbcc.getTotalSizeInBytes())
                     ),
                     warmListener
                 );
@@ -949,7 +949,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes())),
+                Map.of(blobFile, WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes())),
                 warmListener
             );
             safeGet(warmListener);
@@ -1081,7 +1081,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize)),
+                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize, blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize, blobSize)),
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1826,7 +1826,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, new WarmTarget(vbcc.getTotalSizeInBytes(), knownTimestamp)),
+                Map.of(blobFile, new WarmTarget(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes(), knownTimestamp)),
                 warmListener
             );
             safeGet(warmListener);

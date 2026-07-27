@@ -471,7 +471,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> offsetsToWarmPerBlobFile = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> cacheTimestampPerBlobFile = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> blobSizes = ConcurrentCollections.newConcurrentMap();
                         // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
@@ -490,6 +492,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
                                 var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                offsetsToWarmPerBlobFile.merge(bccBlobFile, offset, Math::max);
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
@@ -497,10 +500,29 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
+                                cacheTimestampPerBlobFile.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                             },
-                            (blobFile, bccSize) -> {},
-                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
+                            (blobFile, bccSize) -> {
+                                assert offsetsToWarmPerBlobFile.containsKey(blobFile);
+                                assert cacheTimestampPerBlobFile.containsKey(blobFile);
+                                blobSizes.put(blobFile, bccSize);
+                            },
+                            l2.map(aVoid -> {
+                                Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
+                                for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
+                                    assert cacheTimestampPerBlobFile.containsKey(blobFile);
+                                    assert blobSizes.containsKey(blobFile);
+                                    targetsToWarm.put(
+                                        blobFile,
+                                        new WarmTarget(
+                                            offsetsToWarmPerBlobFile.get(blobFile),
+                                            blobSizes.get(blobFile),
+                                            cacheTimestampPerBlobFile.get(blobFile)
+                                        )
+                                    );
+                                }
+                                return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
+                            })
                         );
                     } else {
                         l2.onResponse(null);

@@ -138,6 +138,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
 
     @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+    }
+
+    @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
@@ -226,8 +231,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
-            DOC_VALUES_NULLABILITY,
-            TSDB_METRIC_TEMPORALITY_SUPPORT
+            DOC_VALUES_NULLABILITY
         );
     }
 }

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * A temporary placeholder for a {@code LIKE} or {@code RLIKE} predicate whose pattern is a
@@ -82,13 +82,14 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
 
     /**
      * Validates the field (LHS) type at analysis time, mirroring {@link WildcardLike}/{@link RLike}
-     * (see {@code RegexMatch#resolveType}), so that a non-string field is rejected the same way for a
-     * constant-expression pattern as for a literal one. The pattern (RHS) type/foldability is not known
+     * (see {@code RegexMatch#resolveType}), which uses {@code isString} (not {@code isStringAndExact}).
+     * Using {@code isStringAndExact} would reject text fields without a keyword sub-field, which
+     * would be accepted by the literal-pattern path. The pattern (RHS) type/foldability is not known
      * until after optimizer folding and is checked in {@link #postOptimizationVerification}.
      */
     @Override
     protected TypeResolution resolveType() {
-        return isStringAndExact(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
     }
 
     /**

@@ -33,6 +33,10 @@ public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCac
         this(in.readLong(), in.readLong(), in.readLong());
     }
 
+    public long totalCacheCommitmentInBytes() {
+        return Math.addExact(boostedCacheCommitmentInBytes, unboostedCacheCommitmentInBytes);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(cacheSizeInBytes);

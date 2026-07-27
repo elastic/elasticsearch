@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -172,6 +174,7 @@ public class GuardPageAllocator implements Arena {
         delegate.close();
     }
 
+    @SuppressForbidden(reason = "Uses RandomAccessFile to obtain a real FileChannelImpl, bypassing Lucene's HandleTrackingFS mock")
     MemorySegment mapAtPageEnd(int size) throws IOException {
         int pages = (size + pageSize - 1) / pageSize;
         long mappedSize = (long) pages * pageSize;

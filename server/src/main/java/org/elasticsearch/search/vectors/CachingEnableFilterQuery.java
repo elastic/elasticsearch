@@ -19,6 +19,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,6 +54,17 @@ import java.util.Objects;
  */
 public class CachingEnableFilterQuery extends Query {
     private final Query in;
+
+    /**
+     * Wraps {@code filter} for pre-filtered knn search when eager caching is enabled.
+     * When disabled, returns the filter unchanged so Lucene's default caching heuristics apply.
+     */
+    public static Query wrapForKnnFilterCaching(@Nullable Query filter, boolean eagerCache) {
+        if (filter == null) {
+            return null;
+        }
+        return eagerCache ? new CachingEnableFilterQuery(filter) : filter;
+    }
 
     public CachingEnableFilterQuery(Query in) {
         this.in = in;

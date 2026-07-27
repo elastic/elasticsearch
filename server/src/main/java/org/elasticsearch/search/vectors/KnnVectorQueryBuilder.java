@@ -565,6 +565,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
+        boolean knnFilterEagerCache = context.getIndexSettings().getKnnFilterEagerCache();
         boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
         String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
@@ -582,7 +583,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             heuristic,
             hnswEarlyTermination,
             sliceEnabled,
-            sliceRouting
+            sliceRouting,
+            knnFilterEagerCache
         );
     }
 

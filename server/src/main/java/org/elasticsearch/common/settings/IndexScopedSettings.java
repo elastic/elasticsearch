@@ -164,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
+                DenseVectorFieldMapper.KNN_FILTER_EAGER_CACHE,
                 DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -23,6 +25,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
@@ -899,6 +902,56 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         if (innerQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
             assertThat(esKnnFloatVectorQuery.kParam(), equalTo(20));
         }
+    }
+
+    public void testKnnFilterEagerCache() {
+        DenseVectorFieldType fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 100, -1),
+            Collections.emptyMap(),
+            false
+        );
+        TermQuery filter = new TermQuery(new Term("category", "foo"));
+        Query withEagerCache = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            10f,
+            null,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.FANOUT,
+            false,
+            false,
+            null,
+            true
+        );
+        assertThat(withEagerCache, instanceOf(ESKnnFloatVectorQuery.class));
+        assertThat(((KnnFloatVectorQuery) withEagerCache).getFilter(), instanceOf(CachingEnableFilterQuery.class));
+
+        Query withoutEagerCache = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            10f,
+            null,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.FANOUT,
+            false,
+            false,
+            null,
+            false
+        );
+        assertThat(withoutEagerCache, instanceOf(ESKnnFloatVectorQuery.class));
+        assertThat(((KnnFloatVectorQuery) withoutEagerCache).getFilter(), equalTo(filter));
     }
 
     public void testFilterSearchThreshold() {

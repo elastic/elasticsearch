@@ -215,6 +215,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     /**
+     * Whether knn query filters are wrapped to force eager query-cache materialization.
+     * Disable on indices whose knn prefilters change frequently (for example geo filters based on user location)
+     * to avoid evicting reusable cache entries for other queries.
+     */
+    public static final Setting<Boolean> KNN_FILTER_EAGER_CACHE = Setting.boolSetting(
+        "index.dense_vector.knn_filter_eager_cache",
+        true,
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Selectivity threshold above which a filtered knn query is routed through the post-filter
      * pipeline (HNSW runs unfiltered, the filter is applied to the raw candidate set, retrying
      * with seeded entry points if {@code k} is not collected). Below this threshold the query
@@ -3442,7 +3455,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 heuristic,
                 hnswEarlyTermination,
                 sliceRouting != null,
-                sliceRouting
+                sliceRouting,
+                true
             );
         }
 
@@ -3459,6 +3473,38 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean hnswEarlyTermination,
             boolean sliceEnabled,
             @Nullable String sliceRouting
+        ) {
+            return createKnnQuery(
+                queryVector,
+                k,
+                numCands,
+                visitPercentage,
+                oversample,
+                filter,
+                similarityThreshold,
+                parentFilter,
+                heuristic,
+                hnswEarlyTermination,
+                sliceEnabled,
+                sliceRouting,
+                true
+            );
+        }
+
+        public Query createKnnQuery(
+            VectorData queryVector,
+            int k,
+            int numCands,
+            Float visitPercentage,
+            Float oversample,
+            Query filter,
+            Float similarityThreshold,
+            BitSetProducer parentFilter,
+            FilterHeuristic heuristic,
+            boolean hnswEarlyTermination,
+            boolean sliceEnabled,
+            @Nullable String sliceRouting,
+            boolean knnFilterEagerCache
         ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
@@ -3487,7 +3533,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     knnSearchStrategy,
                     hnswEarlyTermination,
                     sliceEnabled,
-                    sliceRouting
+                    sliceRouting,
+                    knnFilterEagerCache
                 );
                 case ResolvedVector.Bits(byte[] vector) -> createKnnBitQuery(
                     vector,
@@ -3497,7 +3544,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    knnFilterEagerCache
                 );
                 case ResolvedVector.Bytes(byte[] vector) -> createKnnByteQuery(
                     vector,
@@ -3507,7 +3555,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    knnFilterEagerCache
                 );
             };
         }
@@ -3535,9 +3584,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            boolean knnFilterEagerCache
         ) {
-            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
+            Query cachedFilter = CachingEnableFilterQuery.wrapForKnnFilterCaching(filter, knnFilterEagerCache);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
@@ -3578,12 +3628,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            boolean knnFilterEagerCache
         ) {
             // Pre-filter consumers eagerly materialize the filter into a bitset, so we
-            // force the cache wrapper. PostFilterKnnQuery gets the raw filter because it evaluates the
+            // force the cache wrapper by default. PostFilterKnnQuery gets the raw filter because it evaluates the
             // filter against a small candidate set per query and would otherwise pay an unnecessary cache build.
-            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
+            Query cachedFilter = CachingEnableFilterQuery.wrapForKnnFilterCaching(filter, knnFilterEagerCache);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 Query exactKnnQuery = DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
@@ -3627,7 +3678,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination,
             boolean sliceEnabled,
-            @Nullable String sliceRouting
+            @Nullable String sliceRouting,
+            boolean knnFilterEagerCache
         ) {
             int adjustedK = k;
             // By default utilize the quantized oversample is configured
@@ -3644,7 +3696,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
+            Query cachedFilter = CachingEnableFilterQuery.wrapForKnnFilterCaching(filter, knnFilterEagerCache);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 Query exactKnnQuery = DenseVectorQuery.Floats.codecScored(queryVector, name()).filteredBy(filter);

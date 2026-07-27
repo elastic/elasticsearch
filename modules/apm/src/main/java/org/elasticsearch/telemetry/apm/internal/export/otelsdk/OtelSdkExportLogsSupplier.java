@@ -272,7 +272,8 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         logger.info("TLS cert files changed; reloading OTel logs export with new certificates");
         SdkLoggerProvider newProvider = buildProvider();
-        attachedAppenders.forEach(appender -> appender.setOpenTelemetry(OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build()));
+        var sdk = OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build();
+        attachedAppenders.forEach(appender -> appender.setOpenTelemetry(sdk));
         SdkLoggerProvider oldProvider = loggerProvider;
         loggerProvider = newProvider;
         oldProvider.close();

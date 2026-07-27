@@ -1,5 +1,5 @@
 area: Infra/Logging
 issues: []
 pr: 154640
-summary: "[WIP] Prototype: Querylog -> OTel"
+summary: "OTel export support for Query Logging"
 type: enhancement

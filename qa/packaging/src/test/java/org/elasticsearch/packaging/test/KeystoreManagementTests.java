@@ -298,6 +298,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     public void test50CreateKeystoreManually() throws Exception {
         // Run this test last so that removing the existing keystore doesn't make subsequent tests fail
+        // This class reuses a single container across test methods, and the docker tests above leave it in a
+        // state this test cannot use: test42 leaves it stopped, because Elasticsearch deliberately fails to
+        // start there, and test40/test41 leave it running with a config directory bind-mounted from the host.
+        // Start a fresh container so the keystore is created in the image's own config directory.
+        if (distribution().isDocker()) {
+            installation = runContainer(distribution());
+        }
+
         rmKeystoreIfExists();
         createKeystore(null);
 

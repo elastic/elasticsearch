@@ -46,7 +46,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -917,6 +920,59 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         assertSame(expected, actual);
     }
 
+    public void testDelayedExchangeFailureWakesDriverAndPropagates() throws InterruptedException {
+        DriverContext driverContext = driverContext();
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        IllegalStateException expected = new IllegalStateException("delayed remote fetch exchange failure");
+        // Observe when the Driver reaches the exchange's blocking path instead of exposing the failure immediately.
+        CountDownLatch driverBlocked = new CountDownLatch(1);
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {}
+
+            @Override
+            void onBlocked(String nodeId) {
+                driverBlocked.countDown();
+            }
+        };
+        RemoteFetchOperator operator = new RemoteFetchOperator(
+            driverContext,
+            0,
+            fields,
+            outputFields,
+            null,
+            ConfigurationAware.CONFIGURATION_MARKER,
+            2,
+            client
+        );
+        var runner = new TestDriverRunner().builder(driverContext).input(new Page(handles(driverContext), carry(driverContext)));
+        AtomicReference<Throwable> failureThreadError = new AtomicReference<>();
+        Thread failureThread = new Thread(() -> {
+            try {
+                // Completing the exchange's page-ready listener after this point must wake the Driver to observe the failure.
+                if (driverBlocked.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("driver did not block waiting for the remote fetch exchange");
+                }
+                client.fail("node-a", expected);
+            } catch (Throwable t) {
+                failureThreadError.set(t);
+            }
+        }, "remote-fetch-test-failure");
+        failureThread.start();
+
+        try {
+            // The exact exchange failure must escape the Driver without being lost, replaced, or wrapped.
+            IllegalStateException actual = expectThrows(IllegalStateException.class, () -> runner.run(operator));
+            assertSame(expected, actual);
+        } finally {
+            failureThread.join();
+        }
+        if (failureThreadError.get() != null) {
+            throw new AssertionError("failure thread failed", failureThreadError.get());
+        }
+    }
+
     public void testIsBlockedWaitsForRemoteFetchEvenWhenMoreInputCanBeAccepted() {
         DriverContext driverContext = driverContext();
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
@@ -1152,9 +1208,17 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             return exchangesByNode.values().stream().mapToInt(exchange -> exchange.pages.size()).sum();
         }
 
+        void fail(String nodeId, Exception failure) {
+            RecordingExchange exchange = exchangesByNode.get(nodeId);
+            assertNotNull(exchange);
+            exchange.fail(failure);
+        }
+
         Exception getFailure(String nodeId) {
             return null;
         }
+
+        void onBlocked(String nodeId) {}
 
         abstract void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles);
 
@@ -1167,6 +1231,7 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             private final Queue<Page> pages = new ArrayDeque<>();
             private final SubscribableListener<Void> pageReady = new SubscribableListener<>();
             private long batchId;
+            private volatile Exception failure;
 
             RecordingExchange(String nodeId, String sessionId) {
                 this.nodeId = nodeId;
@@ -1206,6 +1271,7 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             @Override
             public IsBlockedResult isBlocked() {
                 if (pages.isEmpty()) {
+                    onBlocked(nodeId);
                     return new IsBlockedResult(pageReady, "remote fetch response");
                 }
                 return Operator.NOT_BLOCKED;
@@ -1213,7 +1279,12 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
 
             @Override
             public Exception getFailure() {
-                return RecordingClient.this.getFailure(nodeId);
+                return failure == null ? RecordingClient.this.getFailure(nodeId) : failure;
+            }
+
+            void fail(Exception failure) {
+                this.failure = failure;
+                pageReady.onResponse(null);
             }
 
             @Override

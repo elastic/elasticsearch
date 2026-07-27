@@ -654,7 +654,7 @@ public class ExchangeServiceTests extends ESTestCase {
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
             PlainActionFuture<Void> sinkCompletionFuture = new PlainActionFuture<>();
-            sinkHandler.addCompletionListener(sinkCompletionFuture);
+            sinkHandler.addCompletionListener(sinkCompletionFuture, threadPool.getThreadContext());
             safeGet(sinkCompletionFuture);
         }
     }

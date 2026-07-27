@@ -89,9 +89,9 @@ PUT my-semantic-index
 3. Splits text into chunks of at most 250 words, with an overlap of 50 words.
 4. Indexes the embeddings using `int8_hnsw` quantization.
 
-:::{tip}
-For a complete runnable example, refer to [Build multimodal search with a `semantic` field](./semantic-field-quickstart.md).
-:::
+## Quickstart [semantic-quickstart-overview]
+
+Follow the [multimodal search quickstart](./semantic-field-quickstart.md) to index a small collection of images into {{es}} and search those images using text, other images, and PDFs.
 
 ## Reference documentation [semantic-reference]
 

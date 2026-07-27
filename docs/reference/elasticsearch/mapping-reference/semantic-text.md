@@ -21,6 +21,8 @@ For text-based [semantic search](docs-content://solutions/search/semantic-search
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
+Elasticsearch refers to `semantic` and `semantic_text` as *inference fields*: mapped fields that use {{infer}} endpoints and store generated embeddings in internal subfields.
+
 :::{include} _snippets/semantic-field-type-comparison.md
 :::
 

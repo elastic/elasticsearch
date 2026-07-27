@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -758,6 +759,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         );
         assertRecoveryCountStats(Map.of(dataNode, stats -> stats.currentFromStore() == 0 && stats.currentFromStoreQueued() == 0));
         waitNoPendingTasksOnAll();
+
+        assertThat("expected at least 3 SHARD_FAILED to have been sent", blockedCancellationFailures.size(), greaterThanOrEqualTo(3));
 
         // Release all blocked SHARD_FAILED messages.
         blockedCancellationFailures.forEach(Runnable::run);

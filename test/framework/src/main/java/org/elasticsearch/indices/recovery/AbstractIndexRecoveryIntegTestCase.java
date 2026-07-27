@@ -94,6 +94,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertSameDocIdsOnShards();
     }
 
+    /// Asserts that the given per-node recovery-stats predicates are all satisfied.
+    ///
+    /// Unlike [#awaitRecoveryCountStats], this does not wait for recovery scheduling events. It reads
+    /// current stats and fails immediately if any predicate is not met.
     protected void assertRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         for (final var nodePredicate : predicatePerNode.entrySet()) {
             final var indicesService = internalCluster().getInstance(IndicesService.class, nodePredicate.getKey());

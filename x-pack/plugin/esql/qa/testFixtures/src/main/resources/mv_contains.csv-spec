@@ -563,3 +563,47 @@ id: long | keyword: keyword
 4        | ["key1", "key2", "key3", "key4"]
 5        | ["key1", "key2", "key3", "key4", "key5"]
 ;
+
+withFoldableEmptyLeftArgument
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(mv_intersection(["foo", "bar"], ["foobar", "abc"]), keyword)
+| SORT id
+| KEEP id, keyword
+;
+
+id: long | keyword: keyword
+0        | null
+;
+
+withLeftNullArgument
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(NULL, keyword)
+| SORT id
+| KEEP id, keyword
+;
+
+id: long | keyword: keyword
+0        | null
+;
+
+withBothNullArguments
+required_capability: fn_mv_contains_v1
+
+FROM all_types_mv
+| WHERE mv_contains(NULL, NULL)
+| SORT id
+| KEEP id
+;
+
+id: long
+0
+1
+2
+3
+4
+5
+;

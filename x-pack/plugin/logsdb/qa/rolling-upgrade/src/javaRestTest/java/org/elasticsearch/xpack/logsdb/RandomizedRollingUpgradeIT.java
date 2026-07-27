@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,6 +55,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TimeoutSuite(millis = TimeUnits.HOUR)
 public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     private record Document(String id, String body) {}

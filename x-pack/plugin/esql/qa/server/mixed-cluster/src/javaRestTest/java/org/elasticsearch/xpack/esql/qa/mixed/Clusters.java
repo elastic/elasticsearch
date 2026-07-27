@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalNodeSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -16,6 +17,10 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import java.nio.file.Path;
 
 public class Clusters {
+
+    private static final String FEDERATION_ENABLED_SETTING = "esql.federation.enabled";
+    private static final Version FEDERATION_SETTING_VERSION = Version.fromString("9.5.0");
+
     public static ElasticsearchCluster mixedVersionCluster() {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
@@ -26,10 +31,10 @@ public class Clusters {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
+            .withNode(node -> oldVersionNode(node, oldVersionString, oldVersion, isDetachedVersion))
+            .withNode(node -> currentVersionNode(node, csvDataPath))
+            .withNode(node -> oldVersionNode(node, oldVersionString, oldVersion, isDetachedVersion))
+            .withNode(node -> currentVersionNode(node, csvDataPath))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
@@ -53,6 +58,29 @@ public class Clusters {
             cluster.shared(true);
         }
         return cluster.build();
+    }
+
+    /**
+     * Configures a current-version node with the settings that do not exist on every version in the mixed cluster: a node
+     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation opt-in
+     * are set per node rather than cluster-wide.
+     */
+    private static void currentVersionNode(LocalNodeSpecBuilder node, Path csvDataPath) {
+        node.version(Version.CURRENT)
+            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            .setting(FEDERATION_ENABLED_SETTING, "true");
+    }
+
+    /**
+     * Configures an old-version node, opting it into federation when its version knows the setting. The data source and
+     * dataset YAML suites are skipped unless every node exposes their REST routes, so an old node left at the default
+     * would silently drop that coverage from the mixed cluster.
+     */
+    private static void oldVersionNode(LocalNodeSpecBuilder node, String oldVersionString, Version oldVersion, boolean detached) {
+        node.version(oldVersionString, detached);
+        if (oldVersion.onOrAfter(FEDERATION_SETTING_VERSION)) {
+            node.setting(FEDERATION_ENABLED_SETTING, "true");
+        }
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

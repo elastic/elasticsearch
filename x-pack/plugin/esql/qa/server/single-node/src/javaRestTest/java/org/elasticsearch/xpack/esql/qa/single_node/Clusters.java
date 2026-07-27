@@ -49,6 +49,11 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            // Federation is opt-in for users; the data source and dataset suites here need it on. A test that wants the
+            // default-off surface turns it back off through the config provider applied below. This default is a
+            // supplier, not a plain value, so that a config provider can override it with either form: explicit
+            // settings win over suppliers regardless of order, and among suppliers the last one applied wins.
+            .setting("esql.federation.enabled", () -> "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))

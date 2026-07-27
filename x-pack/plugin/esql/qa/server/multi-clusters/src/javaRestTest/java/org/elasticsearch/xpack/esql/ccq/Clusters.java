@@ -30,16 +30,15 @@ public class Clusters {
     }
 
     /**
-     * @param registerFederationFeature supplier for the ES|QL federation kill-switch system property
-     *        ({@value org.elasticsearch.xpack.esql.datasources.Federation#REGISTER_PROPERTY}), re-read on every
-     *        (re)start so a test can create federation state while enabled and then bounce the remote with the
-     *        switch off. {@code null} leaves the property unset (federation enabled by default).
+     * @param federationEnabled supplier for the ES|QL federation setting, re-read on every (re)start so a test can
+     *        create federation state while enabled and then bounce the remote with federation off. {@code null}
+     *        enables federation, which the dataset-bearing suites need.
      */
     static ElasticsearchCluster remoteCluster(
         Path csvDataPath,
         Map<String, String> additionalSettings,
         boolean shared,
-        Supplier<String> registerFederationFeature
+        Supplier<String> federationEnabled
     ) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
@@ -58,13 +57,12 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
-        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start,
-        // so only set it on nodes that know it. file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
+        // The local-disk allowlist and the federation settings are new in 9.5.0; older BWC nodes reject unknown settings
+        // and fail to start, so only set them on nodes that know them. That is harmless for the older remotes: they
+        // predate federation entirely, and file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
-        }
-        if (registerFederationFeature != null) {
-            cluster.systemProperty(Federation.REGISTER_PROPERTY, registerFederationFeature);
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled == null ? () -> "true" : federationEnabled);
         }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
@@ -84,12 +82,12 @@ public class Clusters {
     }
 
     /**
-     * A remote cluster whose ES|QL federation kill switch is driven by {@code registerFederationFeature}, re-read on
-     * every (re)start. Used by the federation kill-switch tests to create dataset state while enabled and then bounce
-     * the remote with the switch engaged.
+     * A remote cluster whose ES|QL federation setting is driven by {@code federationEnabled}, re-read on every
+     * (re)start. Used by the federation gate tests to create dataset state while enabled and then bounce the remote
+     * with federation off.
      */
-    public static ElasticsearchCluster remoteCluster(Supplier<String> registerFederationFeature) {
-        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, registerFederationFeature);
+    public static ElasticsearchCluster remoteCluster(Supplier<String> federationEnabled) {
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, federationEnabled);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
@@ -148,9 +146,11 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
-        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start.
+        // The local-disk allowlist and the federation settings are new in 9.5.0; older BWC nodes reject unknown settings
+        // and fail to start.
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
@@ -192,6 +192,8 @@ public class Clusters {
         }
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            // The local coordinator only asks its remotes to resolve datasets when federation is available here.
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         return cluster.build();
     }

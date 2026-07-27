@@ -15,17 +15,18 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.ClassRule;
 
 /**
- * End-to-end REST coverage for a node whose operator unregistered federation
- * ({@code -Des.esql.register_federation_feature=false}), the always-off deployment shape. The shared cluster builder
- * enables the federation setting, so this cluster also pins the combination in which a user's setting cannot take
- * effect: the routes stay unregistered and the setting is ignored. The property is read once at node startup, so this
- * needs a dedicated cluster with it set on the node JVM (see the {@code @ClassRule}).
+ * End-to-end REST coverage for the default deployment shape: the feature is registered, but nobody enabled it, so it is
+ * unavailable and looks exactly like the operator-unregistered case in {@link FederationDisabledRestIT}. The shared
+ * cluster builder turns the setting on for the other suites in this project, so this cluster turns it back off, which
+ * is equivalent to leaving it out of {@code elasticsearch.yml}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class FederationDisabledRestIT extends AbstractFederationUnavailableRestTestCase {
+public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.systemProperty(Federation.REGISTER_PROPERTY, "false"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        spec -> spec.setting(Federation.FEDERATION_ENABLED.getKey(), "false")
+    );
 
     @Override
     protected String getTestRestCluster() {

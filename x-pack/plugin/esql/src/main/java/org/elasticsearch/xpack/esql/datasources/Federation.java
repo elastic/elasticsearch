@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -16,41 +18,53 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.function.Function;
 
 /**
- * Kill switch for the ES|QL federation feature (external data sources and datasets). The feature is
- * registered by default; an operator suppresses it by setting the system property
- * {@value #REGISTER_PROPERTY} to {@code false}.
- *
- * <p>This is a deliberately coarse, static lever, not a dynamic setting: the value is read once at
- * class initialization (forced at node startup by {@code EsqlPlugin}), so changing it requires
- * restarting the node. That trade-off is intentional for an emergency lever that is expected to be
- * used rarely, and it keeps the mechanism simple (a dynamic enabler would be considerably more
- * complex). Cloud/GovCloud can set system properties on any deployment.
- *
- * <p>When suppressed, the goal is that the feature looks like it never existed rather than being
- * present-but-forbidden:
+ * The availability gate for the ES|QL federation feature (external data sources and datasets). Two
+ * levers decide it, and the feature is available only when both agree:
  * <ul>
- *   <li>{@code EsqlPlugin} does not register the federation REST handlers or transport actions
- *       (create/get/delete data source and dataset, plus the {@code FROM <dataset>} resolve action),
- *       so their endpoints return the framework's standard {@code no handler found for uri}
- *       ({@code 400}), identical to a feature that was never shipped.</li>
+ *   <li>the system property {@value #REGISTER_PROPERTY} decides whether the feature is
+ *       <em>registered</em> on this node at all. It defaults to {@code true}, and an operator
+ *       suppresses the feature by setting it to {@code false}. Cloud/GovCloud can set system
+ *       properties on any deployment.</li>
+ *   <li>the setting {@link #FEDERATION_ENABLED} decides whether a user has <em>enabled</em> the
+ *       registered feature. It defaults to {@code false}, so federation is off until it is turned
+ *       on in {@code elasticsearch.yml}.</li>
+ * </ul>
+ *
+ * <p>Both levers are deliberately coarse and static rather than dynamic: the property is read once at
+ * class initialization and the setting is read from the node's settings, so changing either requires
+ * restarting the node. The gates below include REST handler registration, which happens once at
+ * startup, so a dynamic value could not take effect without a restart anyway.
+ *
+ * <p>When federation is not available, the goal is that the feature looks like it never existed rather
+ * than being present-but-forbidden:
+ * <ul>
+ *   <li>{@code EsqlPlugin} does not register the federation REST handlers (create/get/delete data
+ *       source and dataset), so their endpoints return the framework's standard
+ *       {@code no handler found for uri} ({@code 400}), identical to a feature that was never
+ *       shipped. The corresponding transport actions stay registered, so a caller with transport
+ *       privileges can still read and write data source and dataset cluster state.</li>
  *   <li>{@code DatasetResolver} skips the {@code FROM <dataset>} rewrite entirely, so a dataset name
  *       falls through to normal index resolution and errors as {@code Unknown index}, the same error
  *       a nonexistent index gives.</li>
+ *   <li>{@code EsqlResolveFieldsAction} reports no datasets for an incoming remote field-caps request
+ *       and does not ask its own remotes to resolve datasets, so {@code FROM <remote>:<name>} falls
+ *       through to normal remote index resolution in both directions instead of failing with a
+ *       {@code RemoteDatasetNotSupportedException} that names datasets.</li>
  *   <li>Every node keeps a backstop at the physical external-source operator build
  *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}.
  *       This closes the data-node execution path: an already-rewritten {@code ExternalSourceExec}
  *       shipped from an enabled coordinator (in CCS/CPS, or during a rolling restart that has not yet
- *       reached this node) is refused before it can build a scanning operator, so a disabled node runs
- *       no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is closed
- *       separately by the {@code DatasetResolver} gate above; the snapshot-only inline {@code EXTERNAL}
- *       command bypasses that gate and is only stopped here at operator build, so on a disabled
- *       coordinator its planning-time source resolution and split discovery can still touch external
- *       storage before this backstop fires.</li>
+ *       reached this node) is refused before it can build a scanning operator, so a node without
+ *       federation runs no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is
+ *       closed separately by the {@code DatasetResolver} gate above; the snapshot-only inline
+ *       {@code EXTERNAL} command bypasses that gate and is only stopped here at operator build, so on a
+ *       coordinator without federation its planning-time source resolution and split discovery can
+ *       still touch external storage before this backstop fires.</li>
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
- * source / dataset create request, the property must be set on <em>all</em> nodes for a complete
- * kill.
+ * source / dataset create request, both levers must be set on <em>all</em> nodes for a consistent
+ * result.
  */
 public final class Federation {
 
@@ -58,25 +72,28 @@ public final class Federation {
 
     public static final String REGISTER_PROPERTY = "es.esql.register_federation_feature";
 
-    private static final boolean ENABLED = readEnabled(System::getProperty);
+    /**
+     * Enables the ES|QL federation feature (external data sources and datasets) on this node. Defaults
+     * to {@code false}: federation is opt-in. The value is read from the node's settings rather than
+     * from cluster state and gates REST handler registration, so a change takes effect only after a
+     * restart. It has no effect when an operator has unregistered the feature with
+     * {@value #REGISTER_PROPERTY}.
+     */
+    public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
+        "esql.federation.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
 
-    static {
-        // Mirror FeatureFlag: surface the effective state in the node log so an operator can confirm
-        // the switch after a bounce. Only log the exceptional (disabled) state to avoid noise. Because
-        // the read and this log run in the static initializer, EsqlPlugin forces class initialization
-        // at boot rather than deferring it to the first federation operation.
-        if (ENABLED == false) {
-            logger.info("ES|QL federation (external data sources) is not registered ([{}]=false)", REGISTER_PROPERTY);
-        }
-    }
+    private static final boolean REGISTERED = readRegistered(System::getProperty);
 
     private Federation() {}
 
     /**
-     * Parses the enabled state from the given property source. Defaults to enabled when the property
-     * is absent; an unparseable value fails fast (matching {@code FeatureFlag}).
+     * Parses the registered state from the given property source. Defaults to registered when the
+     * property is absent; an unparseable value fails fast (matching {@code FeatureFlag}).
      */
-    static boolean readEnabled(Function<String, String> getProperty) {
+    static boolean readRegistered(Function<String, String> getProperty) {
         final String value = getProperty.apply(REGISTER_PROPERTY);
         try {
             return Booleans.parseBoolean(value, true);
@@ -86,17 +103,17 @@ public final class Federation {
     }
 
     /**
-     * Whether the federation feature is available on this node. Read by {@code EsqlPlugin} at startup to
-     * decide whether to register the federation REST handlers and transport actions, and by
-     * {@code DatasetResolver} to decide whether to attempt the {@code FROM <dataset>} rewrite.
+     * Whether the federation feature is available on this node, which requires both that it is registered
+     * and that {@link #FEDERATION_ENABLED} is set. Takes the node settings rather than caching an
+     * effective value, because settings are per-node state and several nodes share one JVM in tests.
      */
-    public static boolean isAvailable() {
-        return ENABLED;
+    public static boolean isAvailable(Settings settings) {
+        return REGISTERED && FEDERATION_ENABLED.get(settings);
     }
 
-    /** No-op when federation is available; throws {@link #notAvailableException()} when the kill switch is engaged. */
-    public static void ensureEnabled() {
-        ensureEnabled(isAvailable());
+    /** No-op when federation is available on this node; throws {@link #notAvailableException()} otherwise. */
+    public static void ensureEnabled(Settings settings) {
+        ensureEnabled(isAvailable(settings));
     }
 
     static void ensureEnabled(boolean enabled) {
@@ -106,9 +123,37 @@ public final class Federation {
     }
 
     /**
-     * The {@code 400} thrown by the data-node backstop when an external-source plan reaches a node that has
-     * federation suppressed. The message deliberately omits the property name so it reads as a plain
-     * "feature not present" error rather than a configuration hint.
+     * Surfaces the effective state in the node log at startup so an operator can confirm both levers after
+     * a bounce, and warns when the setting is configured on a node where the feature is not registered and
+     * therefore cannot honor it.
+     */
+    public static void logEffectiveState(Settings settings) {
+        logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));
+    }
+
+    static void logEffectiveState(boolean registered, boolean enabled) {
+        if (registered == false) {
+            if (enabled) {
+                logger.warn(
+                    "[{}]=[true] is ignored because the ES|QL federation feature is not registered on this node "
+                        + "([{}]=[false]); set the system property to [true] to make the setting effective",
+                    FEDERATION_ENABLED.getKey(),
+                    REGISTER_PROPERTY
+                );
+            } else {
+                logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
+            }
+        } else if (enabled) {
+            logger.info("ES|QL federation (external data sources) is enabled ([{}]=[true])", FEDERATION_ENABLED.getKey());
+        } else {
+            logger.debug("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());
+        }
+    }
+
+    /**
+     * The {@code 400} thrown by the data-node backstop when an external-source plan reaches a node that does
+     * not have federation available. The message deliberately omits the property and setting names so it reads
+     * as a plain "feature not present" error rather than a configuration hint.
      */
     static ElasticsearchStatusException notAvailableException() {
         return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);

@@ -17,18 +17,17 @@ import org.junit.ClassRule;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * The operator lever of {@link AbstractFederationRestartRestTestCase}: federation is unregistered with
- * {@code -Des.esql.register_federation_feature=false} and the node bounced. The user setting stays on across the
- * restart, so this also proves the operator lever wins over an explicitly enabled setting.
+ * The user lever of {@link AbstractFederationRestartRestTestCase}: {@code esql.federation.enabled} is set back to
+ * {@code false} and the node bounced, which is how a user opts out again after opting in.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class FederationKillSwitchRestartRestIT extends AbstractFederationRestartRestTestCase {
+public class FederationSettingRestartRestIT extends AbstractFederationRestartRestTestCase {
 
-    private static final AtomicReference<String> registerFederationFeature = new AtomicReference<>("true");
+    private static final AtomicReference<String> federationEnabled = new AtomicReference<>("true");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.systemProperty(Federation.REGISTER_PROPERTY, registerFederationFeature::get)
+        spec -> spec.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled::get)
     );
 
     @Override
@@ -38,7 +37,7 @@ public class FederationKillSwitchRestartRestIT extends AbstractFederationRestart
 
     @Override
     protected void turnFederationOff() {
-        registerFederationFeature.set("false");
+        federationEnabled.set("false");
     }
 
     @Override

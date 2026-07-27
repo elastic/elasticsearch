@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Unit tests for {@link Federation}, the federation (external data sources) kill switch. The live state is a
- * {@code static final} read once at class load and cannot be flipped in-JVM, so the property parsing and the
- * enforcement branch are exercised through the package-private {@link Federation#readEnabled} /
- * {@link Federation#ensureEnabled(boolean)} seams, which take their input as a parameter. The registered-vs-suppressed
- * behavior at the REST and transport surface is covered end-to-end by the single-node REST ITs.
+ * Unit tests for {@link Federation}, the availability gate for external data sources and datasets. The registered state
+ * comes from a system property read into a {@code static final} at class load and cannot be flipped in-JVM, so property
+ * parsing, the enforcement branch, and the startup logging are exercised through the package-private
+ * {@link Federation#readRegistered}, {@link Federation#ensureEnabled(boolean)} and
+ * {@link Federation#logEffectiveState(boolean, boolean)} seams, which take their inputs as parameters. The end-to-end
+ * behavior of both levers at the REST and transport surface is covered by the federation REST ITs.
  */
 public class FederationTests extends ESTestCase {
 
@@ -27,25 +32,49 @@ public class FederationTests extends ESTestCase {
         return Map.of(Federation.REGISTER_PROPERTY, value)::get;
     }
 
-    public void testEnabledByDefaultWhenPropertyAbsent() {
-        assertTrue(Federation.readEnabled(key -> null));
+    private static Settings enabled(boolean enabled) {
+        return Settings.builder().put(Federation.FEDERATION_ENABLED.getKey(), enabled).build();
     }
 
-    public void testEnabledByDefaultWhenBlank() {
-        assertTrue(Federation.readEnabled(property("   ")));
+    public void testRegisteredByDefaultWhenPropertyAbsent() {
+        assertTrue(Federation.readRegistered(key -> null));
     }
 
-    public void testEnabledWhenTrue() {
-        assertTrue(Federation.readEnabled(property("true")));
+    public void testRegisteredByDefaultWhenBlank() {
+        assertTrue(Federation.readRegistered(property("   ")));
     }
 
-    public void testDisabledWhenFalse() {
-        assertFalse(Federation.readEnabled(property("false")));
+    public void testRegisteredWhenTrue() {
+        assertTrue(Federation.readRegistered(property("true")));
+    }
+
+    public void testNotRegisteredWhenFalse() {
+        assertFalse(Federation.readRegistered(property("false")));
     }
 
     public void testInvalidValueFailsFast() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Federation.readEnabled(property("maybe")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Federation.readRegistered(property("maybe")));
         assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
+    }
+
+    public void testDisabledByDefault() {
+        assertFalse(Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+    }
+
+    public void testNotAvailableWhenSettingAbsent() {
+        assertFalse(Federation.isAvailable(Settings.EMPTY));
+    }
+
+    public void testNotAvailableWhenSettingFalse() {
+        assertFalse(Federation.isAvailable(enabled(false)));
+    }
+
+    public void testAvailableWhenRegisteredAndSettingTrue() {
+        assumeTrue(
+            "the test JVM must not unregister the feature",
+            System.getProperty(Federation.REGISTER_PROPERTY) == null || Federation.readRegistered(System::getProperty)
+        );
+        assertTrue(Federation.isAvailable(enabled(true)));
     }
 
     public void testEnsureEnabledIsNoopWhenEnabled() {
@@ -62,5 +91,65 @@ public class FederationTests extends ESTestCase {
         ElasticsearchStatusException e = Federation.notAvailableException();
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("external data sources are not available", e.getMessage());
+    }
+
+    public void testLogsWarningWhenSettingCannotTakeEffect() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(false, true),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "ineffective setting warning naming both levers",
+                Federation.class.getCanonicalName(),
+                Level.WARN,
+                "*" + Federation.FEDERATION_ENABLED.getKey() + "*" + Federation.REGISTER_PROPERTY + "*"
+            )
+        );
+    }
+
+    public void testLogsNotRegisteredAtInfo() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(false, false),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "not registered",
+                Federation.class.getCanonicalName(),
+                Level.INFO,
+                "*not registered*" + Federation.REGISTER_PROPERTY + "*"
+            ),
+            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    public void testLogsEnabledAtInfo() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(true, true),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "enabled",
+                Federation.class.getCanonicalName(),
+                Level.INFO,
+                "*is enabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+            ),
+            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
+        reason = "the default-off state is reported at DEBUG, which is below the default test log level"
+    )
+    public void testDefaultOffLogsOnlyAtDebug() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(true, false),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "disabled",
+                Federation.class.getCanonicalName(),
+                Level.DEBUG,
+                "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+            ),
+            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*"),
+            new MockLog.UnseenEventExpectation("no info", Federation.class.getCanonicalName(), Level.INFO, "*")
+        );
     }
 }

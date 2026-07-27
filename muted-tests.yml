@@ -684,3 +684,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/155145
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.sumWithOverflowGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/155146

@@ -89,8 +89,8 @@ import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
- * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
- * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
+ * Abstract base for paginating across a search and executing bulk actions on all results. All package private methods are package private
+ * so their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,

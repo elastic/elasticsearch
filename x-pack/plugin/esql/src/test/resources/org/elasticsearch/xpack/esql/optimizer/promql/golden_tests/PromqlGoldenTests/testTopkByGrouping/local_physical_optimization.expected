@@ -5,17 +5,17 @@ ProjectExec[[result{r}#0, step{r}#1, _timeseries{r}#2 AS _timeseries#3]]
       \_FilterExec[step{r}#1 >= 0[DATETIME] AND step{r}#1 <= 253402300799999[DATETIME]]
         \_TopNByExec[[Order[result{r}#4,DESC,LAST]],2[INTEGER],[step{r}#1, pod{f}#5],null]
           \_ProjectExec[[result{r}#4, step{r}#1, _timeseries{r}#2, pod{r}#5]]
-            \_EvalExec[[UNPACKDIMENSION(group__timeseries_$1{r}#6) AS _timeseries#2, UNPACKDIMENSION(group_pod_$1{r}#7) AS pod#5]]
-              \_AggregateExec[[step{r}#1, pack__timeseries_$1{r}#8, pack_pod_$1{r}#9],[VALUES(LASTOVERTIME_$1{r}#10,true[BOOLEAN],PT0S[TIME_DURATION]) AS result#4, step{r}#1 AS step#1, pack__timeseries_$1{r}#8 AS group__timeseries_$1#6, pack_pod_$1{r}#9 AS group_pod_$1#7],SINGLE,[step{r}#1, pack__timeseries_$1{r}#8, pack_pod_$1{r}#9, $$result$values{r}#11],null]
-                \_EvalExec[[PACKDIMENSION(_timeseries{r}#12) AS pack__timeseries_$1#8, PACKDIMENSION(pod{r}#13) AS pack_pod_$1#9]]
-                  \_TimeSeriesAggregateExec[[_tsid{m}#14, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#16) AS LASTOVERTIME_$1#10, DIMENSIONVALUES(_timeseries{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#12, DIMENSIONVALUES(pod{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#13, step{r}#1],FINAL,[_tsid{m}#14, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#17, $$LASTOVERTIME_$1$values{r}#18, $$_timeseries$values{r}#19, $$pod$values{r}#20],null,BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION])]
-                    \_ExchangeExec[[_tsid{m}#14, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#17, $$LASTOVERTIME_$1$values{r}#18, $$_timeseries$values{r}#19, $$pod$values{r}#20],true]
-                      \_ProjectExec[[_tsid{m}#14, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#21, $$LASTOVERTIME_$1$values{r}#22, $$_timeseries$values{r}#23, $$pod$values{r}#24]]
-                        \_EvalExec[[_timeseries{f$}#25 AS _timeseries#23, pod{f}#5 AS pod#24]]
-                          \_FieldExtractExec[_timeseries{f$}#25]<[],[],[]>
+            \_UnpackDimsExec[_$packed_grouping_dims{r}#6,[_timeseries{r}#2, pod{r}#5]]
+              \_AggregateExec[[step{r}#1, _$packed_dims{f$}#7],[VALUES(LASTOVERTIME_$1{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS result#4, step{r}#1 AS step#1, _$packed_dims{f$}#7 AS _$packed_grouping_dims#6],SINGLE,[step{r}#1, _$packed_dims{f$}#7, $$result$values{r}#9],null]
+                \_PackDimsExec[[_timeseries{r}#10, pod{r}#11],_$packed_dims{f$}#7]
+                  \_TimeSeriesAggregateExec[[_tsid{m}#12, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#13,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#14) AS LASTOVERTIME_$1#8, DIMENSIONVALUES(_timeseries{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#10, DIMENSIONVALUES(pod{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#11, step{r}#1],FINAL,[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#15, $$LASTOVERTIME_$1$values{r}#16, $$_timeseries$values{r}#17, $$pod$values{r}#18],null,BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION])]
+                    \_ExchangeExec[[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#15, $$LASTOVERTIME_$1$values{r}#16, $$_timeseries$values{r}#17, $$pod$values{r}#18],true]
+                      \_ProjectExec[[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#19, $$LASTOVERTIME_$1$values{r}#20, $$_timeseries$values{r}#21, $$pod$values{r}#22]]
+                        \_EvalExec[[_timeseries{f$}#23 AS _timeseries#21, pod{f}#5 AS pod#22]]
+                          \_FieldExtractExec[_timeseries{f$}#23]<[],[],[]>
                             \_FieldExtractExec[pod{f}#5]<[],[],[]>
-                              \_TimeSeriesAggregateExec[[_tsid{m}#14, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#16) AS LASTOVERTIME_$1#10, step{r}#1, FIRSTDOCID(_doc{f}#26,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#27],INITIAL,[_tsid{m}#14, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#21, $$LASTOVERTIME_$1$values{r}#22, _doc{r}#28],236,BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION])]
-                                \_FieldExtractExec[_tsid{m}#14, network.bytes_in{f}#15]<[],[],[]>
-                                  \_EvalExec[[BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION]) AS step#1]]
-                                    \_FieldExtractExec[@timestamp{f}#16]<[],[],[]>
-                                      \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#26], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+                              \_TimeSeriesAggregateExec[[_tsid{m}#12, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#13,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#14) AS LASTOVERTIME_$1#8, step{r}#1, FIRSTDOCID(_doc{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#25],INITIAL,[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#19, $$LASTOVERTIME_$1$values{r}#20, _doc{r}#26],236,BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION])]
+                                \_FieldExtractExec[_tsid{m}#12, network.bytes_in{f}#13]<[],[],[]>
+                                  \_EvalExec[[BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION]) AS step#1]]
+                                    \_FieldExtractExec[@timestamp{f}#14]<[],[],[]>
+                                      \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#24], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

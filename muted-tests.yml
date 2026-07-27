@@ -723,3 +723,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155162
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:folding.computedBoolean_NotEquals_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/155163

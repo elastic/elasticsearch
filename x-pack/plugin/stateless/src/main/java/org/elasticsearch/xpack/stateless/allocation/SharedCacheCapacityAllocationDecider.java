@@ -70,6 +70,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 );
             };
         }
+
+        private static long getRequirementWithFallback(long requirementInBytes) {
+            return requirementInBytes == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT ? 0L : requirementInBytes;
+        }
     }
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
@@ -194,6 +198,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         if (nodeCommitments == null) {
             return allocation.decision(Decision.YES, NAME, "no cache size and commitment data available for node [%s]", node.nodeId());
         }
+
+        // Snapshot the accounting mode once so a concurrent settings update can't mix boosted and total values within a single decision.
+        final CacheAccountingMode accountingMode = this.accountingMode;
 
         final long currentCommitmentBytes = accountingMode.getCurrentCommitmentBytes(nodeCommitments);
         final long thresholdBytes = (long) (nodeCommitments.cacheSizeInBytes() * lowWatermark.getAsRatio());

@@ -295,7 +295,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             ActionListener.wrap(v -> exchangeService.finishSinkHandler(worker.clientToServerId, null), e -> {
                 notifyFailure(e);
                 exchangeService.finishSinkHandler(worker.clientToServerId, e);
-            })
+            }),
+            transportService.getThreadPool().getThreadContext()
         );
         logger.debug("[LookupJoinClient] Created client-to-server sink handler: exchangeId={}", worker.clientToServerId);
 

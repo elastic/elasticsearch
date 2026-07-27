@@ -82,6 +82,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+    public static final NodeFeature INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION = new NodeFeature(
+        "inference.internal_delete_endpoints_action"
+    );
     public static final NodeFeature INFERENCE_ELASTIC_REASONING_TASK_SETTINGS = new NodeFeature(
         "inference.elastic.reasoning_task_settings"
     );
@@ -99,6 +102,7 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
+            INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
             INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
             INFERENCE_INFERENCE_INDEX_DOC_TYPE,
             INFERENCE_CLEAR_PREFERENCES_CACHE
@@ -160,7 +164,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
                 SEMANTIC_TEXT_EMBEDDING_TASK,
                 SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
-                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER
+                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX
             )
         );
         testFeatures.addAll(getFeatures());

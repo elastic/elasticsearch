@@ -635,6 +635,12 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
     }
 
+    /**
+     * Builds a {@link RoutingAllocation} with only {@code decider} registered. No other allocation deciders are consulted anywhere in
+     * this test class: every test calls {@link SharedCacheCapacityAllocationDecider#canAllocate} directly rather than going through
+     * {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders} or {@code AllocationService}, so a broader decider
+     * set would be unused boilerplate.
+     */
     private RoutingAllocation createRoutingAllocation(AllocationDecider decider, ShardRouting shardRouting, ClusterInfo clusterInfo) {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(createClusterState(shardRouting))
             .allocationDeciders(decider)

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -32,10 +33,15 @@ final class ComputeListener implements Releasable {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
-            responseHeaders.finish();
-            delegate.onResponse(completionInfoAccumulator.finish());
-        }));
+        // ContextPreservingActionListener ensures finish() and the root delegate always fire on the
+        // construction-time thread context, even when the last ref drains on a transport response thread
+        // with a blank ThreadContext (e.g. ExchangeSourceHandler.RemoteSinkFetcher completing via transport).
+        this.refs = new EsqlRefCountingListener(
+            ContextPreservingActionListener.wrapPreservingContext(delegate.delegateFailure((l, ignored) -> {
+                responseHeaders.finish();
+                delegate.onResponse(completionInfoAccumulator.finish());
+            }), threadPool.getThreadContext())
+        );
     }
 
     /**

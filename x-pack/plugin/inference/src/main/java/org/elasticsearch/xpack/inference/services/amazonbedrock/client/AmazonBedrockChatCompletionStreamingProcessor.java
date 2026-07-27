@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
@@ -398,17 +399,19 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var outputTokens = event.usage().outputTokens();
         var totalTokens = event.usage().totalTokens();
 
-        var cacheReadTokens = Objects.requireNonNullElse(event.usage().cacheReadInputTokens(), 0);
-        var cacheWriteTokens = Objects.requireNonNullElse(event.usage().cacheWriteInputTokens(), 0);
+        var cacheReadTokens = event.usage().cacheReadInputTokens();
+        var cacheWriteTokens = event.usage().cacheWriteInputTokens();
 
-        // Calculate prompt tokens as all input tokens (bedrock input + cache read + cache write)
-        var promptTokens = inputTokens + cacheReadTokens + cacheWriteTokens;
+        var promptTokens = inputTokens + Objects.requireNonNullElse(cacheReadTokens, 0) + Objects.requireNonNullElse(cacheWriteTokens, 0);
+        var promptTokensDetails = cacheReadTokens == null && cacheWriteTokens == null
+            ? null
+            : new PromptTokensDetails(cacheReadTokens, cacheWriteTokens);
 
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
             outputTokens,
             promptTokens,
             totalTokens,
-            event.usage().cacheReadInputTokens(),
+            promptTokensDetails,
             null
         );
     }

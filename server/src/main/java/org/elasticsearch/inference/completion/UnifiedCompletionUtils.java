@@ -79,6 +79,7 @@ public final class UnifiedCompletionUtils {
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
     public static final String CACHED_TOKENS_FIELD = "cached_tokens";
+    public static final String CACHE_WRITE_TOKENS_FIELD = "cache_write_tokens";
     public static final String COMPLETION_TOKENS_DETAILS_FIELD = "completion_tokens_details";
     public static final String REASONING_TOKENS_FIELD = "reasoning_tokens";
 
@@ -94,6 +95,10 @@ public final class UnifiedCompletionUtils {
 
     public static final TransportVersion CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED = TransportVersion.fromName(
         "inference_api_chat_completion_reasoning_max_tokens_removed"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_cache_write_tokens_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

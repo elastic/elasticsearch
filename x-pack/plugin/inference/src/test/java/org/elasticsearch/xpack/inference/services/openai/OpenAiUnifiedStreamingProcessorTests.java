@@ -272,7 +272,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         int usagePromptTokens = randomIntBetween(1, 100);
         int usageTotalTokens = randomIntBetween(1, 200);
         int reasoningTokens = randomIntBetween(1, 50);
-        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, reasoningTokens);
+        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, null, reasoningTokens);
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
@@ -491,22 +491,20 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens) {
-        return createUsageJson(completionTokens, promptTokens, totalTokens, null, null);
-    }
-
     private String createUsageJson(
         int completionTokens,
         int promptTokens,
         int totalTokens,
         @Nullable Integer cachedTokens,
+        @Nullable Integer cacheWriteTokens,
         @Nullable Integer reasoningTokens
     ) {
         String cachedTokensPart = cachedTokens != null ? Strings.format("""
             ,
             "prompt_tokens_details": {
-                "cached_tokens": %d
-            }""", cachedTokens) : "";
+                "cached_tokens": %d,
+                "cache_write_tokens": %d
+            }""", cachedTokens, cacheWriteTokens) : "";
         String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
             ,
             "completion_tokens_details": {
@@ -544,9 +542,10 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         int promptTokens = randomIntBetween(1, 100);
         int totalTokens = randomIntBetween(1, 200);
         var cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var cacheWriteTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
         var reasoningTokens = includeReasoningTokens ? randomIntBetween(1, 50) : null;
 
-        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, reasoningTokens);
+        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, cacheWriteTokens, reasoningTokens);
 
         String chatCompletionChunkJson = createChatCompletionChunkJson(
             randomAlphaOfLength(10),
@@ -567,7 +566,13 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(completionTokens, chunk.usage().completionTokens());
             assertEquals(promptTokens, chunk.usage().promptTokens());
             assertEquals(totalTokens, chunk.usage().totalTokens());
-            assertEquals(cachedTokens, chunk.usage().cachedTokens());
+            if (includeCachedTokens) {
+                assertNotNull(chunk.usage().promptTokensDetails());
+                assertEquals(cachedTokens, chunk.usage().promptTokensDetails().cachedTokens());
+                assertEquals(cacheWriteTokens, chunk.usage().promptTokensDetails().cacheWriteTokens());
+            } else {
+                assertNull(chunk.usage().promptTokensDetails());
+            }
             if (includeReasoningTokens) {
                 assertNotNull(chunk.usage().completionTokenDetails());
                 assertEquals(reasoningTokens, chunk.usage().completionTokenDetails().reasoningTokens());

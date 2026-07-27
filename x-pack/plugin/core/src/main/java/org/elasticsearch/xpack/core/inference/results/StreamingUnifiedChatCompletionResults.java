@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHED_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_WRITE_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHOICES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.COMPLETION_TOKENS_DETAILS_FIELD;
@@ -198,8 +200,17 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
                         .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
                         .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
-                    if (usage.cachedTokens() != null) {
-                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD).field(CACHED_TOKENS_FIELD, usage.cachedTokens()).endObject();
+                    var promptTokensDetails = usage.promptTokensDetails();
+                    if (promptTokensDetails != null
+                        && (promptTokensDetails.cachedTokens() != null || promptTokensDetails.cacheWriteTokens() != null)) {
+                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD);
+                        if (promptTokensDetails.cachedTokens() != null) {
+                            builder.field(CACHED_TOKENS_FIELD, promptTokensDetails.cachedTokens());
+                        }
+                        if (promptTokensDetails.cacheWriteTokens() != null) {
+                            builder.field(CACHE_WRITE_TOKENS_FIELD, promptTokensDetails.cacheWriteTokens());
+                        }
+                        builder.endObject();
                     }
                     if (usage.completionTokenDetails() != null && usage.completionTokenDetails().reasoningTokens() != null) {
                         builder.startObject(COMPLETION_TOKENS_DETAILS_FIELD)
@@ -416,16 +427,12 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             int completionTokens,
             int promptTokens,
             int totalTokens,
-            @Nullable Integer cachedTokens,
+            @Nullable PromptTokensDetails promptTokensDetails,
             @Nullable CompletionTokenDetails completionTokenDetails
         ) implements Writeable {
 
-            public Usage(int completionTokens, int promptTokens, int totalTokens, @Nullable Integer cachedTokens) {
-                this(completionTokens, promptTokens, totalTokens, cachedTokens, null);
-            }
-
             public Usage(int completionTokens, int promptTokens, int totalTokens) {
-                this(completionTokens, promptTokens, totalTokens, null);
+                this(completionTokens, promptTokens, totalTokens, null, null);
             }
 
             private Usage(StreamInput in) throws IOException {
@@ -433,7 +440,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     in.readInt(),
                     in.readInt(),
                     in.readInt(),
-                    in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS) ? in.readOptionalInt() : null,
+                    readPromptTokensDetails(in),
                     in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                         ? in.readOptionalWriteable(CompletionTokenDetails::new)
                         : null
@@ -445,8 +452,10 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 out.writeInt(completionTokens);
                 out.writeInt(promptTokens);
                 out.writeInt(totalTokens);
-                if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
-                    out.writeOptionalInt(cachedTokens);
+                if (out.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
+                    out.writeOptionalWriteable(promptTokensDetails);
+                } else if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    out.writeOptionalInt(promptTokensDetails() == null ? null : promptTokensDetails().cachedTokens);
                 }
                 if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
                     out.writeOptionalWriteable(completionTokenDetails);
@@ -463,6 +472,30 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeOptionalVInt(reasoningTokens);
                 }
+            }
+
+            public record PromptTokensDetails(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) implements Writeable {
+
+                private PromptTokensDetails(StreamInput in) throws IOException {
+                    this(in.readOptionalVInt(), in.readOptionalVInt());
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeOptionalVInt(cachedTokens);
+                    out.writeOptionalVInt(cacheWriteTokens);
+                }
+            }
+
+            private static PromptTokensDetails readPromptTokensDetails(StreamInput in) throws IOException {
+                if (in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
+                    return in.readOptionalWriteable(PromptTokensDetails::new);
+                } else if (in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    Integer cachedTokens = in.readOptionalInt();
+                    return cachedTokens == null ? null : new PromptTokensDetails(cachedTokens, null);
+                }
+
+                return null;
             }
         }
     }

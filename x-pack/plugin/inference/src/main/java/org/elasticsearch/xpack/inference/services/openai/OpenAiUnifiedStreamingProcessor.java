@@ -32,6 +32,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REAS
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_TOKENS_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.*;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
@@ -62,6 +63,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
     public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
     public static final String CACHED_TOKENS_FIELD = "cached_tokens";
+    public static final String CACHE_WRITE_TOKENS_FIELD = "cache_write_tokens";
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
@@ -274,17 +276,13 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         private static class UsageParser {
 
             private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage, Void> PARSER =
-                new ConstructingObjectParser<>(
-                    USAGE_FIELD,
-                    true,
-                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
-                        (int) args[0],
-                        (int) args[1],
-                        (int) args[2],
-                        (Integer) args[3],
-                        (CompletionTokenDetails) args[4]
-                    )
-                );
+                new ConstructingObjectParser<>(USAGE_FIELD, true, args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
+                    (int) args[0],
+                    (int) args[1],
+                    (int) args[2],
+                    (PromptTokensDetails) args[3],
+                    (CompletionTokenDetails) args[4]
+                ));
 
             static {
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(COMPLETION_TOKENS_FIELD));
@@ -320,14 +318,15 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             }
 
             private static class PromptTokensDetailsParser {
-                private static final ConstructingObjectParser<Integer, Void> PARSER = new ConstructingObjectParser<>(
+                private static final ConstructingObjectParser<PromptTokensDetails, Void> PARSER = new ConstructingObjectParser<>(
                     PROMPT_TOKENS_DETAILS_FIELD,
                     true,
-                    args -> (Integer) args[0]
+                    args -> new PromptTokensDetails((Integer) args[0], (Integer) args[1])
                 );
 
                 static {
                     PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CACHED_TOKENS_FIELD));
+                    PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CACHE_WRITE_TOKENS_FIELD));
                 }
             }
         }

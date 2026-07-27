@@ -53,6 +53,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -81,7 +82,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.PARTIAL_RESULTS_CANCELLATION_REASON;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -1438,7 +1438,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             Throwable cause = ExceptionsHelper.unwrap(searchResponseAfterCompletion.getFailure(), TaskCancelledException.class);
             assertNotNull("TaskCancelledException should be in the causal chain", cause);
             String json = Strings.toString(
-                ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion).toXContent(XContentFactory.jsonBuilder(), EMPTY_PARAMS)
+                ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
+                    .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
             );
             assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
         } finally {

@@ -126,7 +126,7 @@ public class SharedBlobCacheWarmingService {
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
     public static final String BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC = "es.blob_cache_warming.blobs_warmed.total";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
-    public static final String WARMING_RATIO_BUCKET_ATTRIBUTE_KEY = "es_warming_ratio";
+    public static final String WARMING_RATIO_ATTRIBUTE_KEY = "es_warming_ratio";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -458,7 +458,7 @@ public class SharedBlobCacheWarmingService {
             .registerLongCounter(
                 BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC,
                 "Total number of blobs warmed in cache, " +
-                    "broken down by their warming ratios (one decimal), see [" + WARMING_RATIO_BUCKET_ATTRIBUTE_KEY + "]",
+                    "broken down by their warming ratios (one decimal), see [" + WARMING_RATIO_ATTRIBUTE_KEY + "]",
                 "unit"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
@@ -1561,7 +1561,7 @@ public class SharedBlobCacheWarmingService {
             warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
             blobsWarmedMetric.incrementBy(
                 1,
-                Map.of(WARMING_RATIO_BUCKET_ATTRIBUTE_KEY, warmingRatioLabel(byteRangeToWarm.length(), blobSize))
+                Map.of(WARMING_RATIO_ATTRIBUTE_KEY, warmingRatioLabel(byteRangeToWarm.length(), blobSize))
             );
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,

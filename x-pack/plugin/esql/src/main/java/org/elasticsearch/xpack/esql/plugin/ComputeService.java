@@ -333,8 +333,7 @@ public class ComputeService {
                         "subplan-" + i,
                         ActionListener.wrap(result -> {
                             exchangeSink.addCompletionListener(
-                                ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); }),
-                                transportService.getThreadPool().getThreadContext()
+                                ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
                             );
                             subPlanListener.onResponse(result.completionInfo());
                         }, e -> {

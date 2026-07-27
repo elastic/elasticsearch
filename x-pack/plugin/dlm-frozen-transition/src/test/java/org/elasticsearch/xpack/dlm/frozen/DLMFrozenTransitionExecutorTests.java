@@ -37,6 +37,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecutorTestCase {
 
+    private ProjectId projectId = randomProjectIdOrDefault();
+
     @Before
     public void setUpExecutor() throws Exception {
         setupExecutorTestCase();
@@ -50,16 +52,16 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
     public void testTransitionSubmitted() throws Exception {
         try (var handle = newExecutor(2, 10)) {
             var executor = handle.executor();
-            var task = new TestDLMFrozenTransitionRunnable("running-index");
+            var task = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             task.blockUntil = new CountDownLatch(1);
 
-            assertFalse(executor.transitionSubmitted(ProjectId.DEFAULT, "running-index"));
+            assertFalse(executor.transitionSubmitted(projectId, "running-index"));
 
             Future<?> future = executor.submit(task);
             safeAwait(task.started);
 
-            assertTrue(executor.transitionSubmitted(ProjectId.DEFAULT, "running-index"));
-            assertFalse(executor.transitionSubmitted(ProjectId.DEFAULT, "other-index"));
+            assertTrue(executor.transitionSubmitted(projectId, "running-index"));
+            assertFalse(executor.transitionSubmitted(projectId, "other-index"));
 
             task.blockUntil.countDown();
             future.get(10, TimeUnit.SECONDS);
@@ -69,11 +71,11 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
     public void testTransitionRemovedAfterCompletion() throws Exception {
         try (var handle = newExecutor(2, 100)) {
             var executor = handle.executor();
-            var task = new TestDLMFrozenTransitionRunnable("done-index");
+            var task = new TestDLMFrozenTransitionRunnable("done-index", projectId);
 
             executor.submit(task).get(10, TimeUnit.SECONDS);
 
-            assertFalse(executor.transitionSubmitted(ProjectId.DEFAULT, "done-index"));
+            assertFalse(executor.transitionSubmitted(projectId, "done-index"));
         }
     }
 
@@ -81,11 +83,11 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
         var errorStore = makeErrorStore();
         try (var handle = newExecutor(2, 100, errorStore)) {
             var executor = handle.executor();
-            var runtimeTask = new TestDLMFrozenTransitionRunnable("exception-index");
+            var runtimeTask = new TestDLMFrozenTransitionRunnable("exception-index", projectId);
             runtimeTask.throwOnRun = new IllegalStateException("simulated failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
-            assertFalse(executor.transitionSubmitted(ProjectId.DEFAULT, "exception-index"));
-            ErrorEntry err = errorStore.getError(ProjectId.DEFAULT, "exception-index");
+            assertFalse(executor.transitionSubmitted(projectId, "exception-index"));
+            ErrorEntry err = errorStore.getError(projectId, "exception-index");
             assertNotNull("expected an error to be recorded in the error store", err);
             assertThat(err.error(), containsString("simulated failure"));
         }
@@ -103,7 +105,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
                         DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("local")).localNodeId("local").masterNodeId("local").build()
                     )
                     .putProjectMetadata(
-                        ProjectMetadata.builder(ProjectId.DEFAULT)
+                        ProjectMetadata.builder(projectId)
                             .put(
                                 IndexMetadata.builder(indexName)
                                     .settings(
@@ -121,13 +123,13 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
                             )
                     )
             );
-            var runtimeTask = new TestDLMFrozenTransitionRunnable(indexName);
+            var runtimeTask = new TestDLMFrozenTransitionRunnable(indexName, projectId);
             runtimeTask.throwOnRun = new DLMUnrecoverableException(indexName, "simulated unrecoverable failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
 
             // Check that the cluster state has been updated with the index having its mark removed
             ClusterServiceUtils.awaitClusterState(cs -> {
-                IndexMetadata index = clusterService.state().projectState(ProjectId.DEFAULT).metadata().index(indexName);
+                IndexMetadata index = clusterService.state().projectState(projectId).metadata().index(indexName);
                 if (index == null) {
                     fail("index should always exist");
                 }
@@ -139,8 +141,8 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             }, clusterService);
 
             // The removal happens asynchronously after all nodes ack the cluster state change
-            assertBusy(() -> assertFalse(executor.transitionSubmitted(ProjectId.DEFAULT, indexName)));
-            assertNull(errorStore.getError(ProjectId.DEFAULT, indexName));
+            assertBusy(() -> assertFalse(executor.transitionSubmitted(projectId, indexName)));
+            assertNull(errorStore.getError(projectId, indexName));
         }
     }
 
@@ -148,7 +150,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
         try (var handle = newExecutor(2, 10)) {
             assertEquals(
                 FrozenTransitionInfoProvider.Status.NOT_STARTED,
-                handle.executor().getTransitionStatus(ProjectId.DEFAULT, "never-submitted")
+                handle.executor().getTransitionStatus(projectId, "never-submitted")
             );
         }
     }
@@ -164,39 +166,39 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             CountDownLatch firstStarted = new CountDownLatch(1);
             CountDownLatch block = new CountDownLatch(1);
 
-            var runningTask = new TestDLMFrozenTransitionRunnable("running-index");
+            var runningTask = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             runningTask.started = firstStarted;
             runningTask.blockUntil = block;
             executor.submit(runningTask);
             safeAwait(firstStarted); // single thread is now occupied
 
-            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index");
+            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index", projectId);
             queuedTask.blockUntil = block;
             Future<?> queuedFuture = executor.submit(queuedTask); // sits in the queue; has not started
 
-            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
-            assertEquals(FrozenTransitionInfoProvider.Status.QUEUED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(projectId, "running-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.QUEUED, executor.getTransitionStatus(projectId, "queued-index"));
 
             block.countDown();
             queuedFuture.get(10, TimeUnit.SECONDS);
 
-            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "running-index"));
-            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "queued-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(projectId, "running-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(projectId, "queued-index"));
         }
     }
 
     public void testGetTransitionStatusNotStartedAfterStop() throws Exception {
         try (var handle = newExecutor(1, 10)) {
             var executor = handle.executor();
-            var task = new TestDLMFrozenTransitionRunnable("block-index");
+            var task = new TestDLMFrozenTransitionRunnable("block-index", projectId);
             task.blockUntil = new CountDownLatch(1);
 
             executor.submit(task);
             safeAwait(task.started);
-            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.RUNNING, executor.getTransitionStatus(projectId, "block-index"));
 
             executor.stop();
-            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(ProjectId.DEFAULT, "block-index"));
+            assertEquals(FrozenTransitionInfoProvider.Status.NOT_STARTED, executor.getTransitionStatus(projectId, "block-index"));
         }
     }
 
@@ -210,14 +212,14 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
 
             assertTrue(executor.hasCapacity());
 
-            var firstTask = new TestDLMFrozenTransitionRunnable("index-first");
+            var firstTask = new TestDLMFrozenTransitionRunnable("index-first", projectId);
             firstTask.started = tasksStarted;
             firstTask.blockUntil = firstTaskBlock;
             executor.submit(firstTask);
 
             // Fill remaining queue
             for (int i = 0; i < maxQueue; i++) {
-                var task = new TestDLMFrozenTransitionRunnable("index-" + i);
+                var task = new TestDLMFrozenTransitionRunnable("index-" + i, projectId);
                 task.started = tasksStarted;
                 task.blockUntil = taskBlock;
                 executor.submit(task);
@@ -235,7 +237,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
     public void testStop() throws Exception {
         try (var handle = newExecutor(1, 10)) {
             var executor = handle.executor();
-            var task = new TestDLMFrozenTransitionRunnable("block-index");
+            var task = new TestDLMFrozenTransitionRunnable("block-index", projectId);
             task.blockUntil = new CountDownLatch(1);
 
             executor.submit(task);
@@ -245,7 +247,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             assertFalse("executor must stop accepting work after stop()", executor.isAccepting());
             assertFalse(
                 "submittedTransitions must be cleared so a re-mastered node can resubmit work",
-                executor.transitionSubmitted(ProjectId.DEFAULT, "block-index")
+                executor.transitionSubmitted(projectId, "block-index")
             );
         }
     }
@@ -262,20 +264,20 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             CountDownLatch firstStarted = new CountDownLatch(1);
             CountDownLatch block = new CountDownLatch(1);
 
-            var runningTask = new TestDLMFrozenTransitionRunnable("running-index");
+            var runningTask = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             runningTask.started = firstStarted;
             runningTask.blockUntil = block;
             executor.submit(runningTask);
             safeAwait(firstStarted); // single thread is now occupied
 
-            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index");
+            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index", projectId);
             queuedTask.blockUntil = block;
             executor.submit(queuedTask); // sits in the queue; has not started
 
             assertEquals("Queued task should not have started yet", 1, queuedTask.started.getCount());
             assertTrue(
                 "transitionSubmitted must return true for a queued task",
-                executor.transitionSubmitted(ProjectId.DEFAULT, "queued-index")
+                executor.transitionSubmitted(projectId, "queued-index")
             );
 
             block.countDown();
@@ -292,24 +294,24 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             CountDownLatch block = new CountDownLatch(1);
             CountDownLatch firstStarted = new CountDownLatch(1);
 
-            var runningTask = new TestDLMFrozenTransitionRunnable("running-index");
+            var runningTask = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             runningTask.started = firstStarted;
             runningTask.blockUntil = block;
             executor.submit(runningTask);
             safeAwait(firstStarted); // single thread occupied
 
-            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index");
+            var queuedTask = new TestDLMFrozenTransitionRunnable("queued-index", projectId);
             queuedTask.blockUntil = block;
             executor.submit(queuedTask); // fills the one queue slot
 
             // Thread and queue are both full; next submit must be rejected
-            var rejectedTask = new TestDLMFrozenTransitionRunnable("rejected-index");
+            var rejectedTask = new TestDLMFrozenTransitionRunnable("rejected-index", projectId);
             expectThrows(RejectedExecutionException.class, () -> executor.submit(rejectedTask));
 
             // The cleanup branch in submit() must have removed the entry so the index is no longer tracked
             assertFalse(
                 "Rejected index must be removed from submittedTransitions",
-                executor.transitionSubmitted(ProjectId.DEFAULT, "rejected-index")
+                executor.transitionSubmitted(projectId, "rejected-index")
             );
 
             block.countDown();
@@ -326,7 +328,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             CountDownLatch block = new CountDownLatch(1);
             CountDownLatch firstStarted = new CountDownLatch(1);
 
-            var runningTask = new TestDLMFrozenTransitionRunnable("running-index");
+            var runningTask = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             runningTask.started = firstStarted;
             runningTask.blockUntil = block;
             Future<?> runningFuture = executor.submit(runningTask);
@@ -336,7 +338,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             List<String> queuedIndexNames = new ArrayList<>(3);
             for (int i = 0; i < 3; i++) {
                 String name = "queued-index-" + i;
-                var queuedTask = new TestDLMFrozenTransitionRunnable(name);
+                var queuedTask = new TestDLMFrozenTransitionRunnable(name, projectId);
                 queuedTask.blockUntil = block;
                 queuedFutures.add(executor.submit(queuedTask));
                 queuedIndexNames.add(name);
@@ -350,12 +352,12 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
                 assertTrue("queued task's future must be cancelled by stop()", f.isCancelled() || f.isDone());
                 assertFalse(
                     "submittedTransitions must no longer contain the queued index after stop()",
-                    executor.transitionSubmitted(ProjectId.DEFAULT, queuedIndexNames.get(i))
+                    executor.transitionSubmitted(projectId, queuedIndexNames.get(i))
                 );
             }
             assertFalse(
                 "submittedTransitions must no longer contain the running index after stop()",
-                executor.transitionSubmitted(ProjectId.DEFAULT, "running-index")
+                executor.transitionSubmitted(projectId, "running-index")
             );
         }
     }
@@ -378,7 +380,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
                 Thread submitter = new Thread(() -> {
                     try {
                         barrier.await(10, TimeUnit.SECONDS);
-                        futures.add(executor.submit(new TestDLMFrozenTransitionRunnable(indexName)));
+                        futures.add(executor.submit(new TestDLMFrozenTransitionRunnable(indexName, projectId)));
                     } catch (Exception e) {
                         errors.add(e);
                     }

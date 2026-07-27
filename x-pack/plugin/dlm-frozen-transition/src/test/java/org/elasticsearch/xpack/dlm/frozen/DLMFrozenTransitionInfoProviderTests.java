@@ -49,21 +49,23 @@ public class DLMFrozenTransitionInfoProviderTests extends DLMFrozenTransitionExe
             plugin.setTransitionExecutorForTesting(executor);
             DLMFrozenTransitionInfoProvider provider = new DLMFrozenTransitionInfoProvider(plugin);
 
+            ProjectId projectId = randomProjectIdOrDefault();
+
             assertThat(
-                provider.getTransitionStatus(ProjectId.DEFAULT, "never-submitted"),
+                provider.getTransitionStatus(projectId, "never-submitted"),
                 equalTo(FrozenTransitionInfoProvider.Status.NOT_STARTED)
             );
 
             CountDownLatch started = new CountDownLatch(1);
             CountDownLatch block = new CountDownLatch(1);
-            var task = new TestDLMFrozenTransitionRunnable("running-index");
+            var task = new TestDLMFrozenTransitionRunnable("running-index", projectId);
             task.started = started;
             task.blockUntil = block;
             executor.submit(task);
             safeAwait(started);
 
             assertThat(
-                provider.getTransitionStatus(ProjectId.DEFAULT, "running-index"),
+                provider.getTransitionStatus(projectId, "running-index"),
                 equalTo(FrozenTransitionInfoProvider.Status.RUNNING)
             );
 

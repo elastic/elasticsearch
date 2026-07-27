@@ -120,12 +120,14 @@ abstract class DLMFrozenTransitionExecutorTestCase extends ESTestCase {
      */
     static class TestDLMFrozenTransitionRunnable implements DLMFrozenTransitionRunnable {
         private final String indexName;
+        private final ProjectId projectId;
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch blockUntil = new CountDownLatch(0);
         Throwable throwOnRun;
 
-        TestDLMFrozenTransitionRunnable(String indexName) {
+        TestDLMFrozenTransitionRunnable(String indexName, ProjectId projectId) {
             this.indexName = indexName;
+            this.projectId = projectId;
         }
 
         @Override
@@ -135,7 +137,7 @@ abstract class DLMFrozenTransitionExecutorTestCase extends ESTestCase {
 
         @Override
         public ProjectId getProjectId() {
-            return ProjectId.DEFAULT;
+            return projectId;
         }
 
         @Override

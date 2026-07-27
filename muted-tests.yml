@@ -763,3 +763,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecApproximationIT
   method: test {csv-spec:approximation.Rename stats group key}
   issue: https://github.com/elastic/elasticsearch/issues/155194
+- class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
+  method: testContinuousEvents
+  issue: https://github.com/elastic/elasticsearch/issues/153782

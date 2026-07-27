@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -61,6 +63,8 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -941,5 +945,64 @@ public class IndexMetadataTests extends ESTestCase {
             )
             .build();
         assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
+    }
+
+    public void testRamBytesUsedIncreasesWithMapping() throws IOException {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutMapping = IndexMetadata.builder("test").settings(settings).build();
+        long withoutMappingBytes = withoutMapping.ramBytesUsed();
+
+        String mappingJson = """
+            {
+              "_doc": {
+                "properties": {
+                  "field": { "type": "keyword" }
+                }
+              }
+            }
+            """;
+        IndexMetadata withMapping = IndexMetadata.builder("test")
+            .settings(settings)
+            .putMapping(new MappingMetadata(CompressedXContent.fromJSON(mappingJson)))
+            .build();
+        long withMappingBytes = withMapping.ramBytesUsed();
+
+        assertThat(withMappingBytes, greaterThan(withoutMappingBytes));
+        assertThat(
+            withMappingBytes - withoutMappingBytes,
+            greaterThanOrEqualTo((long) withMapping.mapping().source().compressedReference().length())
+        );
+    }
+
+    public void testRamBytesUsedScalesWithShardCount() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata oneShard = IndexMetadata.builder("test").settings(settings).build();
+        Settings manyShardSettings = indexSettings(32, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata manyShards = IndexMetadata.builder("test").settings(manyShardSettings).build();
+
+        assertThat(manyShards.ramBytesUsed(), greaterThan(oneShard.ramBytesUsed()));
+        assertThat(manyShards.ramBytesUsed() - oneShard.ramBytesUsed(), greaterThanOrEqualTo(31L * RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+    }
+
+    @SuppressForbidden(reason = "reflectively inspects the private memoization field to verify caching")
+    public void testRamBytesUsedIsMemoized() throws Exception {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .putMapping(new MappingMetadata(CompressedXContent.fromJSON("""
+                { "_doc": { "properties": { "field": { "type": "keyword" } } } }
+                """)))
+            .build();
+
+        var memoField = IndexMetadata.class.getDeclaredField("ramBytesUsed");
+        memoField.setAccessible(true);
+        assertThat(memoField.getLong(metadata), equalTo(-1L));
+
+        long computed = metadata.ramBytesUsed();
+        assertThat(computed, greaterThan(0L));
+        assertThat(memoField.getLong(metadata), equalTo(computed));
+
+        assertThat(metadata.ramBytesUsed(), equalTo(computed));
+        assertThat(memoField.getLong(metadata), equalTo(computed));
     }
 }

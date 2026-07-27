@@ -10,6 +10,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -76,7 +78,14 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 /**
  * An immutable settings implementation.
  */
-public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
+public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings>, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Settings.class);
+
+    // TreeMap.Node: 5 refs (key, value, parent, left, right) + boolean color; same layout DocumentFieldRamUsageEstimator measures
+    private static final long TREE_MAP_ENTRY_BYTES = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 1
+    );
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
     public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
@@ -139,6 +148,31 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     SecureSettings getSecureSettings() {
         // pkg private so it can only be accessed by local subclasses of SecureSetting
         return secureSettings;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        if (this == EMPTY) {
+            return BASE_RAM_BYTES_USED;
+        }
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.shallowSizeOf(settings);
+        final int entries = settings.size();
+        if (entries > 0) {
+            size += entries * TREE_MAP_ENTRY_BYTES;
+            // ponytail: keys/values are interned via internKeyOrValue; their exclusive bytes sit in the JVM string table
+            // and are not attributable to a single Settings instance — counting them here ~4x over-counts vs heap dumps
+            for (Object value : settings.values()) {
+                if (value instanceof List<?> list) {
+                    size += RamUsageEstimator.shallowSizeOf(list);
+                    size += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+                }
+            }
+        }
+        if (secureSettings != null) {
+            size += RamUsageEstimator.shallowSizeOfInstance(secureSettings.getClass());
+        }
+        return size;
     }
 
     private Map<String, Object> getAsStructuredMap() {

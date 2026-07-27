@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -21,24 +22,33 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -540,31 +551,89 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(service.getIndexMemoryOverhead(), equalTo(0L));
     }
 
-    public void testGetIndexMetadataHeapBytesMatchesRamUsageEstimatorSum() {
-        ClusterState clusterState = randomInitialTwoNodeClusterState(between(1, 5));
-        service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+    public void testGetIndexMetadataHeapBytesDedupesSharedMappings() throws IOException {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
 
-        long expected = 0;
-        for (var indexMetadata : clusterState.metadata().indicesAllProjects()) {
-            expected += RamUsageEstimator.sizeOfObject(indexMetadata);
+        MappingMetadata mapping = new MappingMetadata(CompressedXContent.fromJSON("""
+            { "_doc": { "properties": { "field": { "type": "keyword" } } } }
+            """));
+        Settings settingsA = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-a")
+            .build();
+        Settings settingsB = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-b")
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(IndexMetadata.builder("index-a").settings(settingsA).putMapping(mapping))
+            .put(IndexMetadata.builder("index-b").settings(settingsB).putMapping(mapping))
+            .build();
+
+        IndexMetadata indexA = project.index("index-a");
+        IndexMetadata indexB = project.index("index-b");
+        assertSame(indexA.mapping(), indexB.mapping());
+        assertThat(project.indices().size(), equalTo(2));
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        DiscoveryNode node = discoveryNodes.get("node_0");
+        for (IndexMetadata indexMetadata : new IndexMetadata[] { indexA, indexB }) {
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
+                IndexShardRoutingTable.Builder shardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                shardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, node.getId(), null, true, ShardRoutingState.STARTED)
+                );
+                indexRoutingTableBuilder.addIndexShard(shardRoutingBuilder);
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder);
         }
-        assertThat(service.getIndexMetadataHeapBytes(), equalTo(expected));
-        assertThat(
-            service.getIndexMemoryOverhead(),
-            equalTo(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * clusterState.metadata().getTotalNumberOfIndices())
-        );
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, routingTableBuilder.build()).build())
+            .metadata(Metadata.builder().put(project))
+            .build();
+
+        ClusterState emptyMaster = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        service.clusterChanged(new ClusterChangedEvent("test", emptyMaster, ClusterState.EMPTY_STATE));
+
+        long perIndexTotal = indexA.ramBytesUsed() + indexB.ramBytesUsed();
+        long sharedMappingBytes = indexA.mapping().ramBytesUsed();
+
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState, emptyMaster));
+        assertThat(service.getIndexMetadataHeapBytes(), lessThan(perIndexTotal));
+        assertThat(service.getIndexMetadataHeapBytes(), equalTo(perIndexTotal - sharedMappingBytes));
     }
 
-    public void testGetIndexMetadataHeapBytesScalesWithIndexCountAndUpdatesWithClusterChange() {
+    public void testGetIndexMetadataHeapBytesUpdatesWithClusterChange() {
         ClusterState oneIndexClusterState = randomInitialTwoNodeClusterState(1);
         service.clusterChanged(new ClusterChangedEvent("test", oneIndexClusterState, ClusterState.EMPTY_STATE));
         long oneIndexHeapBytes = service.getIndexMetadataHeapBytes();
+        assertThat(oneIndexHeapBytes, greaterThan(0L));
 
         ClusterState manyIndicesClusterState = randomInitialTwoNodeClusterState(10);
         service.clusterChanged(new ClusterChangedEvent("test", manyIndicesClusterState, ClusterState.EMPTY_STATE));
         long manyIndicesHeapBytes = service.getIndexMetadataHeapBytes();
 
         assertThat(manyIndicesHeapBytes, greaterThan(oneIndexHeapBytes));
+        assertThat(service.getIndexMetadataHeapBytes(), equalTo(estimateIndexMetadataHeapBytes(manyIndicesClusterState.metadata())));
+    }
+
+    private static long estimateIndexMetadataHeapBytes(Metadata metadata) {
+        long total = 0;
+        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
+            total += indexMetadata.ramBytesUsed();
+            MappingMetadata mapping = indexMetadata.mapping();
+            if (mapping != null && seenMappings.add(mapping) == false) {
+                total -= mapping.ramBytesUsed();
+            }
+        }
+        return total;
     }
 
     private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {

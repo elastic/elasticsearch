@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -92,7 +94,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
-public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment, Accountable {
 
     private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
@@ -158,9 +160,46 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private static final TransportVersion INDEX_RESHARDING_METADATA = TransportVersion.fromName("index_resharding_metadata");
     private static final TransportVersion INDEX_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("index_created_transport_version");
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
+
+    private volatile long ramBytesUsed = -1;
+
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
+    }
+
+    /**
+     * Returns an estimated heap footprint for this index metadata instance, including settings, mapping, and other
+     * fields whose size grows with index configuration.
+     * <p>
+     * This is a per-index estimate. Each instance includes the full cost of its {@link #mapping()}, even when multiple
+     * indices share one {@link MappingMetadata} instance (deduplicated in {@link ProjectMetadata}). Callers summing
+     * across indices must subtract duplicate mapping costs, keeping one count per shared instance.
+     */
+    @Override
+    public long ramBytesUsed() {
+        long value = ramBytesUsed;
+        if (value != -1L) {
+            return value;
+        }
+        long size = BASE_RAM_BYTES_USED;
+        size += settings.ramBytesUsed();
+        if (mapping != null) {
+            size += mapping.ramBytesUsed();
+        }
+        size += RamUsageEstimator.sizeOf(primaryTerms);
+        // sizeOfMap (not sizeOfObject) enters at depth 0, so it fully walks these two-level structures
+        // (Map<Integer,Set<String>> and Map<String,DiffableStringMap>) within RamUsageEstimator.MAX_DEPTH.
+        // If either field ever nests 3+ levels deep, nested contents would be under-counted here.
+        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
+        size += RamUsageEstimator.sizeOfObject(aliases);
+        size += RamUsageEstimator.sizeOfMap(customData);
+        size += RamUsageEstimator.sizeOfObject(inferenceFields);
+        size += RamUsageEstimator.sizeOfObject(rolloverInfos);
+        value = size;
+        ramBytesUsed = value;
+        return value;
     }
 
     public enum State implements Writeable {

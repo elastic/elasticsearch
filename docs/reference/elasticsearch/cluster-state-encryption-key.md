@@ -53,6 +53,7 @@ Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/
 You don't need to configure an encryption password to upgrade an existing deployment. If no password is configured after the upgrade, the cluster remains healthy and reports that cluster state encryption is not configured. Because encryption is required by default, {{es}} rejects attempts to store feature-managed secrets with an HTTP `503` response until a password is configured.
 
 * **Self-managed deployments:** Automatic security setup doesn't run again during an upgrade. Before a feature first stores a managed secret, configure `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` in the keystore on every node, then call `POST /_nodes/reload_secure_settings`. A restart isn't required.
+* **{{eck}} deployments:** ECK doesn't provision the password automatically during an upgrade. Before a feature first stores a managed secret, configure `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` through [ECK secure settings](docs-content://deploy-manage/security/k8s-secure-settings.md), then call `POST /_nodes/reload_secure_settings`. A restart isn't required.
 * **{{ech}} and {{ece}} deployments:** When an existing deployment is upgraded to 9.5 or later, the control plane provisions the password and reloads the secure settings automatically.
 
 ## Rotate the encryption password [cluster-state-encryption-password-rotation]

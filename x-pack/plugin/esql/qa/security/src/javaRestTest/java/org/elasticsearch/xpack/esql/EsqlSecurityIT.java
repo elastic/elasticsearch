@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -69,6 +70,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this suite's
+        // datasource/dataset authorization tests register data sources, so opt in here.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)

@@ -13,6 +13,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 
@@ -29,6 +30,10 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            // ES|QL federation (external data sources / datasets) is off by default; the
+            // esql/210_data_source.yml and esql/220_dataset.yml YAML suites require the
+            // data_sources capability, so opt in here.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true")
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))

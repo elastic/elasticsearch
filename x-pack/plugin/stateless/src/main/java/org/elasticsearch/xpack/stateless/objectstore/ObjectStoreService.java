@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -1636,7 +1637,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             (offset, length) -> new LocalIOInputStream(
                                 virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
                             ),
-                            false
+                            false,
+                            // Ensure that one large upload doesn't starve other uploads
+                            new ThrottledTaskRunner(
+                                "bcc-concurrent-multipart-upload",
+                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                            ).asExecutor()
                         );
                     } finally {
                         virtualBatchedCompoundCommit.decRef();

@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -803,6 +804,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
         List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>(ExpressionWritables.getGenericNamedWriteables());
         entries.add(new SearchPlugin.GenericNamedWriteableSpec("LongRange", LongRangeBlockBuilder.LongRange::new));
+        entries.add(new SearchPlugin.GenericNamedWriteableSpec("DoubleRange", DoubleRangeBlockBuilder.DoubleRange::new));
         return entries;
     }
 }

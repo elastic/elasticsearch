@@ -128,6 +128,19 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
+    public void testFederationDisabledReturnsPlanUnchanged() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
+
+        // The kill switch suppresses all dataset resolution: the plan is returned untouched and no
+        // EsqlResolveDatasetAction dispatch happens, even though datasets are registered in project state.
+        UnresolvedRelation relation = relationOf(DATASET_NAME);
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
+        resolver.replaceDatasets(relation, project(), future, false);
+        assertSame(relation, future.actionGet());
+        assertEquals("federation disabled → no dispatch", 0, localCalls.get());
+    }
+
     // --- harness ---
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {

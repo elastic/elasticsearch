@@ -511,13 +511,18 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         // Fill caller 2's gaps [30, 50) and [50, 80): future1 fires when B reaches 40;
         // future2 fires when the gap [50,80) reaches 70 (end of its subRange).
+        boolean future1ShouldBeDone = false;
         for (SparseFileTracker.Gap gap : gaps2List) {
             for (long i = gap.start(); i < gap.end(); i++) {
                 if (randomBoolean()) {
                     gap.onProgress(i + 1);
-                    if (i >= 40) {
-                        assertTrue(future1.isDone());
+                    // future1 is completed when gaps are filled to its upper boundary of 40. However, if the gap.onProgress is called
+                    // with the gap's end, i.e. 50, the gap's listeners are not invoked until gap.onCompletion is called. So we include
+                    // that in the condition check.
+                    if (i + 1 >= 40 && i + 1 != 50L) {
+                        future1ShouldBeDone = true;
                     }
+                    assertThat(future1.isDone(), equalTo(future1ShouldBeDone));
                 }
             }
             gap.onCompletion();
@@ -562,13 +567,18 @@ public class SparseFileTrackerTests extends ESTestCase {
         assertThat(gaps1List.get(0).end(), equalTo(30L));
 
         // Fill caller 2's gaps first: when B=[30,50) passes 40 the listener is not yet invoked
+        boolean future2ShouldBeDone = false;
         for (SparseFileTracker.Gap gap : gaps2List) {
             for (long i = gap.start(); i < gap.end(); i++) {
                 if (randomBoolean()) {
                     gap.onProgress(i + 1);
-                    if (i >= 70) {
-                        assertTrue(future2.isDone());
+                    // future2 is completed when gaps are filled to its upper boundary of 70. However, if the gap.onProgress is called
+                    // with the gap's end, i.e. 80, the gap's listeners are not invoked until gap.onCompletion is called. So we include
+                    // that in the condition check.
+                    if (i + 1 >= 70 && i + 1 != 80L) {
+                        future2ShouldBeDone = true;
                     }
+                    assertThat(future2.isDone(), equalTo(future2ShouldBeDone));
                 }
             }
             gap.onCompletion();

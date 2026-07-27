@@ -1496,13 +1496,30 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
-
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed a bug where a view and an index alias pointing to the same underlying index were
+         * not correctly identified as overlapping, causing field-caps to deduplicate the alias into
+         * the concrete index and silently drop one branch of data.
+         */
+        VIEWS_ALIAS_DEDUPLICATION_BUGFIX,
         /**
          * Fixed false circular view reference errors when multiple sibling views are resolved together.
          * See https://github.com/elastic/elasticsearch/issues/146208
          */
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
+
+        /**
+         * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
+         * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
+         * (1) a view used inside a {@code TS} command now raises a clear verification exception
+         * instead of crashing; (2) a {@code TS} relation nested inside a {@code FROM} subquery and
+         * combined with standard sources (e.g. {@code FROM (TS k8s), (FROM emp)}) now correctly
+         * produces a plain {@code Aggregate} rather than a {@code TimeSeriesAggregate}.
+         * See https://github.com/elastic/elasticsearch/issues/153030 and
+         * https://github.com/elastic/elasticsearch/issues/149619.
+         */
+        FIX_TS_MIXED_WITH_NON_TS_SOURCES,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -2766,6 +2783,15 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
+         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
+         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
+         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
+         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
+         * containing such a node correctly returns {@code supported=false}.
+         */
+        REGISTER_FEDERATION_FEATURE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
@@ -3412,6 +3438,11 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/154315">#154315</a>
          */
         FIX_ROUND_TO_QUERY_AND_TAGS_OVER_FUNCTION,
+
+        /**
+         * Fix multi value unsigned long conversion to aggregate metric double
+         */
+        FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

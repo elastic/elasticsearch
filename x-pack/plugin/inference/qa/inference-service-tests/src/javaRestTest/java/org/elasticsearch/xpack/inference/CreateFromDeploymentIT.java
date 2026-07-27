@@ -11,13 +11,21 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -58,6 +66,59 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var deploymentStats = stats.get(0).get("deployment_stats");
         assertNotNull(stats.toString(), deploymentStats);
 
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAttachToDeployment_TextEmbedding() throws IOException {
+        var deploymentId = ".multilingual-e5-small";
+
+        putE5TrainedModels(deploymentId);
+        deployE5TrainedModels(deploymentId);
+
+        var inferenceId = "inference_on_existing_e5_deployment";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get("service_settings");
+        assertThat(putModel.toString(), serviceSettings.get("dimensions"), is(384));
+        assertNotNull(putModel.toString(), serviceSettings.get("similarity"));
+        assertNotNull(putModel.toString(), serviceSettings.get("element_type"));
+
+        // Note: on GET, the endpoint is reconstructed from the model_id (a built-in E5 model here), not the
+        // deployment_id, so it does not carry dimensions/similarity/element_type in its response. That is a
+        // pre-existing, unrelated behavior of the built-in E5 model settings.
+        var getModel = getModel(inferenceId);
+        assertThat(
+            getModel.get("service_settings"),
+            is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", ".multilingual-e5-small", "deployment_id", deploymentId))
+        );
+
+        var results = infer(inferenceId, List.of("washing machine"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAttachToDeployment_TextEmbedding_ParsesSimilarityAndElementType() throws IOException {
+        var deploymentId = ".multilingual-e5-small";
+        var similarity = SimilarityMeasure.DOT_PRODUCT;
+        var elementType = DenseVectorFieldMapper.ElementType.BYTE;
+
+        putE5TrainedModels(deploymentId);
+        deployE5TrainedModels(deploymentId);
+
+        var inferenceId = "inference_on_e5_deployment_with_similarity_element_type";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId, similarity, elementType), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get(ModelConfigurations.SERVICE_SETTINGS);
+        assertThat(putModel.toString(), serviceSettings.get(DIMENSIONS), is(384));
+        assertThat(putModel.toString(), serviceSettings.get(SIMILARITY), is(similarity.toString()));
+        assertThat(putModel.toString(), serviceSettings.get(ELEMENT_TYPE), is(elementType.toString()));
+
+        var results = infer(inferenceId, List.of("washing machine"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -232,6 +293,32 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         forceStopMlNodeDeployment(deploymentId);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testCreatesDeploymentForNotYetDeployedModel_TextEmbedding() throws IOException {
+        var modelId = "text_embedding_model_not_deployed";
+        var inferenceId = "inference_starts_deployment";
+        CustomElandModelIT.createMlNodeTextEmbeddingModel(modelId, client()); // model exists, NOT deployed
+
+        var putModel = putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "num_allocations": 1,
+                "num_threads": 1,
+                "model_id": "%s"
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get(ModelConfigurations.SERVICE_SETTINGS);
+        assertNotNull(putModel.toString(), serviceSettings.get(ServiceFields.DIMENSIONS)); // set by validation
+
+        var results = infer(inferenceId, List.of("hello"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(inferenceId); // endpoint's deployment id == inference id
+    }
+
     public void testUpdateWhenInferenceEndpointCreatesDeployment() throws IOException {
         var modelId = "update_num_allocations_from_created_endpoint";
         var inferenceId = "test_created_endpoint_from_model";
@@ -364,6 +451,19 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
               }
             }
             """, modelId, deploymentId);
+    }
+
+    private String endpointConfig(String deploymentId, SimilarityMeasure similarity, DenseVectorFieldMapper.ElementType elementType) {
+        return Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "deployment_id": "%s",
+                "similarity": "%s",
+                "element_type": "%s"
+              }
+            }
+            """, deploymentId, similarity, elementType);
     }
 
     private Response startMlNodeDeploymemnt(String modelId, String deploymentId) throws IOException {

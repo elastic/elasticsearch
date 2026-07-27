@@ -29,7 +29,8 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
  * shards around the cluster. Deltas from shard movements are accumulated first and applied to the
  * initial commitments (with clamping to 0) only when the simulated result is read, since {@link ClusterInfo}
  * snapshots can contain contradictory shard placement information that would otherwise make an
- * intermediate commitment go negative, even though the net effect of all movements would not.
+ * intermediate commitment go negative, even though the net effect of all movements would not. Clamping is
+ * therefore performed once at the end, rather than after every single shard movement.
  */
 public class ShardMoveNodeCacheCommitmentSimulator {
 
@@ -37,6 +38,9 @@ public class ShardMoveNodeCacheCommitmentSimulator {
 
     private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements;
     private final Map<String, NodeCacheSizeAndCommitments> initialNodeCacheSizeAndCommitments;
+    // hppc's primitive-valued map avoids wrapping each delta in a Long object for every shard movement
+    // accumulated here, across what can be many thousands of calls to simulateShardStarted() in a single
+    // desired balance computation.
     private final ObjectLongMap<String> boostedCommitmentDeltaByNode;
     private final ObjectLongMap<String> unboostedCommitmentDeltaByNode;
 
@@ -88,7 +92,7 @@ public class ShardMoveNodeCacheCommitmentSimulator {
 
     /**
      * Applies the accumulated deltas from simulated shard movements to the initial commitments, clamping
-     * each component to 0 to avoid producing a negative commitment.
+     * boosted and/or unboosted commitment to 0 to avoid producing a negative commitment.
      */
     public Map<String, NodeCacheSizeAndCommitments> getSimulatedNodeCacheSizeAndCommitments() {
         if (boostedCommitmentDeltaByNode.isEmpty() && unboostedCommitmentDeltaByNode.isEmpty()) {

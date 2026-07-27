@@ -90,6 +90,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
@@ -116,7 +118,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("emp_no:integer,salary:long\n");
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 5; i++) {
             csv.append(i).append(",").append(50000 + i).append('\n');
         }
         Files.writeString(dir.resolve("data.csv"), csv.toString());

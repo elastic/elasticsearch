@@ -76,6 +76,18 @@ If the lookup index is missing from one or more remote clusters, use [coordinato
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
+### Cross-{{serverless-short}} project support
+
+```{applies_to}
+serverless: preview
+```
+
+`LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md).
+
+By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
+
+If the lookup index is missing from one or more linked projects, use [coordinator mode](#coordinator-mode).
+
 ### Run `LOOKUP JOIN` on coordinating node [coordinator-mode]
 
 ```{applies_to}
@@ -99,18 +111,6 @@ Note the following constraints specific to coordinator mode:
 
 * On {{stack}} deployments, the remote cluster name `_coordinator` is reserved. If a remote cluster is registered under that name, coordinator mode cannot be used. The query fails with a validation error until the remote cluster is renamed.
 * After a coordinator `LOOKUP JOIN`, remote operations are not supported in the same query. Specifically, a `LOOKUP JOIN` (without the `_coordinator:` prefix) and `ENRICH _remote:` cannot appear later in the pipeline.
-
-### Cross-{{serverless-short}} project support
-
-```{applies_to}
-serverless: preview
-```
-
-`LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md).
-
-By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
-
-If the lookup index is missing from one or more linked projects, use [coordinator mode](#coordinator-mode).
 
 ## Example
 

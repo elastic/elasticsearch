@@ -85,7 +85,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
-            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
+            settings -> StatelessCacheEvictionPolicyType.defaultEvictionPolicyType(settings).name(),
             "stateless.cache_boost_preference.eviction_policy",
             s -> {},
             Setting.Property.NodeScope

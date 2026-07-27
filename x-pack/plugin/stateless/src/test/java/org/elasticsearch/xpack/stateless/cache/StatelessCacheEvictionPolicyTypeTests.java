@@ -66,9 +66,10 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfigured() {
+    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfiguredOnSearchNode() {
         Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
             .put(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.INDEX_AGE
@@ -81,6 +82,24 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             mock(ThreadPool.class)
         );
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
+    }
+
+    public void testCreateEvictionPolicyReturnsDefaultPolicyWhenExplicitlyConfiguredOnIndexNode() {
+        Settings settings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.INDEX_AGE
+            )
+            .build();
+        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
+            settings,
+            mock(ClusterService.class),
+            TestUtils.mockIndicesService(mock(ClusterService.class)),
+            mock(ThreadPool.class)
+        );
+        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
     public void testCreateEvictionPolicyReturnsPinnedWindowPolicyWhenBoostEnabledOnSearchNode() {

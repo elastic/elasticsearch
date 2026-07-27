@@ -598,6 +598,7 @@ public class SearchEngine extends Engine {
                                 )
                             );
                         },
+                        (blobFile, bccSize) -> {},
                         listenableFuture.map(aVoid -> newBlobFileRanges)
                     );
                 } else {

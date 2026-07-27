@@ -817,6 +817,7 @@ public class SharedBlobCacheWarmingService {
                                         );
                                     }
                                 },
+                                (blobFile, bccSize) -> {},
                                 l1.map(aVoid -> targetsToWarmComputed)
                             );
                         } else {

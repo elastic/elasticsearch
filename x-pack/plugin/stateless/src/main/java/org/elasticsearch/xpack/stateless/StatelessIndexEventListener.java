@@ -499,6 +499,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 );
                                 targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
+                            (blobFile, bccSize) -> {},
                             l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
                         );
                     } else {

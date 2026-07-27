@@ -493,6 +493,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomFrom(IOContext.DEFAULT, BlobCacheIndexInput.WARMING),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 referencedCC -> {},
+                (blobFile, bccSize) -> {},
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
@@ -606,6 +607,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 IOContext.DEFAULT,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 referencedCC -> {},
+                (blobFile, bccSize) -> {},
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);

@@ -252,7 +252,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 currentMetadata = Map.copyOf(updated);
                 assert filesRemoved;
 
-                if (filesRemoved && cacheService.isCacheBoostPreferenceEnabled()) {
+                if (filesRemoved && cacheService.isEvictObsoleteRegionsEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
                 }
             } finally {
@@ -350,6 +350,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     @Override
     StatelessSharedBlobCacheService getCacheService() {
         return super.getCacheService();
+    }
+
+    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet
+    /// completed. Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it,
+    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
+    long pendingObsoleteRegionsEvictionTasks() {
+        return submittedObsoleteRegionsEvictionTasks.get();
     }
 
     // TODO this method works because we never prune old commits files

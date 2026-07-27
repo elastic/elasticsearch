@@ -4843,12 +4843,14 @@ public class AnalyzerTests extends ESTestCase {
         analyzer().addIndex(index)
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::double",
-                containsString("One or more mapped types of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
+                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
             );
         analyzer().addIndex(index)
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::ip",
-                containsString("One or more mapped types of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]")
+                containsString(
+                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
+                )
             );
     }
 

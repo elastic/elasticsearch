@@ -3196,11 +3196,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return new UnresolvedAttribute(
                             fa.source(),
                             fa.name(),
-                            Strings.format(
-                                unsupportedExplicitCastMessageFormat(unionTypeEsField, supportedTypes),
-                                fa.name(),
-                                convertExpression.sourceText()
-                            )
+                            unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
                         );
                     }
 
@@ -3314,21 +3310,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
-        private static String unsupportedExplicitCastMessageFormat(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+        private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+            return unionTypeEsField.getConversionExpressions()
+                .stream()
+                .filter(
+                    e -> e instanceof AbstractConvertFunction cf
+                        && supportedTypes.contains(cf.field().dataType().widenSmallNumeric()) == false
+                )
+                .map(e -> ((AbstractConvertFunction) e).field().dataType().typeName())
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(", "));
+        }
+
+        private static String unsupportedExplicitCastMessage(
+            UnionTypeEsField unionTypeEsField,
+            Set<DataType> supportedTypes,
+            String fieldName,
+            String sourceText
+        ) {
             if (unionTypeEsField.getUnmappedConversionExpression() == null) {
                 // A null unmapped conversion means this isn't a two-legged PUNK (ResolveTwoLeggedPunksInEsRelation always sets one). The
                 // only other non-synthetic union producer is DateMillisToNanosInEsRelation, so this is an all-dates union.
                 if (unionTypeEsField.getConversionExpressions()
                     .stream()
                     .allMatch(e -> e instanceof AbstractConvertFunction cf && cf.field().dataType().isDate()) == false) {
-                    throw new IllegalStateException("Expected a date/date_nanos union for [" + unionTypeEsField.getName() + "]");
+                    throw new IllegalStateException("Expected a date/date_nanos union for [" + fieldName + "]");
                 }
-                return "One or more mapped types of [%s] cannot be accepted in [%s]";
+                return Strings.format(
+                    "Mapped types [%s] of [%s] cannot be accepted in [%s]",
+                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    fieldName,
+                    sourceText
+                );
             }
-            // A partially unmapped non-KEYWORD field (PUNK): its unmapped rows are loaded from _source as KEYWORD.
+            // A two-legged PUNK loads its unmapped rows from _source as KEYWORD. If the target accepts KEYWORD, only the mapped type(s) are
+            // the problem; otherwise the unmapped KEYWORD leg itself can't be converted, which is the more useful thing to report.
             return supportedTypes.contains(KEYWORD)
-                ? "One or more mapped types of partially unmapped field [%s] cannot be accepted in [%s]"
-                : "[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]";
+                ? Strings.format(
+                    "Mapped types [%s] of partially unmapped field [%s] cannot be accepted in [%s]",
+                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    fieldName,
+                    sourceText
+                )
+                : Strings.format("[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]", fieldName, sourceText);
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {

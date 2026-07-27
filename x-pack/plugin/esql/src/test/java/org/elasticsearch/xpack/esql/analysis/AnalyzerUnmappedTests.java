@@ -2019,9 +2019,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         analyzer().addIndex(partialIpIndex())
             .statementError(
                 setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
-                containsString(
-                    "One or more mapped types of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]"
-                )
+                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
             );
     }
 

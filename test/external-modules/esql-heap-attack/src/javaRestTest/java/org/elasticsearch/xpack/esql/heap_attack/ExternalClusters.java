@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
@@ -38,6 +39,9 @@ class ExternalClusters {
             // base cluster's heap size (which varies between the standard and serverless configs).
             // Kept low to leave headroom for untracked S3/Netty allocations.
             .setting("indices.breaker.request.limit", BREAKER_LIMIT_PERCENT + "%")
+            // ES|QL federation (external data sources / datasets) is off by default; HeapAttackExternalIT
+            // registers a data source/dataset, so opt in here.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true")
             // S3 client wiring — endpoint discovered at startup from the fixture rule.
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             .setting("s3.client.default.protocol", "http")

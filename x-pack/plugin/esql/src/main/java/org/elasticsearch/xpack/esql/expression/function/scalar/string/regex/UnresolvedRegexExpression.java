@@ -95,8 +95,12 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
     /**
      * Validates the pattern after the optimizer has run constant folding and eval propagation.
      * Any {@code UnresolvedRegexExpression} that survives to this point means the optimizer's
-     * {@code ReplaceUnresolvedRegex} rule could not convert it: the pattern folds to a non-string
-     * type, is not foldable (e.g. a field reference), or folds to null.
+     * {@code ReplaceUnresolvedRegex} rule could not convert it: the pattern has a non-string type,
+     * is not foldable (e.g. a field reference), or the optimizer reduced it to a null literal.
+     * <p>
+     * The null check uses {@link Expressions#isGuaranteedNull} rather than folding again: after
+     * {@code ConstantFolding} has run, any expression that evaluated to null is already represented
+     * as a {@code Literal(null)} in the tree, so no new fold is needed here.
      */
     @Override
     public void postOptimizationVerification(Failures failures) {
@@ -123,9 +127,13 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
             );
             return;
         }
-        // Pattern is foldable and string-typed but evaluates to null
-        if (patternExpression.fold(FoldContext.small()) == null) {
+        if (Expressions.isGuaranteedNull(patternExpression)) {
             failures.add(Failure.fail(patternExpression, "[{}] pattern must not be null", opName));
+        } else {
+            // Foldable, string-typed, non-null: ReplaceUnresolvedRegex must have replaced this node.
+            // Reaching here indicates an optimizer bug.
+            assert false : "BUG: UnresolvedRegexExpression survived optimization with a foldable non-null string pattern";
+            failures.add(Failure.fail(this, "internal error: [{}] pattern was not resolved during optimization", opName));
         }
     }
 

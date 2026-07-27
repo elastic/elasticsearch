@@ -89,18 +89,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testCreateCursorWithFormatTxtOnNewNode
-  issue: https://github.com/elastic/elasticsearch/issues/149747
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
-  issue: https://github.com/elastic/elasticsearch/issues/149748
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
-  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
-  issue: https://github.com/elastic/elasticsearch/issues/149749
-- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlSearchIT
-  method: testAllTypesWithRequestToUpgradedNodes
-  issue: https://github.com/elastic/elasticsearch/issues/149750
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double].}"
   issue: https://github.com/elastic/elasticsearch/issues/150079

@@ -63,11 +63,6 @@ The **Datasets** tab lists each dataset including:
 
 From this tab you can search your datasets, filter by data source, add a new one, and edit or delete an existing one.
 
-:::{image} images/data-federation/datasets-tab.png
-:alt: The Datasets tab listing several datasets with their data sources, resources, and edit and delete row actions
-:width: 800px
-:::
-
 ### Add a new dataset
 
 Click **Add dataset** to open a flyout where you define the dataset:
@@ -79,13 +74,6 @@ Click **Add dataset** to open a flyout where you define the dataset:
 - **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
 
 To configure how the format is read, expand **Advanced settings**. Refer to [dataset settings](#dataset-settings).
-
-::::{dropdown} Show the Add dataset flyout
-:::{image} images/data-federation/add-dataset.png
-:alt: The Add dataset flyout configured for a Parquet dataset over an Amazon S3 data source
-:width: 450px
-:::
-::::
 
 To customize the inferred schema, rename columns, or override field types, use the [dataset mappings API](#declare-a-dataset-mapping). Schema customization is not available in the UI.
 
@@ -183,7 +171,7 @@ PUT /_query/dataset/access_logs
 }
 ```
 
-The `mappings` block supports:
+The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.

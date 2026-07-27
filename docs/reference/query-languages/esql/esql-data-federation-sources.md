@@ -23,7 +23,7 @@ The following data source types are supported:
 Other S3-compatible services have not been validated and are not supported.
 :::
 
-## Manage data sources in the UI
+## Manage data sources using the Kibana UI
 
 In {{kib}}, you connect and manage data sources from the **Data sources** tab under **Data management** > **{{esql}} Data Federation**.
 
@@ -62,7 +62,7 @@ For the full set of authentication methods, refer to [authentication models](#au
 ## Manage data sources using the API
 
 <!-- TODO: link to API reference once https://github.com/elastic/elasticsearch-specification/pull/6503 is published -->
-Data sources are managed under the `/_query/data_source` endpoint. All data source operations require the cluster `manage` privilege or a `global.data_source` privilege (refer to [manage credentials and privileges](esql-data-federation-security.md)).
+Data sources are managed under the `/_query/data_source` endpoint. All data source operations require the cluster `manage` privilege or a `global.data_source` privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
 | Operation | Endpoint |
 |---|---|

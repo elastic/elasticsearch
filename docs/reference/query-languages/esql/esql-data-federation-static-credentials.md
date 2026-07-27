@@ -75,7 +75,7 @@ POLICY_ARN=$(aws iam create-policy \
 ::::::
 
 ::::::{step} Attach the policy to an IAM identity
-{{es}} authenticates to S3 as an IAM user. Attach the policy from the previous step to a dedicated user you create for {{es}}, or to an existing identity. Managing IAM identities is up to you and is documented by AWS.
+{{es}} authenticates to S3 as an IAM user. Attach the policy from the previous step to a dedicated user you create for {{es}}, or to an existing identity. Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) for guidance on managing IAM users.
 
 :::{dropdown} Example: create a user and attach the policy with the AWS CLI
 Create a user for {{es}} and attach the policy from the previous step:

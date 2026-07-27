@@ -338,13 +338,10 @@ Parquet is self-describing and is read with no settings in the common case. Its 
 
 ## How schemas are inferred
 
-Because federated data does not live in {{es}}, the system discovers schemas before queries can run. How this works depends on the file format.
+Because federated data does not live in {{es}}, the system discovers schemas before queries can run. How this works depends on the file format:
 
-### Schema sources by format
-
-Parquet reads its schema from file metadata, which also provides column statistics and bloom filters that the engine uses to skip irrelevant data.
-
-For **CSV, TSV, and NDJSON**, schemas are inferred by sampling rows from the data files.
+- Parquet reads its schema from file metadata, which also provides column statistics and bloom filters that the engine uses to skip irrelevant data.
+- For CSV, TSV, and NDJSON, schemas are inferred by sampling rows from the data files.
 
 ### Schema merge strategies
 

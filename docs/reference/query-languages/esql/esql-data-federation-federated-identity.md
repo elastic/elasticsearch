@@ -13,9 +13,7 @@ products:
 
 Federated identity lets {{es}} read an Amazon S3 data source without you storing any static AWS credentials. You configure AWS to trust the identities that Elastic Cloud issues for your project or deployment, and AWS grants {{es}} temporary, scoped read access to your bucket.
 
-:::{tip}
 Setup involves steps in both AWS and Elastic: collect values from Elastic, configure AWS to trust them, then register the data source back in Elastic.
-:::
 
 You can use this page in two ways:
 
@@ -31,6 +29,10 @@ To follow this guide, you need:
 - An Elastic project or deployment with {{esql}} Data Federation available.
 - An AWS account with permissions to create IAM OpenID Connect identity providers, roles, and policies.
 - An S3 bucket containing the file or files you want to query.
+
+## Set up federated identity
+
+Follow these steps to set up federated identity authentication for your project or deployment.
 
 :::::::{stepper}
 
@@ -55,10 +57,10 @@ The flyout shows the values you need:
 
 Collect these two values:
 
-| Value | Where it comes from | Used in AWS as |
+| Value | Description | Used in AWS as |
 |---|---|---|
-| JWT issuer | Shown read-only in the flyout. The Elastic Cloud workload identity service URL for your org and region. | The identity provider URL |
-| Project ID or Deployment ID | Shown read-only in the flyout. | The `sub` (subject) condition |
+| JWT issuer | The Elastic Cloud workload identity service URL for your org and region. | The identity provider URL |
+| Project ID or Deployment ID | The unique identifier for your project or deployment. | The `sub` (subject) condition |
 
 You use the issuer and subject to configure AWS in the next steps. After AWS creates the role, you enter its role ARN back in Elastic.
 ::::::
@@ -107,7 +109,7 @@ The following trust policy lets your identity provider assume the role, but only
 ```
 1. The ARN of the identity provider you created in the previous step.
 2. The condition key is the JWT issuer with the `https://` scheme removed, followed by `:aud`. The value must match the `client-id` you set on the provider and the `audience` set in Elastic.
-3. The same issuer prefix followed by `:sub`. Use the subject exactly as shown in the **Connect data source** flyout, including its prefix: `project:<project-id>` on serverless or `deployment:<deployment-id>` on Elastic Cloud Hosted. This restricts the role to your project or deployment.
+3. The condition key is the same issuer prefix followed by `:sub`. The value is the subject exactly as shown in the **Connect data source** flyout, including its prefix: `project:<project-id>` on serverless or `deployment:<deployment-id>` on {{ech}}. This restricts the role to your project or deployment.
 
 :::{dropdown} Example: create the role with the AWS CLI
 Save the preceding trust policy to a file, then create the role:

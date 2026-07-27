@@ -550,29 +550,16 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMatchRuntimeEvalWithOptionsThrowsError() {
+    public void testMatchRuntimeEvalNonTextTypeWithOptionsThrowsError() {
         var query = """
-            FROM test
-            | EVAL new_content = to_text(concat(content, " extra"))
-            | WHERE match(new_content, "fox", {"analyzer": "standard"})
-            | KEEP new_content
+             FROM test
+             | EVAL new_id = to_long(id)
+             | WHERE match(new_id, "200", {"analyzer": "whitespace" })
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
-        );
-    }
-
-    public void testMatchRuntimeRowWithOptionsThrowsError() {
-        var query = """
-            ROW content = to_text("This is a brown fox")
-            | WHERE match(content, "fox AND brown", {"operator": "AND"})
-            """;
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [new_id]")
         );
     }
 
@@ -589,6 +576,31 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
             error.getMessage()
         );
+    }
+
+    public void testMatchRuntimeWithAnalyzerOptionThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("The analyzer option is not supported for [MATCH] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchRuntimeWithInvalidOptionsThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"fuzziness": "INVALID"})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function failed to build query for non-index-mapped field [new_content]"));
     }
 
     public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {

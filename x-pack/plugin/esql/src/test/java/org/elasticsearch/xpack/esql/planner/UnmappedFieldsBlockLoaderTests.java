@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,6 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -52,7 +57,7 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testIncludeWildcardWithExcludeRemovesMatchingKey() throws IOException {
-        // A surviving key must match every include and no exclude: "first_name" matches "first*" but is excluded.
+        // A surviving key must match its include group and no exclude: "first_name" matches "first*" but is excluded.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first*")).withAdditionalExcludes(List.of("first_name")),
             Map.of("first_name", "John", "first_pet", "Rex", "first_toy", "ball", "last_name", "Doe")
@@ -60,11 +65,20 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("first_pet", "Rex").entry("first_toy", "ball"));
     }
 
-    public void testMultipleIncludesRequireAllToMatch() throws IOException {
-        // Includes use AND semantics: a key survives only if it matches every include. "first_name_suffix" matches
-        // both "first*" and "first_name*"; "first_pet" and "first_grade" match only "first*", so they are dropped.
+    public void testSingleIncludeGroupUsesOrSemantics() throws IOException {
+        // One OR group: a key survives if it matches any alternative in the group.
         Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.includes(List.of("first*", "first_name*")),
+            UnmappedFieldsPattern.includes(List.of("first_name*", "salary_bonus*")),
+            Map.of("first_name_suffix", "Jr", "salary_bonus", 100, "first_pet", "Rex", "last_name", "Doe")
+        );
+        assertMap(filtered, matchesMap().entry("first_name_suffix", "Jr").entry("salary_bonus", 100));
+    }
+
+    public void testMultipleIncludeGroupsRequireEachGroupToMatch() throws IOException {
+        // Chained KEEP semantics: each OR group must match (AND across groups). "first_name_suffix" matches
+        // both "first*" and "first_name*"; "first_pet" and "first_grade" match only "first*", so they drop.
+        Map<String, Object> filtered = load(
+            UnmappedFieldsPattern.includes(List.of("first*")).intersect(UnmappedFieldsPattern.includes(List.of("first_name*"))),
             Map.of("first_name_suffix", "Jr", "first_pet", "Rex", "first_grade", "A", "last_name", "Doe")
         );
         assertMap(filtered, matchesMap().entry("first_name_suffix", "Jr"));
@@ -115,6 +129,62 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         source.put("hobby", "chess");
         Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, source);
         assertMap(filtered, matchesMap().entry("first_pet", nullValue()).entry("hobby", "chess"));
+    }
+
+    public void testReaderToStringIsDistinctFromLoader() throws IOException {
+        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        assertThat(loader.toString(), equalTo("UnmappedFieldsBlockLoader"));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
+            assertThat(reader.toString(), equalTo("UnmappedFieldsBlockLoader.UnmappedFields"));
+        }
+    }
+
+    public void testPerDocumentSourceParsingReservesAndReleasesBreakerBytes() throws IOException {
+        Source source = Source.fromMap(Map.of("payload", "x".repeat(4096)), XContentType.JSON);
+        long sourceBytes = source.internalSourceRef().length();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(BlockSourceReader.ESTIMATED_SIZE + sourceBytes));
+        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long readerReservation = breaker.getUsed();
+            assertThat(readerReservation, equalTo(BlockSourceReader.ESTIMATED_SIZE));
+
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            reader.read(0, storedFields(source), builder);
+
+            assertThat(breaker.getUsed(), equalTo(readerReservation));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testPerDocumentSourceParsingAccountsAgainstCircuitBreaker() throws IOException {
+        Source source = Source.fromMap(Map.of("payload", "x".repeat(4096)), XContentType.JSON);
+        long sourceBytes = source.internalSourceRef().length();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(BlockSourceReader.ESTIMATED_SIZE + sourceBytes - 1));
+        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            expectThrows(CircuitBreakingException.class, () -> reader.read(0, storedFields(source), builder));
+            assertThat(breaker.getUsed(), equalTo(BlockSourceReader.ESTIMATED_SIZE));
+        }
+    }
+
+    /**
+     * Drive {@link UnmappedFieldsBlockLoader} under a cranky breaker many times. Whether or not the breaker trips on a given attempt,
+     * once the returned reader is closed the breaker must always be back to zero.
+     */
+    public void testReaderUnderCrankyBreakerDoesNotLeak() throws IOException {
+        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        Source source = Source.fromMap(Map.of("a", "b", "c", "d"), XContentType.JSON);
+        var cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        for (int attempt = 0; attempt < 2000; attempt++) {
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(cranky, null)) {
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                reader.read(0, storedFields(source), builder);
+            } catch (CircuitBreakingException e) {
+                // expected on some attempts
+            }
+            assertThat("breaker leaked on attempt " + attempt, cranky.getUsed(), equalTo(0L));
+        }
     }
 
     /**

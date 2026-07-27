@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests for {@code Analyzer.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
+ * Tests for {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
  * {@link EsRelation} with the {@link UnmappedFieldsPattern} describing which additional (currently
  * unmapped) source fields survive to the query output under {@code SET unmapped_fields="LOAD_ALL"}.
  *
@@ -85,14 +85,32 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
-    public void testKeepMultiplePatterns() {
-        // A single KEEP unions its terms: "first_name_suffix" matches the "first_name*" wildcard, so it is kept.
-        // The mapped exact name "salary" can never name an unmapped source field, so it contributes nothing to
-        // unmapped-field selection — the wildcard alone drives which unmapped fields survive.
+    public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
+        // One KEEP lists alternatives (OR): "first_name_suffix" matches "first_name*"; "salary" is mapped and
+        // contributes nothing to unmapped-field selection.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary")));
         assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, excl());
         assertNotKept(pattern, "salary_bonus", "unmapped_extra");
+    }
+
+    public void testKeepSingleCommandOrAcrossWildcardTerms() {
+        // One KEEP: alternatives within the projection list (OR). Both unmapped wildcard families survive.
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary_bonus*")));
+        assertKept(pattern, "first_name_suffix", "salary_bonus");
+        assertNotKept(pattern, excl());
+        assertNotKept(pattern, "unmapped_extra", "first_grade");
+    }
+
+    public void testChainedKeepCombinesOrGroupsWithAnd() {
+        // Chained KEEPs intersect OR groups: only fields matching every group survive. "first_name_suffix"
+        // matches both "first*" and "first_name*"; "first_grade" matches only the first group.
+        UnmappedFieldsPattern pattern = patternOf(
+            test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary_bonus* | KEEP first_name*"))
+        );
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, "first_grade", "salary_bonus", "unmapped_extra");
+        assertNotKept(pattern, excl());
     }
 
     public void testDrop() {
@@ -224,27 +242,32 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testLoadAllUnmappedFieldsColumnNotDirectlyReferenceable() {
         // _unmapped_fields is a synthetic column; it must not be explicitly referenceable by name.
-        // TODO: the correct error is "Unknown column [_unmapped_fields]", but currently
-        // ResolveUnmapped resolves _unmapped_fields as an ordinary unmapped keyword field,
-        // then DetermineUnmappedFieldsToKeep adds a second _unmapped_fields attribute —
-        // resulting in a "duplicate output attribute" verifier error instead.
-        test().statementError(setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"), containsString("_unmapped_fields"));
+        test().statementError(
+            setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"),
+            containsString("Unknown column [_unmapped_fields]")
+        );
     }
 
     public void testDropUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly DROPping it by name must be rejected.
-        test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("_unmapped_fields"));
+        test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("Unknown column [_unmapped_fields]"));
     }
 
     public void testRenameUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; explicitly RENAMEing it must be rejected.
-        test().statementError(setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"), containsString("_unmapped_fields"));
+        test().statementError(
+            setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"),
+            containsString("Unknown column [_unmapped_fields]")
+        );
     }
 
     public void testScalarFunctionOnUnmappedFieldsColumn() {
         // _unmapped_fields is a synthetic column; using it as a scalar-function argument must be
         // rejected — the column can only appear in the output implicitly.
-        test().statementError(setUnmappedLoadAll("FROM test | EVAL len = LENGTH(_unmapped_fields)"), containsString("_unmapped_fields"));
+        test().statementError(
+            setUnmappedLoadAll("FROM test | EVAL len = LENGTH(_unmapped_fields)"),
+            containsString("Unknown column [_unmapped_fields]")
+        );
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

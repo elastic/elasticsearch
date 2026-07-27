@@ -650,7 +650,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
 
         if (argClass == UnmappedFieldsPattern.class) {
-            // UnmappedFieldsPattern is a record (final); cannot be mocked
+            // UnmappedFieldsPattern is final; cannot be mocked
             return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
         }
 

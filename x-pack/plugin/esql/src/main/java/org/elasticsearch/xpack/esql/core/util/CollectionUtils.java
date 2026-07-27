@@ -102,7 +102,7 @@ public abstract class CollectionUtils {
         return result;
     }
 
-    /** Returns the index of the first element satifying the predicate, or -1 if none. */
+    /** Returns the index of the first element satisfying the predicate, or -1 if none. */
     public static <T> int findIndex(List<T> list, Predicate<T> p) {
         int i = 0;
         for (T t : list) {

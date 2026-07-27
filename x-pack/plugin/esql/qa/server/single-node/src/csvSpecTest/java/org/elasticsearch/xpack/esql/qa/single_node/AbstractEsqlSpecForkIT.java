@@ -37,7 +37,7 @@ public abstract class AbstractEsqlSpecForkIT extends AbstractEsqlSpecIT {
         // Dataset-backed specs are covered by the external-source suites; skip them here.
         assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
         assumeFalse(
-            "LOAD_ALL doesn't currently support fork",
+            "tests tagged OPTIONAL_FIELDS_LOAD_ALL are skipped because FORK is not supported",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName())
         );
         // We add a LIMIT in one of the branches to prevent filter pushdown from removing one of the branches.

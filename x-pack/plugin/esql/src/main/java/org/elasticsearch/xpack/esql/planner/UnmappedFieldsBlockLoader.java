@@ -31,16 +31,12 @@ import java.util.TreeMap;
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
  * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (matching all include patterns and
- * not matching any exclude pattern), and re-serialises the surviving key/value
+ * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
+ * group and not matching any exclude pattern), and re-serialises the surviving key/value
  * pairs as a JSON object.
  *
- * <p><b>Known limitations</b> — this is proof-of-concept quality and needs hardening before it
- * could ship: it does not apply field-level security to the {@code _source} keys it exposes; it
- * re-reads and re-parses {@code _source} per document instead of sharing a cached parse with the
- * other field-extraction operators that also touch {@code _source} (partially mapped fields and
- * demand-loaded unmapped fields); and it does not account its allocations against the
- * {@link CircuitBreaker}.
+ * <p>TODO: apply field-level security to {@code _source} keys before exposing them.
+ * <p>TODO: share a cached {@code _source} parse with other field-extraction operators.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
@@ -86,31 +82,42 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
     }
 
     private static class UnmappedFields extends BlockStoredFieldsReader {
+        private final CircuitBreaker breaker;
         private final UnmappedFieldsPattern pattern;
 
         UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern) {
             super(breaker);
+            this.breaker = breaker;
             this.pattern = pattern;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
-            Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType()).v2();
-            // Not Collectors.toMap: _source may carry null values, which its merge function rejects.
-            TreeMap<String, Object> filtered = sourceMap.entrySet()
-                .stream()
-                .filter(entry -> pattern.matches(entry.getKey()))
-                .collect(TreeMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()), TreeMap::putAll);
-            try (XContentBuilder json = XContentFactory.jsonBuilder()) {
-                json.map(filtered);
-                ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
+            // ValuesSourceReaderOperator separately reserves source-parsing overhead; this scoped
+            // reservation covers the filtered map and JSON re-serialization performed here.
+            long reservation = source.internalSourceRef().length();
+            breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
+            try {
+                Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType())
+                    .v2();
+                // Not Collectors.toMap: _source may carry null values, which its merge function rejects.
+                TreeMap<String, Object> filtered = sourceMap.entrySet()
+                    .stream()
+                    .filter(entry -> pattern.matches(entry.getKey()))
+                    .collect(TreeMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()), TreeMap::putAll);
+                try (XContentBuilder json = XContentFactory.jsonBuilder()) {
+                    json.map(filtered);
+                    ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
+                }
+            } finally {
+                breaker.addWithoutBreaking(-reservation);
             }
         }
 
         @Override
         public String toString() {
-            return "UnmappedFieldsBlockLoader";
+            return "UnmappedFieldsBlockLoader.UnmappedFields";
         }
     }
 }

@@ -101,12 +101,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         };
     }
 
-    private static LogicalPlan resolve(LogicalPlan plan, boolean load, boolean reserveUnmappedFieldsName) {
+    private static LogicalPlan resolve(LogicalPlan plan, boolean load, boolean leaveUnmappedFieldsColumnUnresolved) {
         if (plan.childrenResolved() == false) {
             return plan;
         }
 
-        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan, reserveUnmappedFieldsName);
+        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan, leaveUnmappedFieldsColumnUnresolved);
         if (unresolvedByName.isEmpty()) {
             return plan;
         }
@@ -388,12 +388,15 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, grouped by name (preserving insertion order), but
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
-    private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan, boolean reserveUnmappedFieldsName) {
+    private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(
+        LogicalPlan plan,
+        boolean leaveUnmappedFieldsColumnUnresolved
+    ) {
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
         Consumer<UnresolvedAttribute> sink = ua -> {
-            if (leaveUnresolved(ua, reserveUnmappedFieldsName) == false
+            if (leaveUnresolved(ua, leaveUnmappedFieldsColumnUnresolved) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
                 && aliasedGroupings.contains(ua.name()) == false) {
@@ -462,13 +465,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
     }
 
-    private static boolean leaveUnresolved(UnresolvedAttribute attribute, boolean reserveUnmappedFieldsName) {
+    private static boolean leaveUnresolved(UnresolvedAttribute attribute, boolean leaveUnmappedFieldsColumnUnresolved) {
         return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
         // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
             || MetadataAttribute.isSupported(attribute.name())
             // Under LOAD_ALL, _unmapped_fields is a synthetic column: an explicit reference to it must fail as an
             // "Unknown column" rather than being demand-loaded as an ordinary keyword.
-            || (reserveUnmappedFieldsName && UnmappedFieldsAttribute.ATTRIBUTE_NAME.equals(attribute.name()));
+            || (leaveUnmappedFieldsColumnUnresolved && UnmappedFieldsAttribute.ATTRIBUTE_NAME.equals(attribute.name()));
     }
 
     /**

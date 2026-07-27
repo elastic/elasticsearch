@@ -304,28 +304,29 @@ FROM partial_mapping_sample_data
 ;
 
 ############################
-# Gap coverage: known-failing tests documenting intended behaviour
+# LOAD_ALL expansion value shapes
 ############################
 
-// (gap): multi-value JSON arrays are rendered via List.toString() ("[web, api]") instead of a
-// multi-value keyword block. Only multi-element arrays trigger this: single-element CSV arrays
-// are collapsed to scalars by the data loader.
-arraysGap-Ignore
+// Multi-value JSON arrays expand to a real multi-value keyword block (not List.toString()).
+// MV_COUNT confirms multi-element arrays are true multivalues; single-element CSV arrays are
+// collapsed to scalars by the data loader.
+arraysGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
+| EVAL n = MV_COUNT(tags)
 | SORT id
 ;
 
-id:keyword | tags:keyword
-1          | [web,api]
-2          | web
-3          | web
+id:keyword | tags:keyword | n:integer
+1          | [web, api]   | 2
+2          | web          | 1
+3          | web          | 1
 ;
 
-// (gap): JSON object values are rendered via Map.toString() ("{baz=world}") instead of valid JSON.
-objectsGap-Ignore
+// Top-level JSON object values expand to canonical JSON text (not Map.toString()).
+objectsGap
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -337,6 +338,10 @@ id:keyword | extra:keyword
 1          | hello
 2          | "{""baz"":""world""}"
 ;
+
+############################
+# Gap coverage: remaining known-failing behaviour
+############################
 
 // (gap): for a field mapped on only some shards, the source value from the shards where it is
 // unmapped is silently dropped, with no representation in the output.

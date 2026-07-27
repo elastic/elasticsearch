@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 
@@ -20,15 +22,16 @@ import java.util.Objects;
  * Describes which additional (not already in {@link EsRelation}) source fields a
  * plan node would propagate to its output.
  *
- * <p>An additional source field name {@code f} is "kept" if:
+ * <p>Includes are stored as a conjunction of OR groups. An additional source field name {@code f}
+ * is "kept" if:
  * <ol>
- *   <li>it matches <em>all</em> include patterns (AND semantics), AND</li>
- *   <li>it matches <em>no</em> exclude pattern.</li>
+ *   <li>for <em>every</em> include group, {@code f} matches <em>at least one</em> pattern in that
+ *       group (OR within a group, AND across groups), and</li>
+ *   <li>{@code f} matches <em>no</em> exclude pattern.</li>
  * </ol>
- * AND semantics mirror what the query actually does: {@code KEEP foo* | KEEP foobar*} discards any
- * field that does not satisfy both patterns, so the loader must apply the same intersection.
- * Patterns use Elasticsearch wildcard syntax where {@code *} matches any sequence of
- * characters.
+ * This mirrors KEEP semantics: terms listed in one {@code KEEP} command are alternatives, while
+ * chained {@code KEEP} commands intersect their selections. {@link #includes(List)} creates a single
+ * OR group; {@link #intersect} appends another group.
  *
  * <p>The two sentinels are {@link #ALL} and {@link #NONE}.
  * {@link #ALL} represents the case where no projection or shadowing has been applied
@@ -36,38 +39,45 @@ import java.util.Objects;
  * {@link #NONE} means no additional source field survives (e.g., when the upstream
  * plan is not an {@link EsRelation}).
  *
- * <p>The pattern for a plan is computed by the analyzer's {@code DetermineUnmappedFieldsToKeep} rule.
+ * <p>The pattern for a plan is computed by the analyzer's {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep} rule.
  */
 public final class UnmappedFieldsPattern implements NamedWriteable {
-    private static final List<String> INCLUDES_ALL = List.of("*");
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        UnmappedFieldsPattern.class,
+        "UnmappedFieldsPattern",
+        UnmappedFieldsPattern::readFrom
+    );
+
+    private static final List<List<String>> UNRESTRICTED_INCLUDE_GROUPS = List.of(List.of("*"));
 
     /** Keep every additional source field (no filtering applied). */
-    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(INCLUDES_ALL, List.of());
+    public static final UnmappedFieldsPattern ALL = new UnmappedFieldsPattern(UNRESTRICTED_INCLUDE_GROUPS, List.of());
 
     /** Keep no additional source fields. */
     public static final UnmappedFieldsPattern NONE = new UnmappedFieldsPattern(List.of(), List.of());
 
-    private final List<String> includes;
+    private final List<List<String>> includeGroups;
     private final List<String> excludes;
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
-        return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes);
+        return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(UNRESTRICTED_INCLUDE_GROUPS, excludes);
     }
 
+    /** Creates a pattern with a single OR group of include alternatives. */
     public static UnmappedFieldsPattern includes(List<String> includes) {
-        return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(includes, List.of());
+        return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(List.of(includes), List.of());
     }
 
-    private UnmappedFieldsPattern(List<String> includes, List<String> excludes) {
-        this.includes = includes;
-        this.excludes = excludes;
+    private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> excludes) {
+        this.includeGroups = includeGroups.stream().map(List::copyOf).toList();
+        this.excludes = List.copyOf(excludes);
     }
 
-    /** Returns the intersection pattern, i.e., a field would match iff it matches both this and the other pattern. */
+    /** Returns the intersection pattern: each side's OR groups are combined with AND. */
     public UnmappedFieldsPattern intersect(UnmappedFieldsPattern other) {
         return isNone() || other.isNone()
             ? NONE
-            : new UnmappedFieldsPattern(effectiveIncludes(other), combineDeduping(excludes, other.excludes));
+            : new UnmappedFieldsPattern(effectiveIncludeGroups(other), combineDeduping(excludes, other.excludes));
     }
 
     private static List<String> combineDeduping(List<String> l1, List<String> l2) {
@@ -77,25 +87,37 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         return new ArrayList<>(merged);
     }
 
-    private List<String> effectiveIncludes(UnmappedFieldsPattern other) {
-        if (includes.equals(INCLUDES_ALL)) {
-            return other.includes;
+    private List<List<String>> effectiveIncludeGroups(UnmappedFieldsPattern other) {
+        if (includeGroups.equals(UNRESTRICTED_INCLUDE_GROUPS)) {
+            return other.includeGroups;
         }
-        if (other.includes.equals(INCLUDES_ALL)) {
-            return includes;
+        if (other.includeGroups.equals(UNRESTRICTED_INCLUDE_GROUPS)) {
+            return includeGroups;
         }
-        return combineDeduping(includes, other.includes);
+        List<List<String>> merged = new ArrayList<>(includeGroups.size() + other.includeGroups.size());
+        merged.addAll(includeGroups);
+        merged.addAll(other.includeGroups);
+        return merged;
     }
 
     /**
-     * Whether a candidate additional source field {@code name} survives this pattern: the includes must
-     * impose a restriction (be non-empty), {@code name} must match none of the excludes, and it must match
-     * every include.
+     * Whether a candidate additional source field {@code name} survives this pattern: the include
+     * groups must impose a restriction (be non-empty), {@code name} must match none of the excludes,
+     * and it must match at least one pattern in every include group.
      */
     public boolean matches(String name) {
-        return isNone() == false
-            && excludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
-            && includes.stream().allMatch(include -> Regex.simpleMatch(include, name));
+        if (isNone()) {
+            return false;
+        }
+        if (excludes.stream().anyMatch(exclude -> Regex.simpleMatch(exclude, name))) {
+            return false;
+        }
+        for (List<String> group : includeGroups) {
+            if (group.stream().noneMatch(include -> Regex.simpleMatch(include, name))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -108,39 +130,47 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         LinkedHashSet<String> merged = new LinkedHashSet<>(excludes.size() + names.size());
         merged.addAll(excludes);
         merged.addAll(names);
-        return new UnmappedFieldsPattern(includes, new ArrayList<>(merged));
+        return new UnmappedFieldsPattern(includeGroups, new ArrayList<>(merged));
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
+        if (obj == this) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
         var that = (UnmappedFieldsPattern) obj;
-        return Objects.equals(this.includes, that.includes) && Objects.equals(this.excludes, that.excludes);
+        return Objects.equals(this.includeGroups, that.includeGroups) && Objects.equals(this.excludes, that.excludes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(includes, excludes);
+        return Objects.hash(includeGroups, excludes);
     }
 
     @Override
     public String toString() {
-        return "UnmappedFieldsPattern[" + "includes=" + includes + ", " + "excludes=" + excludes + ']';
+        return "UnmappedFieldsPattern[" + "includeGroups=" + includeGroups + ", " + "excludes=" + excludes + ']';
     }
 
     public boolean isNone() {
-        return includes.isEmpty();
+        return includeGroups.isEmpty();
     }
 
     @Override
     public String getWriteableName() {
-        return "UnmappedFieldsPattern";
+        return ENTRY.name;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(includes);
+        out.writeCollection(includeGroups, StreamOutput::writeStringCollection);
         out.writeStringCollection(excludes);
+    }
+
+    public static UnmappedFieldsPattern readFrom(StreamInput in) throws IOException {
+        return new UnmappedFieldsPattern(in.readCollectionAsList(StreamInput::readStringCollectionAsList), in.readStringCollectionAsList());
     }
 }

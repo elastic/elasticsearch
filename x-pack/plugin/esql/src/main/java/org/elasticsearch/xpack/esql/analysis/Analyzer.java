@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
@@ -171,7 +172,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -2192,12 +2192,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Computes the {@link UnmappedFieldsPattern} for a KEEP command from its projection list.
          *
-         * <p>Wildcard projections ({@code *} or {@code foo*}) are added to includes directly.
-         * Explicit named projections are classified by checking {@code childOutput}:
+         * <p>All projection terms from this single KEEP form one OR group: a source field survives if
+         * it matches any listed pattern. Wildcard projections ({@code *} or {@code foo*}) are added to
+         * that group directly. Explicit named projections are classified by checking {@code childOutput}:
          * <ul>
          *   <li>If the name is <em>not</em> in {@code childOutput}, the field is absent from the
          *       mapped schema and will be demand-loaded from {@code _source} — it is added to
-         *       includes so that it can be filtered by the block loader (and then excluded via
+         *       that KEEP's OR group so that it can be filtered by the block loader (and then excluded via
          *       {@code withAdditionalExcludes} because it appears in {@code esr.output()} after
          *       demand loading).</li>
          *   <li>If the name <em>is</em> in {@code childOutput}, the field is a regular mapped
@@ -2316,7 +2317,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), false));
         }
 
-        /** Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list. */
+        /**
+         * Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list.
+         *
+         * <p>Unlike {@link #patternForKeep}, this does not consult {@code childOutput}: a DROP pattern
+         * always excludes matching names from the unmapped-field set, whether or not those names are
+         * already mapped columns in the child output.
+         */
         private static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
             return UnmappedFieldsPattern.excludes(
                 removals.stream().map(removal -> removal instanceof UnresolvedNamePattern up ? up.pattern() : removal.name()).toList()
@@ -2340,7 +2347,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 if (ne instanceof UnresolvedNamePattern np) {
                     resolved = resolveAgainstList(np, childOutput);
-                    // A wildcard that matches no field resolves to a single unresolved UnresolvedPattern.
+                    // A wildcard that matches no field resolves to a single unresolved UnresolvedAttribute.
                     if (ignoreUnmatchedPatterns && resolved.size() == 1 && resolved.getFirst() instanceof UnresolvedAttribute) {
                         continue;
                     }
@@ -2695,57 +2702,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return inferenceFunction;
-        }
-    }
-
-    /**
-     * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
-     * each non-LOOKUP {@link EsRelation} with an {@link UnmappedFieldsAttribute} carrying the
-     * {@link UnmappedFieldsPattern} that describes which additional (currently unmapped) source fields
-     * would survive to the query output. Expanding the {@code _unmapped_fields} column into per-field
-     * output columns is a coordinator-level post-processing step and does not affect data-node execution.
-     *
-     * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
-     * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
-     * For any other {@link UnmappedResolution} the rule is a no-op.
-     */
-    private static class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        @Override
-        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
-                return plan;
-            } else {
-                UnmappedFieldsAttribute attr = new UnmappedFieldsAttribute(Source.EMPTY, computeUnmappedFieldsToKeep(plan));
-                return plan.transformUp(EsRelation.class, esr -> {
-                    if (esr.indexMode() == IndexMode.LOOKUP) {
-                        return esr;
-                    }
-                    List<String> outputNames = esr.output().stream().map(Attribute::name).toList();
-                    UnmappedFieldsPattern refined = attr.pattern().withAdditionalExcludes(outputNames);
-                    return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(attr.source(), refined));
-                });
-            }
-        }
-
-        /**
-         * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
-         * source fields would survive to the output of {@code plan}.
-         * <p>
-         * Only the commands supported by {@code unmapped_fields="LOAD_ALL"} affect field visibility:
-         * KEEP/DROP/RENAME (as {@link ResolvingProject}) restrict the include/exclude patterns, and EVAL
-         * shadows source fields with the names it introduces. Every other unary node is transparent.
-         * Non-unary plans fall back to {@link UnmappedFieldsPattern#ALL} so no field is ever accidentally
-         * suppressed; those queries are currently (and temporarily) rejected by the {@code Verifier}'s {@code LOAD_ALL} command allow-list.
-         */
-        private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
-            return switch (plan) {
-                case ResolvingProject project -> project.unmappedFieldsPattern().intersect(computeUnmappedFieldsToKeep(project.child()));
-                case Eval eval -> computeUnmappedFieldsToKeep(eval.child()).withAdditionalExcludes(
-                    eval.fields().stream().map(Alias::name).toList()
-                );
-                case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
-                default -> UnmappedFieldsPattern.ALL;
-            };
         }
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -124,11 +126,128 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested")));
             assertThat(
                 nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested", "{x=1}"))
+                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested", "{\"x\":1}"))
             );
         } finally {
             Releasables.close(expanded.pages());
         }
+    }
+
+    public void testArrayValuesBecomeMultivaluedKeywordBlock() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a','b']}"))))));
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "tags")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("tags", List.of("a", "b"))));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNestedArrayScalarLeavesAreFlattened() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'nums':[[1,2],3]}"))))));
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("nums", List.of("1", "2", "3"))));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNullArrayElementsAreSkipped() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a',null,'b']}")))))
+        );
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("tags", List.of("a", "b"))));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testEmbeddedObjectsInArrayBecomeJsonKeywords() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a',{'x':1},'b']}")))))
+        );
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("tags", List.of("a", "{\"x\":1}", "b"))));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testEmptyArrayProducesNullColumn() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'tags':[]}"))))));
+
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "tags")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testConflictingFieldNameThrows() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(keywordAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row("red", jsonObject("{'color':'blue'}")))))
+        );
+
+        try {
+            var e = expectThrows(IllegalStateException.class, () -> ExpandUnmappedFieldsPostProcessor.expand(result, bf));
+            assertThat(
+                e.getMessage(),
+                equalTo("Conflict in unmapped field name: field 'color' appears both in the query schema and in the _unmapped_fields JSON")
+            );
+        } finally {
+            Releasables.close(result.pages());
+        }
+    }
+
+    public void testExpandUnderCrankyBreakerDoesNotLeak() {
+        testWithCrankyBlockFactory(bf -> {
+            List<String> fieldNames = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                fieldNames.add("field_" + i);
+            }
+            StringBuilder json = new StringBuilder("{");
+            for (int i = 0; i < fieldNames.size(); i++) {
+                if (i > 0) {
+                    json.append(',');
+                }
+                json.append('"').append(fieldNames.get(i)).append("\":\"v").append(i).append('"');
+            }
+            json.append('}');
+
+            List<List<Object>> rows = new ArrayList<>();
+            for (int row = 0; row < 20; row++) {
+                rows.add(row(row, json.toString()));
+            }
+            Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, rows)));
+            try {
+                Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+                Releasables.close(expanded.pages());
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            } finally {
+                Releasables.close(result.pages());
+            }
+        });
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -137,6 +256,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static Attribute intAttr() {
         return new ReferenceAttribute(Source.EMPTY, null, INT_ATTR, DataType.INTEGER);
+    }
+
+    private static Attribute keywordAttr() {
+        return new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD);
     }
 
     private static UnmappedFieldsAttribute unmappedAttr() {
@@ -187,7 +310,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static @Nullable Object valueAt(Block block, int row) {
         Object value = BlockUtils.toJavaObject(block, row);
-        return value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value;
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(v -> v instanceof BytesRef b ? b.utf8ToString() : v).toList();
+        }
+        return value;
     }
 
     private static final String INT_ATTR = "emp_no";

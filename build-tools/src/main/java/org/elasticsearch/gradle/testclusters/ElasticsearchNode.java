@@ -465,7 +465,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return sw.toString();
     }
 
-    @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
         if (Files.exists(getExtractedDistributionDir()) == false) {

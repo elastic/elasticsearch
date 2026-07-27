@@ -50,6 +50,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
     useCluster baseCluster
+    configureInitialMasterNodes = true
     mustRunAfter("precommit")
     doFirst {
       delete("${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}")

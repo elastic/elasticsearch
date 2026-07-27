@@ -118,6 +118,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
       useCluster baseCluster
+      configureInitialMasterNodes = true
       mustRunAfter("precommit")
       // Pass feature metadata so that YAML test cluster_features skip conditions work correctly.
       inputs.files(featuresMetadataConfig).withPathSensitivity(PathSensitivity.NONE)

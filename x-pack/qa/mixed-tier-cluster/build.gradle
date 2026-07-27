@@ -39,6 +39,7 @@ buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
+    configureInitialMasterNodes = true
     mustRunAfter("precommit")
     def beforeEndpoints = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
     doFirst {

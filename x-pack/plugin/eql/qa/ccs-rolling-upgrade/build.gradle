@@ -48,6 +48,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
+    configureInitialMasterNodes = true
     mustRunAfter("precommit")
     doFirst {
       getRegistry().get().nextNodeToNextVersion(localCluster)

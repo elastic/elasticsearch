@@ -30,6 +30,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
+    configureInitialMasterNodes = true
     mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')

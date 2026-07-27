@@ -92,8 +92,6 @@ public interface TestClusterConfiguration {
 
     void freeze();
 
-    void start();
-
     void restart();
 
     void extraConfigFile(String destination, File from);

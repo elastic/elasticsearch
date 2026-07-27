@@ -259,19 +259,13 @@ FROM logs*,linked-project-1:-logs-archive    <1>
 
 1. `logs*` is resolved across all projects. On `linked-project-1`, the `logs-archive` index is excluded.
 
-You can also place the minus sign on the project alias. The following query is equivalent to the one above:
+You can also place the minus sign on the project alias. For example, `-linked-project-1:logs-archive` is equivalent to `linked-project-1:-logs-archive`. This works for any index name or wildcard pattern other than `*`. Both forms can appear on their own.
 
-```esql
-FROM logs*,-linked-project-1:logs-archive
-| STATS COUNT(*)
-```
+The same applies to the origin project. For example, `-_origin:logs` is equivalent to `_origin:-logs`.
 
-When the minus sign is on the project alias, the index part determines the meaning:
-
-* `-linked-project-1:<index>`, where `<index>` is any index name or wildcard pattern other than `*`, is an index-level exclusion. It is equivalent to `linked-project-1:-<index>` and can appear on its own.
-* `-linked-project-1:*`, with `*` as the index, is a project-level exclusion. It removes the entire project and requires a preceding inclusion pattern, like the `-_origin:*` example above.
-
-The index-level equivalence also applies to the origin project, so `-_origin:logs` is equivalent to `_origin:-logs`.
+::::{note}
+`-linked-project-1:*` behaves differently. It is a project-level exclusion that removes the entire project and requires a preceding inclusion pattern.
+::::
 
 Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
 

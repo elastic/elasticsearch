@@ -35,7 +35,7 @@ For a comparison table, refer to [Should I use `semantic_text` or `semantic`?](#
 
 ## Basic `semantic` mapping example
 
-The following example creates an index mapping with a `semantic` field:
+The following example creates an index mapping with a `semantic` field using `.jina-embeddings-v5-omni-small`, the preconfigured {{infer}} endpoint for the Jina Embeddings v5 Omni Small model:
 
 ```console
 PUT semantic-embeddings

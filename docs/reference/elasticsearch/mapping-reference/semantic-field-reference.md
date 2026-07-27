@@ -66,7 +66,9 @@ A `semantic` field requires an {{infer}} endpoint with the `embedding` task type
 
 For multimodal search, Elastic recommends [Jina multimodal embeddings](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-jina.md#jina-multimodal-embeddings).
 
-The following example creates a Jina endpoint through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md). This configuration does not require a separate Jina API key:
+Elastic provides `.jina-embeddings-v5-omni-small` as the preconfigured {{infer}} endpoint for the Jina Embeddings v5 Omni Small model.
+
+The following example creates a separate Jina endpoint through the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md). This configuration does not require a separate Jina API key:
 
 ```console
 PUT _inference/embedding/my-embedding-endpoint

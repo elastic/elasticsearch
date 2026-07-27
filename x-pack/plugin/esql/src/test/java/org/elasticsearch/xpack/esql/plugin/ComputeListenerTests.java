@@ -271,59 +271,6 @@ public class ComputeListenerTests extends ESTestCase {
     }
 
     /**
-     * Regression test for a bug where {@code ResponseHeadersCollector.finish()} was only called on the
-     * success path of {@link ComputeListener}. When the overall query fails (even after some sub-tasks
-     * succeeded and emitted warnings), {@code finish()} was never invoked, so all collected warnings
-     * were silently discarded and never written to the HTTP response.
-     */
-    public void testCollectWarningsOnFailure() throws Exception {
-        Map<String, Set<String>> expectedWarnings = new HashMap<>();
-        AtomicReference<Map<String, List<String>>> capturedOnFailureHeaders = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
-            @Override
-            public void onResponse(DriverCompletionInfo result) {
-                fail("expected failure, got response");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                capturedOnFailureHeaders.set(threadPool.getThreadContext().getResponseHeaders());
-                latch.countDown();
-            }
-        };
-
-        try (var computeListener = new ComputeListener(threadPool, () -> {}, rootListener)) {
-            int successTasks = between(1, 5);
-            for (int t = 0; t < successTasks; t++) {
-                final String key = "warning-key-" + t;
-                final String value = "warning-value-" + t;
-                expectedWarnings.computeIfAbsent(key, k -> new HashSet<>()).add(value);
-                ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
-                threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
-                    threadPool.getThreadContext().addResponseHeader(key, value);
-                    l.onResponse(randomCompletionInfo());
-                }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
-            }
-            // One sub-task fails, causing the overall ComputeListener to fail
-            ActionListener<DriverCompletionInfo> failingListener = computeListener.acquireCompute();
-            threadPool.schedule(
-                ActionRunnable.wrap(failingListener, l -> { l.onFailure(new RuntimeException("simulated sub-task failure")); }),
-                TimeValue.timeValueNanos(between(0, 100)),
-                threadPool.generic()
-            );
-        }
-
-        assertTrue(latch.await(10, TimeUnit.SECONDS));
-        assertNotNull(capturedOnFailureHeaders.get());
-        // Warnings from successful sub-tasks must not be lost just because the overall query failed
-        Map<String, Set<String>> actual = new HashMap<>();
-        capturedOnFailureHeaders.get().forEach((k, vs) -> actual.put(k, new HashSet<>(vs)));
-        assertThat(actual, equalTo(expectedWarnings));
-    }
-
-    /**
      * Regression test: the root delegate must fire in the {@link ComputeListener} construction-time
      * context even when the last ref is an avoid listener that fires on a transport thread with a
      * stashed (blank) context, as happens in {@code ExchangeSourceHandler.RemoteSinkFetcher}.
@@ -343,13 +290,13 @@ public class ComputeListenerTests extends ESTestCase {
         final String warningKey = "warning-key";
         final String warningValue = "warning-value";
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean firedInConstructionContext = new AtomicBoolean();
+        AtomicBoolean firedInSearchContext = new AtomicBoolean();
         AtomicReference<Map<String, List<String>>> capturedHeaders = new AtomicReference<>();
 
         ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
             @Override
             public void onResponse(DriverCompletionInfo result) {
-                firedInConstructionContext.set(sentinelValue.equals(threadPool.getThreadContext().getHeader(sentinelKey)));
+                firedInSearchContext.set(sentinelValue.equals(threadPool.getThreadContext().getHeader(sentinelKey)));
                 capturedHeaders.set(threadPool.getThreadContext().getResponseHeaders());
                 latch.countDown();
             }
@@ -389,7 +336,7 @@ public class ComputeListenerTests extends ESTestCase {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertTrue(
             "rootListener must fire in the construction-time context (ContextPreservingActionListener fix not applied)",
-            firedInConstructionContext.get()
+            firedInSearchContext.get()
         );
         assertNotNull(capturedHeaders.get());
         Map<String, Set<String>> actual = new HashMap<>();

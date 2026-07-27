@@ -32,17 +32,15 @@ final class ComputeListener implements Releasable {
     ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
-        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed;
-        // responseHeaders.finish() must run on both success and failure paths so that warnings collected by
-        // successful sub-tasks are not discarded when the overall query fails.
+        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         // ContextPreservingActionListener ensures finish() and the root delegate always fire on the
         // construction-time thread context, even when the last ref drains on a transport response thread
         // with a blank ThreadContext (e.g. ExchangeSourceHandler.RemoteSinkFetcher completing via transport).
         this.refs = new EsqlRefCountingListener(
-            ContextPreservingActionListener.wrapPreservingContext(ActionListener.runBefore(delegate.delegateFailure((l, ignored) -> {
+            ContextPreservingActionListener.wrapPreservingContext(delegate.delegateFailure((l, ignored) -> {
                 responseHeaders.finish();
                 delegate.onResponse(completionInfoAccumulator.finish());
-            }), responseHeaders::finish), threadPool.getThreadContext())
+            }), threadPool.getThreadContext())
         );
     }
 

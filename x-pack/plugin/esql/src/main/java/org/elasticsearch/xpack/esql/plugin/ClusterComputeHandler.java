@@ -264,10 +264,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
-        exchangeSink.addCompletionListener(
-            ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)),
-            transportService.getThreadPool().getThreadContext()
-        );
+        exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
             computeService.plannerSettings().get(),
@@ -294,7 +291,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );
             try (Releasable ignored = exchangeSource.addEmptySink()) {
-                exchangeSink.addCompletionListener(computeListener.acquireAvoid(), transportService.getThreadPool().getThreadContext());
+                exchangeSink.addCompletionListener(computeListener.acquireAvoid());
                 computeService.runCompute(
                     parentTask,
                     new ComputeContext(

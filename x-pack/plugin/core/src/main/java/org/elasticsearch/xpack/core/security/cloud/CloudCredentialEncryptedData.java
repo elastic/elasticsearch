@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -36,16 +36,12 @@ public final class CloudCredentialEncryptedData implements Writeable, ToXContent
     private static final ConstructingObjectParser<CloudCredentialEncryptedData, Void> PARSER = new ConstructingObjectParser<>(
         "cloud_credential_encrypted_data",
         true,
-        args -> {
-            String keyId = (String) args[0];
-            byte[] payload = Base64.getDecoder().decode((String) args[1]);
-            return new CloudCredentialEncryptedData(keyId, payload);
-        }
+        args -> new CloudCredentialEncryptedData((String) args[0], (byte[]) args[1])
     );
 
     static {
         PARSER.declareString(constructorArg(), KEY_ID_FIELD);
-        PARSER.declareString(constructorArg(), DATA_FIELD);
+        PARSER.declareField(constructorArg(), (p, c) -> p.binaryValue(), DATA_FIELD, ObjectParser.ValueType.VALUE);
     }
 
     private final String keyId;
@@ -80,7 +76,7 @@ public final class CloudCredentialEncryptedData implements Writeable, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(KEY_ID_FIELD.getPreferredName(), keyId);
-        builder.field(DATA_FIELD.getPreferredName(), Base64.getEncoder().encodeToString(payload));
+        builder.field(DATA_FIELD.getPreferredName(), payload);
         return builder.endObject();
     }
 

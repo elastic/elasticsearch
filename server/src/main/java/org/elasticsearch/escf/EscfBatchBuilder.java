@@ -28,8 +28,9 @@ import java.util.List;
  * Shared backend for ESCF column-major encoding. Owns a {@link SourceSchema}, per-partition
  * {@link EscfColumnBuilder} lists, and a reusable {@link EscfRowBuffer}.
  *
- * <p>Usage per row: call {@link #beginRow()} to get the row buffer, populate it, then
- * {@link #commit(int)} to flush into the partition's column builders. Call
+ * <p>Usage per row: call {@link #beginRow()} to get the row buffer, populate it, call
+ * {@link EscfRowBuffer#finishRow()} to mark the row complete, then {@link #commit(int)} to flush
+ * into the partition's column builders. Call
  * {@link #buildPartition(int)} once all rows for a partition are committed; the resulting
  * {@link EscfBatch} owns the column buffers and must be closed to release them.
  *
@@ -60,7 +61,10 @@ public final class EscfBatchBuilder implements Releasable {
         this.cachedPath = new String[INITIAL_CAPACITY];
     }
 
-    /** Resets the row buffer for a new row and returns it. Must be called before {@link #commit(int)}. */
+    /**
+     * Resets the row buffer for a new row and returns it. Populate fields, then call
+     * {@link EscfRowBuffer#finishRow()} before {@link #commit(int)}.
+     */
     public EscfRowBuffer beginRow() {
         rowBuffer.beginRow();
         return rowBuffer;
@@ -157,19 +161,7 @@ public final class EscfBatchBuilder implements Releasable {
             case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(rowBuffer.scratchNumeric(col));
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(rowBuffer.scratchNumeric(col)));
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
-            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                final Object value = rowBuffer.scratchVar(col);
-                if (value instanceof EscfRowBuffer.StagedColumnarArray(byte elemKind, long[] values, int size)) {
-                    // Direct columnar drain — no packed byte[] intermediate.
-                    if (elemKind == EscfColumnKind.LONG) {
-                        builder.addLongArray(values, size);
-                    } else {
-                        builder.addDoubleArray(values, size);
-                    }
-                } else {
-                    builder.addArray(type, (byte[]) value);
-                }
-            }
+            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");
         }

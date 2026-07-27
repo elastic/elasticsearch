@@ -25,8 +25,8 @@ import java.util.Arrays;
  * fields are encountered.
  *
  * <p>Usage: call {@link #beginRow()} (or {@link EscfBatchBuilder#beginRow()}), populate fields
- * via {@link #startObject}/{@link #endObject} and the leaf writers, then call
- * {@link EscfBatchBuilder#commit} to drain into column builders.
+ * via {@link #startObject}/{@link #endObject} and the leaf writers, call {@link #finishRow()},
+ * then call {@link EscfBatchBuilder#commit} to drain into column builders.
  */
 public final class EscfRowBuffer {
 
@@ -155,34 +155,6 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /**
-     * Stages a {@code LONG} array by reference from {@code values[0, size)}, skipping the pack/unpack
-     * round trip. The buffer must not be mutated until committed. Returns the leaf column index.
-     */
-    public int longArrayField(String name, long[] values, int size) {
-        return stageColumnarArray(name, EscfColumnKind.LONG, values, size);
-    }
-
-    /**
-     * Stages a {@code DOUBLE} array from raw-bit values ({@link Double#doubleToRawLongBits}).
-     * See {@link #longArrayField} for buffer constraints. Returns the leaf column index.
-     */
-    public int doubleArrayField(String name, long[] rawBits, int size) {
-        return stageColumnarArray(name, EscfColumnKind.DOUBLE, rawBits, size);
-    }
-
-    private int stageColumnarArray(String name, byte elemKind, long[] values, int size) {
-        int colIdx = addLeaf(name);
-        // Reuse the FIXED_ARRAY scratch type; the drain distinguishes a staged columnar array from a
-        // packed byte[] by the scratchVar runtime type (StagedColumnarArray vs byte[]).
-        scratchType[colIdx] = SourceValueType.FIXED_ARRAY;
-        scratchVar[colIdx] = new StagedColumnarArray(elemKind, values, size);
-        return colIdx;
-    }
-
-    /** A fixed-width array staged by reference; {@code elemKind} is {@link EscfColumnKind#LONG} or {@link EscfColumnKind#DOUBLE}. */
-    record StagedColumnarArray(byte elemKind, long[] values, int size) {}
-
     byte scratchType(int col) {
         return scratchType[col];
     }
@@ -198,8 +170,6 @@ public final class EscfRowBuffer {
     boolean isStarted() {
         return rowStarted;
     }
-
-    // ── Private helpers ──
 
     private int addLeaf(String name) {
         int colIdx = schema.appendLeaf(name, parentStack[parentDepth]);

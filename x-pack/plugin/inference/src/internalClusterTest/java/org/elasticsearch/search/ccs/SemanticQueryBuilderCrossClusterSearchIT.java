@@ -169,9 +169,9 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     }
 
     private void configureClusters() throws Exception {
-        final String commonInferenceId = "common-inference-id";
-        final String localInferenceId = "local-inference-id";
-        final String remoteInferenceId = "remote-inference-id";
+        final String commonSemanticTextInferenceId = "common-inference-id";
+        final String localSemanticTextInferenceId = "local-inference-id";
+        final String remoteSemanticTextInferenceId = "remote-inference-id";
         final String commonSemanticInferenceId = "common-semantic-inference-id";
         final String localSemanticInferenceId = "local-semantic-inference-id";
         final String remoteSemanticInferenceId = "remote-semantic-inference-id";
@@ -190,9 +190,9 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
             LOCAL_INDEX_NAME,
             Map.of(
-                commonInferenceId,
+                commonSemanticTextInferenceId,
                 sparseEmbeddingServiceSettings(),
-                localInferenceId,
+                localSemanticTextInferenceId,
                 sparseEmbeddingServiceSettings(),
                 commonSemanticInferenceId,
                 embeddingServiceSettings(
@@ -209,9 +209,9 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             ),
             Map.of(
                 SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,
-                semanticTextMapping(commonInferenceId),
+                semanticTextMapping(commonSemanticTextInferenceId),
                 SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID,
-                semanticTextMapping(localInferenceId),
+                semanticTextMapping(localSemanticTextInferenceId),
                 SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticFieldMapping(commonSemanticInferenceId),
                 SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID,
@@ -222,13 +222,13 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
             REMOTE_INDEX_NAME,
             Map.of(
-                commonInferenceId,
+                commonSemanticTextInferenceId,
                 textEmbeddingServiceSettings(
                     REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
                     SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 ),
-                remoteInferenceId,
+                remoteSemanticTextInferenceId,
                 textEmbeddingServiceSettings(
                     REMOTE_INFERENCE_EMBEDDING_DIMENSIONS,
                     SimilarityMeasure.COSINE,
@@ -249,9 +249,9 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             ),
             Map.of(
                 SEMANTIC_TEXT_FIELD_WITH_COMMON_INFERENCE_ID,
-                semanticTextMapping(commonInferenceId),
+                semanticTextMapping(commonSemanticTextInferenceId),
                 SEMANTIC_TEXT_FIELD_WITH_VARIABLE_INFERENCE_ID,
-                semanticTextMapping(remoteInferenceId),
+                semanticTextMapping(remoteSemanticTextInferenceId),
                 SEMANTIC_FIELD_WITH_COMMON_INFERENCE_ID,
                 semanticFieldMapping(commonSemanticInferenceId),
                 SEMANTIC_FIELD_WITH_VARIABLE_INFERENCE_ID,

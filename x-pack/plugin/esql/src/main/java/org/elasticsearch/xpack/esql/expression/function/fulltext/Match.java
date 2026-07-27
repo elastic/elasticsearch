@@ -97,7 +97,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -309,7 +309,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Match(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -319,6 +323,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -413,6 +420,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
             return true;
         }
 
@@ -445,14 +454,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         if (isRuntimeSearch() == false) {
             return;
         }
-        if (options() != null) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "Options are not supported for [MATCH] function call on non-index-mapped field [" + field.sourceText() + "]"
-                )
-            );
-        }
+
         // The query value can only be converted to the field's runtime type once it has been folded down to a
         // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
         // postOptimizationPlanVerification runs.
@@ -467,6 +469,53 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         query().sourceText(),
                         field.dataType().typeName(),
                         field.sourceText()
+                    )
+                );
+            }
+        }
+
+        if (options() != null && field().dataType() == TEXT) {
+            verifyRuntimeOptions(function, field, failures);
+        } else if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the options for a runtime-search {@code match} on a {@code text} field. Checks that the
+     * {@code analyzer} option is absent (not supported for runtime fields), that options are only used with
+     * {@code text} fields, and that the options produce a valid {@code MatchQueryBuilder}.
+     */
+    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+        Map<String, Object> opts = matchQueryOptions();
+        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
+        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
+        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            failures.add(
+                Failure.fail(
+                    function,
+                    "The analyzer option is not supported for [MATCH] function call on non-index-mapped field [{}]",
+                    field.sourceText()
+                )
+            );
+            return;
+        }
+        if (query() instanceof Literal) {
+            // Validate that the options produce a valid MatchQueryBuilder at plan-verification time rather than at execution time.
+            try {
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts).toQueryBuilder();
+            } catch (IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        function,
+                        "[MATCH] function failed to build query for non-index-mapped field [{}]: {}",
+                        field.sourceText(),
+                        e.getMessage()
                     )
                 );
             }
@@ -493,8 +542,13 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
-        if (field.dataType() == TEXT) {
+        if (field.dataType() == TEXT && options() == null) {
             return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
+        }
+        // When options are used, we build a Lucene query
+        if (field.dataType() == TEXT && options() != null) {
+            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
+            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchQuery);
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));

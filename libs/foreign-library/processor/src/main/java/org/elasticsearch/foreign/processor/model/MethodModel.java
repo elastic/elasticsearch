@@ -16,6 +16,7 @@ import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.processing.Messager;
@@ -23,6 +24,7 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -30,16 +32,21 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
-import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD_FQN;
+import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_FIELD_FQN;
 
 /**
- * Models a single method on a {@code @LibrarySpecification} interface. The method is either a
- * {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
+ * Models a single method on a {@code @LibrarySpecification} interface or abstract class. The method
+ * is either a {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
  *
  * @param methodName the Java method name
  * @param cSymbol the exact C symbol name; {@code null} for struct factory methods
  * @param returnType the return type; {@code null} for struct factory methods
  * @param paramTypes the parameter types in order; empty for struct factory methods
+ * @param paramStructSimpleNames parallel list to {@code paramTypes}: the simple name of the
+ *        enclosed struct interface for ADDRESSABLE parameters that are struct-typed (rather than
+ *        explicitly {@code Addressable}-typed), or {@code null} for all other parameters. Used by
+ *        code generation to emit the correct Java method descriptor when a struct does not declare
+ *        {@code extends Addressable}.
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
@@ -49,25 +56,26 @@ import static org.elasticsearch.foreign.processor.model.LibraryModel.ARRAY_FIELD
  * @param structReturnSimpleName simple name of the struct return type; non-null only when {@code isStructFactory}
  * @param packedElementSimpleName simple name of the array element record; non-null only when {@code isStructFactory}
  *        and the return struct declares an {@code @ArrayField} accessor
+ * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
+ *        specs); always {@code false} for interface-based specs
+ * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
  */
 public record MethodModel(
     String methodName,
     String cSymbol,
     NativeType returnType,
     List<NativeType> paramTypes,
+    List<String> paramStructSimpleNames,
     boolean isCritical,
     String fallbackAdapterClassName,
     boolean capturesErrno,
     int firstVariadicArg,
     boolean isStructFactory,
     String structReturnSimpleName,
-    String packedElementSimpleName
+    String packedElementSimpleName,
+    boolean isProtected,
+    List<BoundsCheckModel> boundsChecks
 ) {
-
-    /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
-    public String methodHandleFieldName() {
-        return methodName + "$mh";
-    }
 
     /**
      * Builds a {@code MethodModel} from a method on a {@code @LibrarySpecification} interface.
@@ -81,6 +89,7 @@ public record MethodModel(
     public static MethodModel from(ExecutableElement method, ProcessingEnvironment env, List<String> enclosingStructNames) {
         Messager messager = env.getMessager();
         String methodName = method.getSimpleName().toString();
+        boolean isProtected = method.getModifiers().contains(Modifier.PROTECTED);
 
         Function function = method.getAnnotation(Function.class);
         boolean isStructFactory = method.getAnnotation(StructFactory.class) != null;
@@ -126,8 +135,17 @@ public record MethodModel(
         }
 
         List<NativeType> paramTypes = new ArrayList<>();
+        List<String> paramStructSimpleNames = new ArrayList<>();
         for (var param : method.getParameters()) {
             NativeType paramType = ModelUtil.classifyType(param.asType());
+            String structSimpleName = null;
+            if (paramType == null) {
+                // Check if it's an enclosed @StructSpecification interface
+                structSimpleName = resolveStructSimpleName(param.asType(), enclosingStructNames);
+                if (structSimpleName != null) {
+                    paramType = NativeType.ADDRESSABLE;
+                }
+            }
             if (paramType == null || paramType == NativeType.VOID) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -137,15 +155,36 @@ public record MethodModel(
                 return null;
             }
             paramTypes.add(paramType);
+            paramStructSimpleNames.add(structSimpleName);
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
-        String fallbackAdapter = null;
+        final String fallbackAdapter;
         if (isCritical) {
-            fallbackAdapter = resolveAndValidateFallbackAdapter(method, paramTypes, returnType, messager, env.getTypeUtils());
-            if (fallbackAdapter == null) {
+            TypeElement adapterElement = resolveFallbackAdapter(method, messager, env.getTypeUtils());
+            if (adapterElement == null) {
                 return null;
             }
+            var isUnsupportedFallback = adapterElement.getQualifiedName()
+                .contentEquals(Critical.UnsupportedFallback.class.getCanonicalName());
+            if (isUnsupportedFallback) {
+                // For a critical binding, fallbackAdapter is null when the Critical.UnsupportedFallback sentinel is used.
+                fallbackAdapter = null;
+            } else {
+                if (validateFallbackAdapter(method, adapterElement, paramTypes, returnType, messager) == false) {
+                    return null;
+                }
+                // For a critical binding, fallbackAdapter is the FQN of the JDK 21 adapter
+                fallbackAdapter = adapterElement.getQualifiedName().toString();
+            }
+        } else {
+            // A non-critical binding does not need a fallbackAdapter
+            fallbackAdapter = null;
+        }
+
+        List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
+        if (boundsChecks == null) {
+            return null;
         }
 
         return new MethodModel(
@@ -153,13 +192,16 @@ public record MethodModel(
             function.value(),
             returnType,
             paramTypes,
+            Collections.unmodifiableList(new ArrayList<>(paramStructSimpleNames)),
             isCritical,
             fallbackAdapter,
             capturesErrno,
             firstVariadicArg,
             false,
             null,
-            null
+            null,
+            isProtected,
+            boundsChecks
         );
     }
 
@@ -169,6 +211,7 @@ public record MethodModel(
         List<String> enclosingStructNames,
         Messager messager
     ) {
+        boolean isProtected = method.getModifiers().contains(Modifier.PROTECTED);
         TypeMirror returnMirror = method.getReturnType();
         if (returnMirror.getKind() != TypeKind.DECLARED) {
             messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must return a @StructSpecification type", method);
@@ -209,26 +252,29 @@ public record MethodModel(
             }
         }
         if (packedElementSimpleName == null) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@StructFactory method '"
-                    + methodName
-                    + "' return type '"
-                    + structReturnSimpleName
-                    + "' has no @ArrayField method; @StructFactory is only supported for "
-                    + "@StructSpecification interfaces with an @ArrayField accessor",
-                method
-            );
-            return null;
-        }
-        // Validate: must have exactly one parameter (the element array)
-        if (method.getParameters().size() != 1) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@StructFactory method '" + methodName + "' must declare exactly one parameter (the element array)",
-                method
-            );
-            return null;
+            // Simple factory: no @ArrayField, must have zero parameters
+            if (method.getParameters().isEmpty() == false) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@StructFactory method '"
+                        + methodName
+                        + "' return type '"
+                        + structReturnSimpleName
+                        + "' has no @ArrayField method; a simple factory must have zero parameters",
+                    method
+                );
+                return null;
+            }
+        } else {
+            // Array-backed factory: must have exactly one parameter (the element array)
+            if (method.getParameters().size() != 1) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@StructFactory method '" + methodName + "' must declare exactly one parameter (the element array)",
+                    method
+                );
+                return null;
+            }
         }
 
         return new MethodModel(
@@ -236,29 +282,26 @@ public record MethodModel(
             null,
             null,
             List.of(),
+            List.of(),
             false,
             null,
             false,
             -1,
             true,
             structReturnSimpleName,
-            packedElementSimpleName
+            packedElementSimpleName,
+            isProtected,
+            List.of()
         );
     }
 
     /**
-     * Resolves {@code @Critical.fallbackAdapter()} and verifies the adapter class declares a {@code public static}
-     * method with the same name as {@code method} and a parameter list of {@code (MethodHandle, …originalParams)}
-     * returning the same type as the annotated method. Returns the adapter's fully-qualified name on success,
-     * or {@code null} (with a {@link Kind#ERROR} emitted) on validation failure.
+     * Resolves {@code @Critical.fallbackAdapter()} to its adapter {@link TypeElement}. Returns {@code null}
+     * (with a {@link Kind#ERROR} emitted) when the attribute is missing or does not reference a class. The
+     * returned element may be the {@link Critical.UnsupportedFallback} sentinel; the caller detects that
+     * before validating a real adapter with {@link #validateFallbackAdapter}.
      */
-    private static String resolveAndValidateFallbackAdapter(
-        ExecutableElement method,
-        List<NativeType> paramTypes,
-        NativeType returnType,
-        Messager messager,
-        Types types
-    ) {
+    private static TypeElement resolveFallbackAdapter(ExecutableElement method, Messager messager, Types types) {
         AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
@@ -274,6 +317,23 @@ public record MethodModel(
             messager.printMessage(Kind.ERROR, "@Critical.fallbackAdapter must reference a class", method, criticalMirror);
             return null;
         }
+        return adapterElement;
+    }
+
+    /**
+     * Verifies that {@code adapterElement} declares a {@code public static} method with the same name as
+     * {@code method} and a parameter list of {@code (MethodHandle, …originalParams)} returning the same type
+     * as the annotated method. Returns {@code true} on success, or {@code false} (with a {@link Kind#ERROR}
+     * emitted) on validation failure.
+     */
+    private static boolean validateFallbackAdapter(
+        ExecutableElement method,
+        TypeElement adapterElement,
+        List<NativeType> paramTypes,
+        NativeType returnType,
+        Messager messager
+    ) {
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
         String methodName = method.getSimpleName().toString();
         String adapterFqn = adapterElement.getQualifiedName().toString();
 
@@ -285,7 +345,7 @@ public record MethodModel(
                 method,
                 criticalMirror
             );
-            return null;
+            return false;
         }
         if (signatureMatches(adapterMethod, paramTypes, returnType) == false) {
             messager.printMessage(
@@ -303,9 +363,22 @@ public record MethodModel(
                 method,
                 criticalMirror
             );
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * If {@code mirror} is a declared type whose simple name appears in {@code enclosingStructNames},
+     * returns that simple name (recognizing it as a struct-interface parameter). Otherwise returns null.
+     */
+    private static String resolveStructSimpleName(TypeMirror mirror, List<String> enclosingStructNames) {
+        if (mirror.getKind() != TypeKind.DECLARED) {
             return null;
         }
-        return adapterFqn;
+        TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
+        String simpleName = typeElement.getSimpleName().toString();
+        return enclosingStructNames.contains(simpleName) ? simpleName : null;
     }
 
     private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {

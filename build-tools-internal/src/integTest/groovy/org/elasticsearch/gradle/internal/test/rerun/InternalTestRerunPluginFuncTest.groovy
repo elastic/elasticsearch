@@ -209,6 +209,81 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
     }
 
+    def "does not skip a successful task that a running task depends on"() {
+        given:
+        // Force-run resolution inspects the resolved task graph, so it requires the configuration phase to
+        // run (a config-cache miss). That always holds for smart retry, whose history file is not a tracked
+        // config-cache input; see InternalTestRerunPlugin#resolveForceRunTasks.
+        configurationCacheCompatible = false
+        // :downstream:test dependsOn :upstream:test, and they share mutable external state (like the
+        // rolling-upgrade cluster chain), so skipping the dependency would break the dependent task.
+        chainedTestSetup([":upstream", ":downstream"])
+        // :upstream succeeded previously but :downstream did not, so :downstream must rerun.
+        writeHistory([":upstream:test"], [:])
+
+        when:
+        // Request only the downstream task so :upstream:test is pulled in purely as a dependency.
+        def result = gradleRunner(":downstream:test", "--warning-mode", "all").build()
+
+        then:
+        // :upstream must still run even though it succeeded, because a running task depends on it.
+        result.task(":upstream:test").outcome == TaskOutcome.SUCCESS
+        result.task(":downstream:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "UpstreamTestClazz > someTest1")
+        testExecuted(result.output, "DownstreamTestClazz > someTest1")
+    }
+
+    def "still skips a successful task when the task depending on it is also skipped"() {
+        given:
+        chainedTestSetup([":upstream", ":downstream"])
+        // Both succeeded previously and nothing else needs them, so both should be skipped.
+        writeHistory([":upstream:test", ":downstream:test"], [:])
+
+        when:
+        def result = gradleRunner(":downstream:test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":upstream:test").outcome == TaskOutcome.SKIPPED
+        result.task(":downstream:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("succeeded in previous run")
+    }
+
+    def "does not skip transitive successful dependencies of a running task"() {
+        given:
+        // See the note above: force-run resolution requires the configuration phase to run.
+        configurationCacheCompatible = false
+        // :libc:test -> :libb:test -> :liba:test
+        chainedTestSetup([":liba", ":libb", ":libc"])
+        // Only the final task failed; both upstream links succeeded but must still rerun so the shared
+        // state is rebuilt through the whole chain, not just the direct dependency.
+        writeHistory([":liba:test", ":libb:test"], [:])
+
+        when:
+        def result = gradleRunner(":libc:test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":liba:test").outcome == TaskOutcome.SUCCESS
+        result.task(":libb:test").outcome == TaskOutcome.SUCCESS
+        result.task(":libc:test").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "handles a dependency that exists but is not scheduled to run"() {
+        given:
+        // :downstream:test dependsOn :upstream:test. Excluding the dependency with -x removes it from the
+        // execution plan while leaving it in the dependent task's declared dependencies, so force-run
+        // resolution encounters a dependency it must not try to traverse.
+        chainedTestSetup([":upstream", ":downstream"])
+        writeHistory([":upstream:test"], [:])
+
+        when:
+        def result = gradleRunner(":downstream:test", "-x", ":upstream:test", "--warning-mode", "all").build()
+
+        then:
+        // The build must not fail resolving the task graph; the dependent runs and the excluded task does not.
+        result.task(":downstream:test").outcome == TaskOutcome.SUCCESS
+        result.task(":upstream:test") == null
+    }
+
     boolean testExecuted(String output, String testReference) {
         output.contains(testReference + " STARTED")
     }
@@ -259,6 +334,48 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         subProject(":subproject2") {
             createTest("SubProject2TestClazz1")
             createTest("SubProject2TestClazz2")
+        }
+    }
+
+    /**
+     * Sets up a linear chain of subprojects where each project's {@code test} task depends on the previous
+     * project's {@code test} task (project[i]:test dependsOn project[i-1]:test). Each project gets a single
+     * test class named after the project (e.g. {@code :upstream} -> {@code UpstreamTestClazz}).
+     */
+    void chainedTestSetup(List<String> projectPaths) {
+        buildFile << """
+        allprojects {
+                apply plugin: 'java'
+                apply plugin: 'elasticsearch.internal-test-rerun'
+
+                repositories {
+                    mavenCentral()
+                }
+
+                dependencies {
+                    testImplementation 'junit:junit:4.13.1'
+                }
+
+                tasks.named("test").configure {
+                    testLogging {
+                        events("started", "skipped")
+                    }
+                }
+            }
+            """
+        String previousPath = null
+        for (String projectPath : projectPaths) {
+            String className = projectPath.replace(":", "").capitalize() + "TestClazz"
+            String dependency = previousPath
+            subProject(projectPath) {
+                createTest(className)
+                if (dependency != null) {
+                    buildFile << """
+                    tasks.named("test").configure { dependsOn "${dependency}:test" }
+                    """
+                }
+            }
+            previousPath = projectPath
         }
     }
 }

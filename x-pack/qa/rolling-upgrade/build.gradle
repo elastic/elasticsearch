@@ -182,6 +182,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
     }
     systemProperty 'tests.rest.blacklist', excludeList.join(',')
+
+    doLast {
+      throw new org.gradle.api.GradleException("forced failure for smart-retry end-to-end test")
+    }
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {

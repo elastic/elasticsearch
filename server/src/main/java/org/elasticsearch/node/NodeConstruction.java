@@ -933,11 +933,13 @@ class NodeConstruction {
         };
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
+        // Recovery gates may be contributed by plugins and resolved once when the service starts, by which point plugin components exist.
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
-            recoverySchedulingListeners
+            recoverySchedulingListeners,
+            () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList()
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1119,11 +1121,6 @@ class NodeConstruction {
             // Return both
             return Stream.of(componentObjects, componentsFromInjector).flatMap(Collection::stream).toList();
         }).toList();
-
-        // Register plugin-contributed recovery gates with the throttling service.
-        pluginsService.filterPlugins(RecoveryPlugin.class)
-            .flatMap(recoveryPlugin -> recoveryPlugin.getRecoveryGates().stream())
-            .forEach(throttlingRecoveryService::addGate);
 
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()

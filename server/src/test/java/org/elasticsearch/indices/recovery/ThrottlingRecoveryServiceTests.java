@@ -48,6 +48,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -1063,16 +1064,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testGateBlocksAllRecoveriesUntilItAllows() {
         final var taskQueue = new DeterministicTaskQueue();
+        // A blocking gate holds every recovery back until it flips to run.
+        final var gate = new ControllableGate(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
-            RecoverySchedulingListener.NOOP
+            RecoverySchedulingListener.NOOP,
+            () -> List.of(gate)
         );
         service.start();
-        // A blocking gate holds every recovery back until it flips to run.
-        final var gate = new ControllableGate(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
-        service.addGate(gate);
 
         final var started = new AtomicInteger();
         final int count = between(2, 5);
@@ -1138,17 +1139,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 reportedBlockedMillis.set(blockedTimeMillis);
             }
         };
+        final String gateName = randomIdentifier();
+        final var gate = new ControllableGate(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
-            listener
+            listener,
+            () -> List.of(gate)
         );
         service.start();
-
-        final String gateName = randomIdentifier();
-        final var gate = new ControllableGate(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
-        service.addGate(gate);
 
         final var started = new AtomicInteger();
         final int count = between(1, 100);

@@ -9,52 +9,47 @@
 
 package org.elasticsearch.indices.recovery;
 
+import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.ObjLongConsumer;
 
 /// The data node's registered [RecoveryGate]s, combined into one node-wide decision and monitored for transitions.
 ///
 /// Used by [ThrottlingRecoveryService] via [#check]: it aggregates the gates most-restrictive-wins, reports each blocked ↔ may-run
 /// transition through the block/unblock callbacks, and returns the current decision. A gate signals a possible change through the
-/// re-check handler forwarded to it on [#addGate], which re-runs [#check]. Thread-safe.
+/// re-check handler, which may re-run [#check]. Thread-safe.
 final class RecoveryGates {
 
-    private final List<RecoveryGate> gates = new CopyOnWriteArrayList<>();
-
-    /// Forwarded to each gate on [#addGate] as its change handler; invoking it asks the scheduler to re-check.
-    private final Runnable onGateChange;
-    private final BiConsumer<String, String> onBlocked;
-    private final ObjLongConsumer<String> onUnblocked;
-    private final LongSupplier relativeTimeInMillisSupplier;
-
-    /// The decision at the last transition (initially may-run); its `mayRun()` is the current state. Guarded by `this`.
-    private RecoveryGate.Decision lastTransitionDecision = RecoveryGate.Decision.RUN;
-
-    /// Monotonic time (millis) of the last transition, to measure how long the node stayed blocked. Guarded by `this`.
-    private long lastTransitionMillis;
-
-    /// @param onGateChange re-check handler forwarded to each gate as its change handler
-    /// @param onBlocked    invoked with the gate's name and reason when the node starts holding recoveries back
-    /// @param onUnblocked  invoked with the gate's name and how long the node was blocked, when it resumes
-    RecoveryGates(
-        Runnable onGateChange,
-        BiConsumer<String, String> onBlocked,
-        ObjLongConsumer<String> onUnblocked,
-        LongSupplier relativeTimeInMillisSupplier
-    ) {
-        this.onGateChange = onGateChange;
-        this.onBlocked = onBlocked;
-        this.onUnblocked = onUnblocked;
-        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
-        this.lastTransitionMillis = relativeTimeInMillisSupplier.getAsLong();
+    /// Notified when the aggregate decision transitions. `previousStateDurationMillis` is how long the node stayed in `previous`.
+    @FunctionalInterface
+    interface DecisionChangeListener {
+        void onChange(RecoveryGate.Decision previous, RecoveryGate.Decision current, long previousStateDurationMillis);
     }
 
-    void addGate(RecoveryGate gate) {
-        gates.add(gate);
-        gate.setGateChangeHandler(onGateChange);
+    private final List<RecoveryGate> gates;
+    private final DecisionChangeListener onChange;
+    private final LongSupplier relativeTimeInMillisSupplier;
+
+    /// The decision at the last transition (initially RUN); its outcome is the current state. Guarded by `this`.
+    private RecoveryGate.Decision lastTransitionDecision = RecoveryGate.Decision.RUN;
+
+    /// Monotonic time (millis) of the last transition, to measure how long the node stayed in that state. Guarded by `this`.
+    private long lastTransitionMillis;
+
+    /// @param gates        the node's recovery gates, fixed for the lifetime of this instance
+    /// @param onGateChange set on each gate as its change handler; a gate invokes it to ask the scheduler to re-check
+    /// @param onChange     notified when the aggregate decision transitions (blocked ↔ may-run)
+    RecoveryGates(
+        Collection<RecoveryGate> gates,
+        Runnable onGateChange,
+        DecisionChangeListener onChange,
+        LongSupplier relativeTimeInMillisSupplier
+    ) {
+        this.gates = List.copyOf(gates);
+        this.onChange = onChange;
+        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+        this.lastTransitionMillis = relativeTimeInMillisSupplier.getAsLong();
+        this.gates.forEach(gate -> gate.setGateChangeHandler(onGateChange));
     }
 
     // visible for testing
@@ -62,11 +57,12 @@ final class RecoveryGates {
         return gates.isEmpty();
     }
 
-    /// Aggregates the gates, reports any transition via the block/unblock callbacks, and returns the current decision.
+    /// Aggregates the gates and, if the decision transitioned since the last call, reports it to the [DecisionChangeListener], and returns
+    /// the current decision.
     RecoveryGate.Decision check() {
         final RecoveryGate.Decision current;
         final RecoveryGate.Decision previous;
-        final long blockedTimeMillis;
+        final long previousStateDurationMillis;
         synchronized (this) {
             current = evaluate();
             if (current.mayRun() == lastTransitionDecision.mayRun()) {
@@ -74,16 +70,11 @@ final class RecoveryGates {
             }
             previous = lastTransitionDecision;
             final long now = relativeTimeInMillisSupplier.getAsLong();
-            blockedTimeMillis = now - lastTransitionMillis;
+            previousStateDurationMillis = now - lastTransitionMillis;
             lastTransitionDecision = current;
             lastTransitionMillis = now;
         }
-        // Flipped to may-run => just unblocked (previous held the block); else newly blocked.
-        if (current.mayRun()) {
-            onUnblocked.accept(previous.gateName(), blockedTimeMillis);
-        } else {
-            onBlocked.accept(current.gateName(), current.reason());
-        }
+        onChange.onChange(previous, current, previousStateDurationMillis);
         return current;
     }
 
@@ -92,7 +83,6 @@ final class RecoveryGates {
         return lastTransitionDecision.mayRun() ? 0L : relativeTimeInMillisSupplier.getAsLong() - lastTransitionMillis;
     }
 
-    /// The current node-wide decision, most-restrictive-wins: the first non-may-run gate's decision, else [RecoveryGate.Decision#RUN].
     // visible for testing
     RecoveryGate.Decision evaluate() {
         for (RecoveryGate gate : gates) {

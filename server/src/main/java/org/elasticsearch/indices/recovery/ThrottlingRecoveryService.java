@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
@@ -71,7 +73,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final ProjectResolver projectResolver;
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
-    private final RecoveryGates recoveryGates;
+    private final Supplier<Collection<RecoveryGate>> gatesSupplier;
+    private final LongSupplier relativeTimeInMillisSupplier;
+    /// The node's recovery gates, resolved once in [#doStart] from [#gatesSupplier]; volatile (written on start, read by [#fillSlots]).
+    private volatile RecoveryGates recoveryGates;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -82,36 +87,56 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
+    /// Convenience constructor with no recovery gates (every recovery may start as soon as a slot is free).
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         ClusterService clusterService,
         RecoverySchedulingListener schedulingListener
     ) {
+        this(threadPool, projectResolver, clusterService, schedulingListener, () -> List.of());
+    }
+
+    /// @param gatesSupplier resolves the node's recovery gates; called once at [#doStart], so it may depend on components created later
+    ///                      in node construction.
+    public ThrottlingRecoveryService(
+        ThreadPool threadPool,
+        ProjectResolver projectResolver,
+        ClusterService clusterService,
+        RecoverySchedulingListener schedulingListener,
+        Supplier<Collection<RecoveryGate>> gatesSupplier
+    ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.projectResolver = projectResolver;
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
-        this.recoveryGates = new RecoveryGates(this::fillSlots, (gateName, reason) -> {
-            logger.info("recovery dispatch blocked by gate [{}]: {}", gateName, reason);
-            schedulingListener.onRecoveriesBlocked(gateName);
-        }, (gateName, blockedTimeMillis) -> {
-            logger.info("resuming recoveries held for [{}] by gate [{}]", TimeValue.timeValueMillis(blockedTimeMillis), gateName);
-            schedulingListener.onRecoveriesUnblocked(gateName, blockedTimeMillis);
-        }, threadPool::relativeTimeInMillis);
-    }
-
-    /// Registers a recovery gate that can hold recoveries back beyond the concurrency bound. Called at startup.
-    public void addGate(RecoveryGate gate) {
-        recoveryGates.addGate(gate);
+        this.gatesSupplier = gatesSupplier;
+        this.relativeTimeInMillisSupplier = threadPool::relativeTimeInMillis;
     }
 
     @Override
     protected void doStart() {
+        // Resolve the fixed set of gates once, now that plugin-contributed gates exist. fillSlots is the re-check handler a gate invokes
+        // when its decision may have changed; onGatesDecisionChanged reports aggregate transitions to the scheduling listener.
+        recoveryGates = new RecoveryGates(gatesSupplier.get(), this::fillSlots, this::onGatesDecisionChanged, relativeTimeInMillisSupplier);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
+    }
+
+    private void onGatesDecisionChanged(RecoveryGate.Decision previous, RecoveryGate.Decision current, long previousStateDurationMillis) {
+        if (previous.mayRun() == false && current.mayRun()) {
+            logger.info(
+                "resuming recoveries held for [{}] by gate [{}]",
+                TimeValue.timeValueMillis(previousStateDurationMillis),
+                previous.gateName()
+            );
+            schedulingListener.onRecoveriesUnblocked(previous.gateName(), previousStateDurationMillis);
+        } else if (previous.mayRun() && current.mayRun() == false) {
+            logger.info("recovery dispatch blocked by gate [{}]: {}", current.gateName(), current.reason());
+            schedulingListener.onRecoveriesBlocked(current.gateName());
+        }
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
@@ -302,7 +327,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Consults the recovery gates via [RecoveryGates#check] (off this service's lock) and drains the pending queue up to the max slot
     /// capacity. Called on every enqueue, slot release, and gate change.
     private void fillSlots() {
-        final RecoveryGate.Decision decision = recoveryGates.check();
+        final RecoveryGates gates = recoveryGates;
+        if (gates == null) {
+            return; // not started yet; the first post-start dispatch attempt will consult the gates
+        }
+        final RecoveryGate.Decision decision = gates.check();
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (isClosed()) {
@@ -312,7 +341,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 logger.debug(
                     "recovery dispatch still blocked by gate [{}] for [{}]: {}",
                     decision.gateName(),
-                    TimeValue.timeValueMillis(recoveryGates.blockedDurationMillis()),
+                    TimeValue.timeValueMillis(gates.blockedDurationMillis()),
                     decision.reason()
                 );
                 return;

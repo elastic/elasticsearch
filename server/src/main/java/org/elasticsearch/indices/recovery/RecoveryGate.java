@@ -21,28 +21,39 @@ public interface RecoveryGate {
     /// Evaluates whether new recoveries may start now on this node.
     Decision evaluate();
 
-    /// Registers a handler the gate invokes whenever its [#evaluate] decision may have changed, so the scheduler re-checks promptly. A
-    /// gate whose decision depends on an external signal MUST invoke it when that signal changes.
-    /// This handler should never be invoked by [#evaluate].
-    default void setGateChangeHandler(Runnable gateChangeHandler) {}
+    /// Registers a handler the gate must invoke when its [#evaluate] decision may have changed, so the scheduler re-checks promptly (a
+    /// gate whose decision never changes on its own need never invoke it). Must not be invoked from within [#evaluate].
+    void setGateChangeHandler(Runnable gateChangeHandler);
 
     /// The outcome of evaluating a [RecoveryGate].
     ///
-    /// @param mayRun   whether new recoveries may start now; `false` holds back every queued recovery
-    /// @param gateName the gate responsible for a block, empty when `mayRun`; safe as a metric attribute (low cardinality)
-    /// @param reason   human-readable explanation for logging only, empty when `mayRun`; never a metric attribute (high cardinality)
-    record Decision(boolean mayRun, String gateName, String reason) {
+    /// @param outcome  whether new recoveries may all start ([Outcome#RUN]) or are all held back ([Outcome#BLOCK])
+    /// @param gateName the blocking gate; `"ALL"` for a run decision. Safe as a metric attribute (low cardinality)
+    /// @param reason   human-readable explanation, for logging only; never a metric attribute (high cardinality)
+    record Decision(Outcome outcome, String gateName, String reason) {
 
-        /// Shared "may start now" decision (no gate responsible).
-        public static final Decision RUN = new Decision(true, "", "");
+        /// Whether new recoveries may all start ({@code RUN}) or are all held back ({@code BLOCK}).
+        enum Outcome {
+            RUN,
+            BLOCK
+        }
+
+        /// Shared "may start now" decision
+        public static final Decision RUN = new Decision(Outcome.RUN, "ALL", "All gates pass");
+
+        public static Decision block(String gateName, String reason) {
+            return new Decision(Outcome.BLOCK, gateName, reason);
+        }
 
         public Decision {
+            Objects.requireNonNull(outcome, "outcome");
             Objects.requireNonNull(gateName, "gateName");
             Objects.requireNonNull(reason, "reason");
         }
 
-        public static Decision block(String gateName, String reason) {
-            return new Decision(false, gateName, reason);
+        /// Whether new recoveries may start now.
+        public boolean mayRun() {
+            return outcome == Outcome.RUN;
         }
     }
 }

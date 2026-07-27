@@ -103,7 +103,11 @@ public class ChunkedDataExtractor implements DataExtractor {
     private void setUpChunkedSearch() {
         DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end()).getSummary();
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // For ESQL datafeeds the query may transform the time field (e.g. DATE_TRUNC), so the
+            // summary's MIN(??timeField) can be an earlier than the requested window
+            // Clamp so we never rewind currentStart before the window we just queried.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {

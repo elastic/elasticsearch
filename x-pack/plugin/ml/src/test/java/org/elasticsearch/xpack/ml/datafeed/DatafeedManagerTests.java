@@ -512,11 +512,6 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
         doAnswer(invocation -> {
-            ActionListener<GetRollupIndexCapsAction.Response> listener = invocation.getArgument(2);
-            listener.onResponse(new GetRollupIndexCapsAction.Response());
-            return null;
-        }).when(client).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
-        doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
             return null;
@@ -550,7 +545,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(response.get(), notNullValue());
         verify(client, never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
-        verify(client).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+        verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
     }
 
     /**

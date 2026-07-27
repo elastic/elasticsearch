@@ -649,6 +649,22 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
+    public void testExtractionGivenEsqlQueryAndSummaryEarliestTimeBeforeStart() throws IOException {
+        chunkSpan = null;
+        final long start = 3_600_000L;
+        final long end = 7_200_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end));
+
+        InputStream inputStream1 = mock(InputStream.class);
+        stubChunkWithSummary(start, end, new DataSummary(0L, 3_700_000L, 1L), inputStream1);
+
+        assertNextStream(extractor, inputStream1);
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(2)).newExtractor(start, end);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
     public void testExtractionGivenEsqlQueryAndAutoChunkAndTotalTimeRangeSmallerThanChunk() throws IOException {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(1L, 101L));

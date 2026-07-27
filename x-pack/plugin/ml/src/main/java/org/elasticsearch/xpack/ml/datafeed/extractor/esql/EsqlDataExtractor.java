@@ -152,7 +152,10 @@ public class EsqlDataExtractor implements DataExtractor {
         // We add a SORT on the time field to ensure that the data is returned in time order
         String orderedQuery = context.esqlQuery() + " | SORT ??timeField ASC";
 
+        long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter, timeFieldParam())) {
+            long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
+            timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             Optional<InputStream> data = toNdjson(response.response(), context.timeField(), context.requiredSummaryCountField());
             return new Result(searchInterval, data, List.of());
         }
@@ -163,7 +166,8 @@ public class EsqlDataExtractor implements DataExtractor {
             .newRequestBuilder(client)
             .query(orderedQuery)
             .filter(timeFilter)
-            .params(params);
+            .params(params)
+            .allowPartialResults(false);
         if (context.projectRouting() != null) {
             request.projectRouting(context.projectRouting());
         }

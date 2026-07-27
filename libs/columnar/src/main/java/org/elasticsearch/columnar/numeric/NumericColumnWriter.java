@@ -98,6 +98,10 @@ public final class NumericColumnWriter {
             NumericPipeline pipeline = NumericPipeline.defaultPipeline(BLOCK_SIZE);
             NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, BLOCK_SIZE);
             long[] buffer = new long[BLOCK_SIZE];
+            // One reusable encoder closure over the buffer, so no lambda is allocated per block flush;
+            // blockValueCount carries the count of the block currently being written.
+            int[] blockValueCount = new int[1];
+            BlockBytesCodec.BlockEncoder blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
             int inBlock = 0;
             int ordinal = 0;
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
@@ -121,7 +125,8 @@ public final class NumericColumnWriter {
                     buffer[inBlock++] = value;
                     ordinal++;
                     if (inBlock == BLOCK_SIZE) {
-                        blockBytesCodec.write(out -> encoder.encode(buffer, BLOCK_SIZE, out), data);
+                        blockValueCount[0] = BLOCK_SIZE;
+                        blockBytesCodec.write(blockEncoder, data);
                         inBlock = 0;
                     }
                 }
@@ -129,8 +134,8 @@ public final class NumericColumnWriter {
             if (inBlock > 0) {
                 // The final block holds fewer than BLOCK_SIZE values; the encoder is told the real count
                 // and never sees padding, so each stage fits only the real data.
-                final int lastCount = inBlock;
-                blockBytesCodec.write(out -> encoder.encode(buffer, lastCount, out), data);
+                blockValueCount[0] = inBlock;
+                blockBytesCodec.write(blockEncoder, data);
             }
             if (multiValued) {
                 valueAddresses.add(ordinal);

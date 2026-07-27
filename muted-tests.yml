@@ -639,9 +639,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/150769
-- class: org.elasticsearch.indices.ShardLimitValidatorTests
-  method: testValidateShardLimitOpenIndices
-  issue: https://github.com/elastic/elasticsearch/issues/154859
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586

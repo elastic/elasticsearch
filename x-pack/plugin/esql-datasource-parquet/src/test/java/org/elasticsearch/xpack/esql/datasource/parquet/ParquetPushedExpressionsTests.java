@@ -1645,6 +1645,50 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("score"));
     }
 
+    // A DECIMAL(scale>0) column reached via a *declared* long/integer/keyword pushed the literal
+    // against the column's *unscaled* on-disk stats (e.g. `price = 123` against stats stored as
+    // 12300 for scale=2).
+
+    public void testLongEqAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.LONG, 123L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("LONG predicate against INT64+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testLongInAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression inExpr = new In(Source.EMPTY, attr("price", DataType.LONG), List.of(lit(123L, DataType.LONG), lit(456L, DataType.LONG)));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        assertNull("IN over LONG against INT64+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testLongEqAgainstScaleZeroDecimalInt64IsPushed() {
+        // No-regression: DECIMAL(scale=0) is exempt — unscaled equals scaled, so the raw on-disk
+        // value already matches the exposed value and pushdown remains safe.
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(0, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.LONG, 123L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("DECIMAL(scale=0) must still push like a plain integral column", fp);
+        assertThat(fp.toString(), containsString("123"));
+    }
+
+    // Nullability is orthogonal to scale: IS NULL/IS NOT NULL over a LONG DECIMAL(scale>0)
+    // column must still push, unlike the value comparisons above.
+
+    public void testLongIsNullAgainstDecimalInt64IsPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = new IsNull(Source.EMPTY, attr("price", DataType.LONG));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull("IS NULL over LONG against INT64+DECIMAL(scale>0) must still push", fp);
+        assertThat(fp.toString(), containsString("price"));
+    }
+
     // -----------------------------------------------------------------------------------
     // esql-planning#1030: a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
     // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
@@ -1818,6 +1862,49 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         MessageType schema = uint32Schema();
         Expression expr = eq("does_not_exist", DataType.LONG, 100_000L);
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    // A UINT_64 column declared as (signed) LONG reads the raw bit pattern unflipped, but
+    // parquet-mr still orders its stats with an UNSIGNED comparator. All ordered ops must decline
+    // (signed and unsigned ordering disagree for any literal sign); only Eq/NotEq and same-sign
+    // IN sets are safe and unaffected.
+
+    private static MessageType uint64Schema() {
+        return Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u64").named("test");
+    }
+
+    public void testUint64DeclaredLongNegativeLiteralEqualsStillPushes() {
+        // Eq/NotEq only test raw-bit-pattern range membership — valid under either ordering.
+        MessageType schema = uint64Schema();
+        Expression expr = eq("u64", DataType.LONG, -1L);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("eq(u64, -1)"));
+    }
+
+    public void testUint64DeclaredLongInMixedSignIsNotPushed() {
+        // A mixed-sign set straddles the sign-bit boundary and corrupts the combined min/max
+        // reasoning parquet-mr's IN pruning does over the whole set.
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u64", DataType.LONG),
+            List.of(lit(100_000L, DataType.LONG), lit(-1L, DataType.LONG))
+        );
+        assertNull(
+            "a mixed-sign IN set against a declared-LONG uint64 column must not be pushed",
+            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
+        );
+    }
+
+    public void testUint64DeclaredLongInAllNegativeStillPushes() {
+        // All-negative (same-sign) literals don't straddle the boundary, so the combined min/max
+        // is still exact and the IN set can push normally.
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(Source.EMPTY, attr("u64", DataType.LONG), List.of(lit(-1L, DataType.LONG), lit(-2L, DataType.LONG)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("in(u64"));
     }
 
     // -----------------------------------------------------------------------------------

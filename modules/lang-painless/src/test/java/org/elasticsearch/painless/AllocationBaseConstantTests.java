@@ -10,7 +10,7 @@
 package org.elasticsearch.painless;
 
 /**
- * End-to-end tests for the {@code @allocates_constant} sizings on the rarer collection constructors (whose backing arrays are
+ * End-to-end tests for the {@code @allocates} sizings on the rarer collection constructors (whose backing arrays are
  * allocated eagerly in the constructor) and the {@code Collections}/{@code Arrays} factory wrappers (small fixed-size views;
  * {@code emptyList/emptyMap/emptySet} return shared singletons and charge nothing).
  */
@@ -29,7 +29,7 @@ public class AllocationBaseConstantTests extends AllocationTestCase {
     }
 
     public void testSingletonListFactoryCharged() {
-        // Confirms a static factory method's @allocates_constant fires; a String arg avoids boxing noise.
+        // Confirms a static factory method's @allocates fires; a String arg avoids boxing noise.
         assertEquals(24L, allocatedBytes("Collections.singletonList(\"a\"); return \"x\";"));
     }
 

@@ -236,7 +236,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
         ReleasableBytesReference wireBytes = null;
         try {
             chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(originalHit), 1, 1, 0L);
-            long expectedBytes = chunk.getBytesLength();
+            long expectedBytes = originalHit.ramBytesUsed();
             wireBytes = chunk.toReleasableBytesReference(coordinatingTaskId);
 
             PlainActionFuture<ActionResponse.Empty> future = sendChunk(wireBytes);

@@ -147,6 +147,34 @@ emp_no:integer | first_name:keyword
 10003          | Parto
 ;
 
+// A regular FROM over the downsampled k8s time series index in the outer query,
+// with a TS command over the raw k8s time series index in the subquery. The
+// subquery uses time-series aggregation to pick the clusters whose peak ingest
+// exceeds a threshold; the outer query then reports the downsampled buckets for
+// those clusters.
+mainFromTsIndexInSubqueryTs
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+// tag::in_subquery_with_ts[]
+FROM k8s-downsampled
+| WHERE cluster IN (TS k8s
+                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                    | WHERE max_bytes > 10000
+                    | KEEP cluster)
+| STATS buckets = COUNT(*) BY cluster
+| SORT cluster
+// end::in_subquery_with_ts[]
+;
+
+// tag::in_subquery_with_ts-result[]
+buckets:long | cluster:keyword
+9            | prod
+9            | qa
+// end::in_subquery_with_ts-result[]
+;
+
 mainFromNotInSubqueryTsWithRate
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
@@ -476,6 +504,41 @@ cnt:long
 100
 ;
 
+// A subquery that unions three different source commands: a ROW literal, a regular
+// FROM branch, and a TS branch. Each branch contributes one cluster to the matched
+// set (staging from ROW, prod from FROM, qa from TS), so the outer query keeps all
+// three clusters.
+mainFromInSubqueryWithMixedRowFromTsForDocs
+skip_flattened_rewrite: row_branch_in_from_union_inflates_recovery_scope
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+// tag::in_subquery_with_mixed_sources[]
+FROM k8s-downsampled
+| WHERE cluster IN (FROM
+                       (ROW cluster = "staging"),
+                       (FROM employees | WHERE emp_no == 10001 | EVAL cluster = "prod" | KEEP cluster),
+                       (TS k8s
+                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                        | WHERE max_bytes > 10500
+                        | KEEP cluster)
+                   )
+| STATS buckets = COUNT(*) BY cluster
+| SORT cluster
+// end::in_subquery_with_mixed_sources[]
+;
+
+// tag::in_subquery_with_mixed_sources-result[]
+buckets:long | cluster:keyword
+9            | prod
+9            | qa
+9            | staging
+// end::in_subquery_with_mixed_sources-result[]
+;
+
 // main query ts command, subquery ts command
 
 mainTsInSubqueryTs
@@ -483,6 +546,7 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 
+// tag::ts_source_with_in_subquery[]
 TS k8s
 | WHERE cluster IN (TS k8s
                     | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
@@ -490,11 +554,14 @@ TS k8s
                     | KEEP cluster)
 | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
 | SORT cluster
+// end::ts_source_with_in_subquery[]
 ;
 
+// tag::ts_source_with_in_subquery-result[]
 max_bytes:long | cluster:keyword
 10277          | prod
 10797          | qa
+// end::ts_source_with_in_subquery-result[]
 ;
 
 mainTsNotInSubqueryTs

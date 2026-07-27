@@ -20,6 +20,7 @@ import org.junit.Before;
 import java.time.Instant;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPlaintextPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -211,12 +212,14 @@ public class TransformContextTests extends ESTestCase {
 
     public void testCloseClearsActive() {
         var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
-        var active = randomPersistedCloudCredential();
+        var active = randomPlaintextPersistedCloudCredential();
         context.replacePersistedCredential(active);
 
         context.close();
 
         assertThat(context.getPersistedCloudCredential(), is(nullValue()));
+        // SecureString was closed; subsequent length() throws
+        expectThrows(IllegalStateException.class, () -> active.internalApiKey().length());
     }
 
     public void testReplacePersistedCredentialIsAtomicUnderContention() throws Exception {

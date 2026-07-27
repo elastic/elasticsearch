@@ -73,7 +73,7 @@ public final class TransformInternalIndex {
      * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
      * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      * version 8 (9.5):add mapping for cloud_credential::persisted_credential (version, id, value)
-     * version 9 (9.5):add mapping for cloud_credential::persisted_credential::encrypted (v2 envelope)
+     * version 9 (9.6):add mapping for cloud_credential::persisted_credential::encrypted (v2 envelope)
      */
 
     /**

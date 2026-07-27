@@ -329,7 +329,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }

@@ -126,20 +126,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static final FieldMapper.DocValuesParameter.Values DEFAULT_STANDARD_DOC_VALUES_PARAMS =
-        new FieldMapper.DocValuesParameter.Values(
-            false,
-            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-            true,
-            true,
-            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
-        );
-
     private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
         // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that mode.
         return indexMode.isStrictColumnar()
             ? FieldMapper.DocValuesParameter.Values.ENABLED_HIGH_CARDINALITY
-            : DEFAULT_STANDARD_DOC_VALUES_PARAMS;
+            : DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
     }
 
     public static class Defaults {

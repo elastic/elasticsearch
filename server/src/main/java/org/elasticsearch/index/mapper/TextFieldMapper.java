@@ -263,17 +263,9 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    private static final DocValuesParameter.Values DEFAULT_STANDARD_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        false,
-        DocValuesParameter.Values.Cardinality.HIGH,
-        true,
-        true,
-        DocValuesParameter.Values.OnFailure.FAIL
-    );
-
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return DEFAULT_STANDARD_DOC_VALUES_PARAMS;
+            return DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
         }
 
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.

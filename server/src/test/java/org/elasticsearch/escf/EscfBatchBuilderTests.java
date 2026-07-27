@@ -41,6 +41,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
             row.stringField("s", utf8("hello"));
             row.booleanField("b", true);
             row.booleanField("f", false);
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(1, batch.docCount());
@@ -57,6 +58,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
             row.longField("age", 30L);
             row.endObject();
             row.stringField("status", utf8("active"));
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(asMap("{\"user\":{\"name\":\"alice\",\"age\":30},\"status\":\"active\"}"), reconstruct(batch, 0));
@@ -69,6 +71,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
             EscfRowBuffer row = builder.beginRow();
             row.emptyObject("empty");
             row.longField("x", 1L);
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(asMap("{\"empty\":{},\"x\":1}"), reconstruct(batch, 0));
@@ -82,6 +85,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
         try (EscfBatchBuilder builder = newBuilder()) {
             EscfRowBuffer row = builder.beginRow();
             row.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(asMap("{\"vals\":[1,2,3,4]}"), reconstruct(batch, 0));
@@ -98,6 +102,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
         try (EscfBatchBuilder builder = newBuilder()) {
             EscfRowBuffer row = builder.beginRow();
             row.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(asMap("{\"vals\":[1.5,2.5,-3.25]}"), reconstruct(batch, 0));
@@ -111,11 +116,13 @@ public class EscfBatchBuilderTests extends ESTestCase {
             EscfRowBuffer row = builder.beginRow();
             row.longField("a", 1L);
             row.stringField("b", utf8("hello"));
+            row.finishRow();
             builder.commit(0);
 
             // Row 1: only "a" present; "b" must be absent (not null) in the batch
             row = builder.beginRow();
             row.longField("a", 2L);
+            row.finishRow();
             builder.commit(0);
 
             try (EscfBatch batch = builder.buildPartition(0)) {
@@ -130,14 +137,17 @@ public class EscfBatchBuilderTests extends ESTestCase {
         try (EscfBatchBuilder builder = newBuilder()) {
             EscfRowBuffer row = builder.beginRow();
             row.longField("x", 10L);
+            row.finishRow();
             builder.commit(0);
 
             row = builder.beginRow();
             row.longField("x", 20L);
+            row.finishRow();
             builder.commit(1);
 
             row = builder.beginRow();
             row.longField("x", 30L);
+            row.finishRow();
             builder.commit(0);
 
             assertEquals(2, builder.docCount(0));
@@ -160,6 +170,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
             EscfRowBuffer row = builder.beginRow();
             row.nullField("a");
             row.longField("b", 5L);
+            row.finishRow();
             builder.commit(0);
             try (EscfBatch batch = builder.buildPartition(0)) {
                 assertEquals(asMap("{\"a\":null,\"b\":5}"), reconstruct(batch, 0));

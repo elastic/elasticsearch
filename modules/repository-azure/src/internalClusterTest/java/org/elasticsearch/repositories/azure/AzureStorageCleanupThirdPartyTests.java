@@ -257,7 +257,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                         }
                         assert channel.position() == offset;
                         return new BufferedInputStream(limitStream(Channels.newInputStream(channel), length));
-                    }, false);
+                    }, false, Runnable::run);
                 }
 
                 long bytesCount = 0L;

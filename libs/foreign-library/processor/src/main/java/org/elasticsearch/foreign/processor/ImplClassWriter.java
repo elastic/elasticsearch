@@ -55,7 +55,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAu
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
-import static org.elasticsearch.foreign.processor.model.LibraryModel.RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.MH_RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.SYMBOL_RESOLVER_INTERFACE_FQN;
 
 /**
  * Generates {@code <InterfaceName>$Impl} class files for {@code @LibrarySpecification}-annotated interfaces,
@@ -83,6 +84,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_AssertionError = ClassDesc.of("java.lang.AssertionError");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_Linker = ClassDesc.of("java.lang.foreign.Linker");
+    private static final ClassDesc CD_ResolvedSymbol = ClassDesc.of("org.elasticsearch.foreign.ResolvedSymbol");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
@@ -105,15 +107,16 @@ class ImplClassWriter {
         CD_MemoryLayout,
         CD_MemoryLayoutArray
     );
-    private static final MethodTypeDesc MTD_downcallHandle_byAddress = MethodTypeDesc.of(
-        CD_MethodHandle,
-        CD_MemorySegment,
-        CD_FunctionDescriptor,
-        CD_LinkerOptionArray
-    );
     private static final MethodTypeDesc MTD_nativeLinker = MethodTypeDesc.of(CD_Linker);
     private static final MethodTypeDesc MTD_defaultLookup = MethodTypeDesc.of(CD_SymbolLookup);
-    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_MemorySegment, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_ResolvedSymbol, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_mhResolve = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_ResolvedSymbol,
+        CD_FunctionDescriptor,
+        CD_Linker,
+        CD_LinkerOptionArray
+    );
     private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
         CD_MethodHandle,
         CD_Lookup,
@@ -121,6 +124,7 @@ class ImplClassWriter {
         CD_Class,
         CD_String
     );
+    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
@@ -155,6 +159,9 @@ class ImplClassWriter {
 
         // Collect only non-struct-factory methods (methods with @Function)
         List<MethodModel> functionMethods = nativeMethods.stream().filter(m -> m.isStructFactory() == false).toList();
+
+        // Prefix used to build struct interface class descriptors (e.g. "pkg.LibName$StructName")
+        String libraryPrefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
 
         // Disambiguate MethodHandle field names: single-name groups keep <name>$mh;
         // collision groups (same Java method name) use <name>$0$mh, <name>$1$mh, etc.
@@ -193,7 +200,14 @@ class ImplClassWriter {
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
-                    emitMhFieldInit(clinit, generatedDesc, nm, model.symbolResolverClassName(), fieldNames.get(nm));
+                    emitMhFieldInit(
+                        clinit,
+                        generatedDesc,
+                        nm,
+                        model.symbolResolverClassName(),
+                        model.methodHandleResolverClassName(),
+                        fieldNames.get(nm)
+                    );
                 }
                 clinit.return_();
             });
@@ -207,13 +221,13 @@ class ImplClassWriter {
 
             // @Function method implementations
             for (var nm : functionMethods) {
-                emitNativeFunctionMethod(cb, generatedDesc, nm, fieldNames.get(nm));
+                emitNativeFunctionMethod(cb, generatedDesc, nm, fieldNames.get(nm), libraryPrefix);
             }
 
             // @StructFactory method implementations
             for (var nm : nativeMethods) {
                 if (nm.isStructFactory()) {
-                    emitStructFactoryMethod(cb, model, nm);
+                    emitStructFactoryMethod(cb, model, nm, libraryPrefix);
                 }
             }
         });
@@ -280,14 +294,15 @@ class ImplClassWriter {
     }
 
     /**
-     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and stores
-     * the resulting {@code MethodHandle} in the static field identified by {@code fieldName}.
-     * Handles {@code @CaptureErrno}, {@code @Variadic}, and {@code @Critical} options.
+     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and
+     * {@link org.elasticsearch.foreign.MethodHandleResolver}, then stores the resulting
+     * {@code MethodHandle} in the static field identified by {@code fieldName}. Handles {@code @CaptureErrno},
+     * {@code @Variadic}, and {@code @Critical} options.
      *
      * <p>The generated bytecode is equivalent to:
      * <pre>{@code
-     * MemorySegment addr = resolver.resolve(symbolName, LinkerHelper.defaultLookup());
-     * <fieldName> = Linker.nativeLinker().downcallHandle(addr, descriptor, options);
+     * ResolvedSymbol sym = new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup());
+     * foo$mh = new MethodHandleResolver().resolve(sym, descriptor, Linker.nativeLinker(), options);
      * }</pre>
      */
     private static void emitMhFieldInit(
@@ -295,9 +310,13 @@ class ImplClassWriter {
         ClassDesc generatedDesc,
         MethodModel nm,
         String symbolResolverClassName,
+        String methodHandleResolverClassName,
         String fieldName
     ) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
+        // For @Critical methods with no fallback adapter (using the Critical.UnsupportedFallback sentinel)
+        // we need to call LinkerAdapter.unsupportedFallback()
+        boolean isUnsupportedFallback = nm.isCritical() && hasFallbackAdapter == false;
 
         // For @Critical methods with a fallback adapter we need to call
         // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
@@ -306,27 +325,40 @@ class ImplClassWriter {
             cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
         }
 
-        // Linker.nativeLinker() -> linker
-        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+        // new MethodHandleResolver() -> mhResolver
+        ClassDesc mhResolverDesc = ClassDesc.of(methodHandleResolverClassName);
+        cb.new_(mhResolverDesc);
+        cb.dup();
+        cb.invokespecial(mhResolverDesc, "<init>", MethodTypeDesc.of(CD_void));
 
-        // resolver.resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
+        // new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
         ClassDesc resolverDesc = ClassDesc.of(symbolResolverClassName);
         cb.new_(resolverDesc);
         cb.dup();
         cb.invokespecial(resolverDesc, "<init>", MethodTypeDesc.of(CD_void));
         cb.ldc(nm.cSymbol());
         cb.invokestatic(CD_LinkerHelper, "defaultLookup", MTD_defaultLookup);
-        cb.invokeinterface(ClassDesc.of(RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
+        cb.invokeinterface(ClassDesc.of(SYMBOL_RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
 
-        // linker.downcallHandle(resolvedSymbol, descriptor, options)
+        // descriptor
         emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
+
+        // Linker.nativeLinker()
+        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+
+        // options
         emitLinkerOptions(cb, nm);
-        cb.invokeinterface(CD_Linker, "downcallHandle", MTD_downcallHandle_byAddress);
+
+        // mhResolver.resolve(resolvedSymbol, descriptor, linker, options) -> MethodHandle
+        cb.invokeinterface(ClassDesc.of(MH_RESOLVER_INTERFACE_FQN), "resolve", MTD_mhResolve);
 
         if (hasFallbackAdapter) {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
             cb.ldc(nm.methodName());
             cb.invokestatic(CD_LinkerAdapter, "adaptCritical", MTD_adaptCritical);
+        } else if (isUnsupportedFallback) {
+            cb.ldc(nm.methodName());
+            cb.invokestatic(CD_LinkerAdapter, "unsupportedFallback", MTD_unsupportedFallback);
         }
 
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
@@ -406,9 +438,15 @@ class ImplClassWriter {
     // Method body generation
     // -------------------------------------------------------------------------
 
-    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
+    private static void emitNativeFunctionMethod(
+        ClassBuilder cb,
+        ClassDesc generatedDesc,
+        MethodModel nm,
+        String fieldName,
+        String libraryPrefix
+    ) {
         int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), accessFlag, code -> {
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), accessFlag, code -> {
             emitBoundsChecks(code, generatedDesc, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
@@ -749,7 +787,11 @@ class ImplClassWriter {
             case DOUBLE -> cb.dload(slot);
             case ADDRESS -> cb.aload(slot);
             case ADDRESSABLE -> {
-                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address()
+                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address().
+                // Cast to Addressable first so the JVM verifier accepts the invokeinterface regardless
+                // of whether the static param type is Addressable or a struct interface that may not
+                // declare extends Addressable. The runtime type is always the generated $Impl, which
+                // implements Addressable, so the cast never fails.
                 var notNull = cb.newLabel();
                 var end = cb.newLabel();
                 cb.aload(slot);
@@ -758,6 +800,7 @@ class ImplClassWriter {
                 cb.goto_(end);
                 cb.labelBinding(notNull);
                 cb.aload(slot);
+                cb.checkcast(CD_Addressable);
                 cb.invokeinterface(CD_Addressable, "segment", MethodTypeDesc.of(CD_MemorySegment));
                 cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
                 cb.labelBinding(end);
@@ -810,11 +853,17 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     /**
-     * Generates the body for a {@code @StructFactory} method. The factory allocates a native
-     * struct instance and populates its {@code @ArrayField} pointer + length field from the
-     * supplied element array.
+     * Generates the body for a {@code @StructFactory} method. For simple factories (no
+     * {@code @ArrayField}), emits {@code new StructName$Impl()}. For array-backed factories,
+     * allocates a native struct instance and populates its {@code @ArrayField} pointer + length
+     * field from the supplied element array.
      */
-    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm) {
+    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm, String libraryPrefix) {
+        if (nm.packedElementSimpleName() == null) {
+            emitSimpleStructFactoryMethod(cb, nm, libraryPrefix);
+            return;
+        }
+
         // Resolve the target struct and its array field from the model
         StructModel targetStruct = model.structs()
             .stream()
@@ -833,7 +882,7 @@ class ImplClassWriter {
         }).findFirst().orElseThrow(() -> new AssertionError("Missing length field " + arrayField.lengthFieldName())).type();
 
         // Class descriptors for the generated struct types
-        String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
+        String prefix = libraryPrefix;
         ClassDesc structImplDesc = ClassDesc.of(prefix + "$" + nm.structReturnSimpleName() + "$Impl");
         ClassDesc packDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName() + "$Pack");
         ClassDesc elementRecordDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName());
@@ -919,17 +968,45 @@ class ImplClassWriter {
         });
     }
 
+    /**
+     * Generates the body for a simple {@code @StructFactory} method (no {@code @ArrayField}).
+     * Emits {@code return new StructName$Impl()}.
+     */
+    private static void emitSimpleStructFactoryMethod(ClassBuilder cb, MethodModel nm, String libraryPrefix) {
+        ClassDesc structImplDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName() + "$Impl");
+        ClassDesc structInterfaceDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName());
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc);
+
+        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.new_(structImplDesc);
+            code.dup();
+            code.invokespecial(structImplDesc, "<init>", MethodTypeDesc.of(CD_void));
+            code.areturn();
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Descriptor helpers
     // -------------------------------------------------------------------------
 
     /** Builds the Java-facing method descriptor, using Java types for all parameters and the return type. */
-    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm) {
+    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm, String libraryPrefix) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        List<String> paramStructNames = nm.paramStructSimpleNames();
         List<ClassDesc> paramDescs = new ArrayList<>();
-        for (var paramType : nm.paramTypes()) {
-            paramDescs.add(javaClassDesc(paramType));
+        for (int i = 0; i < paramTypes.size(); i++) {
+            paramDescs.add(javaClassDescForParam(paramTypes.get(i), paramStructNames.get(i), libraryPrefix));
         }
         return MethodTypeDesc.of(javaClassDesc(nm.returnType()), paramDescs);
+    }
+
+    private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
+        if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
+            // Param is a struct interface that may not extend Addressable; use the struct interface type
+            // in the Java method descriptor so callers can pass the struct directly.
+            return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
+        }
+        return javaClassDesc(paramType);
     }
 
     /**

@@ -41,6 +41,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.tasks.Task;
@@ -84,6 +86,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -1110,6 +1113,23 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             containsInAnyOrder("test-index-one@template", "test-index-two@template")
         );
         assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    public void testTemporalitySettingRequiresClusterFeature() {
+        Predicate<Template> filter = IndexTemplateRegistry.NODE_FEATURE_FILTERS.get(MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT);
+        assertThat(filter, notNullValue());
+        assertThat(
+            filter.test(
+                new Template(
+                    Settings.builder().put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality").build(),
+                    null,
+                    null
+                )
+            ),
+            equalTo(true)
+        );
+        assertThat(filter.test(new Template(Settings.EMPTY, null, null)), equalTo(false));
+        assertThat(filter.test(null), equalTo(false));
     }
 
     public void testFeatureAbsentFiltersMatchingComponentTemplate() {

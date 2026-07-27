@@ -16,6 +16,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
@@ -97,6 +98,9 @@ public class InteractiveFixtureManual extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         // Disable ML to avoid native code loading issues in some environments
         .setting("xpack.ml.enabled", "false")
+        // ES|QL federation (external data sources / datasets) is off by default; opt in for interactive EXTERNAL /
+        // data-source use against this fixture cluster.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         // S3 client configuration for accessing the S3HttpFixture
         .setting("s3.client.default.endpoint", () -> s3Fixture.getAddress())
         // S3 credentials must be stored in keystore, not as regular settings

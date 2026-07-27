@@ -51,9 +51,12 @@ public class Clusters {
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
             // ES|QL federation (external data sources / datasets) is off by default; this shared cluster backs
-            // DataSourceCrudRestIT and other suites that register data sources/datasets, so opt in here. The
-            // dedicated kill-switch ITs override this per-cluster to exercise the disabled state.
-            .systemProperty(Federation.REGISTER_PROPERTY, "true")
+            // DataSourceCrudRestIT and other suites that register data sources/datasets, so opt in here. Uses the
+            // supplier form (a provider), not the plain-value form, so FederationKillSwitchRestartRestIT's later
+            // per-cluster provider can still win on restart: resolveSystemProperties() applies plain-value entries
+            // after providers, so a plain value here would unconditionally override that test's "false".
+            // FederationDisabledRestIT still wins with a plain "false" via its config provider.
+            .systemProperty(Federation.REGISTER_PROPERTY, () -> "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))

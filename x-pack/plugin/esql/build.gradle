@@ -165,6 +165,10 @@ tasks.named("test").configure {
   // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
   // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
   systemProperty 'arrow.memory.debug.allocator', 'true'
+  // ES|QL federation (external data sources / datasets) is off by default; opt in here so unit tests that
+  // exercise LocalExecutionPlanner.planExternalSource (and other federation-gated paths) do not hit the
+  // kill switch. Mirrors the same property on internalClusterTest.
+  systemProperty 'es.esql.register_federation_feature', 'true'
 }
 
 

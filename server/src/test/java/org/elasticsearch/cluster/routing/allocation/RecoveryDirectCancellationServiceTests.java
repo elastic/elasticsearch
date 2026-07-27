@@ -185,7 +185,14 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
         final var startedPrimary = allocation.routingNodes().node("node-0").getByShardId(shardId);
         allocation.routingNodes()
-            .relocateShard(startedPrimary, "node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, "test-setup", allocation.changes());
+            .relocateShard(
+                startedPrimary,
+                "node-1",
+                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                "test-setup",
+                allocation.changes(),
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
 
         final var requests = RecoveryDirectCancellationService.computeDirectCancellationCandidates(balance, allocation);
 

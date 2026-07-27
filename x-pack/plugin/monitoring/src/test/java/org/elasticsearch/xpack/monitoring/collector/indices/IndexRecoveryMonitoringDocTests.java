@@ -114,7 +114,8 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         ).initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();

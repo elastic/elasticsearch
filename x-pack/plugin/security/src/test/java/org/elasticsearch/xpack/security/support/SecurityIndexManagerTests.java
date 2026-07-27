@@ -190,7 +190,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         clusterStateBuilder.routingTable(
@@ -225,14 +226,16 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         ShardRouting replica = ShardRouting.newUnassigned(
             shardId,
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         String nodeId2 = ESTestCase.randomAlphaOfLength(8);
@@ -423,7 +426,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                     true,
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                     .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
@@ -1036,7 +1040,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         final String nodeId = ESTestCase.randomAlphaOfLength(8);
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(cs)

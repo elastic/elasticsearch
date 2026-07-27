@@ -179,7 +179,11 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // start a relocation
-        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong());
+        shardRouting = shardRouting.relocate(
+            randomIdentifier(),
+            randomNonNegativeLong(),
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
@@ -479,7 +483,8 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             primary,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, randomIdentifier()),
-            role
+            role,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

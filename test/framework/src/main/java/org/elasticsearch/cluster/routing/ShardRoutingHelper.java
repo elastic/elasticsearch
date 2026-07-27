@@ -16,12 +16,19 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
  */
 public class ShardRoutingHelper {
 
+    /// Shorthand for [#relocate(ShardRouting, String, long, ShardRouting.RecoveryPriority)] using a shard size of
+    /// [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE] and a recovery priority of [ShardRouting.RecoveryPriority#RELOCATE_REBALANCING].
     public static ShardRouting relocate(ShardRouting routing, String nodeId) {
-        return relocate(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        return routing.relocate(nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
     }
 
-    public static ShardRouting relocate(ShardRouting routing, String nodeId, long expectedByteSize) {
-        return routing.relocate(nodeId, expectedByteSize);
+    public static ShardRouting relocate(
+        ShardRouting routing,
+        String nodeId,
+        long expectedByteSize,
+        ShardRouting.RecoveryPriority recoveryPriority
+    ) {
+        return routing.relocate(nodeId, expectedByteSize, recoveryPriority);
     }
 
     public static ShardRouting moveToStarted(ShardRouting routing) {

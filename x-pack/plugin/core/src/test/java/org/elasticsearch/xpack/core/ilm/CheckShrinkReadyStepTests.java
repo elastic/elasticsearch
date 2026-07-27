@@ -198,7 +198,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             primaryOnNode1,
             ShardRoutingState.STARTED
         );
-        shardOnNode1 = shardOnNode1.relocate("node3", 230);
+        shardOnNode1 = shardOnNode1.relocate("node3", 230, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(shardOnNode1)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false, ShardRoutingState.STARTED));

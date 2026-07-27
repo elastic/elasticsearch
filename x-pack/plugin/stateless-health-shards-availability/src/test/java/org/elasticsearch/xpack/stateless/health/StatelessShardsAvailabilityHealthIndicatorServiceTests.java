@@ -288,14 +288,16 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             true,
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
             unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         var targetShardReplica = newUnassigned(
             targetShardId,
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         if (randomBoolean()) {
             targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
@@ -464,7 +466,14 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             ? (unassignedInfo != null ? recoverySourceFrom(unassignedInfo) : RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             : RecoverySource.PeerRecoverySource.INSTANCE;
 
-        var routing = newUnassigned(shardId, primary, recoverySource, info, ShardRouting.Role.DEFAULT);
+        var routing = newUnassigned(
+            shardId,
+            primary,
+            recoverySource,
+            info,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW // may not correspond to the reason in unassignedInfo, but that shouldn't matter
+        );
         if (state == ShardRoutingState.UNASSIGNED) {
             return routing;
         }

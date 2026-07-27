@@ -262,7 +262,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 
@@ -386,7 +387,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 
@@ -517,7 +519,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 

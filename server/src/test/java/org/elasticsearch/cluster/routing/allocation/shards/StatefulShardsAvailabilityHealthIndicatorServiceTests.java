@@ -2827,7 +2827,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             primary,
             getSource(primary, allocation.state),
             initialUnassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         if (allocation.state == CREATING) {
             return routing;

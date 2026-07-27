@@ -111,7 +111,8 @@ public class MlIndexRolloverTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
         );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         var routingTable = RoutingTable.builder()

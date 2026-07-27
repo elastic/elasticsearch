@@ -854,7 +854,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW
                 ),
                 firstNode.getId()
             )
@@ -867,7 +868,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
             ),
             thirdNode.getId()
         );
@@ -896,7 +898,15 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 if (relocated.compareAndSet(false, true)) {
                     logger.info("--> relocating shard [{}]", shardId0);
                     final ShardRouting shardRouting = allocation.routingTable(ProjectId.DEFAULT).shardRoutingTable(shardId0).primaryShard();
-                    allocation.routingNodes().relocateShard(shardRouting, secondNode.getId(), 100, "test", allocation.changes());
+                    allocation.routingNodes()
+                        .relocateShard(
+                            shardRouting,
+                            secondNode.getId(),
+                            100,
+                            "test",
+                            allocation.changes(),
+                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        );
                 }
             }
 

@@ -299,7 +299,8 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                    ShardRouting.Role.INDEX_ONLY
+                    ShardRouting.Role.INDEX_ONLY,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW
                 ),
                 nodeId
             )

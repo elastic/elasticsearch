@@ -239,12 +239,12 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
         assertFalse(initializingShard1.isRelocationTarget());
         ShardRouting startedShard1 = initializingShard1.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertFalse(startedShard1.isRelocationTarget());
-        ShardRouting sourceShard0a = startedShard0.relocate("node2", -1);
+        ShardRouting sourceShard0a = startedShard0.relocate("node2", -1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         assertFalse(sourceShard0a.isRelocationTarget());
         ShardRouting targetShard0a = sourceShard0a.getTargetRelocatingShard();
         assertTrue(targetShard0a.isRelocationTarget());
-        ShardRouting sourceShard0b = startedShard0.relocate("node2", -1);
-        ShardRouting sourceShard1 = startedShard1.relocate("node2", -1);
+        ShardRouting sourceShard0b = startedShard0.relocate("node2", -1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        ShardRouting sourceShard1 = startedShard1.relocate("node2", -1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
 
         // test true scenarios
         assertTrue(targetShard0a.isRelocationTargetOf(sourceShard0a));
@@ -481,7 +481,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             if (routing.unassigned()) {
                 routing = ShardRoutingHelper.initialize(routing, "foo", byteSize);
             } else if (routing.started()) {
-                routing = ShardRoutingHelper.relocate(routing, "foo", byteSize);
+                routing = ShardRoutingHelper.relocate(routing, "foo", byteSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
             } else {
                 byteSize = -1;
             }

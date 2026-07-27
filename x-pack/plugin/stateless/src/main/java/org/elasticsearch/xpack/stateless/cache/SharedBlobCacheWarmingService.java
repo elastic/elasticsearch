@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -123,7 +124,9 @@ public class SharedBlobCacheWarmingService {
         "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
+    public static final String BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC = "es.blob_cache_warming.blobs_warmed.total";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
+    public static final String WARMING_RATIO_BUCKET_ATTRIBUTE_KEY = "es_warming_ratio";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -376,6 +379,7 @@ public class SharedBlobCacheWarmingService {
     private final DoubleHistogram searchRecoveryWarmDurationMetric;
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final DoubleHistogram warmingDurationMetric;
+    private final LongCounter blobsWarmedMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
@@ -449,6 +453,13 @@ public class SharedBlobCacheWarmingService {
                 BLOB_CACHE_WARMING_DURATION_METRIC,
                 "Time taken for a blob cache warming operation to complete, broken down by [" + WARMING_TYPE_ATTRIBUTE_KEY + "]",
                 "s"
+            );
+        this.blobsWarmedMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC,
+                "Total number of blobs warmed in cache, " +
+                    "broken down by their warming ratios (one decimal), see [" + WARMING_RATIO_BUCKET_ATTRIBUTE_KEY + "]",
+                "unit"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -1151,6 +1162,7 @@ public class SharedBlobCacheWarmingService {
                         indexShard,
                         targetToWarm.getKey(),
                         ByteRange.of(0, target.endOffset()),
+                        target.blobSize(),
                         target.timestampMillis(),
                         directory,
                         listeners.acquire()
@@ -1165,6 +1177,7 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         BlobFile blobFile,
         ByteRange byteRangeToWarm,
+        long blobSize,
         long timestampMillis,
         BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
@@ -1180,6 +1193,7 @@ public class SharedBlobCacheWarmingService {
                     warmingRun,
                     blobFile,
                     byteRangeToWarm,
+                    blobSize,
                     timestampMillis,
                     store::isClosing,
                     directory,
@@ -1518,12 +1532,14 @@ public class SharedBlobCacheWarmingService {
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
         private final BlobFile blobFile;
         private final ByteRange byteRangeToWarm;
+        private final long blobSize;
         private final long timestampMillis;
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
             BlobFile blobFile,
             ByteRange byteRangeToWarm,
+            long blobSize,
             long timestampMillis,
             Supplier<Boolean> isStoreClosing,
             BlobStoreCacheDirectory directory,
@@ -1532,6 +1548,7 @@ public class SharedBlobCacheWarmingService {
             super(warmingRun, isStoreClosing, directory, listener);
             this.blobFile = blobFile;
             this.byteRangeToWarm = byteRangeToWarm;
+            this.blobSize = blobSize;
             this.timestampMillis = timestampMillis;
         }
 
@@ -1542,6 +1559,10 @@ public class SharedBlobCacheWarmingService {
         @Override
         protected void onWarmingSuccess(long duration) {
             warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
+            blobsWarmedMetric.incrementBy(
+                1,
+                Map.of(WARMING_RATIO_BUCKET_ATTRIBUTE_KEY, warmingRatioLabel(byteRangeToWarm.length(), blobSize))
+            );
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
@@ -1554,6 +1575,16 @@ public class SharedBlobCacheWarmingService {
                 totalBytesCopied.get()
             );
         }
+    }
+
+    /**
+     * Returns the warming ratio label , e.g. "0.0" for 0%-9%, "0.1" for 10–19%, "0.2" for 20–29%, …, "1.0" for 100%.
+     * The label is the floor of the ratio to one decimal place.
+     */
+    static String warmingRatioLabel(long warmedBytes, long blobSize) {
+        double ratio = (double) warmedBytes / blobSize;
+        double bucket = Math.floor(ratio * 10) / 10.0;
+        return String.format(Locale.ROOT, "%.1f", bucket);
     }
 
     /**

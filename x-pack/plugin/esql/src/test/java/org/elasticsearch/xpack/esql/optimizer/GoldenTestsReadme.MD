@@ -120,7 +120,8 @@ on each affected test's builder chain so its version coverage is visible beside 
 
 `AnalyzerUnmappedGoldenTests` uses `load(...)` and `nullify(...)` helpers that return a builder
 configured with the analysis stage, setting prefix, and existing mode-specific resource directory.
-Version coverage remains on the applicable chain in the test method:
+When both modes use the same query and configuration, `runInBothModes(query)` avoids repeating the
+pipeline. When their version coverage differs, keep it on the applicable chain in the test method:
 
 ```java
 public void testMultiTypeField() {
@@ -135,7 +136,7 @@ public void testMultiTypeField() {
 }
 ```
 
-Both chains share one test identity. Some scenarios intentionally run only one mode.
+Both modes share one test identity. Some scenarios intentionally run only one mode.
 
 ### Two runs per suite
 

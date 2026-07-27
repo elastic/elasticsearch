@@ -30,6 +30,12 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
         return builder("SET unmapped_fields=\"load\"; " + query).nestedPath(ArrayUtils.prepend("load", variants));
     }
 
+    /** Runs the same query in both unmapped-field modes. */
+    protected void runInBothModes(String query, String... variants) {
+        nullify(query, variants).run();
+        load(query, variants).run();
+    }
+
     @Override
     protected TestBuilder builder(String query) {
         return super.builder(query).stages(STAGES.clone());

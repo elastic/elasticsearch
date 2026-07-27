@@ -24,9 +24,8 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A minimal envelope that pairs a key identifier with an opaque ciphertext payload.
- * Used by {@link PersistedCloudCredential} to store the AES-256-GCM–encrypted credential
- * without coupling x-pack-core to the encryption SPI.
+ * Pairs an opaque ciphertext payload with the identifier of the key used to produce it.
+ * Stored as the encrypted at-rest form of a cloud credential in {@link PersistedCloudCredential}.
  */
 public final class CloudCredentialEncryptedData implements Writeable, ToXContentObject {
 

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -55,7 +56,6 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -81,6 +81,10 @@ public class HighlightAtRuntimeBenchmark {
     }
 
     // Keep pages small enough to run many passes for the largest text size.
+    // At 128 rows a single run() invocation is ~170 ms, so several invocations still fit in each 1s measurement iteration. At 1024 rows one
+    // invocation would exceed the 1s window (leaving too few passes per iteration) and allocate >1 GB, so the smaller page keeps sampling
+    // and GC pressure reasonable.
+
     private static final int BLOCK_LENGTH = 128;
     private static final String FIELD = "content";
 
@@ -153,20 +157,21 @@ public class HighlightAtRuntimeBenchmark {
     private HighlightOperator newHighlightOperator(String highlightTerm) {
         Analyzer analyzer = new StandardAnalyzer();
         Query query = new TermQuery(new Term(FIELD, highlightTerm));
-        // HIGHLIGHT defaults.
+        // Reuse the command defaults from HighlightOptions.
+        HighlightOptions options = HighlightOptions.from(null, FOLD_CONTEXT);
         HighlightConfig config = new HighlightConfig(
             highlightTerm,
-            "<em>",
-            "</em>",
-            "default",
-            5,
-            100,
-            0,
-            false,
-            Locale.ROOT,
-            false,
-            null,
-            -1
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize(),
+            HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
+            options.boundaryScannerLocale(),
+            HighlightOptions.ORDER_SCORE.equals(options.order()),
+            options.analyzerName(),
+            options.maxAnalyzedOffset()
         ).withExecutionContext(analyzer, query, List.of(FIELD));
         return new HighlightOperator(blockFactory, config, new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) });
     }

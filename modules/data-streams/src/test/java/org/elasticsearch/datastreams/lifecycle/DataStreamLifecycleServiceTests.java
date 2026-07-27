@@ -79,6 +79,8 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixture
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -1542,7 +1544,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         IndexMetadata original = builder.get(frozenIndexName);
         Settings.Builder frozenSettings = Settings.builder()
             .put(original.getSettings())
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, repositoryName)
             .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, snapshotName);
         if (dlmCreated) {
@@ -1932,7 +1934,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
     }
 
-    public void testGatheringCandidatesForFrozenSkipsDlmCreatedIndices() {
+    public void testGatheringCandidatesForFrozenSkipsDlmCreatedMountedIndices() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         int backingIndices = randomIntBetween(3, 10);
         DataStream dataStreamWithFrozen = createDataStream(
@@ -1951,7 +1953,11 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         IndexMetadata originalMeta = projectMetadata.index(dlmCreatedIndex);
         IndexMetadata dlmCreatedMeta = IndexMetadata.builder(originalMeta)
             .settings(
-                Settings.builder().put(originalMeta.getSettings()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build()
+                Settings.builder()
+                    .put(originalMeta.getSettings())
+                    .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                    .build()
             )
             .build();
         ProjectMetadata updatedProjectMetadata = ProjectMetadata.builder(projectMetadata).put(dlmCreatedMeta, false).build();

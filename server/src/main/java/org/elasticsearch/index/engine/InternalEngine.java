@@ -1388,7 +1388,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        final List<Index> operations = engineBatch.operations();
+        final SourceBatch batch = engineBatch.sourceBatch();
         assert operations.size() == batch.docCount()
             : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {

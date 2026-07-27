@@ -226,7 +226,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -238,6 +237,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             builder().volume(localConfigDir.resolve("config"), installation.config)
                 .envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
                 .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
+                .envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
         runElasticsearchTestsAsElastic(ELASTIC_PASSWORD);
@@ -247,7 +247,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -268,6 +267,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                     .volume(tempDir, "/run/secrets")
                     .envVar("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
                     .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
+                    .envVar("discovery.type", "single-node")
             );
 
             waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
@@ -283,7 +283,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -368,7 +367,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
         sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
 
         // copy keystore to temp file to make it available to docker host
-        sh.run("cp -arf" + dockerKeystore + " " + dockerTemp);
+        sh.run("cp -arf " + dockerKeystore + " " + dockerTemp);
+
+        // Security auto-configuration ran when the source container first started, and it pinned
+        // cluster.initial_master_nodes to that container's hostname. The copied config directory is
+        // remounted into a new container with a different hostname, so remove the setting and let the
+        // callers boot a single-node cluster instead (see the equivalent handling in DockerTests).
+        ServerUtils.removeSettingFromExistingConfiguration(tempDirectory.resolve("config"), "cluster.initial_master_nodes");
         return tempDirectory;
     }
 

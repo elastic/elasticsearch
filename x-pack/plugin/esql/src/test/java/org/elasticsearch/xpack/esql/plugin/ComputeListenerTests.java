@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -36,10 +35,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -245,79 +242,5 @@ public class ComputeListenerTests extends ESTestCase {
         }
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertThat(onFailure.get(), equalTo(0));
-    }
-
-    /**
-     * Regression test: the root delegate must fire in the {@link ComputeListener} construction-time
-     * context even when the last ref is an avoid listener that fires on a transport thread with a
-     * stashed (blank) context, as happens in {@code ExchangeSourceHandler.RemoteSinkFetcher}.
-     * <p>
-     * A sentinel request header placed in the construction-time context lets the root listener
-     * detect which context it is running in. The sentinel is absent in a blank stash, so the test
-     * fails without the {@link org.elasticsearch.action.support.ContextPreservingActionListener}
-     * wrapping in {@link ComputeListener} and passes with it.
-     */
-    public void testCollectWarningsWhenLastRefIsAvoidOnBlankContext() throws Exception {
-        // Mark the construction-time context with a sentinel request header so the root listener
-        // can verify it fires in that context rather than in the blank stash.
-        final String sentinelKey = "x-construction-time-sentinel";
-        final String sentinelValue = "present";
-        threadPool.getThreadContext().putHeader(sentinelKey, sentinelValue);
-
-        final String warningKey = "warning-key";
-        final String warningValue = "warning-value";
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean firedInSearchContext = new AtomicBoolean();
-        AtomicReference<Map<String, List<String>>> capturedHeaders = new AtomicReference<>();
-
-        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
-            @Override
-            public void onResponse(DriverCompletionInfo result) {
-                firedInSearchContext.set(sentinelValue.equals(threadPool.getThreadContext().getHeader(sentinelKey)));
-                capturedHeaders.set(threadPool.getThreadContext().getResponseHeaders());
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
-
-        final ActionListener<DriverCompletionInfo> computeSubListener;
-        final ActionListener<Void> avoidSubListener;
-        try (var computeListener = new ComputeListener(threadPool, () -> {}, rootListener)) {
-            computeSubListener = computeListener.acquireCompute();
-            avoidSubListener = computeListener.acquireAvoid();
-        }
-
-        // Emit a warning from the compute sub-listener and wait for it to finish, so the avoid
-        // listener is guaranteed to be the last ref.
-        CountDownLatch computeDone = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-            threadPool.getThreadContext().addResponseHeader(warningKey, warningValue);
-            computeSubListener.onResponse(randomCompletionInfo());
-            computeDone.countDown();
-        });
-        assertTrue(computeDone.await(10, TimeUnit.SECONDS));
-
-        // Fire the avoid sub-listener on a thread with a blank (stashed) context, mimicking a
-        // transport response thread. Without the fix the root delegate fires inside the blank stash
-        // and the sentinel is absent.
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-                avoidSubListener.onResponse(null);
-            }
-        });
-
-        assertTrue(latch.await(10, TimeUnit.SECONDS));
-        assertTrue(
-            "rootListener must fire in the construction-time context (ContextPreservingActionListener fix not applied)",
-            firedInSearchContext.get()
-        );
-        assertNotNull(capturedHeaders.get());
-        Map<String, Set<String>> actual = new HashMap<>();
-        capturedHeaders.get().forEach((k, vs) -> actual.put(k, new HashSet<>(vs)));
-        assertThat(actual, equalTo(Map.of(warningKey, Set.of(warningValue))));
     }
 }

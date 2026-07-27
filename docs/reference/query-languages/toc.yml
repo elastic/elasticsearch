@@ -410,7 +410,6 @@ toc:
           - file: esql/esql-views.md
       - file: esql/esql-data-federation.md
         children:
-          - file: esql/esql-data-federation-overview.md
           - file: esql/esql-data-federation-quickstart.md
           - file: esql/esql-data-federation-sources.md
             children:

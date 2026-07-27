@@ -4735,3 +4735,16 @@ FROM employees
 s1:long | s2:long
 null    | null
 ;
+
+isNotNullInferenceNotAppliedThroughIsNull
+required_capability: fix_infer_is_not_null_allowlist
+// "languages IS NULL" never returns null, so "(languages IS NULL) IS NOT NULL" is always true and
+// must match every row.
+FROM employees
+| WHERE (languages IS NULL) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;

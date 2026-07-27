@@ -108,13 +108,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
@@ -129,6 +126,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -675,9 +673,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var pattern = L("abc");
-        Expression inn = isNotNull(
-            new And(EMPTY, new StartsWith(EMPTY, fieldA, pattern), greaterThanOf(new Add(EMPTY, ONE, TWO, TEST_CFG), THREE))
-        );
+        Expression inn = isNotNull(new StartsWith(EMPTY, fieldA, pattern));
 
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
@@ -755,6 +751,41 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testInferIsNotNull_inferNoFields() {
+        for (String query : List.of(
+            "FROM test | WHERE emp_no IS NOT NULL",
+            "FROM test | WHERE (emp_no IS NOT NULL) IS NOT NULL",
+            "FROM test | WHERE (emp_no > 1 OR languages > 2) IS NOT NULL",
+            "FROM test | WHERE (emp_no IN (1,2,3)) IS NOT NULL",
+            "FROM test | WHERE COALESCE(emp_no, 42) IS NOT NULL"
+        )) {
+            var plan = localPlan(query);
+            assertEquals(plan, new InferIsNotNull().apply(plan));
+        }
+    }
+
+    public void testInferIsNotNull_inferFields() {
+        for (Map.Entry<String, List<String>> queryAndFields : Map.of(
+            "FROM test | WHERE 2*(7+POW(emp_no,2)) IS NOT NULL",
+            List.of("emp_no", "2*(7+POW(emp_no,2))"),
+            "FROM test | WHERE (emp_no + salary) IS NOT NULL",
+            List.of("emp_no", "salary", "emp_no + salary"),
+            "FROM test | WHERE salary + COALESCE(emp_no, 42) IS NOT NULL",
+            List.of("salary", "salary + COALESCE(emp_no, 42)"),
+            "FROM test | WHERE SQRT(1/(1-SIN(emp_no*salary))) IS NOT NULL",
+            List.of("emp_no", "salary", "SQRT(1/(1-SIN(emp_no*salary)))")
+        ).entrySet()) {
+            var plan = localPlan(queryAndFields.getKey());
+            var filters = plan.collect(Filter.class);
+            assertThat(filters, hasSize(1));
+            var filter = filters.getFirst();
+            var and = as(filter.condition(), And.class);
+            var inns = and.collect(IsNotNull.class);
+            var innFields = inns.stream().map(inn -> Expressions.name(inn.field())).toList();
+            assertThat(innFields, containsInAnyOrder(queryAndFields.getValue().toArray()));
+        }
     }
 
     public void testIsNullFilterDoesNotPruneDisjunctionBranch() {

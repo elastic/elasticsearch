@@ -87,6 +87,8 @@ To configure how the format is read, expand **Advanced settings**. Refer to [dat
 :::
 ::::
 
+To customize the inferred schema, rename columns, or override field types, use the [dataset mappings API](#declare-a-dataset-mapping). Schema customization is not available in the UI.
+
 ## Manage datasets using the API
 
 Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege (refer to [manage credentials and privileges](esql-data-federation-security.md)).

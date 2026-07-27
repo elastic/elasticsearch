@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -925,7 +924,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(patternCtx);
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
         if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
-            String patternString = BytesRefs.toString(lit.fold(FoldContext.small()));
+            String patternString = BytesRefs.toString(lit.value());
             try {
                 Expression regex = switch (variant) {
                     case LIKE -> new WildcardLike(source, left, new WildcardPattern(patternString));
@@ -1027,7 +1026,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         EsqlBaseParser.StringContext sctx = ctx.string();
         if (sctx != null) {
             Literal lit = visitString(sctx);
-            return BytesRefs.toString(lit.fold(FoldContext.small()));
+            return BytesRefs.toString(lit.value());
         }
         EsqlBaseParser.ParameterContext pctx = ctx.parameter();
         if (pctx != null) {
@@ -1108,7 +1107,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 //
                 DataType type = lit.dataType();
                 if (type == KEYWORD) {
-                    return BytesRefs.toString(lit.fold(FoldContext.small()));
+                    return BytesRefs.toString(lit.value());
                 }
                 context.params()
                     .addParsingError(

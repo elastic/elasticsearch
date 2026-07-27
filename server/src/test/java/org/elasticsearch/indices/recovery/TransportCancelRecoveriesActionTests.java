@@ -154,11 +154,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
         assertThat(
-            response.cancelledInQueue(),
+            response.confirmedCancelled(),
             equalTo(
                 Set.of(
-                    new CancelRecoveriesAction.CancelledInQueue(shardId1, allocationId1),
-                    new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2)
+                    new CancelRecoveriesAction.ConfirmedCancelled(shardId1, allocationId1),
+                    new CancelRecoveriesAction.ConfirmedCancelled(shardId2, allocationId2)
                 )
             )
         );
@@ -210,7 +210,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             responseFuture
         );
 
-        assertTrue(responseFuture.actionGet().cancelledInQueue().isEmpty());
+        assertTrue(responseFuture.actionGet().confirmedCancelled().isEmpty());
         assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
     }
 
@@ -262,7 +262,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId1, allocationId1))));
+        assertThat(response.confirmedCancelled(), equalTo(Set.of(new CancelRecoveriesAction.ConfirmedCancelled(shardId1, allocationId1))));
         indexShard.ensureRecoveryNotCancelled();
     }
 
@@ -276,7 +276,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
+        assertTrue(response.confirmedCancelled().isEmpty());
     }
 
     public void testActionIgnoresShardNotRecovering() throws Exception {
@@ -293,7 +293,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
+        assertTrue(response.confirmedCancelled().isEmpty());
 
         indexShard.ensureRecoveryNotCancelled();
     }
@@ -347,7 +347,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
+        assertTrue(response.confirmedCancelled().isEmpty());
         indexShard.ensureRecoveryNotCancelled();
         assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
         taskQueue.runAllTasks();
@@ -407,7 +407,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2))));
+        assertThat(response.confirmedCancelled(), equalTo(Set.of(new CancelRecoveriesAction.ConfirmedCancelled(shardId2, allocationId2))));
 
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
@@ -450,7 +450,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             );
             action.execute(mock(Task.class), request, responseFuture);
             final var response = responseFuture.actionGet();
-            assertTrue(response.cancelledInQueue().isEmpty());
+            assertTrue(response.confirmedCancelled().isEmpty());
             mockLog.assertAllExpectationsMatched();
         }
         indexShard.ensureRecoveryNotCancelled();
@@ -465,7 +465,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var request = new CancelRecoveriesAction.Request(0L, 0L, List.of(new ShardRecoveryCancellation(shardId, allocationId, true)));
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
+        assertTrue(response.confirmedCancelled().isEmpty());
 
         final var cancelled = new AtomicBoolean();
         throttlingRecoveryService.enqueue(ProjectId.DEFAULT, new RecoveryListener() {
@@ -497,7 +497,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
         action.execute(mock(Task.class), new CancelRecoveriesAction.Request(0L, 0L, List.of()), responseFuture);
         final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
+        assertTrue(response.confirmedCancelled().isEmpty());
     }
 
     private static RecoveryState newRecoveryState(ShardId shardId) {

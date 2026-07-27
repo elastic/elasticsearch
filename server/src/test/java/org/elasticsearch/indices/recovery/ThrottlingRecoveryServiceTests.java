@@ -684,13 +684,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
 
         final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
+        final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.FAILED);
         service.enqueue(ProjectId.DEFAULT, blockerListener, newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats, listener -> {
             // occupies the sole concurrency slot
-            taskQueue.scheduleAt(
-                taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
-            );
+            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onRecoveryFailure(null, true));
         });
 
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);

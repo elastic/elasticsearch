@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -151,25 +153,49 @@ public class RecoveryDirectCancellationService {
         }
     }
 
-    void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
+    private void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
         transportService.sendRequest(
             node,
             CancelRecoveriesAction.TYPE.name(),
             request,
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(
-                    response -> failShardsCancelledInQueue(node, response),
-                    e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)
-                ),
-                CancelRecoveriesAction.Response::new,
-                genericExecutor
-            )
+            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> failShardsConfirmedCancelled(node, response), e -> {
+                logger.warn(() -> "failed to cancel recoveries [" + request + "] on [" + node + "], will retry", e);
+                transportService.getThreadPool()
+                    .scheduleUnlessShuttingDown(
+                        TimeValue.timeValueSeconds(5),
+                        genericExecutor,
+                        () -> retryDirectCancelRecoveriesRequest(node, request)
+                    );
+            }), CancelRecoveriesAction.Response::new, genericExecutor)
         );
     }
 
-    private void failShardsCancelledInQueue(DiscoveryNode node, CancelRecoveriesAction.Response response) {
+    private void retryDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
+        final ClusterState currentState = clusterService.state();
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            logger.debug("this node is no longer master, dropping cancellation retry [{}] for data node [{}]", request, node);
+        }
+        final RoutingNode routingNode = currentState.getRoutingNodes().node(node.getId());
+        if (routingNode == null) {
+            logger.debug("targeted node [{}] is no longer in cluster state, dropping cancellation retry [{}]", node, request);
+        }
+        final List<ShardRecoveryCancellation> retryableCancellations = request.cancellations().stream().filter(cancellation -> {
+            final ShardRouting shard = routingNode.getByShardId(cancellation.shardId());
+            return shard != null && shard.initializing() && shard.allocationId().getId().equals(cancellation.allocationId());
+        }).toList();
+
+        if (retryableCancellations.isEmpty()) {
+            logger.debug("dropping cancellation retry [{}], no allocation IDs still initializing on node [{}]", request, node);
+            return;
+        }
+        sendCancellations(
+            Map.of(node, new CancelRecoveriesAction.Request(currentState.term(), request.clusterStateVersion(), retryableCancellations))
+        );
+    }
+
+    private void failShardsConfirmedCancelled(DiscoveryNode node, CancelRecoveriesAction.Response response) {
         final var state = clusterService.state();
-        for (CancelRecoveriesAction.CancelledInQueue cancelled : response.cancelledInQueue()) {
+        for (CancelRecoveriesAction.ConfirmedCancelled cancelled : response.confirmedCancelled()) {
             final ShardId shardId = cancelled.shardId();
             final IndexMetadata indexMetadata = state.metadata().findIndex(shardId.getIndex()).orElse(null);
             if (indexMetadata == null) {

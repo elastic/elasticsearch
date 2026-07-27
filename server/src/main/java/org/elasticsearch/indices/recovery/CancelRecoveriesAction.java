@@ -104,10 +104,11 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue.
-    public record CancelledInQueue(ShardId shardId, String allocationId) implements Writeable {
+    /// Details of a single shard recovery that was cancelled directly out of the recovery throttling queue or already
+    /// cancelled from a previous request.
+    public record ConfirmedCancelled(ShardId shardId, String allocationId) implements Writeable {
 
-        public CancelledInQueue(StreamInput in) throws IOException {
+        public ConfirmedCancelled(StreamInput in) throws IOException {
             this(new ShardId(in), in.readString());
         }
 
@@ -118,28 +119,30 @@ public class CancelRecoveriesAction {
         }
     }
 
-    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled.
+    /// Response containing the shard and allocation IDs of recoveries that were found in the throttling queue and cancelled,
+    /// or already cancelled from a previous request.
     /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {
-        private final Set<CancelledInQueue> cancelledInQueue;
+        private final Set<ConfirmedCancelled> confirmedCancelled;
 
-        public Response(Set<CancelledInQueue> cancelledInQueue) {
-            this.cancelledInQueue = Set.copyOf(cancelledInQueue);
+        public Response(Set<ConfirmedCancelled> confirmedCancelled) {
+            this.confirmedCancelled = Set.copyOf(confirmedCancelled);
         }
 
         public Response(StreamInput in) throws IOException {
-            this.cancelledInQueue = in.readCollectionAsImmutableSet(CancelledInQueue::new);
+            this.confirmedCancelled = in.readCollectionAsImmutableSet(ConfirmedCancelled::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(cancelledInQueue);
+            out.writeCollection(confirmedCancelled);
         }
 
-        /// Returns the recoveries that were cancelled from the throttling queue.
-        public Set<CancelledInQueue> cancelledInQueue() {
-            return cancelledInQueue;
+        /// Returns the recoveries that were cancelled directly from the throttling queue, or already cancelled from a
+        /// previous request.
+        public Set<ConfirmedCancelled> confirmedCancelled() {
+            return confirmedCancelled;
         }
 
         @Override
@@ -147,12 +150,12 @@ public class CancelRecoveriesAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response response = (Response) o;
-            return cancelledInQueue.equals(response.cancelledInQueue);
+            return confirmedCancelled.equals(response.confirmedCancelled);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(cancelledInQueue);
+            return Objects.hash(confirmedCancelled);
         }
     }
 }

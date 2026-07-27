@@ -102,17 +102,17 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
-        final Set<String> allocationIdsCancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
+        final Set<String> allocationIdsConfirmedCancelled = throttlingRecoveryService.cancelRecoveries(toCancel);
 
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
-            if (allocationIdsCancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
+            if (allocationIdsConfirmedCancelled.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
-        final Set<CancelRecoveriesAction.CancelledInQueue> cancelledInQueue = allocationIdsCancelledInQueue.stream()
-            .map(allocationId -> new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId))
+        final Set<CancelRecoveriesAction.ConfirmedCancelled> confirmedCancelled = allocationIdsConfirmedCancelled.stream()
+            .map(allocationId -> new CancelRecoveriesAction.ConfirmedCancelled(toCancel.get(allocationId), allocationId))
             .collect(Collectors.toSet());
-        listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
+        listener.onResponse(new CancelRecoveriesAction.Response(confirmedCancelled));
     }
 
     private void tryCancelStartedRecovery(ShardId shardId, String allocationId) {

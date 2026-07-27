@@ -88,6 +88,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "esql-error-surface-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .environment("AWS_REGION", regionSupplier)

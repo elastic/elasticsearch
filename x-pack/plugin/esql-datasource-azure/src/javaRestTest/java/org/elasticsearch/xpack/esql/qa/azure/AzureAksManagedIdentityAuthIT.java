@@ -110,6 +110,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         .setting("esql.datasource.managed_identity.enabled", "true")
         // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
         .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))

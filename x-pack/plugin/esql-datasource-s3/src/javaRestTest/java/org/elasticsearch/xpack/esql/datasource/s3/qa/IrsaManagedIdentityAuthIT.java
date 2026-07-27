@@ -100,6 +100,7 @@ public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         .setting("esql.datasource.managed_identity.enabled", "true")
         // The plugin requires the operator to symlink the EKS-injected web-identity token to a
         // fixed location under config; the cluster builder writes the token bytes there directly.

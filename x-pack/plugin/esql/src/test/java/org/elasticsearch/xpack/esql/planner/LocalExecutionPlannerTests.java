@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -812,6 +813,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "dev-cluster")
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+                // several tests here plan an ExternalSourceExec, which the federation gate refuses unless it is enabled
+                .put(Federation.FEDERATION_ENABLED.getKey(), true)
                 .build(),
             config(),
             null,

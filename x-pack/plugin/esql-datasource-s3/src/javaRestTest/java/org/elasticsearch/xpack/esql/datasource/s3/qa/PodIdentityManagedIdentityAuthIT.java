@@ -93,6 +93,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         .setting("esql.datasource.managed_identity.enabled", "true")
         // Operator-managed symlink the plugin redirects the AWS SDK at via JVM sysprop.
         .configFile("esql-datasource-s3/eks-pod-identity-token", Resource.fromString(AUTH_TOKEN_FILE_CONTENTS))

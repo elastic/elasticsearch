@@ -21,6 +21,7 @@ class Clusters {
             .shared(true)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("esql.federation.enabled", "true")
             .setting("xpack.ml.enabled", "false")
             .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")

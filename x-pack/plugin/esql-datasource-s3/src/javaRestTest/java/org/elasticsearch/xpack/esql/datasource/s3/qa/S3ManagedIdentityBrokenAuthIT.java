@@ -83,6 +83,7 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         .setting("esql.datasource.managed_identity.enabled", "true")
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(ON_DISK_TOKEN))
         .systemProperty("org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride", stsHttpFixture::getAddress)

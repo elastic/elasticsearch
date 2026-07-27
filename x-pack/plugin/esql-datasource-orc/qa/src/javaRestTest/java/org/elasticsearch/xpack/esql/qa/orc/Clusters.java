@@ -31,6 +31,7 @@ public class Clusters {
             .module("repository-gcs")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("esql.federation.enabled", "true")
             .setting("xpack.ml.enabled", "false")
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))

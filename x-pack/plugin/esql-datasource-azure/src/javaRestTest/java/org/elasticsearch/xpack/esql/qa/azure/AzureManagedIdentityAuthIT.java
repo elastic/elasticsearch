@@ -110,6 +110,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("esql.federation.enabled", "true")
         // Open the workload identity gate so the validator accepts auth=managed_identity.
         .setting("esql.datasource.managed_identity.enabled", "true")
         // Redirect the Azure IMDS endpoint to our fixture so ManagedIdentityCredential resolves a

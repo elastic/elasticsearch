@@ -16,6 +16,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -946,6 +947,14 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
             query = queryParser.parse(rewrittenQueryString);
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
             throw new QueryShardException(context, "Failed to parse query [" + this.queryString + "]", e);
+        } catch (StackOverflowError e) {
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(this.queryString, 1024)
+            );
         }
 
         if (query == null) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -31,6 +32,7 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -223,12 +225,53 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable() ? Translatable.YES : Translatable.NO;
+        if (lower.foldable() == false || upper.foldable() == false) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableAttribute(value)) {
+            return Translatable.YES;
+        }
+        if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+            // Candidate range against the keyed sub-field; RECHECK keeps the predicate in the
+            // FilterOperator to null out multi-valued documents the range let through.
+            return Translatable.RECHECK;
+        }
+        return Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (value instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractRange(keyedName.get());
+            }
+        }
         return translate(handler);
+    }
+
+    /**
+     * Translates a closed range over {@code field_extract(root, "key")} to a candidate {@link RangeQuery}
+     * on the synthetic data-node field name {@code root.key}. The data node's
+     * {@code FieldTypeLookup} resolves that name to a {@code KeyedFlattenedFieldType} which
+     * prefixes both bounds with {@code key + "\0"} at search time, keeping the range inside the
+     * key's slice of the {@code _keyed} term space.
+     * <p>
+     * The range is not wrapped in a {@code SingleValueQuery}: {@link #translatable} reports
+     * {@code RECHECK} (consistent with how {@code Equals}/{@code NotEquals}/{@code In} on
+     * {@code field_extract} push a bare candidate query), so the FilterOperator re-applies the range on
+     * the extracted keyword column and nulls out multi-valued documents the candidate range let through.
+     */
+    private Query translateFieldExtractRange(String keyedName) {
+        Object lo = literalValueOf(lower);
+        Object hi = literalValueOf(upper);
+        if (lo instanceof BytesRef br) {
+            lo = br.utf8ToString();
+        }
+        if (hi instanceof BytesRef br) {
+            hi = br.utf8ToString();
+        }
+        return new RangeQuery(source(), keyedName, lo, includeLower, hi, includeUpper, /* format */ null, /* zoneId */ null);
     }
 
     private RangeQuery translate(TranslatorHandler handler) {

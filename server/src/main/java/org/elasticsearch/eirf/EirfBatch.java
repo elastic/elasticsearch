@@ -9,11 +9,13 @@
 
 package org.elasticsearch.eirf;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,7 +32,7 @@ import java.util.List;
  * [Row Data] rows
  * </pre>
  */
-public final class EirfBatch implements Releasable, Accountable {
+public final class EirfBatch implements SourceBatch {
 
     /** Magic as a little-endian int: bytes 'e','i','r','f' read as LE i32. */
     public static final int MAGIC_LE = ('e' & 0xFF) | (('i' & 0xFF) << 8) | (('r' & 0xFF) << 16) | (('f' & 0xFF) << 24);
@@ -39,7 +41,7 @@ public final class EirfBatch implements Releasable, Accountable {
     private final BytesReference data;
     private final Releasable releasable;
     private final int docCount;
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final int docIndexOffset;
     private final int dataOffset;
 
@@ -71,7 +73,7 @@ public final class EirfBatch implements Releasable, Accountable {
     }
 
     /** Internal constructor used by {@link #slice(int, int)} to avoid re-parsing the header/schema. */
-    private EirfBatch(BytesReference data, Releasable releasable, EirfSchema schema, int docCount, int docIndexOffset, int dataOffset) {
+    private EirfBatch(BytesReference data, Releasable releasable, SourceSchema schema, int docCount, int docIndexOffset, int dataOffset) {
         this.data = data;
         this.releasable = releasable;
         this.schema = schema;
@@ -80,7 +82,7 @@ public final class EirfBatch implements Releasable, Accountable {
         this.dataOffset = dataOffset;
     }
 
-    private static EirfSchema parseSchema(BytesReference data, int offset) {
+    private static SourceSchema parseSchema(BytesReference data, int offset) {
         // Non-leaf fields (all u16 LE)
         int nonLeafCount = readU16LE(data, offset);
         offset += 2;
@@ -115,7 +117,7 @@ public final class EirfBatch implements Releasable, Accountable {
             offset += nameLen;
         }
 
-        return new EirfSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
+        return new SourceSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
     }
 
     // TODO: Move directly to bytes reference
@@ -123,20 +125,29 @@ public final class EirfBatch implements Releasable, Accountable {
         return (data.get(offset) & 0xFF) | ((data.get(offset + 1) & 0xFF) << 8);
     }
 
+    @Override
     public int docCount() {
         return docCount;
     }
 
-    public EirfSchema schema() {
+    @Override
+    public SourceSchema schema() {
         return schema;
     }
 
+    @Override
     public BytesReference data() {
         return data;
     }
 
+    @Override
     public int columnCount() {
         return schema.leafCount();
+    }
+
+    @Override
+    public SourceRow row(int docIndex) {
+        return getRowReader(docIndex);
     }
 
     public EirfRowReader getRowReader(int docIndex) {
@@ -156,6 +167,7 @@ public final class EirfBatch implements Releasable, Accountable {
      * {@link CompositeBytesReference}. The returned batch holds no ownership over the parent's
      * underlying buffers — closing it is a no-op.
      */
+    @Override
     public EirfBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");

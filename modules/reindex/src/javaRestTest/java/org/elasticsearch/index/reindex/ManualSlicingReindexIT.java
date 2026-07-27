@@ -63,8 +63,11 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
     public void testReindexWithSourceUpdatesBetweenSlices() throws IOException {
         int docCount = randomIntBetween(500, 1000);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String dest1 = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String dest2 = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String dest1 = randomValueOtherThan(sourceIndex, () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT));
+        String dest2 = randomValueOtherThanMany(
+            index -> index.equals(sourceIndex) || index.equals(dest1),
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);
@@ -131,7 +134,10 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
     public void testReindexManualSlicesWithExplicitIdFieldInBody() throws IOException {
         int docCount = randomIntBetween(100, 250);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String destIndex = randomValueOtherThan(
+            sourceIndex,
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);

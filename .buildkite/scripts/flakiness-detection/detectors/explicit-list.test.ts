@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { classifyExplicitList } from "./explicit-list";
+import { describe, expect, test } from "vitest";
+import { classifyExplicitList } from "./explicit-list.ts";
 
 describe("classifyExplicitList", () => {
   const repoFiles = [

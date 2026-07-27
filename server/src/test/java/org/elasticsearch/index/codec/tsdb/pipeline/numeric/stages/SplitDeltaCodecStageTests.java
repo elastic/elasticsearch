@@ -28,6 +28,7 @@ public class SplitDeltaCodecStageTests extends AbstractTransformStageTestCase {
     public void testInvalidKMaxThrows() {
         expectThrows(IllegalArgumentException.class, () -> new SplitDeltaCodecStage(0));
         expectThrows(IllegalArgumentException.class, () -> new SplitDeltaCodecStage(-1));
+        expectThrows(IllegalArgumentException.class, () -> new SplitDeltaCodecStage(StageSpec.SplitDeltaStage.MAX_K_MAX + 1));
     }
 
     public void testForBlockSizeKMaxScalesWithBlockSize() {

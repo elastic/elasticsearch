@@ -1,0 +1,167 @@
+basic
+required_capability: ip_location_command
+
+// tag::basic[]
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| IP_LOCATION g = ip
+| KEEP g.country_iso_code, g.country_name, g.continent_name, g.region_iso_code, g.region_name, g.city_name
+// end::basic[]
+;
+
+// tag::basic-result[]
+g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword | g.region_iso_code:keyword | g.region_name:keyword | g.city_name:keyword
+US                         | United States          | North America            | US-FL                     | Florida               | Homestead
+// end::basic-result[]
+;
+
+
+withCountryDatabase
+required_capability: ip_location_command
+
+ROW ip = "82.170.213.79"
+| IP_LOCATION g = ip WITH { "database_file": "GeoLite2-Country.mmdb" }
+| KEEP g.*
+;
+
+g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword
+NL                         | Netherlands            | Europe
+;
+
+
+propertiesFilter
+required_capability: ip_location_command
+
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP g.*
+;
+
+g.country_iso_code:keyword | g.city_name:keyword
+US                         | Homestead
+;
+
+
+dottedPrefix
+required_capability: ip_location_command
+
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| IP_LOCATION a.b.c = ip WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP a.b.c.country_iso_code, a.b.c.city_name
+;
+
+a.b.c.country_iso_code:keyword | a.b.c.city_name:keyword
+US                              | Homestead
+;
+
+
+ipTypeInput
+required_capability: ip_location_command
+
+ROW ip = TO_IP("2602:306:33d3:8000::3257:9652")
+| IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP g.*
+;
+
+g.country_iso_code:keyword | g.city_name:keyword
+US                         | Homestead
+;
+
+
+notFoundIp
+required_capability: ip_location_command
+
+ROW ip = "127.0.0.1"
+| IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP g.*
+;
+
+g.country_iso_code:keyword | g.city_name:keyword
+null                       | null
+;
+
+
+emptyStringInput
+required_capability: ip_location_command
+
+ROW ip = ""
+| IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP g.*
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException:.*
+warningregex: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
+
+g.country_iso_code:keyword | g.city_name:keyword
+null                       | null
+;
+
+
+nullInputRow
+required_capability: ip_location_command
+required_capability: str_commands_accept_null
+
+ROW n = null
+| IP_LOCATION g = n WITH { "properties": ["country_iso_code", "city_name"] }
+;
+
+n:null | g.country_iso_code:keyword | g.city_name:keyword
+  null |                       null |                null
+;
+
+
+multiValueReject
+required_capability: ip_location_command
+
+ROW input = ["2602:306:33d3:8000::3257:9652", "82.170.213.79"]
+| IP_LOCATION g = input WITH { "first_only": false, "properties": ["country_iso_code"] }
+| KEEP g.country_iso_code
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warningregex: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
+
+g.country_iso_code:keyword
+null
+;
+
+
+multiValueFirstOnly
+required_capability: ip_location_command
+
+ROW input = ["2602:306:33d3:8000::3257:9652", "82.170.213.79"]
+| IP_LOCATION g = input WITH { "properties": ["country_iso_code", "city_name"] }
+| KEEP g.*
+;
+
+g.country_iso_code:keyword | g.city_name:keyword
+US                         | Homestead
+;
+
+
+emptyOptions
+required_capability: ip_location_command
+
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| IP_LOCATION g = ip WITH {}
+| KEEP g.country_iso_code, g.city_name
+;
+
+g.country_iso_code:keyword | g.city_name:keyword
+US                         | Homestead
+;
+
+
+# An existing column (here an integer created by EVAL) whose name collides with an IP_LOCATION output column is
+# overridden by IP_LOCATION: the column takes the IP_LOCATION type (keyword) and value, so the subsequent CONCAT
+# resolves against the keyword rather than the original integer (which would fail type resolution).
+fieldOverride
+required_capability: ip_location_command
+
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| EVAL g.city_name = 123
+| IP_LOCATION g = ip WITH { "properties": ["city_name"] }
+| KEEP g.city_name
+| EVAL x = CONCAT(g.city_name, " !")
+;
+
+g.city_name:keyword | x:keyword
+Homestead           | Homestead !
+;

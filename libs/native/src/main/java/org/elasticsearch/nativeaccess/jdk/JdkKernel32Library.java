@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
@@ -19,6 +20,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.function.IntConsumer;
@@ -30,10 +32,10 @@ import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
 import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallStub;
-import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.upcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.upcallStub;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 class JdkKernel32Library implements Kernel32Library {
     static {
@@ -74,6 +76,7 @@ class JdkKernel32Library implements Kernel32Library {
 
     private static final FunctionDescriptor ConsoleCtrlHandler_handle$fd = FunctionDescriptor.of(JAVA_BOOLEAN, JAVA_INT);
     private static final MethodHandle ConsoleCtrlHandler_handle$mh = upcallHandle(
+        MethodHandles.lookup(),
         ConsoleCtrlHandler.class,
         "handle",
         ConsoleCtrlHandler_handle$fd
@@ -285,7 +288,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpFileName + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment wideFileName = ArenaAdapter.allocateFrom(arena, lpFileName + "\0", StandardCharsets.UTF_16LE);
             MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
 
             int ret = (int) GetCompressedFileSizeW$mh.invokeExact(lastErrorState, wideFileName, fileSizeHigh);
@@ -299,10 +302,10 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment wideFileName = ArenaAdapter.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = ArenaUtil.allocate(arena, JAVA_CHAR, cchBuffer);
+                shortPath = ArenaAdapter.allocate(arena, JAVA_CHAR, cchBuffer);
             } else {
                 shortPath = MemorySegment.NULL;
             }

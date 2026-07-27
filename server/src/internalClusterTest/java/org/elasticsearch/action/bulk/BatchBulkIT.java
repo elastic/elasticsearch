@@ -25,6 +25,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -35,15 +38,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
-    }
+    @ClassRule
+    public static TestRule snapshotBuildRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+            base.evaluate();
+        }
+    };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

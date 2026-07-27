@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -30,6 +31,7 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -92,6 +94,9 @@ final class PrefetchedRowGroupBuilder {
      *            or when an individual column lacks an offset index in the filtered path
      * @param codecFactory shared {@link PlainCompressionCodecFactory} used to build per-column
      *            decompressors
+     * @param allocator Arrow allocator used by {@link PrefetchedPageReader} to back native
+     *            decompression buffers; allocations are breaker-accounted via
+     *            {@code BlockFactory.arrowAllocator()}'s {@code CircuitBreakerAllocationListener}
      */
     static PrefetchedPageReadStore build(
         BlockMetaData block,
@@ -102,7 +107,8 @@ final class PrefetchedRowGroupBuilder {
         PreloadedRowGroupMetadata preloadedMetadata,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
         StorageObject storageObject,
-        CompressionCodecFactory codecFactory
+        CompressionCodecFactory codecFactory,
+        BufferAllocator allocator
     ) {
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
@@ -110,51 +116,63 @@ final class PrefetchedRowGroupBuilder {
         }
 
         Map<ColumnDescriptor, PrefetchedPageReader> readers = new HashMap<>();
-        for (ColumnChunkMetaData column : block.getColumns()) {
-            String path = column.getPath().toDotString();
-            if (projectedColumnPaths.contains(path) == false) {
-                continue;
-            }
-            if (column.isEncrypted()) {
-                // User-facing error: the file uses a feature we don't support. Use a plain
-                // IllegalArgumentException so it maps to HTTP 400 rather than 500 (a
-                // QlIllegalArgumentException would be wrong here per its Javadoc — that one is
-                // reserved for bugs and is mapped to 500).
-                throw new IllegalArgumentException(
-                    "Encrypted columns are not supported by the optimized Parquet reader: column ["
-                        + path
-                        + "] in row group ["
-                        + rowGroupOrdinal
-                        + "]"
-                );
-            }
-            ColumnDescriptor descriptor = descriptorsByPath.get(path);
-            if (descriptor == null) {
-                continue;
-            }
-            BytesInputDecompressor decompressor = codecFactory.getDecompressor(column.getCodec());
-            OffsetIndex offsetIndex = preloadedMetadata != null ? preloadedMetadata.getOffsetIndex(rowGroupOrdinal, path) : null;
+        boolean success = false;
+        try {
+            for (ColumnChunkMetaData column : block.getColumns()) {
+                String path = column.getPath().toDotString();
+                if (projectedColumnPaths.contains(path) == false) {
+                    continue;
+                }
+                if (column.isEncrypted()) {
+                    // User-facing error: the file uses a feature we don't support. Use a plain
+                    // IllegalArgumentException so it maps to HTTP 400 rather than 500 (a
+                    // QlIllegalArgumentException would be wrong here per its Javadoc — that one is
+                    // reserved for bugs and is mapped to 500).
+                    throw new IllegalArgumentException(
+                        "Encrypted columns are not supported by the optimized Parquet reader: column ["
+                            + path
+                            + "] in row group ["
+                            + rowGroupOrdinal
+                            + "]"
+                    );
+                }
+                ColumnDescriptor descriptor = descriptorsByPath.get(path);
+                if (descriptor == null) {
+                    continue;
+                }
+                BytesInputDecompressor decompressor = codecFactory.getDecompressor(column.getCodec());
+                OffsetIndex offsetIndex = preloadedMetadata != null ? preloadedMetadata.getOffsetIndex(rowGroupOrdinal, path) : null;
 
-            ColumnPageBytesSource source = sourceFor(column, prefetchedChunks, storageObject, rowGroupOrdinal);
-            PrimitiveType primitiveType = descriptor.getPrimitiveType();
-            PrefetchedPageReader reader;
-            if (rowRanges != null && offsetIndex != null && source.supportsRandomAccess()) {
-                reader = buildFiltered(
-                    column,
-                    primitiveType,
-                    offsetIndex,
-                    rowRanges,
-                    source,
-                    block.getRowCount(),
-                    decompressor,
-                    rowGroupOrdinal
-                );
-            } else {
-                reader = buildSequential(column, primitiveType, source, decompressor, rowGroupOrdinal);
+                ColumnPageBytesSource source = sourceFor(column, prefetchedChunks, storageObject, rowGroupOrdinal);
+                PrimitiveType primitiveType = descriptor.getPrimitiveType();
+                PrefetchedPageReader reader;
+                if (rowRanges != null && offsetIndex != null && source.supportsRandomAccess()) {
+                    reader = buildFiltered(
+                        column,
+                        primitiveType,
+                        offsetIndex,
+                        rowRanges,
+                        source,
+                        block.getRowCount(),
+                        decompressor,
+                        allocator,
+                        rowGroupOrdinal
+                    );
+                } else {
+                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, rowGroupOrdinal);
+                }
+                readers.put(descriptor, reader);
             }
-            readers.put(descriptor, reader);
+            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount());
+            success = true;
+            return store;
+        } finally {
+            // If we threw mid-build, release any per-column readers we already constructed.
+            // Once the store is handed back, ownership transfers and its close() does the work.
+            if (success == false) {
+                Releasables.close(readers.values());
+            }
         }
-        return new PrefetchedPageReadStore(readers, block.getRowCount());
     }
 
     /**
@@ -181,6 +199,7 @@ final class PrefetchedRowGroupBuilder {
         ColumnPageBytesSource source,
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
+        BufferAllocator allocator,
         int rowGroupOrdinal
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
@@ -210,7 +229,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
     }
 
     /**
@@ -223,6 +242,7 @@ final class PrefetchedRowGroupBuilder {
         PrimitiveType primitiveType,
         ColumnPageBytesSource source,
         BytesInputDecompressor decompressor,
+        BufferAllocator allocator,
         int rowGroupOrdinal
     ) {
         long startingPos = column.getStartingPos();
@@ -262,9 +282,9 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
         } catch (IOException e) {
-            throw new UncheckedIOException(
+            throw new IllegalArgumentException(
                 "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
                 e
             );
@@ -422,7 +442,13 @@ final class PrefetchedRowGroupBuilder {
     private static DictionaryPage makeDictionaryPage(PageHeader header, ByteBuffer payload) {
         DictionaryPageHeader dph = header.dictionary_page_header;
         Encoding encoding = METADATA_CONVERTER.getEncoding(dph.encoding);
-        return new DictionaryPage(bytesInputFrom(payload), header.uncompressed_page_size, dph.num_values, encoding);
+        // Eagerly copy compressed bytes to a heap byte[]. The payload may alias a PrefetchedChunk's
+        // direct buffer, which can be released before PrefetchedPageReader.readDictionaryPage()
+        // decompresses it. Reading from a freed buffer produces garbage bytes; zstd then sees a
+        // srcSize that doesn't match the actual frame and returns ZSTD_error_srcSize_wrong.
+        byte[] compressedBytes = new byte[payload.remaining()];
+        payload.get(compressedBytes);
+        return new DictionaryPage(BytesInput.from(compressedBytes), header.uncompressed_page_size, dph.num_values, encoding);
     }
 
     private static ColumnPageBytesSource sourceFor(

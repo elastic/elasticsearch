@@ -10,14 +10,11 @@
 package org.elasticsearch.test.apmintegration;
 
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
-import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
 import io.opentelemetry.proto.trace.v1.Span;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -29,19 +26,17 @@ import java.util.Optional;
  * Parses OTLP protobuf traces and produces protocol-neutral {@link ReceivedTelemetry} so that
  * tests can assert in a format-independent way.
  */
-public final class OtlpTracesParser {
+public final class OtlpTracesParser extends OtlpParser {
 
     private OtlpTracesParser() {}
 
     /**
-     * Parse an OTLP traces request into a list of received telemetry events.
+     * Parse an already-decoded OTLP traces request (gRPC path) into received telemetry events.
      *
-     * @param input OTLP protobuf ExportTraceServiceRequest stream
+     * @param request decoded OTLP ExportTraceServiceRequest
      * @return list of ReceivedTelemetry (one per span)
-     * @throws IOException if the stream is not valid OTLP protobuf
      */
-    public static List<ReceivedTelemetry> parse(InputStream input) throws IOException {
-        ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
+    public static List<ReceivedTelemetry> parse(ExportTraceServiceRequest request) {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
             // Resource attributes pass through unchanged: no "otel.attributes." prefix
@@ -89,24 +84,6 @@ public final class OtlpTracesParser {
             attributes.put("otel.attributes." + kv.getKey(), toJavaValue(kv.getValue()));
         }
         return Map.copyOf(attributes);
-    }
-
-    private static Map<String, Object> extractRawAttributes(List<KeyValue> kvs) {
-        Map<String, Object> attributes = new LinkedHashMap<>();
-        for (KeyValue kv : kvs) {
-            attributes.put(kv.getKey(), toJavaValue(kv.getValue()));
-        }
-        return Map.copyOf(attributes);
-    }
-
-    private static Object toJavaValue(AnyValue value) {
-        return switch (value.getValueCase()) {
-            case STRING_VALUE -> value.getStringValue();
-            case INT_VALUE -> value.getIntValue();
-            case DOUBLE_VALUE -> value.getDoubleValue();
-            case BOOL_VALUE -> value.getBoolValue();
-            default -> value.toString();
-        };
     }
 
     private static String toHex(byte[] bytes) {

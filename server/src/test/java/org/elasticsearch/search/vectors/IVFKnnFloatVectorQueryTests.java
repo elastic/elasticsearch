@@ -17,27 +17,20 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
 import java.io.IOException;
-
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 
 public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean());
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, testResolver());
     }
 
     @Override
     float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            vector[i] = randomFloat();
-        }
-        VectorUtil.l2normalize(vector);
-        return vector;
+        return VectorTestUtils.randomNormalizedFloatVector(dim);
     }
 
     @Override

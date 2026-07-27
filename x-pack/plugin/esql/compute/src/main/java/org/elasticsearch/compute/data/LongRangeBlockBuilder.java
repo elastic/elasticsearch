@@ -108,6 +108,13 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         return this;
     }
 
+    @Override
+    public AbstractBlockBuilder cancelPositionEntry() {
+        // LongRangeBlockBuilder delegates to inner builders; the inherited cancelPositionEntry rolls back
+        // only the outer valueCount and not the inner builders' state. Throw to make misuse obvious.
+        throw new UnsupportedOperationException("cancelPositionEntry is not supported by LongRangeBlockBuilder");
+    }
+
     public LongRangeBlockBuilder appendLongRange(long from, long to) {
         fromBuilder.appendLong(from);
         toBuilder.appendLong(to);
@@ -120,9 +127,7 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
             appendNull();
             return this;
         }
-        fromBuilder.appendLong(lit.from());
-        toBuilder.appendLong(lit.to());
-        return this;
+        return appendLongRange(lit.from(), lit.to());
     }
 
     @Override

@@ -906,7 +906,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var model = JinaAIEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "model", "secret");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1010,7 +1010,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             List<String> input = List.of("abc");
-            service.infer(model, null, null, null, input, false, new HashMap<>(), inputType, null, listener);
+            service.infer(model, input, false, new HashMap<>(), inputType, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1511,7 +1511,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 inputs.add(anInput);
             }
 
-            service.chunkedInfer(model, null, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, hasSize(inputsAndEmbeddings.size()));
@@ -1604,7 +1604,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());

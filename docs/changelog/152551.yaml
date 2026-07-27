@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152551
+summary: Encode external Parquet `unsigned_long` reads
+type: bug

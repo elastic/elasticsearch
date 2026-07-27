@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 149508
+pr: 150075
+summary: Honor search timeout by not retrying on replicas
+type: enhancement

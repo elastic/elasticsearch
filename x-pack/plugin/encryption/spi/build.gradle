@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.transport-version-references'
 
 group = 'org.elasticsearch.plugin.encryption'
 

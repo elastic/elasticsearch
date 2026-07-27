@@ -16,18 +16,24 @@ import org.elasticsearch.compute.aggregation.AllFirstBytesRefByIntAggregatorFunc
 import org.elasticsearch.compute.aggregation.AllFirstBytesRefByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyExponentialHistogramAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -53,7 +59,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class).binary(First::new).name("first");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class)
+        .binary(First::new)
+        // Fix a crash when the sort argument is a foldable/null value and @timestamp has been dropped from a TS query's output.
+        .capabilities("fix_null_sort_dropped_timestamp")
+        .name("first");
 
     private final Expression sort;
 
@@ -65,7 +75,10 @@ public class First extends AggregateFunction implements ToAggregator {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
+            "exponential_histogram",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -75,8 +88,10 @@ public class First extends AggregateFunction implements ToAggregator {
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the earliest occurrence of a field based on a sort field.",
         description = """
             This function calculates the earliest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
@@ -109,7 +124,10 @@ public class First extends AggregateFunction implements ToAggregator {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
+                "exponential_histogram",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -119,6 +137,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "unsigned_long",
                 "text",
                 "version" },
@@ -194,13 +213,21 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.GEO_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
-                || dt == DataType.GEOHEX,
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
+                || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "dense_vector",
+            "exponential_histogram",
+            "flattened",
             "ip",
             "string",
+            "tdigest",
             "numeric except counter types"
         ).and(
             isType(
@@ -224,8 +251,10 @@ public class First extends AggregateFunction implements ToAggregator {
                 case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
-                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
+                case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -238,8 +267,10 @@ public class First extends AggregateFunction implements ToAggregator {
                     new AllFirstLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
-                case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllFirstBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -252,8 +283,10 @@ public class First extends AggregateFunction implements ToAggregator {
                     new AllFirstLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
-                case FLOAT -> new AllFirstFloatByIntAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByIntAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByIntAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllFirstBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);

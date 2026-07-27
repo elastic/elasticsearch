@@ -12,6 +12,8 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -62,5 +64,35 @@ public class RLikePattern extends AbstractStringPattern implements Writeable {
 
     public String pattern() {
         return regexpPattern;
+    }
+
+    private static final String REGEX_METACHARACTERS = ".*+?()[]{}|^$\\";
+
+    /**
+     * Renders the regex quoted, routing maximal literal runs through {@code mapper.column} while
+     * passing regex metacharacters ({@code . * + ? ( ) [ ] {@literal { } } | ^ $ \}) through
+     * unchanged. Every non-metacharacter ends up inside a {@code column} call, so no literal content
+     * survives anonymization; under {@link NodeStringMapper#IDENTITY} this reproduces the raw regex.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append('"');
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < regexpPattern.length(); i++) {
+            char c = regexpPattern.charAt(i);
+            if (REGEX_METACHARACTERS.indexOf(c) >= 0) {
+                if (run.length() > 0) {
+                    sb.append(mapper.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(mapper.column(run.toString()));
+        }
+        sb.append('"');
     }
 }

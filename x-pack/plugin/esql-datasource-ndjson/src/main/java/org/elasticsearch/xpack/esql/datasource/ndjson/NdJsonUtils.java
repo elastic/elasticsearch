@@ -41,12 +41,13 @@ class NdJsonUtils {
      *       book-keeping.</li>
      *   <li>{@link JsonFactory.Feature#INTERN_FIELD_NAMES} disabled - eliminates the global
      *       {@code String.intern()} synchronization point under parallel parsing. Field names live
-     *       only as long as the column attribute lookup keys, so interning gains us nothing while
-     *       serializing parser threads on the JVM string-table monitor. Disabling is safe because
-     *       this factory is package-private to the NDJSON plugin and every consumer (currently the
-     *       schema inferrer and {@link NdJsonPageDecoder}) treats {@code parser.currentName()} as a
-     *       hash-map key — there are no identity (==) comparisons that would silently break when
-     *       names stop being interned.</li>
+     *       only as long as the column attribute lookup keys, so JVM-wide interning gains us
+     *       nothing while serializing parser threads on the JVM string-table monitor. Disabling
+     *       is safe because {@code JsonFactory.Feature#CANONICALIZE_FIELD_NAMES} (also default-on
+     *       and kept on here) already returns stable {@code String} instances per name from the
+     *       per-parser {@code ByteQuadsCanonicalizer} — that is what {@link NdJsonPageDecoder}'s
+     *       identity-keyed field-name cache relies on. Equality-based lookups remain correct
+     *       regardless.</li>
      * </ul>
      */
     static final JsonFactory JSON_FACTORY = new JsonFactoryBuilder().disable(StreamReadFeature.AUTO_CLOSE_SOURCE)

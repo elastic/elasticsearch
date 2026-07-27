@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 152542
+summary: OTel sdk service runtime name
+type: bug

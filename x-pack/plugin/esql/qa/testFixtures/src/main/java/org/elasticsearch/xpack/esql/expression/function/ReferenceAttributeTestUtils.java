@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.RandomDataTypeUtils;
 
 import java.util.function.Supplier;
 
@@ -50,13 +50,7 @@ public class ReferenceAttributeTestUtils {
         Source source = Source.EMPTY;
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
-        boolean isSnapshot = Build.current().isSnapshot();
-        Supplier<DataType> randomType = () -> randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally()
-                || DataType.UNDER_CONSTRUCTION.contains(t)
-                || (supportedOn != null && false == t.supportedVersion().supportedOn(supportedOn, isSnapshot)),
-            () -> randomFrom(DataType.types())
-        );
+        Supplier<DataType> randomType = () -> RandomDataTypeUtils.randomSerializableDataType(supportedOn);
         DataType type = onlyRepresentable
             ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
             : randomType.get();

@@ -49,8 +49,7 @@ public class RelocationMetricsIT extends AbstractStatelessPluginIntegTestCase {
         final String targetNode = startIndexNode();
         ensureStableCluster(2);
 
-        // Reset measurements on both nodes so we observe only the relocation event.
-        getTelemetryPlugin(sourceNode).resetMeter();
+        // Reset measurements on the target so we observe only the relocation event.
         getTelemetryPlugin(targetNode).resetMeter();
 
         // Trigger relocation: exclude the source, wait for green on target.
@@ -58,17 +57,15 @@ public class RelocationMetricsIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(sourceNode)));
 
-        // Source records all four source-side phase histograms.
-        final TestTelemetryPlugin sourceTelemetry = getTelemetryPlugin(sourceNode);
-        sourceTelemetry.collect();
-        assertHistogramRecorded(sourceTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(sourceTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(sourceTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS);
-        assertHistogramRecorded(sourceTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
-
-        // Target records each handoff sub-phase histogram.
+        // All relocation phase histograms are recorded on the target: the source-measured phases travel back in the
+        // start-relocation response so they survive a source SIGTERM, and the target's own handoff sub-phases are recorded
+        // locally during context handoff.
         final TestTelemetryPlugin targetTelemetry = getTelemetryPlugin(targetNode);
         targetTelemetry.collect();
+        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
         assertHistogramRecorded(targetTelemetry, StatelessRecoveryMetricsCollector.RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS);
         assertHistogramRecorded(
             targetTelemetry,

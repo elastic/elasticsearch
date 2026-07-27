@@ -13,6 +13,9 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
@@ -26,9 +29,9 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
@@ -39,22 +42,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A rule that moves `VALUES(dimension-field)` aggregations in time-series aggregations
+ * A rule that moves {@code VALUES(dimension-field)} aggregations in time-series aggregations
  * to execute after the aggregation, reading the dimension fields once each group.
- * This is possible because dimension field values for `_tsid` are identical across all
+ * This is possible because dimension field values for {@code _tsid} are identical across all
  * documents in the same time-series.
  * For example:
- * `TS .. | STATS sum(rate(r1)), sum(rate(r2)) BY cluster, host, tbucket(1m)`
+ * {@code TS .. | STATS sum(rate(r1)), sum(rate(r2)) BY cluster, host, tbucket(1m)}
  * without this rule
- * `TS ..
+ * {@code TS ..
  * | EXTRACT_FIELDS(r1,r2,cluster, host)
- * | STATS rate(r1), rate(r2), VALUES(cluster), VALUES(host) BY _tsid, tbucket(1m)`
+ * | STATS rate(r1), rate(r2), VALUES(cluster), VALUES(host) BY _tsid, tbucket(1m)}
  * with this rule
- * `TS ..
+ * {@code TS ..
  * | EXTRACT_FIELDS(r1,r2)
  * | STATS rate(r1), rate(r2), FIRST_DOC_ID(_doc) BY _tsid, tbucket(1m)
- * | EXTRACT_FIELDS(cluster, host)
- * | ...
+ * | READ_DIMS(cluster, host)
+ * | ...}
  */
 public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     PhysicalPlan,
@@ -72,6 +75,10 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         AttributeSet inputAttributes = oldAgg.inputSet();
         var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (sourceAttr == null) {
+            return oldAgg;
+        }
+        Attribute tsidAttr = tsidGroupingAttribute(oldAgg);
+        if (tsidAttr == null) {
             return oldAgg;
         }
         List<NamedExpression> newAggregates = new ArrayList<>();
@@ -93,7 +100,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
                         if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-                            var withoutFields = timeSeriesMetadataAttribute.withoutFields();
+                            var withoutFields = timeSeriesMetadataAttribute.excludedFields();
                             var sourceField = new TimeSeriesMetadataAttribute(
                                 dimensionField.source(),
                                 null,
@@ -135,7 +142,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (aliases.isEmpty()) {
             return oldAgg;
         }
-        newIntermediates.add(new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType()));
+        Attribute docAttr = new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType());
+        newIntermediates.add(docAttr);
         newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
         TimeSeriesAggregateExec newStats = new TimeSeriesAggregateExec(
             oldAgg.source(),
@@ -152,15 +160,27 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (dimensionFields.isEmpty()) {
             evalExec = new EvalExec(oldAgg.source(), newStats, aliases);
         } else {
-            PhysicalPlan fieldExtractExec = new FieldExtractExec(
+            PhysicalPlan readDims = new ReadDimsExec(
                 oldAgg.source(),
                 newStats,
+                docAttr,
+                tsidAttr,
                 dimensionFields,
                 context.configuration().pragmas().fieldExtractPreference()
             );
-            evalExec = new EvalExec(oldAgg.source(), fieldExtractExec, aliases);
+            evalExec = new EvalExec(oldAgg.source(), readDims, aliases);
         }
         return new ProjectExec(oldAgg.source(), evalExec, oldIntermediates);
+    }
+
+    private static Attribute tsidGroupingAttribute(TimeSeriesAggregateExec agg) {
+        for (Expression grouping : agg.groupings()) {
+            Attribute attr = Expressions.attribute(grouping);
+            if (attr != null && attr.dataType() == DataType.TSID_DATA_TYPE && MetadataAttribute.TSID_FIELD.equals(attr.name())) {
+                return attr;
+            }
+        }
+        return null;
     }
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {

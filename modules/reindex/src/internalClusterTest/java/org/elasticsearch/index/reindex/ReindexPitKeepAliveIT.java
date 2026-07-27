@@ -93,9 +93,8 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetPitKeepAliveSetting() throws Exception {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -103,7 +102,6 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
             );
         } finally {
             LAST_OPEN_PIT_KEEP_ALIVE.set(null);
-            super.tearDown();
         }
     }
 
@@ -136,7 +134,7 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(source).setDestIndex(dest);
         reindexRequest.setScroll(TimeValue.timeValueMinutes(randomIntBetween(0, 5)));
 
-        BulkByScrollResponse reindexResponse = client().execute(ReindexAction.INSTANCE, reindexRequest).actionGet();
+        BulkByPaginatedSearchResponse reindexResponse = client().execute(ReindexAction.INSTANCE, reindexRequest).actionGet();
         assertThat(reindexResponse.getSearchFailures().size(), equalTo(0));
         assertThat(reindexResponse.getBulkFailures().size(), equalTo(0));
         assertThat(reindexResponse.getCreated(), equalTo((long) numDocs));

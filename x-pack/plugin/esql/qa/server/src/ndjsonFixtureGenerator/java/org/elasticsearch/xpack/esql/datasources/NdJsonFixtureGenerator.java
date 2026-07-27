@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,7 +40,9 @@ import java.util.Locale;
  *   <li>One JSON object per data row, with property names equal to column names (including dotted names such as
  *       {@code languages.long}).</li>
  *   <li>Properties with {@code null} values are omitted (including empty multi-value cells parsed as {@code null}).</li>
- *   <li>Keyword-like values are trimmed; if the result is empty, the property is omitted.</li>
+ *   <li>A present string value is written verbatim, including the empty string ({@code "name":""}), so a
+ *       present-but-empty string column round-trips as {@code ""} rather than a missing (null) property, matching
+ *       {@code CsvFormatReader}.</li>
  *   <li>Multi-value cells (lists from bracket syntax) are written as JSON arrays only when at least one element
  *       produces a concrete JSON value; elements that would encode as JSON {@code null} are skipped. If no elements
  *       remain, the property is omitted (never {@code []}), matching {@code NdJsonPageDecoder} which cannot close an
@@ -49,6 +53,8 @@ import java.util.Locale;
 public final class NdJsonFixtureGenerator {
 
     private NdJsonFixtureGenerator() {}
+
+    private static final Logger logger = LoggerFactory.getLogger(NdJsonFixtureGenerator.class);
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
@@ -61,7 +67,7 @@ public final class NdJsonFixtureGenerator {
             byte[] ndjson = generateFromCsv(sourcePath);
             Files.createDirectories(outputPath.getParent());
             Files.write(outputPath, ndjson);
-            System.out.println("Generated NDJSON fixture: " + outputPath);
+            logger.info("Generated NDJSON fixture: {}", outputPath);
         } else if (args.length == 3) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
@@ -82,7 +88,7 @@ public final class NdJsonFixtureGenerator {
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] ndjson = generateFromRows(parsed, range.from(), range.to());
                 Files.write(outputPath, ndjson);
-                System.out.println("Generated NDJSON split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
+                logger.info("Generated NDJSON split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
             }
         } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");
@@ -169,10 +175,10 @@ public final class NdJsonFixtureGenerator {
     }
 
     private static void writeStringField(XContentBuilder b, String name, Object v) throws IOException {
-        String s = ((String) v).trim();
-        if (s.isEmpty() == false) {
-            b.field(name, s);
-        }
+        // A present string value is written verbatim, including the empty string: genuinely-null cells
+        // are omitted earlier in writeColumn, so reaching here means the source cell held a value. This
+        // mirrors CsvFormatReader, where a present-but-empty string column reads as "" rather than null.
+        b.field(name, (String) v);
     }
 
     /**

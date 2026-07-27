@@ -20,14 +20,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -53,28 +52,22 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             "ul_fixes"
         )
         .name("round");
-    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest) -> {
-            if (toNearest == null) {
-                return new Round(source, value, null);
-            } else {
-                // round to nearest multiple of toNearest: round(value / toNearest) * toNearest
-                return new Mul(source, new Round(source, new Div(source, value, toNearest), null), toNearest);
-            }
-        })
-        .example("round(rate(http_requests_total[5m]))")
-        .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
-        .name("round");
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
-    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
-        Rounds a number to the specified number of decimal places.
-        Defaults to 0, which returns the nearest integer. If the
-        precision is a negative number, rounds to the number of digits left
-        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Rounds a number to the specified number of decimal places.",
+        description = """
+            Rounds a number to the specified number of decimal places.
+            Defaults to 0, which returns the nearest integer. If the
+            precision is a negative number, rounds to the number of digits left
+            of the decimal point.""",
+        examples = @Example(file = "docs", tag = "round")
+    )
     public Round(
         Source source,
         @Param(

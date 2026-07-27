@@ -263,6 +263,30 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         }
     }
 
+    public void testInvalidBitWidthThrowsIllegalArgumentException() {
+        // An out-of-range bit width is read from the file's dictionary page — malformed input, so it
+        // surfaces as a client-class IllegalArgumentException (HTTP 400), not a server error.
+        ByteBuffer buf = ByteBuffer.allocate(1);
+        buf.put((byte) 254);
+        buf.flip();
+        DictionaryValueDecoder decoder = new DictionaryValueDecoder();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decoder.init(buf));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("bit width"));
+    }
+
+    public void testTruncatedStreamThrowsIllegalArgumentException() throws IOException {
+        int[] indices = { 0, 1, 2, 3, 4, 5, 6, 7 };
+        ByteBuffer encoded = encodeRle(indices, 3);
+        byte[] raw = new byte[encoded.remaining()];
+        encoded.get(raw);
+        byte[] truncated = Arrays.copyOf(raw, raw.length / 2);
+        ByteBuffer truncBuf = ByteBuffer.wrap(truncated);
+        DictionaryValueDecoder decoder = new DictionaryValueDecoder();
+        decoder.init(truncBuf);
+        int[] out = new int[indices.length];
+        expectThrows(IllegalArgumentException.class, () -> decoder.readIndices(out, 0, indices.length));
+    }
+
     // --- helpers ---
 
     private static DictionaryValueDecoder decoderFor(int[] indices, int bitWidth) throws IOException {

@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -18,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +45,15 @@ import static org.mockito.Mockito.when;
  * incrementally extend {@code TestStorageObjects} with builders for those shapes.
  */
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
@@ -77,7 +93,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         assertEquals(0, budget.inFlight());
     }
 
-    public void testLengthReleasesBudget() throws Exception {
+    public void testLengthBypassesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.length()).thenReturn(42L);
@@ -87,22 +103,50 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         assertEquals(0, budget.inFlight());
     }
 
+    /**
+     * Starvation regression for #1151: metadata ops (length/lastModified/exists) must not acquire a
+     * budget permit. With a single-permit budget already fully consumed by an open stream, a
+     * permit-taking metadata call would block forever (single-threaded here, so it would
+     * deadlock/time out). It must instead return immediately without changing the in-flight count.
+     */
+    public void testMetadataOpsBypassBudgetWhileStreamHoldsOnlyPermit() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        when(delegate.length()).thenReturn(42L);
+        when(delegate.lastModified()).thenReturn(Instant.ofEpochMilli(123L));
+        when(delegate.exists()).thenReturn(true);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        InputStream stream = obj.newStream();
+        assertEquals(1, budget.inFlight());
+
+        assertEquals(42L, obj.length());
+        assertEquals(Instant.ofEpochMilli(123L), obj.lastModified());
+        assertTrue(obj.exists());
+        assertEquals("metadata ops must not consume the held stream's budget slot", 1, budget.inFlight());
+
+        stream.close();
+        assertEquals(0, budget.inFlight());
+    }
+
     @SuppressWarnings("unchecked")
     public void testAsyncReadReleasesBudgetOnSuccess() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
-        ByteBuffer result = ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8));
+        DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
         doAnswer(inv -> {
-            ActionListener<ByteBuffer> listener = inv.getArgument(3);
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
             return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(ActionListener.class));
+        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> response = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> response = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 4, Runnable::run, ActionListener.wrap(r -> {
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> {
             response.set(r);
             latch.countDown();
         }, e -> latch.countDown()));
@@ -117,15 +161,15 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
         doAnswer(inv -> {
-            ActionListener<ByteBuffer> listener = inv.getArgument(3);
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
             return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(ActionListener.class));
+        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
 
-        obj.readBytesAsync(0, 4, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, budget.inFlight());

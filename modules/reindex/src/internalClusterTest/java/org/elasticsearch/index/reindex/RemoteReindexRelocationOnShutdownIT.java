@@ -116,7 +116,7 @@ public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
             );
         request.getSearchRequest().source().size(1000);
 
-        final PlainActionFuture<BulkByScrollResponse> reindexFuture = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> reindexFuture = new PlainActionFuture<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, reindexFuture);
 
         final TaskId reindexTaskId = waitForRootReindexTask(coordNodeName);

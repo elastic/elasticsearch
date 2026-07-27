@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
@@ -20,11 +17,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for the {@link IgnoreNullMetrics} transformation rule.  Like most rule tests, this runs the entire analysis chain.
@@ -68,14 +66,12 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
             | LIMIT 10
             """);
         Project project = as(actual, Project.class);
-        Eval unpack = as(project.child(), Eval.class);
-        assertThat(unpack.fields(), hasSize(1));
-        assertThat(Alias.unwrap(unpack.fields().get(0)), instanceOf(UnpackDimension.class));
-        Limit limit = as(unpack.child(), Limit.class);
-        Aggregate agg = as(limit.child(), Aggregate.class);
-        Eval pack = as(agg.child(), Eval.class);
-        assertThat(pack.fields(), hasSize(1));
-        assertThat(Alias.unwrap(pack.fields().get(0)), instanceOf(PackDimension.class));
+        Limit limit = as(project.child(), Limit.class);
+        UnpackDims unpack = as(limit.child(), UnpackDims.class);
+        assertThat(unpack.dims(), hasSize(1));
+        Aggregate agg = as(unpack.child(), Aggregate.class);
+        PackDims pack = as(agg.child(), PackDims.class);
+        assertThat(pack.dims(), hasSize(1));
         // The optimizer expands the STATS out into two STATS steps
         Aggregate tsAgg = as(pack.child(), Aggregate.class);
         Filter filter = as(tsAgg.child(), Filter.class);

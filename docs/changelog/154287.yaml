@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154278
+pr: 154287
+summary: Re-type a TEXT data type to KEYWORD to fulfill the CASE `resolveType` contract
+type: bug

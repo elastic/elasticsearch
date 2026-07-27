@@ -6,13 +6,19 @@
  */
 package org.elasticsearch.xpack.encryption.spi;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EncryptedDataTests extends AbstractXContentSerializingTestCase<EncryptedData> {
 
@@ -49,5 +55,19 @@ public class EncryptedDataTests extends AbstractXContentSerializingTestCase<Encr
         String str = data.toString();
         assertThat(str, containsString(data.keyId()));
         assertThat(str, containsString("::es_redacted::"));
+    }
+
+    /** The carrier must survive {@code writeGenericValue}/{@code readGenericValue} — the path ES|QL plan configs use. */
+    public void testRidesGenericValueSerialization() throws IOException {
+        EncryptedData original = createTestInstance();
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(EncryptedData.ENTRY));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericValue(original);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                Object read = in.readGenericValue();
+                assertThat(read, instanceOf(EncryptedData.class));
+                assertEquals(original, read);
+            }
+        }
     }
 }

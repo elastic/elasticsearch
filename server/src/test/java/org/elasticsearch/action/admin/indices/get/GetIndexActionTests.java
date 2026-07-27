@@ -54,9 +54,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     private TestTransportGetIndexAction getIndexAction;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void setupTransportService() throws Exception {
         settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
@@ -76,10 +74,9 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanupThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
-        super.tearDown();
     }
 
     public void testIncludeDefaults() {

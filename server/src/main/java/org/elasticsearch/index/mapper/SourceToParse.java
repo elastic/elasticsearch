@@ -14,10 +14,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -73,7 +73,7 @@ public class SourceToParse {
     public SourceToParse(
         @Nullable String id,
         EirfRowXContentParser.SchemaNode schemaTree,
-        EirfRowReader row,
+        SourceRow row,
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
@@ -108,7 +108,7 @@ public class SourceToParse {
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid,
         @Nullable EirfRowXContentParser.SchemaNode schemaTree,
-        @Nullable EirfRowReader row
+        @Nullable SourceRow row
     ) {
         this.id = id;
         this.routing = routing;
@@ -185,13 +185,13 @@ public class SourceToParse {
 
         private final boolean includeSourceOnError;
         private final EirfRowXContentParser.SchemaNode schemaTree;
-        private final EirfRowReader row;
+        private final SourceRow row;
         private final XContentType xContentType;
         private BytesReference originalSourceBytes;
 
         private Source(
             EirfRowXContentParser.SchemaNode schemaTree,
-            EirfRowReader row,
+            SourceRow row,
             BytesReference originalSourceBytes,
             XContentType xContentType,
             boolean includeSourceOnError
@@ -214,8 +214,7 @@ public class SourceToParse {
         }
 
         public boolean isEmpty() {
-            return (row != null && row.columnCount() == 0)
-                || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
+            return (row != null && row.isEmpty()) || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
         }
 
         public XContentType xContentType() {

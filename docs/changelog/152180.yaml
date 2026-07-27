@@ -1,0 +1,5 @@
+pr: 152180
+summary: Rebuild the indices lookup when a cluster-state diff changes only ES|QL datasets, so a newly created dataset resolves on every node
+area: ES|QL
+type: bug
+issues: []

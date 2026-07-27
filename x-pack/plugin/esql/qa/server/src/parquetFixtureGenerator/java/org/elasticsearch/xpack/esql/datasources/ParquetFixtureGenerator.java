@@ -21,6 +21,8 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,9 +60,10 @@ public final class ParquetFixtureGenerator {
 
     private ParquetFixtureGenerator() {}
 
+    private static final Logger logger = LoggerFactory.getLogger(ParquetFixtureGenerator.class);
     private static final String HIVE_BY_FLAG = "--hive-by";
 
-    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
+    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
         if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
             Path sourcePath = Path.of(args[0]);
@@ -81,7 +84,7 @@ public final class ParquetFixtureGenerator {
             Files.createDirectories(outputPath.getParent());
             byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE, codec);
             Files.write(outputPath, parquetBytes);
-            System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+            logger.info("Generated Parquet fixture ({}): {}", codec, outputPath);
         } else if (args.length == 3 || args.length == 4) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
@@ -103,7 +106,7 @@ public final class ParquetFixtureGenerator {
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] parquetBytes = generateFromRows(result, range.from(), range.to(), codec);
                 Files.write(outputPath, parquetBytes);
-                System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+                logger.info("Generated Parquet fixture ({}): {}", codec, outputPath);
             }
         } else {
             System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet> [codec]");
@@ -123,7 +126,6 @@ public final class ParquetFixtureGenerator {
      * column is preserved in the parquet payload so the fixture can also be queried on the data column
      * itself; the partition column name is deliberately distinct to avoid colliding with that payload.
      */
-    @SuppressForbidden(reason = "Gradle JavaExec task generator writes progress to System.out")
     private static void generateHivePartitionedByColumn(
         Path sourcePath,
         Path outputDir,
@@ -164,7 +166,7 @@ public final class ParquetFixtureGenerator {
                 codec
             );
             Files.write(outputPath, bytes);
-            System.out.println("Generated Hive partition (" + codec + "): " + outputPath + " (" + e.getValue().size() + " rows)");
+            logger.info("Generated Hive partition ({}): {} ({} rows)", codec, outputPath, e.getValue().size());
         }
     }
 
@@ -341,12 +343,20 @@ public final class ParquetFixtureGenerator {
         return switch (type) {
             case "integer", "short", "byte" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32);
             case "long" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64);
+            // uint32 is physical INT32 (ESQL widens it to LONG — esql-planning#1030); uint16
+            // stays physical INT32 too, but always fits ESQL INTEGER without widening.
+            case "uint32" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(32, false));
+            case "uint16" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(16, false));
+            // uint64 is physical INT64 (ESQL maps it to UNSIGNED_LONG, stored sign-flip-encoded).
+            case "uint64" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).as(LogicalTypeAnnotation.intType(64, false));
             case "double", "scaled_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE);
             case "float", "half_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT);
             case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN);
             case "ip" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
             case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
+            case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
             case "text", "txt" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
             default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
         };
@@ -400,10 +410,16 @@ public final class ParquetFixtureGenerator {
             switch (type) {
                 case "integer", "short", "byte" -> g.add(leafName, ((Number) value).intValue());
                 case "long" -> g.add(leafName, ((Number) value).longValue());
+                // Truncating a uint32 long to int preserves the raw bit pattern the physical
+                // INT32 column stores; uint16 values already fit in int.
+                case "uint32", "uint16" -> g.add(leafName, ((Number) value).intValue());
+                // The CSV parser already produced the raw two's-complement long bit pattern for
+                // uint64 (see CsvFixtureParser#tryParseUnsignedLong), so it's written as-is.
+                case "uint64" -> g.add(leafName, ((Number) value).longValue());
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
-                case "date" -> g.add(leafName, ((Number) value).longValue());
+                case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
                 case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }

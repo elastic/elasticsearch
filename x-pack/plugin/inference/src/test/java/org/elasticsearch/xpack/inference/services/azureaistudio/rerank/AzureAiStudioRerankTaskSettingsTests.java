@@ -111,7 +111,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_WithNoValues_DoesNotThrowException() {
-        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<>(Map.of()));
+        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<>());
         assertNull(taskMap.returnDocuments());
         assertNull(taskMap.topN());
     }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 153038
+summary: Release external-Parquet page decompress buffers per page, not per row group
+type: bug

@@ -116,7 +116,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 failureListener
@@ -437,7 +437,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
@@ -487,7 +487,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
 
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_NAME_VALUE, 1);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("input"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("input"), false, new HashMap<>(), InputType.INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletions(List.of("result"))));
@@ -552,7 +552,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 Integer.MAX_VALUE
             );
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }

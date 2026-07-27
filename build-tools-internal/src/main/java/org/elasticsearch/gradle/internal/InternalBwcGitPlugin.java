@@ -48,6 +48,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     private final ProviderFactory providerFactory;
 
     private BwcGitExtension gitExtension;
+    private Provider<String> draBuildId;
 
     @Inject
     public InternalBwcGitPlugin(
@@ -65,16 +66,20 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
+        // Default to no DRA — replaced by configureDraBuildId() after the git extension is fully set up.
+        this.draBuildId = providerFactory.provider(() -> "");
         Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf("git checkout dir missing", task -> this.gitExtension.getCheckoutDir().get().exists() == false);
+            createClone.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
+            findRemote.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             findRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
             findRemote.commandLine("git", "remote", "-v");
             findRemote.getCaptureOutput().set(true);
@@ -85,6 +90,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String rootProjectName = project.getRootProject().getName();
 
             addRemote.dependsOn(findRemoteTaskProvider);
+            // Must be registered before "remote exists": when DRA is active findRemote is skipped
+            // and never sets the remoteExists system property, so the "remote exists" onlyIf would
+            // throw MissingValueException. Gradle short-circuits onlyIf in registration order, so
+            // placing this guard first prevents the unsafe check from being evaluated.
+            addRemote.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             addRemote.onlyIf("remote exists", task -> (Boolean.valueOf(providerFactory.systemProperty("remoteExists").get()) == false));
             addRemote.doLast(new Action<Task>() {
                 @Override
@@ -112,6 +122,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 }
                 throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
             });
+            fetchLatest.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             fetchLatest.onlyIf("online and gitFetchLatest == true", t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir());
@@ -122,6 +133,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         String projectPath = project.getPath();
         TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
+            checkoutBwcBranch.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             ExtraPropertiesExtension taskExtensionsProperties = checkoutBwcBranch.getExtensions().getExtraProperties();
             checkoutBwcBranch.doLast(new Action<Task>() {
                 @Override
@@ -159,6 +171,22 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             configurablePublishArtifact.setType("directory");
             configurablePublishArtifact.setName("checkoutDir");
         });
+    }
+
+    /**
+     * Replaces the default no-op DRA provider with a real one.  Must be called after the BWC git
+     * extension properties ({@code bwcVersion}, {@code bwcBranch}) have been set by the caller,
+     * so the provider is constructed with the correct version and branch values.
+     *
+     * <p>The {@code onlyIf} lambdas registered in {@link #apply} access the field through {@code this},
+     * so replacing the field here is reflected in all subsequent task executions.
+     */
+    public void configureDraBuildId(Provider<String> draBuildIdProvider) {
+        this.draBuildId = draBuildIdProvider;
+    }
+
+    public Provider<String> getDraBuildId() {
+        return draBuildId;
     }
 
     public BwcGitExtension getGitExtension() {

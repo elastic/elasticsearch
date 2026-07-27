@@ -31,6 +31,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     int count;
 
     private MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
+        super(values);
         this.values = values;
     }
 

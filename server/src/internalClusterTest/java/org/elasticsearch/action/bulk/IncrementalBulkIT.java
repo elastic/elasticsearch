@@ -9,9 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -19,23 +22,33 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -43,20 +56,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -531,6 +549,360 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertTrue(item.isFailed());
             assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
         }
+    }
+
+    public void testCancellableIncrementBulkServiceHandler() throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+
+        // Artificially low watermarks to force incrementalOperation.maybeSplit() always split batches.
+        final String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+
+        String index = "test";
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeName)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        try (Releasable ignored = executorService::shutdown) {
+            // Test Case 1: Cancel before the very first client.bulk()
+            // This triggers a global failure.
+            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+            IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            assertThat(handler.getBulkSessionTask().getAction(), is("internal:bulk"));
+            assertThat(handler.getBulkSessionTask().getType(), is("bulk"));
+            handler.cancel("before-first-addItems()", () -> {});
+
+            int numberOfChunks = randomIntBetween(5, 10);
+
+            for (int i = 0; i < numberOfChunks; i++) {
+                refCounted.incRef();
+                IndexingPressureStats before = indexingPressure.stats();
+                assertThat(before.getCurrentCoordinatingOps(), is(0L));
+                assertThat(before.getCurrentCoordinatingBytes(), is(0L));
+
+                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> {});
+
+                IndexingPressureStats after = indexingPressure.stats();
+                assertThat(after.getCurrentCoordinatingOps(), is(0L));
+                assertThat(after.getCurrentCoordinatingBytes(), is(0L));
+            }
+
+            refCounted.incRef();
+            handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            IndexingPressureStats finalStats = indexingPressure.stats();
+            assertThat(finalStats.getCurrentCoordinatingOps(), is(0L));
+            assertThat(finalStats.getCurrentCoordinatingBytes(), is(0L));
+
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(ex.getMessage(), containsString("task cancelled [before-first-addItems()]"));
+            // lastItems() should unregister BulkSessionTask.
+            assertThat(taskManager.getCancellableTasks().isEmpty(), is(true));
+
+            handler.close();
+
+            // Test case 2: Cancel immediately after the first client bulk has successfully completed.
+            // Subsequent handler.addItems() should short circuit.
+            ensureGreen(index);
+
+            TransportService primaryService = internalCluster().getInstance(TransportService.class, nodeName);
+            final MockTransportService primaryTransportService = (MockTransportService) primaryService;
+            PlainActionFuture<BulkResponse> future2 = new PlainActionFuture<>();
+
+            final CountDownLatch readyForCancellation = new CountDownLatch(1);
+            final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
+
+            IncrementalBulkService.Handler handler2 = incrementalBulkService.newBulkRequest();
+
+            IndexRequest notCancelled = indexRequest(index).id("not-cancelled");
+            IndexRequest cancelledFirstRequest = indexRequest(index).id("cancelled-first");
+            IndexRequest cancelledLastItem = indexRequest(index).id("cancelled-last");
+
+            refCounted.incRef();
+            handler2.addItems(List.of(notCancelled), refCounted::decRef, () -> {
+                // Verify child task banned.
+                primaryTransportService.addRequestHandlingBehavior(
+                    TaskCancellationService.BAN_PARENT_ACTION_NAME,
+                    (transportRequestHandler, request, channel, task) -> {
+                        childTaskBanned.set(true);
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                // set up task cancellation propagation verification.
+                primaryTransportService.addRequestHandlingBehavior(
+                    TransportShardBulkAction.ACTION_NAME + "[p]",
+                    (transportRequestHandler, request, channel, task) -> {
+                        assertThat(task, instanceOf(ReplicationTask.class));
+                        readyForCancellation.countDown();
+                        assertBusy(
+                            () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
+                        );
+                        assertBusy(() -> assertThat(((ReplicationTask) task).isCancelled(), is(true)));
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                refCounted.incRef();
+                handler2.addItems(List.of(cancelledFirstRequest), refCounted::decRef, () -> {
+                    refCounted.incRef();
+                    handler2.lastItems(List.of(cancelledLastItem), refCounted::decRef, future2);
+                });
+
+                try {
+                    readyForCancellation.await();
+                } catch (Exception e) {
+                    fail(e, "did not reach shard");
+                }
+
+                assertThat(handler2.getBulkSessionTask().getAction(), is("internal:bulk"));
+                assertThat(handler2.getBulkSessionTask().getType(), is("bulk"));
+                handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
+            });
+
+            BulkResponse bulkResponse = future2.actionGet();
+            assertThat(childTaskBanned.get(), is(true));
+            assertThat(bulkResponse.getItems().length, is(3));
+            assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[0].isFailed(), is(false));
+            Throwable rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[1].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
+
+            rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[2].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
+
+            primaryTransportService.clearAllRules();
+            handler2.close();
+
+            // Test 3 In event of severed HTTP connection, REST handler may premature terminate handler.
+            childTaskBanned.set(false);
+            IndexRequest beforeTerminationRequest = indexRequest(index).id("before-termination");
+            IndexRequest duringTerminationRequest = indexRequest(index).id("during-termination");
+            IncrementalBulkService.Handler handler3 = incrementalBulkService.newBulkRequest();
+
+            refCounted.incRef();
+            handler3.addItems(List.of(beforeTerminationRequest), refCounted::decRef, () -> {
+                primaryTransportService.addRequestHandlingBehavior(
+                    TaskCancellationService.BAN_PARENT_ACTION_NAME,
+                    (transportRequestHandler, request, channel, task) -> {
+                        childTaskBanned.set(true);
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                primaryTransportService.addRequestHandlingBehavior(
+                    TransportShardBulkAction.ACTION_NAME + "[p]",
+                    (transportRequestHandler, request, channel, task) -> {
+                        assertBusy(
+                            () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
+                        );
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                refCounted.incRef();
+                handler3.addItems(List.of(duringTerminationRequest), refCounted::decRef, () -> {});
+
+                assertThat(handler3.getBulkSessionTask().getAction(), is("internal:bulk"));
+                assertThat(handler3.getBulkSessionTask().getType(), is("bulk"));
+                // Close handler prematurely.
+                handler3.close();
+            });
+            assertBusy(() -> assertThat(childTaskBanned.get(), is(true)));
+            assertBusy(() -> assertThat(taskManager.getCancellableTasks().isEmpty(), is(true)));
+            primaryTransportService.clearAllRules();
+        }
+    }
+
+    /**
+     * Timeout fires before any sub-request is submitted: the session task is cancelled by the scheduler,
+     * and the next {@link IncrementalBulkService.Handler#lastItems} call observes it as a global
+     * {@link org.elasticsearch.tasks.TaskCancelledException} (top-level failure, no partial results).
+     */
+    public void testRequestTimeoutGlobalFailure() throws Exception {
+        String index = randomIndexName();
+        createIndex(index);
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService service = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+
+        TimeValue timeout = TimeValue.timeValueMillis(between(1, 50));
+        try {
+            updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+            try (var handler = service.newBulkRequest()) {
+                // Wait for the scheduled timeout to cancel the session task before touching the handler.
+                assertBusy(() -> assertTrue(isSessionTaskCancelled(taskManager)));
+
+                AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+                PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+                handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+
+                ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+                assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                assertThat(ex.getMessage(), containsString("request timed out after"));
+                assertThat(ExceptionsHelper.unwrap(ex, TaskCancelledException.class), notNullValue());
+                assertFalse(refCounted.hasReferences());
+                // lastItems() unregisters the session task synchronously inside its finalListener, before the future resolves.
+                assertTrue(sessionTask(taskManager).isEmpty());
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+        }
+    }
+
+    /**
+     * Timeout fires after the first sub-request has already been submitted (and the doc indexed).
+     * The response is HTTP 200 with per-item {@link org.elasticsearch.tasks.TaskCancelledException}
+     * failures for items submitted after the deadline; docs indexed before the deadline survive.
+     * <p>
+     * Uses a dedicated node with 1-byte split watermarks so the very first
+     * {@link IncrementalBulkService.Handler#addItems} call always triggers a sub-request dispatch,
+     * setting {@code incrementalRequestSubmitted = true} before the timeout fires.
+     */
+    public void testRequestTimeoutItemLevelFailure() throws Exception {
+        String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+        // 5s comfortably exceeds any realistic local single-doc sub-request; assertBusy waits for the fire.
+        TimeValue timeout = TimeValue.timeValueSeconds(5);
+        try {
+            updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+            String index = randomIndexName();
+            createIndex(
+                index,
+                Settings.builder()
+                    .put("index.routing.allocation.require._name", nodeName)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            );
+
+            IncrementalBulkService service = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+            try (var handler = service.newBulkRequest()) {
+                // First chunk: the 1b watermarks force an immediate split, which submits the sub-request and
+                // sets incrementalRequestSubmitted = true. Wait until the sub-request fully completes so the
+                // doc is durable and will not be caught by descendant-cancellation when the timeout fires.
+                AtomicBoolean nextPage = new AtomicBoolean(false);
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(index).id("indexed-before-timeout")), refCounted::decRef, () -> nextPage.set(true));
+                assertBusy(() -> assertTrue(nextPage.get()));
+                // Guard: if the timeout somehow fired while the first sub-request was still in-flight,
+                // handleBulkFailure(isFirstRequest=true) would set globalFailure=true and lastItems() would
+                // call onFailure instead of onResponse; fail fast here rather than with a cryptic safeGet error.
+                assertFalse(
+                    "timeout fired before the first sub-request completed; increase the timeout for this test",
+                    isSessionTaskCancelled(taskManager)
+                );
+
+                // Let the scheduled timeout cancel the session.
+                assertBusy(() -> assertTrue(isSessionTaskCancelled(taskManager)));
+
+                // Final chunk: observes cancellation -> per-item failure, no top-level exception.
+                PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+                handler.lastItems(List.of(indexRequest(index).id("after-timeout")), refCounted::decRef, future);
+
+                BulkResponse bulkResponse = safeGet(future);
+                assertTrue(bulkResponse.hasFailures());
+                Map<Boolean, List<BulkItemResponse>> byFailed = Arrays.stream(bulkResponse.getItems())
+                    .collect(Collectors.partitioningBy(BulkItemResponse::isFailed));
+                assertThat(byFailed.get(false).size(), equalTo(1));
+                assertThat(byFailed.get(true).size(), equalTo(1));
+                Throwable rootCause = ExceptionsHelper.unwrap(
+                    byFailed.get(true).get(0).getFailure().getCause(),
+                    TaskCancelledException.class
+                );
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), containsString("request timed out after"));
+                assertThat(byFailed.get(true).get(0).getFailure().getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                assertFalse(refCounted.hasReferences());
+                // lastItems() unregisters the session task synchronously inside its finalListener, before the future resolves.
+                assertTrue(sessionTask(taskManager).isEmpty());
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+        }
+    }
+
+    /**
+     * A generous timeout is configured, but the request completes well within it: no spurious cancellation,
+     * no failures, and the pending timeout is cancelled on normal completion.
+     */
+    public void testRequestTimeoutNotTriggeredOnFastRequest() {
+        TimeValue timeout = TimeValue.timeValueSeconds(30);
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        try (Releasable ignored = executorService::shutdown) {
+            updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+            try {
+                String index = randomIndexName();
+                createIndex(index);
+                String nodeName = internalCluster().getRandomNodeName();
+                IncrementalBulkService service = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+                long docs = randomIntBetween(200, 400);
+                IncrementalBulkService.Handler handler = service.newBulkRequest();
+
+                BulkResponse bulkResponse = executeBulk(docs, index, handler, executorService);
+                assertNoFailures(bulkResponse);
+                // Verify that normal completion cancelled the pending timeout and unregistered the session task.
+                assertTrue(sessionTask(taskManager).isEmpty());
+
+                refresh(index);
+                assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docs));
+                });
+            } finally {
+                updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+            }
+        }
+    }
+
+    /**
+     * Returns the active bulk-session cancellable task (if any) from the given {@link TaskManager}.
+     * Filtering by {@link IncrementalBulkService#BULK_SESSION_ACTION} is more robust than checking
+     * {@code getCancellableTasks().isEmpty()} on a suite-scoped cluster that may host unrelated tasks.
+     */
+    private static Optional<CancellableTask> sessionTask(TaskManager taskManager) {
+        return taskManager.getCancellableTasks()
+            .values()
+            .stream()
+            .filter(t -> t.getAction().equals(IncrementalBulkService.BULK_SESSION_ACTION))
+            .findAny();
+    }
+
+    private static boolean isSessionTaskCancelled(TaskManager taskManager) {
+        return sessionTask(taskManager).map(CancellableTask::isCancelled).orElse(false);
     }
 
     private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {

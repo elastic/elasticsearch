@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -51,19 +54,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
-        Holder<Boolean> forkPresent = new Holder<>(false);
         // while going top-to-bottom (upstream)
-        return plan.transformDown(p -> {
+        return plan.transformDownSkipBranch((p, skipBranch) -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
-
-            if (forkPresent.get()) {
-                return p;
-            }
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
@@ -84,7 +82,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case Fork fork -> {
-                        forkPresent.set(true);
+                        // Skip descending into the Fork subtree: a true Fork handles its subplans internally in
+                        // pruneColumnsInFork, while UnionAll is left untouched. Using skipBranch (instead of a sticky
+                        // flag) ensures that pruning resumes for siblings outside the Fork, e.g. the right-hand side
+                        // of an enclosing InlineJoin.
+                        skipBranch.set(true);
                         yield pruneColumnsInFork(fork, used);
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
@@ -214,18 +216,87 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Prunes unused columns from an {@link ExternalRelation}.
      * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
      * the attribute list on an external relation directly controls which columns the format reader loads from storage.
+     * <p>
+     * Exception: when {@code _source} survives downstream and is referenced, the synthesizer needs every
+     * file-resident data column at compose time — pruning them would render {@code {}} for the user. Pin
+     * them as "used" before the prune. Gating on {@code used.contains(_source-attr)} rather than
+     * {@code ext.output()} ensures the pin only fires when {@code _source} is actually consumed (a query
+     * that requests {@code _source} but drops it without reading does not need the pin). Indexed
+     * {@code _source} reads from the stored doc and is independent of projection; external {@code _source}
+     * has no stored doc to fall back to.
+     * <p>
+     * Same shape for a declared {@code _id.path}: when {@code _id} is consumed AND the dataset declares
+     * {@code mappings._id.path}, the id-source column must be read even if the query did not {@code KEEP} it — the
+     * reader stamps {@code _id} from its value. Pin only that one data column (by its logical name) into {@code used}.
+     * The top-level {@code Project} drops it from the user's output automatically when it was not projected.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        boolean sourceConsumed = false;
+        boolean idConsumed = false;
+        for (Attribute a : ext.output()) {
+            if (a instanceof ExternalMetadataAttribute && used.contains(a)) {
+                if (ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                    sourceConsumed = true;
+                } else if (ExternalMetadataColumns.ID.equals(a.name())) {
+                    idConsumed = true;
+                }
+            }
+        }
+        if (sourceConsumed) {
+            for (Attribute a : ext.output()) {
+                if (a instanceof ExternalMetadataAttribute == false && a instanceof VirtualAttribute == false) {
+                    used.add(a);
+                }
+            }
+        }
+        if (idConsumed) {
+            String idPath = declaredIdPath(ext);
+            if (idPath != null) {
+                for (Attribute a : ext.output()) {
+                    if (a instanceof ExternalMetadataAttribute == false
+                        && a instanceof VirtualAttribute == false
+                        && idPath.equals(a.name())) {
+                        used.add(a);
+                        break;
+                    }
+                }
+            }
+        }
         var remaining = pruneUnusedAndAddReferences(ext.output(), used);
         return remaining != null ? ext.withAttributes(remaining) : ext;
+    }
+
+    /**
+     * The declared {@code _id.path} (logical column name) carried on the external relation's typed
+     * {@link org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec}, or {@code null} when the dataset declares no
+     * {@code mappings._id.path}.
+     */
+    private static String declaredIdPath(ExternalRelation ext) {
+        return ext.declaredReadSpec().idPath();
     }
 
     // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
 
-        // exit early for UnionAll
-        if (fork instanceof UnionAll) {
-            return fork;
+        if (fork instanceof UnionAll unionAll) {
+            if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
+                // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
+                // traversal when it reaches the branch; skip here to avoid double-pruning.
+                return fork;
+            }
+            // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
+            // format reader only loads the columns actually needed. EsRelation children are left
+            // intact — InsertFieldExtraction handles field-level extraction at execution time.
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            boolean changed = false;
+            for (LogicalPlan child : unionAll.children()) {
+                LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
+                if (newChild != child) {
+                    changed = true;
+                }
+                newChildren.add(newChild);
+            }
+            return changed ? unionAll.replaceChildren(newChildren) : unionAll;
         }
 
         // prune the output attributes of fork based on usage from the rest of the plan

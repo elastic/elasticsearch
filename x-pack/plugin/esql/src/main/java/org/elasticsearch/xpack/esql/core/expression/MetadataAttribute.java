@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,34 +44,29 @@ public final class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes(
-        // Regular attributes
-        List.of(
-            Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
-            Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-            // actually _id is searchable, but fielddata access on it is disallowed by default
-            Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
-            Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-            Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
-            Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-            Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-            Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)),
-            // Searchable field added by the mapper-size plugin.
-            // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
-            Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true))
-        ),
-        // Snapshot only attributes
-        List.of(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)))
-    );
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes();
 
     @SuppressWarnings("unchecked")
-    private static Map<String, MetadataAttributeConfiguration> createMetadataAttributes(
-        List<Map.Entry<String, MetadataAttributeConfiguration>> attributes,
-        List<Map.Entry<String, MetadataAttributeConfiguration>> snapshotOnlyAttributes
-    ) {
-        var entries = new ArrayList<>(attributes);
-        if (Build.current().isSnapshot()) {
-            entries.addAll(snapshotOnlyAttributes);
+    private static Map<String, MetadataAttributeConfiguration> createMetadataAttributes() {
+        var entries = new ArrayList<Map.Entry<String, MetadataAttributeConfiguration>>();
+        entries.add(Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)));
+        entries.add(Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        // actually _id is searchable, but fielddata access on it is disallowed by default
+        entries.add(Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
+        entries.add(Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        entries.add(Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)));
+        entries.add(Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        entries.add(Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)));
+        entries.add(Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)));
+        // Searchable field added by the mapper-size plugin.
+        // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
+        entries.add(Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true)));
+        if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
+            entries.add(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+        }
+        if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
+            // _slice is the virtual routing alias used by slice-enabled indices. Backed by _routing sorted doc values.
+            entries.add(Map.entry(SliceIndexing.PARAM_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
         }
         return Map.ofEntries(entries.toArray(Map.Entry[]::new));
     }

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -89,7 +89,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         registry.initialize();
         return List.of();
@@ -236,7 +237,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
                 "/fleet-actions-results.json",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
                 false,
@@ -322,7 +323,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             Template template = TemplateUtils.loadTemplate(
                 resource,
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion)),
                 false,

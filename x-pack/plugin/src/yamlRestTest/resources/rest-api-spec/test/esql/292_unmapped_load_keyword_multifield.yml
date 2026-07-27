@@ -1,0 +1,73 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_fix_load_keyword_with_multifields ]
+      reason: 'Bugfix: IndexResolver crashed with UnsupportedOperationException when a partially unmapped keyword field had multi-fields'
+  #
+  # The table below represents the field mappings for the two indices created in this test.
+  # my_field is a keyword with a keyword multi-field in index-a only, making both partially
+  # unmapped when both indices are queried together.
+  # Using a keyword multi-field (rather than text) avoids an unrelated pre-existing bug where
+  # a type-conflicted multi-field cannot be transported in multi-node clusters (issue #152322).
+  #
+  # | Field         | index-a | index-b |
+  # |---------------|---------|---------|
+  # | my_field      | keyword | -       |
+  # | my_field.raw  | keyword | -       |
+  # | other_field   | -       | keyword |
+  #
+  - do:
+      indices.create:
+        index: index-a
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              my_field:
+                type: keyword
+                fields:
+                  raw:
+                    type: keyword
+  - do:
+      indices.create:
+        index: index-b
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other_field:
+                type: keyword
+  - do:
+      index:
+        index: index-a
+        refresh: true
+        body:
+          my_field: hello
+  - do:
+      index:
+        index: index-b
+        refresh: true
+        body:
+          other_field: world
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: index-a,index-b
+
+---
+'keyword with multi-field partially unmapped does not crash':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index-a,index-b | SORT my_field | LIMIT 2'
+  - match: { columns.0.name: my_field }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: my_field.raw }
+  - match: { columns.1.type: keyword }

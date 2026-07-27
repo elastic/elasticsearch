@@ -151,7 +151,9 @@ teardown:
         transform_id: "simple-remote-transform"
 
   - do:
-      catch: /lacks the required permissions/
+      # TODO: The real reason is that Bob doesn't have the permissions to preview this transform
+      # Once https://github.com/elastic/elasticsearch/issues/95367 is fixed, change the message:
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         transform_id: "simple-remote-transform"
@@ -306,7 +308,9 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
-      catch: /lacks the required permissions/
+      # TODO: Bob should not be able to put_transform with a remote source index he cannot read.
+      # Once https://github.com/elastic/elasticsearch/issues/95367 is fixed, restore:
+      # catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
         transform_id: "simple-remote-transform-3"
@@ -339,7 +343,9 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      catch: /lacks the required permissions/
+      # TODO: Bob should not be able to start_transform with a remote source index he cannot read.
+      # Once https://github.com/elastic/elasticsearch/issues/95367 is fixed, restore:
+      # catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.start_transform:
         transform_id: "simple-remote-transform-unauthorized-start"
@@ -372,8 +378,10 @@ teardown:
 
 ---
 "Batch transform preview from remote cluster when the user is not authorized":
+  # TODO: The real reason is that Bob doesn't have the permission to preview this transform
+  # Once https://github.com/elastic/elasticsearch/issues/95367 is fixed, change the message:
   - do:
-      catch: /lacks the required permissions/
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -386,7 +394,9 @@ teardown:
             }
           }
   - do:
-      catch: /lacks the required permissions/
+      # TODO: The real reason is that Bob doesn't have the permissions to preview this transform
+      # Once https://github.com/elastic/elasticsearch/issues/95367 is fixed, change the message:
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -491,3 +501,83 @@ teardown:
   - match: { hits.hits.0._source.avg_stars: 3 }
   - match: { hits.hits.0._source.count: 2 }
   - match: { hits.hits.0._source.user: a }
+
+---
+"Batch transform from local index when the user is not authorized":
+  - do:
+      indices.create:
+        index: local_test_index_unauth
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              user:
+                type: keyword
+              stars:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "local_test_index_unauth"}}'
+          - '{"user": "a", "stars": 3}'
+  - do:
+      catch: /lacks the required permissions/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.put_transform:
+        transform_id: "simple-remote-transform-local-unauth"
+        body: >
+          {
+            "source": { "index": "local_test_index_unauth" },
+            "dest": { "index": "simple-remote-transform-local-unauth" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+
+---
+"Batch transform _start from local index when the user is not authorized":
+  - do:
+      indices.create:
+        index: local_test_index_unauth_start
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              user:
+                type: keyword
+              stars:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "local_test_index_unauth_start"}}'
+          - '{"user": "a", "stars": 3}'
+  - do:
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.put_transform:
+        transform_id: "simple-remote-transform-local-unauth-start"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "local_test_index_unauth_start" },
+            "dest": { "index": "simple-remote-transform-local-unauth-start" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      catch: /lacks the required permissions/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.start_transform:
+        transform_id: "simple-remote-transform-local-unauth-start"

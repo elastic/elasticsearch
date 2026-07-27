@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 153129
+summary: "[ESQLDS] Fix CSV/TSV declared string columns rejecting literal null"
+type: bug

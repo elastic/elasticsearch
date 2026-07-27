@@ -1,12 +1,12 @@
 import { execSync } from "child_process";
 import { resolve } from "path";
 
-import { classifyExplicitList } from "../detectors/explicit-list";
-import { buildCommands } from "../commands";
-import { uploadBuildkitePipeline } from "../runners/buildkite";
-import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain";
+import { classifyExplicitList } from "../detectors/explicit-list.ts";
+import { buildCommands } from "../commands.ts";
+import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
+import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 export function run(): void {
   const rawClasses = process.env.FLAKINESS_CLASSES;

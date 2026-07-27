@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.api.filtering;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -158,7 +158,7 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
         return new ThreadContext(settings);
     }
 
-    private static class TestRequest extends LegacyActionRequest {
+    private static class TestRequest extends UntypedActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

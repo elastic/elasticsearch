@@ -16,6 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -29,14 +30,23 @@ import static org.mockito.Mockito.when;
 public class WorkloadIdentityPluginTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private ResourceWatcherService resourceWatcher;
 
     @Before
     public void setupThreadPool() {
         this.threadPool = new TestThreadPool(getTestName());
+        // ENABLED=false: the plugin tests don't exercise file-watch reload. The watcher is still
+        // a required collaborator on the SSL config the plugin builds, so we hand it a disabled
+        // one (no polling thread, no I/O) rather than letting Mockito return null.
+        this.resourceWatcher = new ResourceWatcherService(
+            Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+            threadPool
+        );
     }
 
     @After
     public void shutdownThreadPool() {
+        resourceWatcher.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -86,7 +96,7 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
         final WorkloadIdentityPlugin plugin = new WorkloadIdentityPlugin();
         plugin.createComponents(mockServices(settings));
 
-        final WorkloadIdentityHttpClientManager manager = plugin.getHttpClientManagerForTesting();
+        final WorkloadIdentityHttpClientManager manager = plugin.getHttpClientManager();
         assertNotNull("plugin should retain the HTTP client manager when workload-identity is enabled", manager);
 
         // Sanity-check that the manager was actually started during createComponents, so the
@@ -96,7 +106,7 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
         plugin.close();
 
         final IllegalStateException ex = expectThrows(IllegalStateException.class, manager::getHttpClient);
-        assertThat(ex.getMessage(), containsString("is closed"));
+        assertThat(ex.getMessage(), containsString("[CLOSED]"));
     }
 
     /**
@@ -143,15 +153,17 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
     /**
      * Build a {@link Plugin.PluginServices} stub that satisfies the dependencies
      * {@link WorkloadIdentityPlugin#createComponents} actually reads: the environment (for
-     * settings + SSL config loading) and the thread pool (handed to the HTTP client manager
-     * for the connection eviction task). Everything else on PluginServices is left as the
-     * Mockito default; the plugin does not touch it.
+     * settings + SSL config loading), the thread pool (handed to the HTTP client manager for
+     * the connection eviction task), and the {@link ResourceWatcherService} (passed through to
+     * {@link WorkloadIdentitySslConfig} for file-watch SSL reload). Everything else on
+     * PluginServices is left as the Mockito default; the plugin does not touch it.
      */
     private Plugin.PluginServices mockServices(Settings settings) {
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.environment()).thenReturn(environment);
         when(services.threadPool()).thenReturn(threadPool);
+        when(services.resourceWatcherService()).thenReturn(resourceWatcher);
         return services;
     }
 }

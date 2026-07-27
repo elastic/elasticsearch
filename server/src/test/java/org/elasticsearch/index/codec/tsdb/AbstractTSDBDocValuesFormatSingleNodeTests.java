@@ -41,8 +41,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
 
-    protected abstract void assumeCodecSelected();
-
     protected abstract void assertTSDBDocValuesFormat(DocValuesFormat format, String field);
 
     protected abstract void assertStandardIndexDocValuesFormat(DocValuesFormat format, String field);
@@ -50,7 +48,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     protected abstract String expectedCodecName();
 
     public void testTSDBWithSinglePrefixByte() throws Exception {
-        assumeCodecSelected();
         assumeTrue("require single prefix byte to enable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
         final String indexName = "tsdb-test";
         final Settings settings = tsdbSettings();
@@ -85,7 +82,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testTSDBWithMultiplePrefixByte() throws Exception {
-        assumeCodecSelected();
         assumeFalse("require multiple byte prefix to disable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
         final String indexName = "tsdb-test";
         final Settings settings = tsdbSettings();
@@ -113,7 +109,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testStandardIndexWithTSDBDocValuesFormatSetting() throws Exception {
-        assumeCodecSelected();
         final String indexName = "standard-tsdb-dv-test";
         final Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build();
 
@@ -128,7 +123,6 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
-        assumeCodecSelected();
         final String indexName = "standard-large-binary-block-dv-test";
         final Settings settings = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)

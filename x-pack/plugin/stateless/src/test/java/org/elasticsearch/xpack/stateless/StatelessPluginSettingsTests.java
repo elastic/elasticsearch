@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -69,6 +70,19 @@ public class StatelessPluginSettingsTests extends ESTestCase {
         assertThat(
             statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
             equalTo("0")
+        );
+    }
+
+    public void testIndexBalanceMetricsEnabledForStateless() {
+        var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                .build()
+        );
+        assertThat(
+            statelessNode.additionalSettings().get(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey()),
+            equalTo("true")
         );
     }
 }

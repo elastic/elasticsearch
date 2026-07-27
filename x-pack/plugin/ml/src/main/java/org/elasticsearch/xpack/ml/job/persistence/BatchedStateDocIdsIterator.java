@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
  */
 public class BatchedStateDocIdsIterator extends BatchedDocumentsIterator<String> {
 
-    public BatchedStateDocIdsIterator(OriginSettingClient client, String index) {
-        super(client, index);
+    public BatchedStateDocIdsIterator(OriginSettingClient client, String... indices) {
+        super(client, indices);
     }
 
     @Override

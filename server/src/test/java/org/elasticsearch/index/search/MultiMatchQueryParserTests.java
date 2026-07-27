@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
@@ -393,5 +394,21 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             0.0f
         );
         assertThat(query, equalTo(expected));
+    }
+
+    public void testCrossFieldsZeroTokensDoesNotThrow() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap(), null, null);
+
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
+
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
+        parser.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
+
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, ".", null);
+        assertNull(query);
     }
 }

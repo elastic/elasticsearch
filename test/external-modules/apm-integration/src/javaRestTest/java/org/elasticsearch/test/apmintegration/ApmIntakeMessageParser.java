@@ -80,9 +80,11 @@ public final class ApmIntakeMessageParser {
             ? tags.get("otel_instrumentation_scope_name").toString()
             : "";
 
+        long timeUnixNano = (long) metricset.getOrDefault("time_unix_nano", 0L);
+
         Object samplesObj = metricset.get("samples");
         if (samplesObj == null) {
-            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of());
+            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of(), timeUnixNano);
         }
         if (samplesObj instanceof Map<?, ?> == false) {
             throw new IOException("metricset.samples is not an object");
@@ -97,7 +99,7 @@ public final class ApmIntakeMessageParser {
                 throw new IOException("metricset.samples entry [" + entry.getKey() + "] is not an object");
             }
         }
-        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples));
+        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples), timeUnixNano);
     }
 
     private static ReceivedTelemetry.ReceivedMetricValue parseSample(Map<String, Object> sample) throws IOException {

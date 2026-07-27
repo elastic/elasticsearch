@@ -107,9 +107,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     private FeatureService featureService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initFeatureService() throws Exception {
         featureService = Mockito.mock(FeatureService.class);
         Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }

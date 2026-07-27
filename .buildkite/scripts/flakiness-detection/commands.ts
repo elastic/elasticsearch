@@ -1,14 +1,12 @@
 import { dirname } from "path";
 
-import {
-  BatchingConfig,
-  ClassifiedTest,
-  KIND_KEYS,
-  KIND_LABELS,
-  KIND_ORDER,
-  RunnableCommand,
-  TestKind,
-} from "./domain";
+import type { BatchingConfig, ClassifiedTest, RunnableCommand, TestKind } from "./domain.ts";
+
+import { KIND_KEYS, KIND_LABELS, KIND_ORDER } from "./domain.ts";
+
+// The REST-loop wrapper: repeats a Gradle invocation `restIters` times and
+// preserves each iteration's JUnit XML.
+const REPEAT_REST_TEST = ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh";
 
 export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
@@ -91,7 +89,7 @@ function tasksWithFilters(
   batch: ClassifiedTest[],
   taskName: string,
   toFilter: (t: ClassifiedTest) => string,
-  perTaskSuffix?: string
+  perTaskSuffix?: string,
 ): string {
   const byTask = new Map<string, string[]>();
   for (const t of batch) {
@@ -126,10 +124,10 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
     }
     case "javaRestTest": {
       const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks}`;
+      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks}`;
     }
     case "yamlRestTestRunner": {
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${batch[0].gradleProject}:yamlRestTest --rerun`;
+      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${batch[0].gradleProject}:yamlRestTest --rerun`;
     }
     case "yamlRestTestSuite": {
       // `tests.rest.suite` is a JVM system property, not a Gradle task option,
@@ -151,22 +149,19 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
       const suiteProps = [...byTask.entries()]
         .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
         .join(" ");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks} ${suiteProps}`;
+      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks} ${suiteProps}`;
     }
     case "yamlRestTestCase": {
       // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
       // form, so multiple cases can be batched into one gradle invocation and
       // share agent and cluster setup.
       const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} ${gradle} ${tasks}`;
+      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks}`;
     }
   }
 }
 
-export function buildCommands(
-  tests: ClassifiedTest[],
-  cfg: BatchingConfig
-): RunnableCommand[] {
+export function buildCommands(tests: ClassifiedTest[], cfg: BatchingConfig): RunnableCommand[] {
   let staged = dedupeTests(tests);
   staged = collapseYamlSuites(staged);
   staged = deduplicateYamlRunners(staged);

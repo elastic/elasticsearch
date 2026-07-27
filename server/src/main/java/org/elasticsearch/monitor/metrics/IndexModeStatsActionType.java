@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class IndexModeStatsActionType extends ActionType<IndexModeStatsActionType.StatsResponse> {
     public static final IndexModeStatsActionType TYPE = new IndexModeStatsActionType();
@@ -114,7 +115,19 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(stats, (o, m) -> IndexMode.writeTo(m, o), (o, s) -> s.writeTo(o));
+            final var tv = out.getTransportVersion();
+            out.writeMap(
+                stats.entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().supportsVersion(tv))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+                (o, m) -> IndexMode.writeTo(m, o),
+                (o, s) -> s.writeTo(o)
+            );
+        }
+
+        Map<IndexMode, IndexStats> stats() {
+            return stats;
         }
     }
 

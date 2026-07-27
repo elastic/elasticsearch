@@ -17,7 +17,12 @@ Path matching is case-sensitive.
 Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
 is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
-String values are returned without surrounding quotes, numbers and booleans as their string representation,
-and objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the
-result is a multi-valued `keyword` block.
+String values are returned without surrounding quotes, and numbers and booleans as their string
+representation. When the sub-field is multi-valued in the flattened field, the result is a multi-valued
+`keyword` block. Because the underlying mapper flattens nested objects into dotted keys at index time,
+a sub-field whose value is itself a JSON object has no leaf at the requested key in the flat storage and
+the function returns `null`. The dotted child paths (`a.b`, `a.b.c`, ...) still address the leaves directly.
+Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
+skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
+multi-value block.
 

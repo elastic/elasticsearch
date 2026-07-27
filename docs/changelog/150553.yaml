@@ -1,0 +1,6 @@
+area: Mapping
+issues: []
+pr: 150553
+summary: Improve `DocumentParser#parseObjectDynamic()` if subobjects are disabled
+  and dynamic templates
+type: enhancement

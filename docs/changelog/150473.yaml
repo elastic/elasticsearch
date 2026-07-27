@@ -1,0 +1,6 @@
+area: Machine Learning
+issues: []
+pr: 150473
+summary: Expose datafeed `authorization.cloud_api_key.id` on GET for CPS operator
+  visibility
+type: enhancement

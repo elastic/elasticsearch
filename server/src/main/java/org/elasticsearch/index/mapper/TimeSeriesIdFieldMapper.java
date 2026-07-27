@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -230,6 +231,16 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
         return context.indexSettings().getIndexVersionCreated();
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO(columnar-tsdb): implement preColumnarParse for _tsid. Modern indices (on/after
+        // TIME_SERIES_ID_HASHING) have _tsid already computed on the coordinating node and
+        // available via IndexRequest#tsid(), so no per-document dimension-field parsing is needed.
+        // Also note: postParse copies _tsid into nested documents (addSyntheticIdFieldsToNestedDocs)
+        // which requires columnar nested-doc support before it can be ported.
+        return false;
     }
 
     @Override

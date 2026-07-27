@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 152780
+summary: Report `vectordb_document` usage in _xpack/usage
+type: enhancement

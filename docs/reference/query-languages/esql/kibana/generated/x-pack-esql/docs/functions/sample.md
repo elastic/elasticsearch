@@ -4,6 +4,6 @@
 Collects sample values for a field.
 
 ```esql
-FROM employees
-| STATS sample = SAMPLE(gender, 5)
+FROM sample_data
+| STATS sample_messages = SAMPLE(message, 3)
 ```

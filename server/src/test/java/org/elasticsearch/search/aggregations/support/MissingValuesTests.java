@@ -39,7 +39,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues() {
+        SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues(null) {
 
             int doc = -1;
             int i;

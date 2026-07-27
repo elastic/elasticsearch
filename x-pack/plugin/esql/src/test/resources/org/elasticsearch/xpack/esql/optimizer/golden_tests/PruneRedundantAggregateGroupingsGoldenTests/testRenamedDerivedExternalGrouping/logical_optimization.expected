@@ -1,0 +1,5 @@
+Project[[count{r}#0, cip{r}#1, c{r}#2]]
+\_Eval[[cip{r}#1 - 1[INTEGER] AS c#2]]
+  \_Limit[1000[INTEGER],false,false]
+    \_Aggregate[[ClientIP{r}#3],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#0, ClientIP{r}#3 AS cip#1]]
+      \_ExternalRelation[s3://bucket/data.parquet][parquet][ClientIP{r}#3]

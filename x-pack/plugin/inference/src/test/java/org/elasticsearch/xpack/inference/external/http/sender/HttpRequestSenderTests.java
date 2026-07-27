@@ -379,7 +379,8 @@ public class HttpRequestSenderTests extends ESTestCase {
                 getUrl(webServer),
                 new TraceContext("", ""),
                 randomElasticInferenceServiceRequestMetadata(),
-                CCMAuthenticationApplierFactory.NOOP_APPLIER
+                CCMAuthenticationApplierFactory.NOOP_APPLIER,
+                null
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),

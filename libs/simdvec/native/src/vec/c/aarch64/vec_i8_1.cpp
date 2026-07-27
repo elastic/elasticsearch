@@ -208,15 +208,6 @@ EXPORT void vec_cosi8_bulk_sparse(
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-EXPORT void vec_cosi8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper>(ptrs, b, dims, 0, NULL, 8, results);
-}
-
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32x4_t acc0 = vdupq_n_s32(0);
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -394,16 +385,6 @@ EXPORT void vec_doti8_bulk_sparse(
     call_i8_bulk<const int8_t*, int32x4_t, sparse_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-EXPORT void vec_doti8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, int32x4_t, sparse_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(
-        ptrs, b, dims, 0, NULL, 8, results);
-}
-
 // Bulk inner_op for sqri8: computes |a-b|^2 using vabdq + vdotq_u32
 static inline uint32x4_t sqri8_vector_op(const uint32x4_t acc, const int8x16_t va, const int8x16_t vb) {
     uint8x16_t abd = vreinterpretq_u8_s8(vabdq_s8(va, vb));
@@ -502,14 +483,4 @@ EXPORT void vec_sqri8_bulk_sparse(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<const int8_t*, uint32x4_t, sparse_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqri8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, uint32x4_t, sparse_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

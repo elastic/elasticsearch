@@ -222,7 +222,6 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
             try {
                 client.close();
                 logger.debug("Shut down remote connection");
-                remote.close();
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
             } finally {

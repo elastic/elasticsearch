@@ -21,8 +21,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- *  Doc values loader for UTF-8 multivalued fields with offset reconstruction, used by
- * {@link SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer} and {@link BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer}.
+ * Doc values loader for UTF-8 multivalued fields with offset reconstruction, used by
+ * {@link SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer}.
  */
 final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFieldLoader.DocValuesLoader {
 

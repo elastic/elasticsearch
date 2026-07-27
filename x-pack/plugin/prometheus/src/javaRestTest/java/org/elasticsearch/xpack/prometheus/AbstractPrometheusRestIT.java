@@ -12,6 +12,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -22,15 +25,24 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -55,21 +67,60 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected static final String USER = "test_admin";
     protected static final String PASS = "x-pack-test-password";
     protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
+    protected static final String MIXED_METRICS_PROMETHEUS_METRIC = "explorer_prometheus_metric";
+
+    private static final String NON_PROMETHEUS_METRICS_DATA_STREAM = "metrics-system.cpu-default";
+
+    private static Path httpCertificateAuthority;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http.crt")
+        .setting("xpack.security.http.ssl.key", "http.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.http.ssl.client_authentication", "optional")
+        .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
+        .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .user(USER, PASS, "superuser", false)
         .build();
+
+    @BeforeClass
+    public static void findHttpCertificateAuthority() throws Exception {
+        httpCertificateAuthority = findResource("/ssl/ca.crt");
+    }
+
+    private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
+        final URL resource = AbstractPrometheusRestIT.class.getResource(name);
+        if (resource == null) {
+            throw new FileNotFoundException("Cannot find classpath resource " + name);
+        }
+        return PathUtils.get(resource.toURI());
+    }
+
+    @AfterClass
+    public static void cleanupStatics() {
+        httpCertificateAuthority = null;
+    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String getProtocol() {
+        return "https";
     }
 
     protected String writeApiKey;
@@ -78,7 +129,15 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(super.restClientSettings())
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(restSslSettings())
+            .build();
+    }
+
+    private static Settings restSslSettings() {
+        return Settings.builder().put(CERTIFICATE_AUTHORITIES, httpCertificateAuthority).build();
     }
 
     @Before
@@ -92,7 +151,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      * Use for requests to {@code /_prometheus/api/v1/write}.
      */
     protected void addWriteAuth(Request request) {
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + writeApiKey).build());
+        doAddReadWriteAuth(request, writeApiKey);
     }
 
     /**
@@ -100,7 +159,42 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      * Use for requests to all Prometheus query and metadata endpoints.
      */
     protected void addReadAuth(Request request) {
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + readApiKey).build());
+        doAddReadWriteAuth(request, readApiKey);
+    }
+
+    private void doAddReadWriteAuth(Request request, String apiKey) {
+        request.setOptions(
+            request.getOptions().toBuilder().removeHeader("Authorization").addHeader("Authorization", "ApiKey " + apiKey).build()
+        );
+    }
+
+    /**
+     * Builds a randomized Prometheus read request, encoding params in the query string for {@code GET}
+     * requests and as an {@code application/x-www-form-urlencoded} body for {@code POST} requests.
+     */
+    protected Request prometheusReadRequest(String path, NameValuePair... params) {
+        Request request;
+        if (randomBoolean()) {
+            String endpoint = path;
+            if (params.length > 0) {
+                endpoint += (path.contains("?") ? "&" : "?") + URLEncodedUtils.format(List.of(params), StandardCharsets.UTF_8);
+            }
+            request = new Request("GET", endpoint);
+        } else {
+            request = new Request("POST", path);
+            request.setEntity(new UrlEncodedFormEntity(List.of(params), StandardCharsets.UTF_8));
+        }
+        addReadAuth(request);
+        return request;
+    }
+
+    protected Request prometheusGetRequest(String path, String apiKey, NameValuePair... params) {
+        Request request = new Request("GET", path);
+        for (NameValuePair param : params) {
+            request.addParameter(param.getName(), param.getValue());
+        }
+        doAddReadWriteAuth(request, apiKey);
+        return request;
     }
 
     // --- sample data helpers ---
@@ -114,22 +208,6 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected void ingestTestData(String metricName) throws IOException {
         long baseTimestamp = 1767225600000L; // 2026-01-01T00:00:00Z
 
-        Request putCustomTemplate = new Request("PUT", "/_component_template/metrics-prometheus@custom");
-        putCustomTemplate.setJsonEntity("""
-            {
-              "template": {
-                "settings": {
-                  "index": {
-                    "time_series": {
-                      "start_time": "2026-01-01T00:00:00Z"
-                    }
-                  }
-                }
-              }
-            }
-            """);
-        client().performRequest(putCustomTemplate);
-
         RemoteWrite.WriteRequest.Builder writeRequestBuilder = RemoteWrite.WriteRequest.newBuilder();
         for (int i = 0; i < 5; i++) {
             writeRequestBuilder.addTimeseries(
@@ -142,27 +220,49 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
             );
         }
 
+        ingestTestData(writeRequestBuilder.build());
+    }
+
+    /**
+     * Pins the TSDS start_time to 2026-01-01T00:00:00Z, sends the given pre-built remote-write request to
+     * {@code /_prometheus/api/v1/write}, refreshes {@link #DEFAULT_DATA_STREAM}, and asserts zero indexing
+     * failures. Use this when a test needs full control over the time series and samples being ingested.
+     */
+    protected void ingestTestData(RemoteWrite.WriteRequest writeRequestPayload) throws IOException {
+        var api = client();
+        Request putCustomTemplate = makeRequest("PUT", "/_component_template/metrics-prometheus@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "time_series": {
+                      "start_time": "2026-01-01T00:00:00Z"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        api.performRequest(putCustomTemplate);
+
         Request writeRequest = new Request("POST", "/_prometheus/api/v1/write");
-        writeRequest.setEntity(
-            new ByteArrayEntity(writeRequestBuilder.build().toByteArray(), ContentType.create("application/x-protobuf"))
-        );
+        writeRequest.setEntity(new ByteArrayEntity(writeRequestPayload.toByteArray(), ContentType.create("application/x-protobuf")));
         addWriteAuth(writeRequest);
-        Response writeResponse = client().performRequest(writeRequest);
+        Response writeResponse = api.performRequest(writeRequest);
         assertThat(writeResponse.getStatusLine().getStatusCode(), equalTo(204));
         if (writeResponse.getEntity() != null) {
             assertThat(EntityUtils.toString(writeResponse.getEntity()), equalTo(""));
         }
 
-        client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
+        api.performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
 
-        Request searchFailures = new Request("GET", "/" + DEFAULT_DATA_STREAM + "::failures/_search");
-        searchFailures.setJsonEntity("""
+        Request searchFailures = makeRequest("GET", "/" + DEFAULT_DATA_STREAM + "::failures/_search", """
             {
               "track_total_hits": true,
               "size": 0
             }
             """);
-        ObjectPath failuresPath = ObjectPath.createFromResponse(client().performRequest(searchFailures));
+        ObjectPath failuresPath = ObjectPath.createFromResponse(api.performRequest(searchFailures));
         assertThat(((Number) failuresPath.evaluate("hits.total.value")).intValue(), equalTo(0));
     }
 
@@ -188,6 +288,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     protected void writeMetricTo(String dataset, String namespace, String metricName, Map<String, String> labels, double value)
         throws IOException {
+        var api = client();
         String writeEndpoint = "/_prometheus/metrics/" + dataset + "/" + namespace + "/api/v1/write";
         String dataStream = "metrics-" + dataset + ".prometheus-" + namespace;
 
@@ -201,8 +302,33 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         addWriteAuth(request);
-        client().performRequest(request);
-        client().performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
+        api.performRequest(request);
+        api.performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
+    }
+
+    /**
+     * Writes a non-Prometheus data stream that matches {@code metrics-*}. This models a cluster
+     * with generic metrics data alongside Prometheus remote-write data.
+     */
+    protected void writeNonPrometheusMetricsDataStream() throws IOException {
+        var api = client();
+        if (dataStreamExists(NON_PROMETHEUS_METRICS_DATA_STREAM) == false) {
+            api.performRequest(new Request("PUT", "/_data_stream/" + NON_PROMETHEUS_METRICS_DATA_STREAM));
+        }
+
+        Request indexDocument = new Request("POST", "/" + NON_PROMETHEUS_METRICS_DATA_STREAM + "/_doc");
+        indexDocument.addParameter("op_type", "create");
+        indexDocument.setJsonEntity("""
+            {
+              "@timestamp": "2026-01-01T00:01:00Z",
+              "host": {
+                "name": "host-1"
+              },
+              "system_cpu_usage": 0.42
+            }
+            """);
+        api.performRequest(indexDocument);
+        api.performRequest(new Request("POST", "/" + NON_PROMETHEUS_METRICS_DATA_STREAM + "/_refresh"));
     }
 
     protected static RemoteWrite.Label label(String name, String value) {
@@ -238,10 +364,10 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     }
 
     protected List<Map<String, Object>> searchDocs(String dataStream, String metricName) throws IOException {
-        client().performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
+        var api = client();
+        api.performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
 
-        Request search = new Request("GET", "/" + dataStream + "/_search");
-        search.setJsonEntity(Strings.format("""
+        Request search = makeRequest("GET", "/" + dataStream + "/_search", """
             {
               "query": {
                 "term": {
@@ -249,8 +375,8 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
                 }
               }
             }
-            """, metricName));
-        Response response = client().performRequest(search);
+            """, metricName);
+        Response response = api.performRequest(search);
         Map<String, Object> searchResult = entityAsMap(response);
 
         @SuppressWarnings("unchecked")
@@ -293,28 +419,37 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     // --- security helpers ---
 
     protected static String createApiKey(String name, String indexPattern, String... privileges) throws IOException {
-        StringBuilder privilegeArray = new StringBuilder();
+        var privilegeArray = new StringBuilder();
         for (int i = 0; i < privileges.length; i++) {
             if (i > 0) privilegeArray.append("\", \"");
             privilegeArray.append(privileges[i]);
         }
-        Request request = new Request("POST", "/_security/api_key");
-        request.setJsonEntity("""
+        var request = makeRequest("POST", "/_security/api_key", """
             {
-              "name": "$NAME",
+              "name": "%s",
               "role_descriptors": {
                 "role": {
                   "index": [
                     {
-                      "names": ["$INDEX_PATTERN"],
-                      "privileges": ["$PRIVILEGES"]
+                      "names": ["%s"],
+                      "privileges": ["%s"]
                     }
                   ]
                 }
               }
             }
-            """.replace("$NAME", name).replace("$INDEX_PATTERN", indexPattern).replace("$PRIVILEGES", privilegeArray));
+            """, name, indexPattern, privilegeArray);
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
         return response.evaluate("encoded");
+    }
+
+    private static Request makeRequest(String method, String path, String body, Object... args) {
+        Request request = new Request(method, path);
+        request.setJsonEntity(Strings.format(body, args));
+        return request;
+    }
+
+    protected static String createPrometheusReadApiKey(String name, String indexPattern) throws IOException {
+        return createApiKey(name, indexPattern, "read", "view_index_metadata");
     }
 }

@@ -516,7 +516,6 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
                 null,
@@ -641,18 +640,7 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(FIRST_PART_OF_INPUT_VALUE),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                null,
-                listener
-            );
+            service.infer(model, List.of(FIRST_PART_OF_INPUT_VALUE), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }

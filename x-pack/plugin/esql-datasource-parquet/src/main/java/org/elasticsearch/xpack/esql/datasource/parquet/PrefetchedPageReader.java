@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
@@ -15,12 +17,17 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link PageReader} backed by an in-memory queue of compressed {@link DataPage}s plus an
@@ -32,8 +39,18 @@ import java.util.List;
  * {@link DataPage} from the queue and returns its decompressed equivalent, preserving the
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
+ *
+ * <p>Decompression buffers are allocated as {@link ArrowBuf}s from the supplied
+ * {@link BufferAllocator}, exposed to the codec via {@link ArrowBuf#nioBuffer(long, int)} to
+ * preserve the direct-to-direct JNI fast path. The reader owns these buffers. A page's buffer is
+ * released back to the allocator (which routes the accounting through the circuit breaker) as soon
+ * as the consumer asks for the next page — see {@link #readPage()} — so only ONE page's
+ * decompressed bytes are live per (column, reader) at a time; {@link #close()} releases whatever
+ * remains (the tail page). The {@link DataPage}s and {@link BytesInput}s returned from
+ * {@link #readPage()} alias the current page's buffer and must not be used after the next
+ * {@link #readPage()} call or after the reader is closed.
  */
-final class PrefetchedPageReader implements PageReader {
+final class PrefetchedPageReader implements PageReader, Releasable {
 
     /**
      * A compressed data page paired with its {@code firstRowIndex}. Required because
@@ -45,20 +62,31 @@ final class PrefetchedPageReader implements PageReader {
     record CompressedPage(DataPage page, long firstRowIndex) {}
 
     private final BytesInputDecompressor decompressor;
+    private final BufferAllocator allocator;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
+    // Decompress-output buffer(s) of the page returned by the most recent readPage() call. Bounded
+    // to one page: readPage() releases the previous page's buffers before decoding the next, and
+    // close() releases the tail page. Named for that lifetime rather than "owned for the reader's
+    // life" — parking every page's buffer until close() was the native-memory leak this reader had.
+    private final List<Releasable> livePageBuffers = new ArrayList<>();
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
+    // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
+    // on a single compareAndSet and only one thread actually releases the owned buffers.
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
+        BufferAllocator allocator,
         List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
         this.decompressor = decompressor;
+        this.allocator = allocator;
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
@@ -73,8 +101,27 @@ final class PrefetchedPageReader implements PageReader {
     public DataPage readPage() {
         CompressedPage entry = compressedPages.poll();
         if (entry == null) {
+            // Queue drained. The last page returned stays live (the consumer may still be decoding
+            // it) until close() releases it; there is no new page to decode, so nothing to release.
             return null;
         }
+        // Per-page release. Both consumers of this reader ask for pages strictly sequentially and
+        // are done with the current page's bytes before they ask for the next one:
+        // - PageColumnReader#loadNextPage (flat columns) runs its remainder-skip off the current
+        // value/def-level buffers BEFORE calling readPage(), and reassigns those buffers to the
+        // new page immediately after;
+        // - parquet-mr's ColumnReaderBase (list columns, via ColumnReadStoreImpl) calls readPage()
+        // only from checkRead() once the current page is fully consumed, re-initializes all of
+        // its level/value readers from the new page before any further read, and its consumers
+        // (ParquetColumnDecoding#readListRow) copy each value to the heap before the consume()
+        // that can cross a page boundary.
+        // So the previously returned page's decompress buffer is dead the moment the consumer asks
+        // for the next page. Release it now rather than parking every page's buffer until close(): otherwise
+        // the live decompressed working set per (column, reader) is O(uncompressed column chunk)
+        // instead of O(one page), and — one such reader per projected column, up to 48 concurrent
+        // read streams — the accumulation climbs until the OS OOM-killer takes the node, invisible
+        // to every heap-only circuit breaker.
+        releaseLivePageBuffers();
         DataPage page = entry.page();
         if (page instanceof DataPageV1 v1) {
             return decompressV1(v1);
@@ -94,7 +141,16 @@ final class PrefetchedPageReader implements PageReader {
             return cachedDictionaryPage;
         }
         try {
-            BytesInput decompressed = decompressToDirectBuffer(
+            // Use the heap decompressor path (not decompressToDirectBuffer) so the
+            // returned BytesInput is backed by a plain byte[] rather than an ArrowBuf.
+            // DictionaryPageReader (parquet-mr) caches this DictionaryPage indefinitely
+            // in a ConcurrentHashMap; if the decompressed bytes aliased an ArrowBuf they
+            // would become dangling as soon as the owning PrefetchedPageReader is closed
+            // at row-group rollover. The compressed input (compressedDictionaryPage.getBytes())
+            // is also heap-backed — PrefetchedRowGroupBuilder.makeDictionaryPage eagerly
+            // copies it from the PrefetchedChunk's direct buffer, which can be released
+            // before this call. Dictionary pages are small; neither copy is performance-critical.
+            BytesInput decompressed = decompressor.decompress(
                 compressedDictionaryPage.getBytes(),
                 compressedDictionaryPage.getUncompressedSize()
             );
@@ -233,15 +289,80 @@ final class PrefetchedPageReader implements PageReader {
             }
             return BytesInput.from(input);
         }
-        if (input.isDirect() == false) {
-            ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
-            directInput.put(input);
-            directInput.flip();
-            input = directInput;
+        // Scratch buffer used only when the input is on the heap and must be copied to direct
+        // memory to take the codec's direct-to-direct JNI fast path. decompress() consumes it
+        // synchronously, so it is released in the finally below rather than registered with the
+        // reader — otherwise it would sit in livePageBuffers until the next page is decoded.
+        ArrowBuf scratch = null;
+        try {
+            if (input.isDirect() == false) {
+                scratch = allocator.buffer(input.remaining());
+                ByteBuffer directInput = scratch.nioBuffer(0, input.remaining());
+                directInput.put(input);
+                directInput.flip();
+                input = directInput;
+            }
+            ByteBuffer output = allocateDirect(decompressedSize);
+            decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
+            output.flip();
+            return BytesInput.from(output);
+        } finally {
+            if (scratch != null) {
+                scratch.close();
+            }
         }
-        ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
-        decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
-        output.flip();
-        return BytesInput.from(output);
+    }
+
+    /**
+     * Allocate a direct {@link ByteBuffer} of the requested size, backed by an {@link ArrowBuf}
+     * owned by this reader. The buffer is breaker-accounted via the allocator's listener and is
+     * released when the consumer asks for the next page (see {@link #readPage()}) or, for the tail
+     * page, on {@link #close()} — whichever comes first.
+     */
+    private ByteBuffer allocateDirect(int size) {
+        ArrowBuf buf = allocator.buffer(size);
+        // Use the explicit (index, length) overload: ArrowBuf may round capacity up, but the
+        // codec's size sanity check expects remaining() == declared decompressed size.
+        ByteBuffer view = buf.nioBuffer(0, size);
+        // Poison the region just before release (assertions only) so a decompressed-page BytesInput
+        // that aliases this buffer and is read after the buffer is released (next readPage() /
+        // close()) fails deterministically.
+        livePageBuffers.add(() -> {
+            DirectMemoryDebug.poison(view);
+            buf.close();
+        });
+        return view;
+    }
+
+    /**
+     * Release the decompress-output buffer(s) of the page returned by the previous
+     * {@link #readPage()} call back to the allocator. Called at the top of {@link #readPage()}
+     * before decoding the next page, and by {@link #close()} for the tail page. Idempotent and a
+     * no-op when nothing is live (e.g. the uncompressed short-circuit that aliases the caller's
+     * input buffer without allocating).
+     */
+    private void releaseLivePageBuffers() {
+        if (livePageBuffers.isEmpty()) {
+            return;
+        }
+        try {
+            Releasables.close(livePageBuffers);
+        } finally {
+            livePageBuffers.clear();
+        }
+    }
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
+        // Drop the cached dictionary page reference. It is deliberately heap-backed (see
+        // readDictionaryPage), so this is reference hygiene, not a buffer-lifetime requirement —
+        // in particular it is NOT in livePageBuffers and is never touched by the per-page release.
+        cachedDictionaryPage = null;
+        // Release the tail page's buffer(s). Every earlier page was already released by the
+        // readPage() call that superseded it, so at most one page's buffer remains here.
+        releaseLivePageBuffers();
     }
 }

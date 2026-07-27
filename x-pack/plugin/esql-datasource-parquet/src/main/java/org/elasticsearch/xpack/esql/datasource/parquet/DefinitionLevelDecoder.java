@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -59,7 +58,9 @@ final class DefinitionLevelDecoder {
         ByteBuffer source = defLevelBytes.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         if (hasLengthPrefix) {
             int payloadLen = source.getInt();
-            Check.isTrue(source.remaining() >= payloadLen, "Truncated definition level payload");
+            if (source.remaining() < payloadLen) {
+                throw new IllegalArgumentException("Truncated definition level payload");
+            }
             ByteBuffer payload = source.slice().order(ByteOrder.LITTLE_ENDIAN);
             payload.limit(payloadLen);
             this.in = payload;
@@ -311,7 +312,9 @@ final class DefinitionLevelDecoder {
     }
 
     private void startNextRun() {
-        Check.isTrue(in.hasRemaining(), "Truncated definition level stream");
+        if (in.hasRemaining() == false) {
+            throw new IllegalArgumentException("Truncated definition level stream");
+        }
         int header = readUnsignedVarInt();
         if ((header & 1) == 0) {
             rleMode = true;
@@ -324,7 +327,9 @@ final class DefinitionLevelDecoder {
             int numGroups = header >>> 1;
             packedRemaining = numGroups * 8;
             int byteLen = numGroups * bitWidth;
-            Check.isTrue(in.remaining() >= byteLen, "Truncated bit-packed definition level data");
+            if (in.remaining() < byteLen) {
+                throw new IllegalArgumentException("Truncated bit-packed definition level data");
+            }
             if (packedBytes == null || packedBytes.length < byteLen) {
                 packedBytes = UninitializedArrays.newByteArray(byteLen);
             }
@@ -347,14 +352,18 @@ final class DefinitionLevelDecoder {
         int shift = 0;
         int result = 0;
         while (true) {
-            Check.isTrue(in.hasRemaining(), "Truncated varint in definition level stream");
+            if (in.hasRemaining() == false) {
+                throw new IllegalArgumentException("Truncated varint in definition level stream");
+            }
             int b = in.get() & 0xFF;
             result |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
                 return result;
             }
             shift += 7;
-            Check.isTrue(shift <= 35, "Varint overflow in definition level stream");
+            if (shift > 35) {
+                throw new IllegalArgumentException("Varint overflow in definition level stream");
+            }
         }
     }
 
@@ -373,7 +382,9 @@ final class DefinitionLevelDecoder {
         if (n == 0) {
             return 0;
         }
-        Check.isTrue(in.remaining() >= n, "Truncated padded definition level value");
+        if (in.remaining() < n) {
+            throw new IllegalArgumentException("Truncated padded definition level value");
+        }
         int v = 0;
         for (int i = 0; i < n; i++) {
             v |= (in.get() & 0xFF) << (8 * i);

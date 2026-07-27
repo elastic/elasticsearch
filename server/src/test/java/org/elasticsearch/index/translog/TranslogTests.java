@@ -26,6 +26,7 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
@@ -117,6 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -179,7 +181,7 @@ public class TranslogTests extends ESTestCase {
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
-    private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
+    private final AtomicReference<Consumer<LongsRef>> persistedSeqNoConsumer = new AtomicReference<>();
     private boolean expectIntactTranslog;
 
     @Before
@@ -206,11 +208,11 @@ public class TranslogTests extends ESTestCase {
 
     }
 
-    private LongConsumer getPersistedSeqNoConsumer() {
-        return seqNo -> {
-            final LongConsumer consumer = persistedSeqNoConsumer.get();
+    private Consumer<LongsRef> getPersistedSeqNoConsumer() {
+        return seqNos -> {
+            final Consumer<LongsRef> consumer = persistedSeqNoConsumer.get();
             if (consumer != null) {
-                consumer.accept(seqNo);
+                consumer.accept(seqNos);
             }
         };
     }
@@ -245,24 +247,20 @@ public class TranslogTests extends ESTestCase {
         );
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTranslog() throws Exception {
         primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         // if a previous test failed we clean up things here
         translogDir = createTempDir();
         translog = create(translogDir);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeTranslog() throws Exception {
         try {
             translog.getDeletionPolicy().assertNoOpenTranslogRefs();
-            translog.close();
         } finally {
-            super.tearDown();
+            translog.close();
         }
     }
 
@@ -1021,8 +1019,13 @@ public class TranslogTests extends ESTestCase {
                     while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.getAndIncrement();
                         final Translog.Operation op;
-                        final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
-                            .values().length))];
+                        // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                        final Translog.Operation.Type[] singleOpTypes = {
+                            Translog.Operation.Type.CREATE,
+                            Translog.Operation.Type.INDEX,
+                            Translog.Operation.Type.DELETE,
+                            Translog.Operation.Type.NO_OP };
+                        final Translog.Operation.Type type = singleOpTypes[((int) (id % singleOpTypes.length))];
                         op = switch (type) {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
@@ -1326,7 +1329,7 @@ public class TranslogTests extends ESTestCase {
     public void testTranslogWriter() throws IOException {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();
-        persistedSeqNoConsumer.set(persistedSeqNos::add);
+        persistedSeqNoConsumer.set(longsRefConsumer(persistedSeqNos::add));
         final int numOps = scaledRandomIntBetween(8, 250000);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
@@ -1453,7 +1456,7 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add,
+                longsRefConsumer(persistedSeqNos::add),
                 TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
@@ -1570,7 +1573,7 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add,
+                longsRefConsumer(persistedSeqNos::add),
                 TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
@@ -2425,7 +2428,13 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
+                    // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                    final Translog.Operation.Type type = randomFrom(
+                        Translog.Operation.Type.CREATE,
+                        Translog.Operation.Type.INDEX,
+                        Translog.Operation.Type.DELETE,
+                        Translog.Operation.Type.NO_OP
+                    );
                     op = switch (type) {
                         case CREATE, INDEX -> indexOp(
                             threadId + "_" + opCount,
@@ -3069,7 +3078,7 @@ public class TranslogTests extends ESTestCase {
                     long fileGeneration,
                     long initialMinTranslogGen,
                     long initialGlobalCheckpoint,
-                    LongConsumer persistedSequenceNumberConsumer
+                    Consumer<LongsRef> persistedSequenceNumbersConsumer
                 ) throws IOException {
                     throw new MockDirectoryWrapper.FakeIOException();
                 }
@@ -3950,7 +3959,7 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 globalCheckpointSupplier,
                 primaryTerm::get,
-                persistedSeqNos::add,
+                longsRefConsumer(persistedSeqNos::add),
                 TranslogOperationAsserter.DEFAULT
             )
         ) {
@@ -4123,5 +4132,18 @@ public class TranslogTests extends ESTestCase {
             var location = translog.add(indexOp(randomUUID(), 1, primaryTerm.get(), "source"));
             assertTrue("sync needs to happen", translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO));
         }
+    }
+
+    /**
+     * Wraps a {@link LongConsumer} (convenient for tests) in some ceremony that allows it to be used as
+     * a {@link Consumer} for {@link LongsRef}. The wrapped consumer will be invoked once for each long
+     * referenced by the LongsRef.
+     */
+    private static Consumer<LongsRef> longsRefConsumer(LongConsumer consumer) {
+        return longsRef -> {
+            for (int i = longsRef.offset; i < longsRef.offset + longsRef.length; i++) {
+                consumer.accept(longsRef.longs[i]);
+            }
+        };
     }
 }

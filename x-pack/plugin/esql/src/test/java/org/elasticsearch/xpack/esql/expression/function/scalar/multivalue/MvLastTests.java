@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -20,6 +24,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvLastTests extends AbstractMultivalueFunctionTestCase {
@@ -46,7 +51,32 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         geohashGrid(cases, "mv_first", "MvLast", DataType.GEOHASH, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geotileGrid(cases, "mv_first", "MvLast", DataType.GEOTILE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geohexGrid(cases, "mv_first", "MvLast", DataType.GEOHEX, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        if (EsqlCapabilities.Cap.MV_FIRST_LAST_DATE_RANGE.isEnabled()) {
+            dateRanges(cases);
+        }
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+    }
+
+    private static void dateRanges(List<TestCaseSupplier> cases) {
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        cases.add(new TestCaseSupplier("mv_last(date_range)", List.of(DataType.DATE_RANGE), () -> {
+            LongRangeBlockBuilder.LongRange value = TestCaseSupplier.randomDateRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DATE_RANGE, "field").withAppliesTo(dateRangeAppliesTo)),
+                "MvLast[field=Attribute[channel=0]]",
+                DataType.DATE_RANGE,
+                equalTo(value)
+            );
+        }));
+        cases.add(new TestCaseSupplier("mv_last(date_ranges)", List.of(DataType.DATE_RANGE), () -> {
+            List<LongRangeBlockBuilder.LongRange> values = randomList(1, 10, () -> TestCaseSupplier.randomDateRange());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(values, DataType.DATE_RANGE, "field").withAppliesTo(dateRangeAppliesTo)),
+                "MvLast[field=Attribute[channel=0]]",
+                DataType.DATE_RANGE,
+                equalTo(values.get(values.size() - 1))
+            );
+        }));
     }
 
     @Override

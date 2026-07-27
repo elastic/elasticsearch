@@ -503,7 +503,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedBinaryDocValues> multiValues = () -> new SortedBinaryDocValues() {
+        final Supplier<SortedBinaryDocValues> multiValues = () -> new SortedBinaryDocValues(null) {
             int doc;
             int i;
 

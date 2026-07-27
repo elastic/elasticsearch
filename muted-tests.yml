@@ -690,3 +690,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.not enough buckets per group}
   issue: https://github.com/elastic/elasticsearch/issues/155147
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:string.mvStringNotEqualsMultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/155148

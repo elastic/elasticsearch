@@ -741,3 +741,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_first_last.Test retrieval of last long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155169
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
+  issue: https://github.com/elastic/elasticsearch/issues/155170

@@ -529,9 +529,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602
-- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
-  method: testIndexWithZeroReplicasAndAutoExpandReplicasHasClusterBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/154605
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
@@ -645,3 +642,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search/350_point_in_time/delete invalid PIT returns error}
   issue: https://github.com/elastic/elasticsearch/issues/155066
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_first_last.Test retrieval of first long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155108
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155109
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/155118

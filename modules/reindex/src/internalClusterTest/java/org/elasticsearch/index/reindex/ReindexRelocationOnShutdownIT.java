@@ -513,9 +513,15 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * When the coordinating node stops mid-reindex, the client may get {@link ActionListener#onFailure} with
-     * {@link NodeClosedException}, or {@link ActionListener#onResponse} with a {@link BulkByPaginatedSearchResponse} whose
-     * {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} after bulk indexing hits a closing node.
+     * When the coordinating node stops mid-reindex, the client may see one of:
+     * <ul>
+     *   <li>{@link ActionListener#onFailure} with {@link NodeClosedException} — transport closed before the task exited</li>
+     *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
+     *       {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} — bulk ops hit the closing node</li>
+     *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
+     *       {@link BulkByPaginatedSearchResponse#getReasonCancelled()} is {@code "node shutting down"} — the task was cancelled by
+     *       the shutdown hook and exited before the transport closed</li>
+     * </ul>
      */
     private static boolean reindexClientIndicatesCoordinatingNodeClosed(
         final Throwable clientFailure,
@@ -529,6 +535,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 if (ExceptionsHelper.unwrapCause(bulkFailure.getCause()) instanceof NodeClosedException) {
                     return true;
                 }
+            }
+            if ("node shutting down".equals(response.getReasonCancelled())) {
+                return true;
             }
         }
         return false;

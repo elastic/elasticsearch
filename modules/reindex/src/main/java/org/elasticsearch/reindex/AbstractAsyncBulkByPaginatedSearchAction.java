@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -586,15 +585,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
         if (requestFinishing.get()) {
             asyncResponse.releaseRemainingHits();
-            return;
-        }
-        final var taskFailure = task.getTaskFailure();
-        if (taskFailure != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(Strings.format("[%s]: finishing early because the task failed", task.getId()), taskFailure);
-            }
-            asyncResponse.releaseRemainingHits();
-            finishHim(taskFailure);
             return;
         }
         if (task.isCancelled()) {

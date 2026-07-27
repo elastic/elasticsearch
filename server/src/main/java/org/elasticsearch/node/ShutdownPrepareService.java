@@ -11,6 +11,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -23,6 +24,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -75,7 +77,6 @@ public class ShutdownPrepareService {
 
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
-    private final TransportService transportService;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
@@ -88,7 +89,6 @@ public class ShutdownPrepareService {
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         this.terminationHandler = terminationHandler;
-        this.transportService = transportService;
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
@@ -248,36 +248,22 @@ public class ShutdownPrepareService {
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        final var sleeper = new Sleeper();
         awaitTasksComplete(
             asyncReindexTimeout,
-            new Sleeper(),
+            sleeper,
             ReindexAction.NAME,
             taskManager,
             task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager),
             tasks -> {
-                // Fail any reindex tasks that could not be relocated, wait for a limited time for
-                // them to return a failure result before proceeding with shutdown.
-                final var nodeClosedException = new NodeClosedException(transportService.getLocalNode());
-                final var tasksFailedFuture = new PlainActionFuture<Void>();
-                try (RefCountingListener refCountingListener = new RefCountingListener(tasksFailedFuture)) {
-                    tasks.forEach(t -> {
-                        if (t instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
-                            bulkByPaginatedSearchTask.wakeUpAndFail(nodeClosedException, refCountingListener.acquire().map(result -> null));
-                        } else {
-                            assert false : "unexpected task type: " + t.getClass();
-                        }
-                    });
-                }
-                try {
-                    tasksFailedFuture.get(REINDEXING_FAILURE_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                } catch (TimeoutException t) {
-                    logger.warn("timed out while failing relocated reindex tasks");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.warn("interrupted while failing relocated reindex tasks", e);
-                } catch (ExecutionException e) {
-                    logger.warn("unexpected exception while failing relocated reindex tasks", e);
-                }
+                // Cancel any reindex tasks that could not be relocated, then wait a short time
+                // for them to exit the task manager before proceeding with shutdown.
+                tasks.forEach(t -> {
+                    if (t instanceof CancellableTask cancellable) {
+                        taskManager.cancelTaskAndDescendants(cancellable, "node shutting down", false, ActionListener.noop());
+                    }
+                });
+                awaitTasksComplete(REINDEXING_FAILURE_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
             }
         );
     }

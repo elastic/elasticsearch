@@ -3311,16 +3311,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
-            return unionTypeEsField.getConversionExpressions()
-                .stream()
-                .filter(
-                    e -> e instanceof AbstractConvertFunction cf
-                        && supportedTypes.contains(cf.field().dataType().widenSmallNumeric()) == false
-                )
-                .map(e -> ((AbstractConvertFunction) e).field().dataType().typeName())
-                .distinct()
-                .sorted()
-                .collect(Collectors.joining(", "));
+            return unionTypeEsField.getConversionExpressions().stream().<String>mapMulti((e, consumer) -> {
+                if (e instanceof AbstractConvertFunction cf) {
+                    DataType dataType = cf.field().dataType();
+                    if (supportedTypes.contains(dataType.widenSmallNumeric()) == false) consumer.accept(dataType.typeName());
+                }
+            }).distinct().sorted().collect(Collectors.joining(", "));
         }
 
         private static String unsupportedExplicitCastMessage(
@@ -3344,8 +3340,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     sourceText
                 );
             }
-            // A two-legged PUNK loads its unmapped rows from _source as KEYWORD. If the target accepts KEYWORD, only the mapped type(s) are
-            // the problem; otherwise the unmapped KEYWORD leg itself can't be converted, which is the more useful thing to report.
             return supportedTypes.contains(KEYWORD)
                 ? Strings.format(
                     "Mapped types [%s] of partially unmapped field [%s] cannot be accepted in [%s]",

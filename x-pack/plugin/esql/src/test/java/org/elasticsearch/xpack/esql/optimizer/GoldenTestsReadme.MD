@@ -116,75 +116,26 @@ the flat layout, and directory names carry no order, so a new label never rename
 directories or breaks existing mutes. Keep `since(...)` and `expectationChangesAt(...)` directly
 on each affected test's builder chain so its version coverage is visible beside its query.
 
-Settings that produce independently useful plans should also be separate tests. Keep the executable
-query and its version coverage together. The analyzer unmapped suites use small helpers for their
-repeated setting prefix, while keeping the complete pipeline body in each method:
+### Analyzer unmapped tests
+
+`AnalyzerUnmappedGoldenTests` uses `load(...)` and `nullify(...)` helpers that return a builder
+configured with the analysis stage, setting prefix, and existing mode-specific resource directory.
+Version coverage remains on the applicable chain in the test method:
 
 ```java
-// In an AnalyzerUnmappedGoldenTestCase subclass:
-public void testMultiTypeFieldLoad() {
-  builder(load("""
+public void testMultiTypeField() {
+  String query = """
       FROM employees | WHERE emp_no::keyword == "10001"
-      """))
+      """;
+
+  nullify(query).run();
+  load(query)
       .expectationChangesAt("compact_multi_type_es_field")
       .run();
 }
-
-public void testMultiTypeFieldNullify() {
-  builder(nullify("""
-      FROM employees | WHERE emp_no::keyword == "10001"
-      """))
-      .run();
-}
 ```
 
-Do not share the pipeline body between the two methods or wrap the version declarations. The
-`load(...)` or `nullify(...)` call identifies the setting, and the direct builder chain keeps each
-behavior independently readable, reproducible, and mutable.
-
-### Analyzer unmapped suites
-
-Analyzer unmapped tests extend `AnalyzerUnmappedGoldenTestCase`. It supplies only the analysis
-stage, the shared warning filter, and the `load(...)` and `nullify(...)` prefixes. Each concrete
-suite still declares `@ParametersFactory`, accepts the golden mode in its constructor, and puts
-version coverage directly on each test's builder chain.
-
-The existing suites are organized by behavior, in precedence order:
-
-1. `AnalyzerUnmappedForkGoldenTests`: FORK and FUSE.
-2. `AnalyzerUnmappedSubqueryGoldenTests`: subqueries, unions, and views.
-3. `AnalyzerUnmappedTimeSeriesGoldenTests`: time-series and k8s type-conflict behavior.
-4. `AnalyzerUnmappedMultiIndexGoldenTests`: other cross-index and partial-mapping resolution.
-5. `AnalyzerUnmappedStatsGoldenTests`: nonbranching aggregations.
-6. `AnalyzerUnmappedLinearGoldenTests`: remaining legacy nonbranching command pipelines.
-
-For a new feature, add a focused `AnalyzerUnmapped<Feature>GoldenTests` class rather than growing
-the linear suite. Repeated capability assumptions may use a small, named static helper local to
-that suite. Do not extend the legacy optimizer `UnmappedGoldenTestCase`; it retains the older
-dual-mode resource layout only for existing optimizer suites.
-
-```java
-public class AnalyzerUnmappedMyFeatureGoldenTests extends AnalyzerUnmappedGoldenTestCase {
-  @ParametersFactory(argumentFormatting = "%1$s")
-  public static Iterable<Object[]> parameters() {
-    return goldenModes();
-  }
-
-  public AnalyzerUnmappedMyFeatureGoldenTests(@Name("mode") String mode) {
-    super(mode);
-  }
-
-  public void testMyFeatureLoad() {
-    builder(load("""
-        FROM employees
-        | MY_FEATURE missing_field
-        """)).run();
-  }
-}
-```
-
-Add only settings that produce useful behavior for the scenario. Some tests are intentionally
-Load-only or Nullify-only; do not create a sibling merely for symmetry.
+Both chains share one test identity. Some scenarios intentionally run only one mode.
 
 ### Two runs per suite
 

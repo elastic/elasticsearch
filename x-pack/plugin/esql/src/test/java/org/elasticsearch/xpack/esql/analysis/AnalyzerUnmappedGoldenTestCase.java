@@ -7,18 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-/**
- * Shared analysis-stage setup and setting prefixes for golden tests of unmapped field behavior.
- *
- * Concrete tests use {@link #load(String)} or {@link #nullify(String)} around their complete pipeline and declare version coverage
- * directly on each builder chain.
- */
+/** Shared analysis setup and mode-specific builders for analyzer tests of unmapped field behavior. */
 abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
@@ -26,12 +22,12 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
         super(mode);
     }
 
-    protected static String nullify(String query) {
-        return "SET unmapped_fields=\"nullify\"; " + query;
+    protected TestBuilder nullify(String query, String... variants) {
+        return builder("SET unmapped_fields=\"nullify\"; " + query).nestedPath(ArrayUtils.prepend("nullify", variants));
     }
 
-    protected static String load(String query) {
-        return "SET unmapped_fields=\"load\"; " + query;
+    protected TestBuilder load(String query, String... variants) {
+        return builder("SET unmapped_fields=\"load\"; " + query).nestedPath(ArrayUtils.prepend("load", variants));
     }
 
     @Override

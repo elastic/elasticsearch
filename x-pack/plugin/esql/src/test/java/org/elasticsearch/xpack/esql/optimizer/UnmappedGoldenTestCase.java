@@ -20,13 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Legacy base for golden tests that run both {@code unmapped_fields=nullify} and {@code unmapped_fields=load}.
- *
- * @deprecated New tests should use direct {@link GoldenTestCase#builder(String)} chains with a complete query and local
- *             {@code since(...)} or {@code expectationChangesAt(...)} declarations.
- */
-@Deprecated
+/** Base for golden tests that run with both unmapped_fields=nullify and unmapped_fields=load. */
 public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     @Override
     protected List<String> filteredWarnings() {

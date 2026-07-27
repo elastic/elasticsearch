@@ -302,7 +302,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private void clearScroll() {
-        innerClearScroll(scrollId);
+        clearScrollLoggingExceptions(scrollId);
         scrollId = null;
     }
 

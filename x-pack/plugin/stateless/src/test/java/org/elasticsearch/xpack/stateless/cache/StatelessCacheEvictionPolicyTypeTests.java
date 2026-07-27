@@ -84,7 +84,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsDefaultPolicyWhenExplicitlyConfiguredOnIndexNode() {
+    public void testCreateEvictionPolicyReturnsDefaultDespiteExplicitConfigOnIndexNode() {
         Settings settings = Settings.builder()
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())

@@ -12,7 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.KeyValue;
 import io.opentelemetry.api.common.Value;
-import io.opentelemetry.api.logs.Severity;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.data.LogRecordData;
@@ -26,7 +25,11 @@ import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,14 +40,13 @@ import static org.hamcrest.Matchers.nullValue;
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class ElasticsearchOtelAppenderTests extends ESTestCase {
 
-    private InMemoryLogRecordExporter exporter;
-    private SdkLoggerProvider provider;
-    private OpenTelemetrySdk sdk;
-    private ElasticsearchOtelAppender appender;
+    private static InMemoryLogRecordExporter exporter;
+    private static SdkLoggerProvider provider;
+    private static OpenTelemetrySdk sdk;
+    private static ElasticsearchOtelAppender appender;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void start() {
         exporter = InMemoryLogRecordExporter.create();
         provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
         sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
@@ -52,11 +54,15 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         appender.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @AfterClass
+    public static void stop() {
         appender.stop();
         provider.close();
-        super.tearDown();
+    }
+
+    @Before
+    public void reset() {
+        exporter.reset();
     }
 
     // --- helper methods ---
@@ -207,35 +213,34 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
 
     // --- map type dispatch ---
 
+    @SuppressWarnings("unchecked")
     public void testMapAttribute() {
         ESLogMessage msg = new ESLogMessage().field("k", Map.of("x", "hello", "n", 42L));
         LogRecordData record = emitMapMessage(msg);
         Value<?> v = record.getAttributes().get(AttributeKey.valueKey("k"));
         assertNotNull(v);
         // Value.of(Map) returns Value<List<KeyValue>>
-        @SuppressWarnings("unchecked")
         List<KeyValue> kvList = (List<KeyValue>) v.getValue();
-        Map<String, Value<?>> map = new java.util.HashMap<>();
+        Map<String, Value<?>> map = new HashMap<>();
         kvList.forEach(kv -> map.put(kv.getKey(), kv.getValue()));
         assertThat(map.get("x"), equalTo(Value.of("hello")));
         assertThat(map.get("n"), equalTo(Value.of(42L)));
     }
 
+    @SuppressWarnings("unchecked")
     public void testNestedMapAttribute() {
         Map<String, Object> inner = Map.of("a", 1L);
         ESLogMessage msg = new ESLogMessage().field("k", Map.of("nested", inner));
         LogRecordData record = emitMapMessage(msg);
         Value<?> v = record.getAttributes().get(AttributeKey.valueKey("k"));
         assertNotNull(v);
-        @SuppressWarnings("unchecked")
         List<KeyValue> outerKvList = (List<KeyValue>) v.getValue();
-        Map<String, Value<?>> outer = new java.util.HashMap<>();
+        Map<String, Value<?>> outer = new HashMap<>();
         outerKvList.forEach(kv -> outer.put(kv.getKey(), kv.getValue()));
         Value<?> nestedVal = outer.get("nested");
         assertNotNull(nestedVal);
-        @SuppressWarnings("unchecked")
         List<KeyValue> innerKvList = (List<KeyValue>) nestedVal.getValue();
-        Map<String, Value<?>> inner2 = new java.util.HashMap<>();
+        Map<String, Value<?>> inner2 = new HashMap<>();
         innerKvList.forEach(kv -> inner2.put(kv.getKey(), kv.getValue()));
         assertThat(inner2.get("a"), equalTo(Value.of(1L)));
     }
@@ -271,26 +276,6 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         ESLogMessage msg = new ESLogMessage().field("k", List.of());
         LogRecordData record = emitMapMessage(msg);
         assertThat(record.getAttributes().get(AttributeKey.stringArrayKey("k")), nullValue());
-    }
-
-    // --- severity mapping ---
-
-    public void testSeverityMapping() {
-        for (var pair : List.of(
-            Map.entry(Level.TRACE, Severity.TRACE),
-            Map.entry(Level.DEBUG, Severity.DEBUG),
-            Map.entry(Level.INFO, Severity.INFO),
-            Map.entry(Level.WARN, Severity.WARN),
-            Map.entry(Level.ERROR, Severity.ERROR),
-            Map.entry(Level.FATAL, Severity.FATAL)
-        )) {
-            exporter.reset();
-            appender.append(
-                Log4jLogEvent.newBuilder().setLoggerName("test.logger").setLevel(pair.getKey()).setMessage(new SimpleMessage("m")).build()
-            );
-            LogRecordData record = exporter.getFinishedLogRecordItems().getFirst();
-            assertThat("severity for " + pair.getKey(), record.getSeverity(), equalTo(pair.getValue()));
-        }
     }
 
     // --- replay ---

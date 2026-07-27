@@ -85,13 +85,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId,
-        boolean timeBasedCaching
+        boolean hasTimestampField
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
-        this.timestampBackfillEnabled = timeBasedCaching && cacheService.isCacheBoostPreferenceEnabled();
+        this.timestampBackfillEnabled = hasTimestampField && cacheService.isCacheBoostPreferenceEnabled();
     }
 
     /**
@@ -104,6 +104,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Backfills the timestamps of every present sentinel region on this shard, using a single cache scan.
+     * <p>
+     * We support clearing orphaned sentinel regions to handle the following scenario:
+     * A region is stamped with the BACKFILL_IN_PROGRESS_TIMESTAMP sentinel when a BCC/CC metadata is read. If that read fails, the region
+     * is left in cache with this sentinel timestamp. Such failures close the shard, which normally demotes and unpins those regions so
+     * eviction can reclaim them. However, if the shard reopens on the same node before that happens, the sentinel regions are pinned again
+     * and linger. Thus, we clear the orphans.
      *
      * @param timestampByCacheKey timestamps for blobs read during this backfill pass, keyed by {@link FileCacheKey}. Values are floored to
      *                            {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
@@ -513,6 +519,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
     }
 
+    /**
+     * Stamps unknown regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} on time-based shards only.
+     */
     @Override
     public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
         return createNewInstance(blobContainer.get());

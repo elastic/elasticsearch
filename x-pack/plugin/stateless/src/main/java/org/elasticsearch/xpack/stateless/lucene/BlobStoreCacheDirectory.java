@@ -412,7 +412,6 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     /**
      * @return the {@link BlobStoreCacheDirectory} to use when reading BCC/CC metadata through the cache.
-     * Stamps unknown regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} on time-based shards only.
      */
     public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
         return createNewBlobStoreCacheDirectoryForWarming();

@@ -1942,16 +1942,16 @@ public class StatelessPlugin extends Plugin
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId
     ) {
-        boolean timeBasedCaching = resolveTimeBasedCaching(indicesService.get(), shardId);
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, timeBasedCaching);
+        boolean hasTimestampField = hasTimestampField(indicesService.get(), shardId);
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, hasTimestampField);
     }
 
     /**
-     * Resolves whether this shard's mapping is time-based (has a {@code @timestamp} field).
+     * Resolves whether this shard's mapping has a {@code @timestamp} field.
      * The result is frozen at search-directory creation; mapping changes after shard open are intentionally stale until
      * relocation or restart.
      */
-    static boolean resolveTimeBasedCaching(IndicesService indicesService, ShardId shardId) {
+    static boolean hasTimestampField(IndicesService indicesService, ShardId shardId) {
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
         if (indexService == null) {
             return false;

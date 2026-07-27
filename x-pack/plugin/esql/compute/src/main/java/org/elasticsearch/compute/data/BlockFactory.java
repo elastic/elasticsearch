@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.logging.LogManager;
@@ -664,11 +665,40 @@ public class BlockFactory {
     }
 
     public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
-        try (var builder = newLongRangeBlockBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                builder.appendLongRange(value);
+        LongBlock fromBlock = null;
+        LongBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantLongBlockWith(value.from(), positions);
+            toBlock = newConstantLongBlockWith(value.to(), positions);
+            var block = new LongRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
             }
-            return builder.build();
+        }
+    }
+
+    public DoubleRangeBlockBuilder newDoubleRangeBlockBuilder(int estimatedSize) {
+        return new DoubleRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public DoubleRangeBlock newConstantDoubleRangeBlockWith(DoubleRangeBlockBuilder.DoubleRange value, int positions) {
+        DoubleBlock fromBlock = null;
+        DoubleBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantDoubleBlockWith(value.from(), positions);
+            toBlock = newConstantDoubleBlockWith(value.to(), positions);
+            var block = new DoubleRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
+            }
         }
     }
 

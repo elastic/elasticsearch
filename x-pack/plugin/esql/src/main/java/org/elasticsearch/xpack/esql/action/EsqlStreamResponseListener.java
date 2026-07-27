@@ -38,12 +38,10 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
  * and streams results as NDJSON to the HTTP client, one JSON line per logical unit:
- * <ol>
- *   <li>First line: {@code {"columns":[...]}}</li>
- *   <li>One line per page: {@code {"values":[[...],...]}}</li>
- *   <li>Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}</li>
- *   <li>On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}</li>
- * </ol>
+ *   - First line: {@code {"columns":[...]}}
+ *   - One line per page: {@code {"values":[[...],...]}}
+ *   - Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}
+ *   - On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}
  */
 public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQueryAction.Response> {
 
@@ -55,27 +53,10 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
 
-    /**
-     * Listener for the next {@link ChunkedRestResponseBodyPart}. Set by each body part's
-     * {@code getNextPart} call (via {@link #requestNextChunk}), consumed atomically by the
-     * subscriber's {@code onNext}/{@code onComplete}/{@code onError} via
-     * {@link StreamingSubscriber#takeNextBodyPartListener()}.
-     *
-     * <p>Using an {@link AtomicReference} so that {@code getAndSet(null)} is a single atomic
-     * operation. With {@link PageStreamPublisher} serializing all subscriber signals under its
-     * own monitor, only one callback should ever race to take this listener; the atomic swap is
-     * a defensive measure that prevents a double-{@code onResponse} (which would trip the REST
-     * framework's {@code assertOnce} wrapper) in the event of an unexpected non-serial signal.
-     */
     private final AtomicReference<ActionListener<ChunkedRestResponseBodyPart>> nextBodyPartListener = new AtomicReference<>();
 
     private volatile PageStreamPublisher publisher;
     private volatile List<ColumnInfoImpl> columns;
-    /**
-     * Per-column null mask set when the request carried {@code drop_null_columns=true}.
-     * {@code null} means no dropping; when non-null, {@code nullColumns[i] == true} means column
-     * {@code i} should be omitted from the streamed output (index-backed field with no data).
-     */
     private volatile boolean[] nullColumns;
 
     public EsqlStreamResponseListener(RestChannel channel) {
@@ -97,9 +78,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         this.nullColumns = response.nullColumns();
         NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(response.columns(), response.nullColumns());
         channel.sendResponse(RestResponse.chunked(RestStatus.OK, columnsBodyPart, this::release));
-        // Subscribe after sendResponse so HTTP headers are committed first.
-        // onSubscribe stores the subscription but does NOT call request(1).
-        // The first request(1) comes from columnsBodyPart.getNextPart().
         response.publisher().subscribe(subscriber);
     }
 
@@ -126,25 +104,18 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         subscriber.subscription.request(1);
     }
 
-    // -------------------------------------------------------------------------
-    // Subscriber
-    // -------------------------------------------------------------------------
-
     private class StreamingSubscriber implements Flow.Subscriber<Page> {
         private Flow.Subscription subscription;
 
         @Override
         public void onSubscribe(Flow.Subscription subscription) {
             this.subscription = subscription;
-            // Do NOT call request(1) here — the first request comes from columnsBodyPart.getNextPart()
         }
 
         @Override
         public void onNext(Page page) {
             ActionListener<ChunkedRestResponseBodyPart> next = takeNextBodyPartListener();
             if (next == null) {
-                // Defensive: no listener is pending (unexpected non-serial signal). Release the
-                // page to avoid a block leak and bail out rather than NPE or double-complete.
                 page.releaseBlocks();
                 return;
             }
@@ -179,23 +150,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Body parts
-    // -------------------------------------------------------------------------
-
-    /**
-     * Writes the columns header line followed by a newline.
-     * <p>
-     * When {@code nullColumns} is {@code null} (no dropping requested), emits:
-     * {@code {"columns":[...]}}
-     * <p>
-     * When {@code nullColumns} is non-null (drop_null_columns=true), mirrors the sync {@code _query}
-     * contract and emits:
-     * {@code {"all_columns":[...],"columns":[<non-null only>]}}
-     * <p>
-     * When the REST framework calls {@code getNextPart}, this triggers {@code request(1)} to
-     * start pulling pages from the publisher.
-     */
     private class NdjsonColumnsBodyPart implements ChunkedRestResponseBodyPart {
         private final List<ColumnInfoImpl> cols;
         private final boolean[] nullColumns;
@@ -228,8 +182,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
                 writeJson(out, builder -> {
                     builder.startObject();
                     if (nullColumns != null) {
-                        // drop_null_columns=true: emit all_columns (full list) + columns (non-null only),
-                        // mirroring the sync _query contract from EsqlQueryResponse.toXContentChunked.
                         builder.startArray("all_columns");
                         for (ColumnInfoImpl col : cols) {
                             col.toXContent(builder, channel.request());
@@ -267,11 +219,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         }
     }
 
-    /**
-     * Writes one page as a values line: {@code {"values":[[...],...]}} followed by a newline.
-     * When {@code nullColumns} is non-null, columns where {@code nullColumns[c] == true} are skipped
-     * so the value array length matches the trimmed {@code columns} header list.
-     */
     private class NdjsonPageBodyPart implements ChunkedRestResponseBodyPart {
         private final Page page;
         private final List<ColumnInfoImpl> cols;
@@ -343,10 +290,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         }
     }
 
-    /**
-     * Writes the footer line: {@code {"took":N,"is_partial":false,"warnings":[...]}} followed by a newline.
-     * This is the last body part.
-     */
     private static class NdjsonFooterBodyPart implements ChunkedRestResponseBodyPart {
         private final PageStreamPublisher.StreamFooter footer;
         private boolean encoded = false;
@@ -401,10 +344,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
         }
     }
 
-    /**
-     * Writes an error line: {@code {"error":{"type":"...","reason":"..."},"status":N}} followed
-     * by a newline. This is the last body part.
-     */
     private static class NdjsonErrorBodyPart implements ChunkedRestResponseBodyPart {
         private final Throwable error;
         private final RestStatus status;
@@ -462,10 +401,6 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
             return NDJSON_CONTENT_TYPE;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     @FunctionalInterface
     private interface JsonWriter {

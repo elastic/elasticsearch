@@ -29,16 +29,6 @@ public class EsqlStreamQueryAction extends ActionType<EsqlStreamQueryAction.Resp
         super(NAME);
     }
 
-    /**
-     * Response for the streaming ES|QL query action. Carries the schema (available after analysis),
-     * a publisher of result pages (produced incrementally as compute runs), and an optional
-     * null-column mask computed via static analysis when {@code drop_null_columns} is requested.
-     *
-     * <p>{@code nullColumns} is {@code null} when the flag is off, or when no index-backed columns
-     * exist in the output (no field-caps call needed). When non-null, {@code nullColumns[i] == true}
-     * means column {@code i} (from {@link #columns()}) had no data in the queried indices and should
-     * be omitted from the NDJSON output.
-     */
     public static class Response extends ActionResponse {
 
         private final List<ColumnInfoImpl> columns;
@@ -59,11 +49,6 @@ public class EsqlStreamQueryAction extends ActionType<EsqlStreamQueryAction.Resp
             return publisher;
         }
 
-        /**
-         * Per-column null mask derived from static field-caps analysis, or {@code null} if
-         * {@code drop_null_columns} was not requested. When non-null, {@code nullColumns[i] == true}
-         * means column {@code i} should be omitted from the response.
-         */
         public boolean[] nullColumns() {
             return nullColumns;
         }

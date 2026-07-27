@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -67,22 +66,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
-
-    public static final TransportVersion ESQL_STREAMING = TransportVersion.fromName("esql_streaming");
-
-    /**
-     * Number of rows per streamed NDJSON chunk when using the streaming endpoint ({@code POST /_query/stream}).
-     * Only accepted on {@code POST /_query/stream}; must be {@code >= 1}.
-     * {@code null} when unset (the streaming endpoint rejects unset values).
-     */
     private Integer pageSize = null;
-
-    /**
-     * When {@code true}, columns that have no data in any of the queried indices are omitted from
-     * the NDJSON response, matching the static-analysis approach described in the pagination design doc.
-     * Only accepted on {@code POST /_query/stream}; the sync and async endpoints use the existing
-     * URL-param-based {@code drop_null_columns} mechanism instead.
-     */
+    // TODO: Move this to a query param
     private boolean dropNullColumns = false;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
@@ -352,11 +337,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    /**
-     * Number of rows per NDJSON chunk for the streaming endpoint ({@code POST /_query/stream}).
-     * Only accepted on the streaming endpoint and must be {@code >= 1}.
-     * Returns {@code null} when the field was not set in the request.
-     */
     public Integer pageSize() {
         return pageSize;
     }
@@ -366,11 +346,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    /**
-     * Whether to drop columns that have no data in the queried indices from the streaming response.
-     * Uses static analysis (field caps) rather than a post-execution page scan, so the column set
-     * is stable before the first page is streamed.
-     */
     public boolean dropNullColumns() {
         return dropNullColumns;
     }

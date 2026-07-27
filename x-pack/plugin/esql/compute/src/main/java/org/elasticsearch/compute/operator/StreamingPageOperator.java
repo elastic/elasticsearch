@@ -35,6 +35,8 @@ public class StreamingPageOperator extends SinkOperator {
     private int pagesEmitted;
     private long rowsEmitted;
 
+    public static final TransportVersion ESQL_STREAMING = TransportVersion.fromName("esql_streaming");
+
     public StreamingPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
         this.stream = stream;
         this.alignment = alignment;
@@ -82,9 +84,6 @@ public class StreamingPageOperator extends SinkOperator {
         return new Status(pagesEmitted, rowsEmitted);
     }
 
-    /**
-     * Factory for {@link StreamingPageOperator}.
-     */
     public record Factory(PageStreamPublisher stream, Function<Page, Page> alignment) implements SinkOperatorFactory {
 
         @Override
@@ -98,9 +97,6 @@ public class StreamingPageOperator extends SinkOperator {
         }
     }
 
-    /**
-     * Operator status reported during driver profiling.
-     */
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
@@ -166,10 +162,9 @@ public class StreamingPageOperator extends SinkOperator {
             return Strings.toString(this);
         }
 
-        // TODO: Update this to ESQL_STREAM transport version
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
+            return ESQL_STREAMING;
         }
     }
 }

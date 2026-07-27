@@ -62,12 +62,10 @@ import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOr
 
 /**
  * Transport action for the streaming ES|QL query endpoint ({@code POST /_query/stream}).
- * <p>
  * Mirrors {@link TransportEsqlQueryAction} but responds to the REST listener immediately
  * after analysis (with schema + publisher), before compute finishes. Pages flow directly
  * from the compute driver through {@link StreamingPageOperator}
  * into the {@link PageStreamPublisher}, which the REST listener subscribes to.
- * </p>
  */
 @ServerlessScope(Scope.PUBLIC)
 public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlStreamQueryAction.Response> {
@@ -91,7 +89,7 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
     private volatile int timeseriesResultTruncationMaxSize;
     private volatile int timeseriesResultTruncationDefaultSize;
 
-    // TODO: Swap TransportEsqlQueryAction to the underlying services and computer service we actually need from it.
+    // TODO: Swap TransportEsqlQueryAction to the underlying services and computer service we actually need from it?
     @Inject
     @SuppressWarnings("this-escape")
     public TransportEsqlStreamQueryAction(
@@ -164,10 +162,8 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> {
             List<ColumnInfoImpl> columns = buildColumns(plan.output());
 
-            // Launches compute after we have the null-column mask (or null when no dropping is needed).
             Consumer<boolean[]> startCompute = nullColumns -> {
                 StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
-                // Signal the REST listener before compute starts so HTTP headers can be sent.
                 responded.set(true);
                 listener.onResponse(new EsqlStreamQueryAction.Response(columns, publisher, nullColumns));
                 computeService.execute(
@@ -186,14 +182,12 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
             if (request.dropNullColumns()) {
                 Set<String> indexFieldNames = collectIndexFieldNames(plan.output());
                 if (indexFieldNames.isEmpty()) {
-                    // No index-backed columns in the output (e.g. ROW or SHOW queries) — nothing to drop.
                     startCompute.accept(null);
                 } else {
                     Set<String> indexPatterns = collectIndexPatterns(plan);
                     FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
                     fieldCapsRequest.indices(indexPatterns.toArray(String[]::new));
                     fieldCapsRequest.fields(indexFieldNames.toArray(String[]::new));
-                    // Ask only for fields that actually have data; absent fields are empty.
                     fieldCapsRequest.includeEmptyFields(false);
                     client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
                         Set<String> nonEmptyFields = response.get().keySet();
@@ -201,7 +195,6 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
                         emptyFieldNames.removeAll(nonEmptyFields);
                         startCompute.accept(classifyNullColumns(plan.output(), emptyFieldNames));
                     }, ex -> {
-                        // Field caps failed — fall back to showing all columns rather than failing the query.
                         logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
                         startCompute.accept(null);
                     }));
@@ -257,12 +250,6 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         }).toList();
     }
 
-    /**
-     * Returns the set of field names (mapping-path strings) for all index-backed columns in the
-     * plan output. {@link UnsupportedAttribute}s are excluded because their type is unresolved and
-     * they are always kept. Derived columns ({@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute},
-     * {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute}) are not included.
-     */
     static Set<String> collectIndexFieldNames(List<Attribute> output) {
         Set<String> fieldNames = new HashSet<>();
         for (Attribute attr : output) {
@@ -273,11 +260,6 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         return fieldNames;
     }
 
-    /**
-     * Collects the index patterns referenced by the physical plan. Handles both the single-node
-     * case (direct {@link EsQueryExec}/{@link EsSourceExec} leaves) and the distributed case
-     * (coordinator-side plan with {@link FragmentExec} nodes that contain logical {@link EsRelation}s).
-     */
     static Set<String> collectIndexPatterns(PhysicalPlan plan) {
         Set<String> patterns = new HashSet<>();
         plan.forEachDown(EsQueryExec.class, exec -> patterns.add(exec.indexPattern()));
@@ -289,11 +271,6 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
         return patterns;
     }
 
-    /**
-     * Builds a per-column null mask: {@code true} for each index-backed column whose field name
-     * appears in {@code emptyFieldNames}, {@code false} for derived/metadata columns and for
-     * index fields that do have data.
-     */
     static boolean[] classifyNullColumns(List<Attribute> output, Set<String> emptyFieldNames) {
         boolean[] nullColumns = new boolean[output.size()];
         for (int i = 0; i < output.size(); i++) {
@@ -301,7 +278,6 @@ public class TransportEsqlStreamQueryAction extends HandledTransportAction<EsqlQ
             if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
                 nullColumns[i] = emptyFieldNames.contains(fa.fieldName().string());
             }
-            // ReferenceAttribute, MetadataAttribute, UnsupportedAttribute → false (always keep)
         }
         return nullColumns;
     }

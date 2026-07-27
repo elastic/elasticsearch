@@ -2119,6 +2119,17 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName, boolean readInArrayOrder);
 
+        BlockLoader blockLoaderFromStoredFields(String fieldName) {
+            return switch (this) {
+                case BYTE, SHORT, INTEGER -> new BlockStoredFieldsReader.IntsFromNumbersBlockLoader(fieldName);
+                case LONG -> new BlockStoredFieldsReader.LongsFromNumbersBlockLoader(fieldName);
+                case HALF_FLOAT, FLOAT, DOUBLE -> new BlockStoredFieldsReader.DoublesFromNumbersBlockLoader(
+                    fieldName,
+                    value -> reduceToStoredPrecision(value.doubleValue())
+                );
+            };
+        }
+
         abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
 
         abstract BlockLoader blockLoaderFromFallbackSyntheticSource(
@@ -2513,6 +2524,9 @@ public class NumberFieldMapper extends FieldMapper {
             }
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
+            }
+            if (isStored()) {
+                return type.blockLoaderFromStoredFields(name());
             }
             // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.

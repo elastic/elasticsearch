@@ -123,6 +123,10 @@ import java.util.Map;
  *         from {@code doc_values}.
  *     </li>
  *     <li>
+ *         {@link BlockStoredFieldsReader.LongsFromNumbersBlockLoader} to read from a named
+ *         {@code stored} field.
+ *     </li>
+ *     <li>
  *         {@link org.elasticsearch.index.mapper.BlockSourceReader.LongsBlockLoader} to read from
  *         {@code _source}.
  *     </li>
@@ -139,13 +143,6 @@ import java.util.Map;
  *         {@code doc_values}.
  *     </li>
  * </ul>
- * <p>
- *     NOTE: We can't read from {@code long}s from {@code stored} fields which is a
- *     <a href="https://github.com/elastic/elasticsearch/issues/138019">bug</a>, but maybe not
- *     a terrible one because it's very uncommon to configure {@code long} to be {@code stored}
- *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
- *     code.
- * </p>
  * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
  *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.

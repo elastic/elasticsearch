@@ -648,3 +648,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155109
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/155118

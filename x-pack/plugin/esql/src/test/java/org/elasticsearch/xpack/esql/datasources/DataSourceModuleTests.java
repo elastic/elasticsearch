@@ -62,6 +62,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -760,12 +762,8 @@ public class DataSourceModuleTests extends ESTestCase {
         for (String comp : compressedExtensions) {
             String objectName = "data.parq." + comp;
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
-            assertThat(
-                "Expected rejection for " + objectName,
-                ex.getMessage(),
-                org.hamcrest.Matchers.containsString("does not support whole-file compression")
-            );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+            assertThat("Expected rejection for " + objectName, ex.getMessage(), containsString("does not support whole-file compression"));
+            assertThat(ex.getMessage(), containsString("parq"));
         }
 
         // Sequential formats must still be wrappable
@@ -788,9 +786,9 @@ public class DataSourceModuleTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Unsupported storage scheme [nope]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Supported schemes:"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("SPI storage factory")));
+        assertThat(ex.getMessage(), containsString("Unsupported storage scheme [nope]"));
+        assertThat(ex.getMessage(), containsString("Supported schemes:"));
+        assertThat(ex.getMessage(), not(containsString("SPI storage factory")));
     }
 
     /**
@@ -807,9 +805,9 @@ public class DataSourceModuleTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byName("nope"));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("No reader registered for format [nope]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Registered formats"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("may not be installed"));
+        assertThat(ex.getMessage(), containsString("No reader registered for format [nope]"));
+        assertThat(ex.getMessage(), containsString("Registered formats"));
+        assertThat(ex.getMessage(), containsString("may not be installed"));
     }
 
     /**
@@ -827,17 +825,17 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("data.log.gz"));
 
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("[data.log.gz]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("extension [.log.gz]"));
+        assertThat(ex.getMessage(), containsString("[data.log.gz]"));
+        assertThat(ex.getMessage(), containsString("extension [.log.gz]"));
         // The stripped intermediate must never surface -- it names a file that does not exist.
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("[data.log]")));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("extension [.log]")));
+        assertThat(ex.getMessage(), not(containsString("[data.log]")));
+        assertThat(ex.getMessage(), not(containsString("extension [.log]")));
 
         // Mixed case must report the same normalised extension. Every other fixture here is lowercase, so without
         // this the normalisation could be dropped and the suite would stay green.
         IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("DATA.LOG.GZ"));
-        assertThat(mixed.getMessage(), org.hamcrest.Matchers.containsString("[DATA.LOG.GZ]"));
-        assertThat(mixed.getMessage(), org.hamcrest.Matchers.containsString("extension [.log.gz]"));
+        assertThat(mixed.getMessage(), containsString("[DATA.LOG.GZ]"));
+        assertThat(mixed.getMessage(), containsString("extension [.log.gz]"));
     }
 
     /**
@@ -872,9 +870,9 @@ public class DataSourceModuleTests extends ESTestCase {
             assertThat(
                 "Expected rejection for " + objectName,
                 ex.getMessage(),
-                org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd")
+                containsString("is not supported; supported: uncompressed, gzip, zstd")
             );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
+            assertThat(ex.getMessage(), containsString(entry.getValue()));
         }
 
         // The benchmarked codecs still resolve across the text formats.
@@ -1077,8 +1075,8 @@ public class DataSourceModuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("does not support whole-file compression"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+        assertThat(ex.getMessage(), containsString("does not support whole-file compression"));
+        assertThat(ex.getMessage(), containsString("parq"));
     }
 
     /**
@@ -1097,7 +1095,7 @@ public class DataSourceModuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd"));
+        assertThat(ex.getMessage(), containsString("is not supported; supported: uncompressed, gzip, zstd"));
 
         // The benchmarked codec still resolves and still composes with the explicit format.
         FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);

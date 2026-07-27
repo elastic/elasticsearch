@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 154748
+pr: 155065
+summary: Make semantic text fields transport-serializable for diversify retriever
+type: bug

@@ -708,3 +708,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsEarliestLatestIT
   method: test {csv-spec:stats_earliest_latest.retrieve earliest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155154
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/155155

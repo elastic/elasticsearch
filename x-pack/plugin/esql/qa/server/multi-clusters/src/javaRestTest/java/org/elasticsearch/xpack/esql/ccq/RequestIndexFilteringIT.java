@@ -79,9 +79,15 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     @Override
-    protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
-        indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
-        indexTimestampDataForClient(remoteClient, docs, indexName, date, differentiatorFieldName);
+    protected void indexTimestampData(
+        int docs,
+        String indexName,
+        String date,
+        String differentiatorFieldName,
+        String differentiatorFieldType
+    ) throws IOException {
+        indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName, differentiatorFieldType);
+        indexTimestampDataForClient(remoteClient, docs, indexName, date, differentiatorFieldName, differentiatorFieldType);
     }
 
     @Override

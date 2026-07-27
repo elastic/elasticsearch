@@ -37,7 +37,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 /**
- * Coordinator-side merge operator for partitioned hash aggregation (Phase 3).
+ * Coordinator-side merge operator for partitioned hash aggregation.
  *
  * <p>Receives intermediate {@link Page}s from data nodes — some tagged with a
  * {@link Page#partitionId()} by {@link PartitionedHashAggregationOperator}, others untagged
@@ -45,7 +45,7 @@ import static java.util.stream.Collectors.joining;
  *
  * <h2>Lifecycle</h2>
  * <ol>
- *   <li><b>Pre-tagged</b> – untagged pages accumulate in the {@code noneOp}
+ *   <li><b>Accumulation</b> – untagged pages accumulate in the {@code noneOp}
  *       (INTERMEDIATE-mode aggregators) on the driver thread. Tagged pages are routed
  *       directly to the owning partition worker's {@link ExchangeBuffer}.</li>
  *   <li><b>Finish</b> – the {@code noneOp}'s contents are distributed to worker buffers

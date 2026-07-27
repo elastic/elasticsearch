@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -72,11 +73,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             public int partitionHashOfRow(Page page, int position) {
                 long k1 = ((LongBlock) page.getBlock(longChannel)).getLong(position);
                 long k2 = ((IntBlock) page.getBlock(intChannel)).getInt(position);
-                // Same mixing as LongLongSwissHash.hash(key1, key2):
-                long h = k1 * 0x9E3779B97F4A7C15L ^ k2;
-                h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
-                h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
-                return (int) (h ^ (h >>> 32));
+                return (int) LongLongSwissHash.hash(k1, k2);
             }
 
             @Override
@@ -100,10 +97,8 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
                 for (int i = 0; i < count; i++) {
                     long k1 = longVec.getLong(i);
                     long k2 = intVec.getInt(i);
-                    long h = k1 * 0x9E3779B97F4A7C15L ^ k2;
-                    h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
-                    h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
-                    int part = Math.floorMod((int) (h ^ (h >>> 32)), partitionCount);
+                    int hash = (int) LongLongSwissHash.hash(k1, k2);
+                    int part = Math.floorMod(hash, partitionCount);
                     partitionOf[i] = part;
                     counts[part]++;
                 }

@@ -32,21 +32,20 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 /**
- * Aggregates raw input {@link Page}s into many output rows, grouping by a single {@code LONG}
- * column, by routing rows across {@code N} independent, otherwise-completely-unmodified
+ * Aggregates raw input {@link Page}s into many output rows, grouping by one or more columns,
+ * by routing rows across {@code N} independent, otherwise-completely-unmodified
  * {@code (BlockHash, List<GroupingAggregator>)} pairs ("partitions") rather than one big shared
- * table. See {@code scratch/partitioned-hash-aggregation-design.md} for the full design; this is
- * Phase 2's real-implementation build order step 3.
+ * table.
  * <p>
  *     Starts as a single ordinary table (the "legacy" table) and converts, non-destructively,
  *     into {@code N} partitions once that table's key count crosses
  *     {@code partitionConversionThreshold}. Steady-state routing uses a two-phase bucket-sort:
- *     a routing-only {@link BlockHash} ({@code probeHash}, always a {@code PackedValuesBlockHash})
- *     computes a partition ID per row via {@link BlockHash.Router#partitionHashOfRow}; a single
- *     scatter pass then places positions into contiguous per-partition ranges; and for each
- *     non-empty partition a filtered sub-page (a physical copy of just that partition's rows) is
- *     fed to the partition's own table via {@code blockHash.add()} — typically the faster
- *     {@code LongIntAdaptiveBlockHash}, which does not need to expose a router itself.
+ *     a routing-only {@link BlockHash} ({@code probeHash}) computes a partition ID per row via
+ *     {@link BlockHash.Router#partitionHashOfRow}; a single scatter pass then places positions
+ *     into contiguous per-partition ranges; and for each non-empty partition a filtered sub-page
+ *     (a physical copy of just that partition's rows) is fed to the partition's own table via
+ *     {@code blockHash.add()} — typically the faster {@code LongIntAdaptiveBlockHash}, which does
+ *     not need to expose a router itself.
  * </p>
  * <p>
  *     Only supports {@link AggregatorMode#INITIAL} (raw input, partial output): partitioning is a
@@ -292,11 +291,12 @@ public class PartitionedHashAggregationOperator implements Operator {
     /** Non-null once converted from the legacy table. */
     private HashAggregationOperator[] partitionOps;
     /**
-     * Routing-only hash, non-null once {@link #convertToPartitioned} succeeds. Uses
-     * {@link BlockHash#buildPackedValuesBlockHash} (which has a {@link BlockHash.Router} for any
-     * fixed-width key schema) solely to compute partition IDs via
-     * {@link BlockHash.Router#partitionHashOfRow}. Never used for aggregation — the actual
-     * partition tables use the faster {@link BlockHash#build} result.
+     * Routing-only hash, non-null once {@link #convertToPartitioned} succeeds. Used solely to
+     * compute partition IDs via {@link BlockHash.Router#partitionHashOfRow}; never used for
+     * aggregation. Built by trying {@link BlockHash#build} first (single-column hashes expose a
+     * router directly), falling back to {@link BlockHash#buildPackedValuesBlockHash} for
+     * multi-column fixed-width schemas. If neither yields a router, conversion is abandoned and
+     * {@link #permanentlyUnpartitioned} is set.
      */
     private BlockHash probeHash;
     /** Set once a multi-valued key is observed; conversion is never attempted again after that. */
@@ -380,13 +380,14 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     /**
-     * Rearranges {@code page} into this operator's internal channel convention: the grouping key
-     * at channel 0, then each aggregator's raw value(s) at {@link #combinedChannelStart}[i]. Every
-     * table's aggregators are built with channels wide enough to also read their own intermediate
-     * state (channel 0's group id excluded) at those same positions, so the exact same aggregator
-     * instances can be fed either raw pages (reading only the first
-     * {@code rawChannels.size()} of their channels) or this operator's own intermediate pages
-     * (reading all of them) - no separate "raw" vs. "intermediate" aggregator instances needed.
+     * Rearranges {@code page} into this operator's internal channel convention: grouping keys at
+     * channels 0..keyCount-1, then each aggregator's raw value(s) at
+     * {@link #combinedChannelStart}[i]. Every table's aggregators are built with channels wide
+     * enough to also read their own intermediate state (grouping key channels excluded) at those
+     * same positions, so the exact same aggregator instances can be fed either raw pages (reading
+     * only the first {@code rawChannels.size()} of their channels) or this operator's own
+     * intermediate pages (reading all of them) - no separate "raw" vs. "intermediate" aggregator
+     * instances needed.
      * <p>
      *     Builds a new {@link Page} that references the original blocks directly (no value
      *     copies); never {@link Page#close}/{@link Page#releaseBlocks} it - {@code page} itself
@@ -510,7 +511,8 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     /**
-     * Distributes a single intermediate page across {@code targets} by partition hash. Uses a
+     * Used to convert legacyOp to multiple partitions. Distributes a single
+     * intermediate page across {@code targets} by partition hash. Uses a
      * single O(N+P) bucket-sort pass (count → prefix-sum → scatter) to collect each partition's
      * positions, then creates a filtered sub-page per partition and merges it into that target
      * via {@link #mergeIntermediateIntoTable}. The filtered sub-pages are physically reordered
@@ -545,12 +547,12 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     /**
-     * Folds an intermediate page (grouping key at channel 0, per-aggregator intermediate state
-     * after that - the standard intermediate page layout) into {@code table}: re-hash the key
-     * column against {@code table}'s own {@link BlockHash} to get fresh local group ids, then fan
-     * those out to each aggregator's {@code addIntermediateInput} - the same primitive an
-     * {@code INTERMEDIATE}-mode {@link HashAggregationOperator} uses for cross-node merges,
-     * reused here regardless of these aggregators' own {@link AggregatorMode}.
+     * Folds an intermediate page (grouping keys at channels 0..keyCount-1, per-aggregator
+     * intermediate state after that — the standard intermediate page layout) into {@code table}:
+     * re-hash the key columns against {@code table}'s own {@link BlockHash} to get fresh local
+     * group ids, then fan those out to each aggregator's {@code addIntermediateInput} — the same
+     * primitive an {@code INTERMEDIATE}-mode {@link HashAggregationOperator} uses for cross-node
+     * merges, reused here regardless of these aggregators' own {@link AggregatorMode}.
      */
     private void mergeIntermediateIntoTable(HashAggregationOperator op, Page page) {
         List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(op.aggregators.size());

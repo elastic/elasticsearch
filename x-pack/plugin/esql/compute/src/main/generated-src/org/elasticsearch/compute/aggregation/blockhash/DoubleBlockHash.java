@@ -199,7 +199,7 @@ final class DoubleBlockHash extends BlockHash {
                     int[] partitionOf,
                     int[] counts
                 ) {
-                    DoubleBlock block = (DoubleBlock) page.getBlock(channel);
+                    DoubleBlock block = page.getBlock(channel);
                     DoubleVector vec = block.asVector();
                     if (vec == null) {
                         Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);

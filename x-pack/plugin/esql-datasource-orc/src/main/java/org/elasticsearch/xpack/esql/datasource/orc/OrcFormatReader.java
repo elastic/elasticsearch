@@ -461,7 +461,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             projectedAttributes,
             batchSize,
             blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE),
+            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE, declaredDateFormats, declaredTypeColumns),
             counters,
             declaredDateFormats,
             declaredTypeColumns,
@@ -607,7 +607,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             projectedAttributes,
             batchSize,
             blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd),
+            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd, declaredDateFormats, declaredTypeColumns),
             counters,
             declaredDateFormats,
             declaredTypeColumns,
@@ -770,7 +770,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return pushedFilter;
         }
         if (pushedExpressions != null) {
-            return pushedExpressions.toSearchArgument(schema);
+            // Columns whose declared coercion can decode a present cell to null — IS NULL must not push over them.
+            Set<String> decodeCanNull = new java.util.HashSet<>(declaredDateFormats.keySet());
+            decodeCanNull.addAll(declaredTypeColumns);
+            return pushedExpressions.toSearchArgument(schema, decodeCanNull);
         }
         return null;
     }
@@ -979,9 +982,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.rawMaxBytes = rawMaxBytes;
         }
 
-        static StripeSkipTable build(Reader reader, TypeDescription schema, DynamicThreshold threshold, long rangeStart, long rangeEnd)
-            throws IOException {
+        static StripeSkipTable build(
+            Reader reader,
+            TypeDescription schema,
+            DynamicThreshold threshold,
+            long rangeStart,
+            long rangeEnd,
+            Map<String, String> declaredDateFormats,
+            Set<String> declaredTypeColumns
+        ) throws IOException {
             if (threshold == null) {
+                return null;
+            }
+            // A declared format or retype makes the sort column decode into a unit the raw stripe stats are NOT in
+            // (epoch_second scales x1000), so a raw-vs-decoded dominance compare would drop the true extreme. This
+            // rail holds raw stats and does not convert, so decline the skip for such a column — mirroring the
+            // parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today: OrcFormatReader is not
+            // ColumnExtractorAware, so no dynamic threshold is installed in production; this guards the day it is.
+            String sortCol = threshold.columnName();
+            if (declaredDateFormats.containsKey(sortCol) || declaredTypeColumns.contains(sortCol)) {
                 return null;
             }
             TypeDescription sortType = buildDottedNameToType(schema).get(threshold.columnName());
@@ -1566,7 +1585,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             DataType fileType = leafType != null ? convertOrcTypeToEsql(leafType) : null;
             if (fileType != null
                 && dataType != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, dataType) == false
+                && DeclaredTypeCoercions.fusedInDecode(fileType, dataType, dateFormatter != null) == false
                 && DeclaredTypeCoercions.supports(fileType, dataType)) {
                 Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName);
                 try {

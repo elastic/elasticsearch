@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.Unroll
-
 import com.github.tomakehurst.wiremock.WireMockServer
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream

@@ -880,6 +880,105 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("view_a -> view_b"));
     }
 
+    /**
+     * https://github.com/elastic/elasticsearch/issues/153030
+     * <p>
+     * TS command already rejects explicit parenthesized subqueries at parse time (a view is
+     * effectively a stored subquery), but a view reference can't be told apart from a plain index
+     * pattern until it's resolved. Mixing a view into a TS source used to silently reach the
+     * optimizer and fail there with a confusing "optimized incorrectly due to missing references"
+     * IllegalStateException, since a view's output can never satisfy the time-series semantics
+     * (_tsid, bucketing, etc.) that TS assumes hold across the whole relation.
+     */
+    public void testViewNotSupportedAsSoleTsSource() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("view_a", "FROM emp");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS view_a")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("view_a"));
+    }
+
+    public void testViewNotSupportedMixedWithIndexInTsCommand() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("view_a", "FROM emp");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS emp,view_a")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("view_a"));
+    }
+
+    /**
+     * The rejection doesn't care whether the referenced view is itself TS-based internally — a
+     * TS-bodied view is just as much a "stored subquery" as a FROM-bodied one, and mixing its
+     * output back into an outer TS relation is exactly the shape that used to reach the optimizer
+     * and crash. See https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testTsBasedViewNotSupportedAsSoleTsSource() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS ts_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    public void testTsBasedViewNotSupportedMixedWithIndexInTsCommand() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("TS emp,ts_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    // Regression test for https://github.com/elastic/elasticsearch/issues/145445:
+    // a PROMQL command over an index pattern that mixes a TS source (k8s) with a
+    // non-TS view (country_addresses) used to reach the optimizer and fail with
+    // "optimized incorrectly due to missing references [_tsid, _timeseries]".
+    //
+    // The analyzed plan must contain a TimeSeriesAggregate (PROMQL always needs one
+    // for the TS branch) and resolve both the k8s EsRelation (TIME_SERIES) and the
+    // sample_data EsRelation (STANDARD) from the expanded view body.
+    public void testTsBasedViewNotSupportedMixedWithIndexInTsCommandPromql() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("ts_view", "TS emp | STATS count(*)");
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("PROMQL index=emp,ts_view step=1d bytes=(last_over_time(event[1d]))"))
+        );
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    /**
+     * A view may be *created* with a TS-referencing-a-view body — {@code ViewService.validatePutView}
+     * only parses the query, it never resolves it — but *using* that view anywhere must still fail
+     * clearly. Before the fix this nested shape didn't crash: it silently discarded the inner TS's
+     * time-series semantics and resolved as a plain {@code FROM emp}, since a TS pattern that
+     * resolves entirely to a single view branch just returns that branch's own (non-TS) plan.
+     * Verified by temporarily reverting the fix and observing {@code replaceViews} return a bare
+     * {@code UnresolvedRelation("emp")} with no error. See
+     * https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "TS inner_view");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM outer_view")));
+        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
+        assertThat(e.getMessage(), containsString("inner_view"));
+    }
+
+    /**
+     * Confirms the fix's boundary: the opposite direction (FROM referencing a TS-bodied view) is
+     * unaffected — the view's own TS aggregation is fully resolved within its body, so nothing
+     * about the outer FROM ever needs TS-only semantics. Covered extensively at the REST/csv-spec
+     * level too (views.csv-spec "tsView*" family); this is a fast unit-level confirmation living
+     * next to the rejection tests above.
+     */
+    public void testViewWithTsBodyReferencedViaFromStillWorks() {
+        addView("ts_view", "TS emp | STATS count(*)");
+        LogicalPlan rewritten = replaceViews(query("FROM ts_view"));
+        assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
+    }
+
     public void testCircularViewInFork() {
         addView("view_a", "FROM view_b");
         addView("view_b", "FROM view_a");
@@ -1707,6 +1806,60 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             urBranchesWithEmp1,
             greaterThanOrEqualTo(2L)
         );
+    }
+
+    /**
+     * Reproduces an issue when a view expands to a concrete index (e.g. {@code my-view = FROM source-index}) and the
+     * same query also references an alias that points to the same index (e.g. {@code source-alias}),
+     * the two branches must NOT be merged into a single {@link UnresolvedRelation} — doing so
+     * would cause field-caps to deduplicate {@code source-alias} into {@code source-index} and
+     * silently drop one copy of the data.
+     */
+    public void testViewAndAliasPointingToSameIndexProduceTwoCopies() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires views alias deduplication bugfix", EsqlCapabilities.Cap.VIEWS_ALIAS_DEDUPLICATION_BUGFIX.isEnabled());
+        addIndex("source-index");
+        addAlias("source-alias", "source-index");
+        addView("my-view", "FROM source-index");
+        // FROM my-view, source-alias: my-view expands to FROM source-index.
+        // source-alias is an alias for source-index, so both branches point to the same underlying
+        // index. Merging them into a single UnresolvedRelation would cause field-caps to deduplicate
+        // the data (1 copy instead of 2). The fix keeps them as separate branches.
+        //
+        // We test the state AFTER view-resolution + phase-1 compaction (preIndexResolution), which
+        // is exactly what EsqlSession feeds to PreAnalyzer / field-caps. Phase-2 compaction
+        // (postIndexResolution) only runs after ResolveTable, at which point UnresolvedRelations
+        // have already become EsRelations and the merge step is a no-op.
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-view, source-alias"), viewResolver);
+        LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
+        // Before the fix, compacted was a single UR("source-index,source-alias") — the two branches
+        // were merged and field-caps would deduplicate them. After the fix it must be a ViewUnionAll
+        // with two separate children.
+        assertThat(compacted, instanceOf(ViewUnionAll.class));
+        assertThat(compacted.children().size(), equalTo(2));
+    }
+
+    /**
+     * Variant of {@link #testViewAndAliasPointingToSameIndexProduceTwoCopies} where it is the
+     * <em>view body</em> that references the alias, not the outer query.
+     * <p>
+     * Query: {@code FROM source-index, my-view} where {@code my-view = FROM source-alias} and
+     * {@code source-alias → source-index}. After view resolution {@code my-view} expands to
+     * {@code FROM source-alias}, so the query's two branches are {@code source-index} and
+     * {@code source-alias}. These must NOT be merged — merging would produce a single
+     * {@link UnresolvedRelation} whose field-caps call deduplicates the alias into the backing index
+     * and silently returns only one copy of the data.
+     */
+    public void testIndexAndViewWithAliasBodyPointingToSameIndexProduceTwoCopies() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires views alias deduplication bugfix", EsqlCapabilities.Cap.VIEWS_ALIAS_DEDUPLICATION_BUGFIX.isEnabled());
+        addIndex("source-index");
+        addAlias("source-alias", "source-index");
+        addView("my-view", "FROM source-alias");
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM source-index, my-view"), viewResolver);
+        LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
+        assertThat(compacted, instanceOf(ViewUnionAll.class));
+        assertThat(compacted.children().size(), equalTo(2));
     }
 
     /**
@@ -2586,6 +2739,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
+    }
+
+    private void addAlias(String aliasName, String indexName) {
+        viewService.addAlias(projectId, aliasName, indexName);
     }
 
     private void addDateMathIndex(String prefix) {

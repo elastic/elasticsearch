@@ -29,7 +29,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         .orElseThrow(AssertionError::new);
 
     final int dims;
-    final int maxOrd;
     final float scoreCorrectionConstant;
     final IndexInput input;
     final LegacyQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
@@ -44,7 +43,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.vectorDataBytes = dims;
         this.vectorTotalBytes = vectorDataBytes + Float.BYTES;
@@ -53,7 +51,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

@@ -30,7 +30,6 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
     final int dims;
     final int vectorByteSize;
-    final int maxOrd;
     final IndexInput input;
     final FloatVectorValues values;
     final FixedSizeScratch firstScratch;
@@ -43,13 +42,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = dims * Float.BYTES;
-        this.maxOrd = values.size();
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

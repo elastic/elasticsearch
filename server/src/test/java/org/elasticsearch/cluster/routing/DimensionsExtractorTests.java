@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -107,7 +107,7 @@ public class DimensionsExtractorTests extends ESTestCase {
         doc.put("dim.tags", new String[] { "a", "b", "c" });
         doc.put("metric", "x");
         IndexRouting.ExtractFromSource.ForIndexDimensions strategy = forIndexDimensions("dim.*");
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             DimensionsExtractor extractor = new DimensionsExtractor(strategy);
             expectThrows(RoutingExtractionException.class, () -> encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor));
         }
@@ -118,7 +118,7 @@ public class DimensionsExtractorTests extends ESTestCase {
         doc.put("dim.host", "node-1");
         doc.put("tags", new String[] { "a", "b" });
         IndexRouting.ExtractFromSource.ForIndexDimensions strategy = forIndexDimensions("dim.*");
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             DimensionsExtractor extractor = new DimensionsExtractor(strategy);
             // Should complete normally — no exception even though the document contains an array.
             encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor);
@@ -134,7 +134,7 @@ public class DimensionsExtractorTests extends ESTestCase {
         BytesReference json = toJson(doc);
         IndexRequest req = new IndexRequest("test").id("d1").source(json, XContentType.JSON);
         strategy.preProcess(req);
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             DimensionsExtractor extractor = new DimensionsExtractor(strategy);
             encoder.parseToScratch(json, XContentType.JSON, extractor);
             extractor.computeShardId(req);
@@ -151,7 +151,7 @@ public class DimensionsExtractorTests extends ESTestCase {
         Map<String, Object> docA = Map.of("dim.host", "alpha");
         Map<String, Object> docB = Map.of("dim.host", "beta");
 
-        try (EirfEncoder shared = new EirfEncoder(); EirfEncoder fresh = new EirfEncoder()) {
+        try (EscfEncoder shared = new EscfEncoder(); EscfEncoder fresh = new EscfEncoder()) {
             DimensionsExtractor sharedExt = new DimensionsExtractor(strategyA);
 
             shared.parseToScratch(toJson(docA), XContentType.JSON, sharedExt);
@@ -188,7 +188,7 @@ public class DimensionsExtractorTests extends ESTestCase {
         IndexRequest extractorReq = new IndexRequest("test").id("d1").source(json, XContentType.JSON);
         strategyExtractor.preProcess(extractorReq);
         int extractorShardId;
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             DimensionsExtractor extractor = new DimensionsExtractor(strategyExtractor);
             encoder.parseToScratch(json, XContentType.JSON, extractor);
             // parseToScratch returning normally implies the extractor didn't throw on any field.

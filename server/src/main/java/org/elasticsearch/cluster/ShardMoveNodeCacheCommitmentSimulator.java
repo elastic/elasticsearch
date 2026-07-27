@@ -83,10 +83,12 @@ public class ShardMoveNodeCacheCommitmentSimulator {
         }
 
         if (requirement.boostedCacheRequirementInBytes() != NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT) {
-            boostedCommitmentDeltaByNode.addTo(nodeId, modification.sign * requirement.boostedCacheRequirementInBytes());
+            long delta = modification.sign * requirement.boostedCacheRequirementInBytes();
+            boostedCommitmentDeltaByNode.put(nodeId, Math.addExact(boostedCommitmentDeltaByNode.getOrDefault(nodeId, 0L), delta));
         }
         if (requirement.unboostedCacheRequirementInBytes() != NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT) {
-            unboostedCommitmentDeltaByNode.addTo(nodeId, modification.sign * requirement.unboostedCacheRequirementInBytes());
+            long delta = modification.sign * requirement.unboostedCacheRequirementInBytes();
+            unboostedCommitmentDeltaByNode.put(nodeId, Math.addExact(unboostedCommitmentDeltaByNode.getOrDefault(nodeId, 0L), delta));
         }
     }
 

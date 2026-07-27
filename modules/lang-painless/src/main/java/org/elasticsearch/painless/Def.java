@@ -418,6 +418,11 @@ public final class Def {
                 if (defEncoding.isStatic) {
                     // the implementation is strongly typed, now that we know the interface type,
                     // we have everything.
+                    // An external reference (symbol != "this") that needs the script instance was encoded that way by
+                    // allocation tracking to capture the script for a possible per-invocation charge (see the semantic
+                    // function-reference lowering). "this" references need the script as a real delegate argument and
+                    // are not charged.
+                    boolean chargesAllocation = defEncoding.needsInstance && "this".equals(defEncoding.symbol) == false;
                     filter = lookupReferenceInternal(
                         painlessLookup,
                         functions,
@@ -427,7 +432,8 @@ public final class Def {
                         defEncoding.symbol,
                         defEncoding.methodName,
                         defEncoding.numCaptures,
-                        defEncoding.needsInstance
+                        defEncoding.needsInstance,
+                        chargesAllocation
                     );
                 } else {
                     // the interface type is now known, but we need to get the implementation.
@@ -503,6 +509,7 @@ public final class Def {
             PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass()),
             implMethod.javaMethod().getName(),
             1,
+            false,
             false
         );
     }
@@ -517,13 +524,9 @@ public final class Def {
         String type,
         String call,
         int captures,
-        boolean needsScriptInstance
+        boolean needsScriptInstance,
+        boolean chargesAllocation
     ) throws Throwable {
-
-        // An external reference (symbol != "this") that needs the script instance was encoded that way by allocation
-        // tracking to capture the script for a possible per-invocation charge (see the semantic function-reference
-        // lowering). "this" references need the script as a real delegate argument and are not charged here.
-        boolean chargesAllocation = needsScriptInstance && "this".equals(type) == false;
 
         final FunctionRef ref = FunctionRef.create(
             painlessLookup,
@@ -540,11 +543,20 @@ public final class Def {
         MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
         final CallSite callSite;
         // A charge-capturing reference (needsScriptInstance forced for an external @allocates target under tracking, see the
-        // semantic function-reference lowering) routes through the charging bootstrap: it drops the leading script capture
-        // and, when the runtime-resolved target is annotated, charges the estimated allocation per invocation. The estimator
-        // may be null if the resolved overload is not annotated — the capture is still dropped, nothing is charged.
+        // semantic function-reference lowering) routes through the charging bootstrap, which always drops the leading script
+        // capture and, when an estimator is supplied, charges the estimated allocation per invocation.
+        //
+        // The estimator can be null even though we are in the charging path: the compile-time decision to capture the script
+        // used PainlessLookup#hasAllocationEstimatorMethod, which matches the method name across *all* arities because the
+        // functional-interface arity is unknown until this reference resolves at runtime. FunctionRef.create above resolved the
+        // one overload matching the actual arity, and that specific overload may not be the annotated one (e.g. foo/1 is
+        // annotated but the reference resolved to foo/2). When that happens the capture is still dropped — it was prepended
+        // unconditionally at the call site — but nothing is charged.
         if (chargesAllocation) {
             Method estimator = ref.allocationEstimator;
+            String estimatorClassName = estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass());
+            String estimatorMethodName = estimator == null ? null : estimator.getName();
+            String estimatorMethodDescriptor = estimator == null ? null : Type.getMethodDescriptor(estimator);
             callSite = LambdaBootstrap.lambdaBootstrapWithAllocation(
                 methodHandlesLookup,
                 ref.interfaceMethodName,
@@ -558,9 +570,9 @@ public final class Def {
                 ref.isDelegateAugmented ? 1 : 0,
                 // needsScriptInstance prepends the script as the first factory parameter, so it is capture 0 here.
                 0,
-                estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass()),
-                estimator == null ? null : estimator.getName(),
-                estimator == null ? null : Type.getMethodDescriptor(estimator),
+                estimatorClassName,
+                estimatorMethodName,
+                estimatorMethodDescriptor,
                 ref.delegateInjections
             );
         } else {

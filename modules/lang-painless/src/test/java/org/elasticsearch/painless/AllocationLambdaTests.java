@@ -23,7 +23,32 @@ import java.util.Map;
  * Allocation tracking for lambdas and method references (PR 8). The test context ({@link PainlessTestScript}) does not
  * support cancellation, so static lambdas / references have no script pointer of their own; before this change allocations
  * reached through them leaked. These tests confirm static lambda bodies, constructor references, and static- and
- * unbound-instance-method references to {@code @allocates} targets are charged, while bounded cases still complete.
+ * unbound- and bound-instance-method references to {@code @allocates} targets are charged, while bounded cases still complete.
+ * <p>
+ * Nesting is a separate axis: an inner construct built <em>inside</em> an outer static lambda body reaches the script through
+ * the enclosing lambda's synthetic-method {@code #scriptThis} rather than the top-level script. Depth 2 could be special-cased
+ * (script + one synthetic method); the depth-3 rows force the fully recursive propagation (script → outer → middle → inner).
+ * Method references are leaves (no body), so the container is always a lambda; the "leaf" column is the innermost construct.
+ * The {@code def} counterparts live in {@link AllocationDefLambdaTests}.
+ * <table>
+ *   <caption>nested lambda / reference allocation coverage</caption>
+ *   <tr><th>Shape</th><th>Leaf = lambda body</th><th>Leaf = reference</th></tr>
+ *   <tr><td>depth 2 (outer lambda → leaf)</td>
+ *       <td>{@link #testNestedStaticLambdaBodyAllocationTrips}</td>
+ *       <td>ctor {@link #testNestedConstructorReferenceInLambdaBodyTrips},
+ *           static {@link #testNestedStaticMethodReferenceInLambdaBodyTrips},
+ *           unbound-instance {@link #testNestedInstanceMethodReferenceInLambdaBodyTrips},
+ *           bound-instance {@link #testNestedBoundInstanceMethodReferenceInLambdaBodyTrips}</td></tr>
+ *   <tr><td>depth 3 (outer → middle → leaf)</td>
+ *       <td>{@link #testTripleNestedStaticLambdaBodyAllocationTrips}</td>
+ *       <td>ctor {@link #testTripleNestedConstructorReferenceInLambdaBodyTrips},
+ *           static {@link #testTripleNestedStaticMethodReferenceInLambdaBodyTrips},
+ *           unbound-instance {@link #testTripleNestedInstanceMethodReferenceInLambdaBodyTrips},
+ *           bound-instance {@link #testTripleNestedBoundInstanceMethodReferenceInLambdaBodyTrips}</td></tr>
+ * </table>
+ * <p>
+ * Mixed static/def typing across a nesting boundary (a typed lambda containing a {@code def} inner construct, or the reverse)
+ * is covered in {@link AllocationDefLambdaTests}, since those cases all involve {@code def} routing on one side.
  */
 public class AllocationLambdaTests extends AllocationTestCase {
 
@@ -146,6 +171,86 @@ public class AllocationLambdaTests extends AllocationTestCase {
         assertTripsLimit(
             "return Optional.empty().orElseGet(() -> { "
                 + "for (int i = 0; i < 1000000; ++i) { Optional.empty().orElseGet(ArrayList::new); } return 1; });",
+            "1mb"
+        );
+    }
+
+    public void testNestedStaticMethodReferenceInLambdaBodyTrips() {
+        // A static-method reference (staticAllocating, estimator 16 * n) built and invoked inside an outer static lambda
+        // body; its #scriptThis capture resolves against the outer lambda and one large-argument call trips.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { "
+                + "return Optional.of(1000000).map(AllocationEstimatorTestObject::staticAllocating); });",
+            "1mb"
+        );
+    }
+
+    public void testNestedInstanceMethodReferenceInLambdaBodyTrips() {
+        // An unbound instance-method reference (String::toUpperCase) invoked inside an outer static lambda body; its
+        // #scriptThis capture resolves against the outer lambda and the per-invocation recase charge trips across the loop.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { "
+                + "for (int i = 0; i < 1000000; ++i) { Optional.of('abcdefghij').map(String::toUpperCase); } return 1; });",
+            "1mb"
+        );
+    }
+
+    public void testNestedBoundInstanceMethodReferenceInLambdaBodyTrips() {
+        // A bound instance-method reference (s::concat, captured receiver local to the lambda body) invoked inside an outer
+        // static lambda body; the script capture sits ahead of the receiver capture and is dropped before the delegate runs.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { String s = 'abcdefghij'; "
+                + "for (int i = 0; i < 1000000; ++i) { Optional.of(s).map(s::concat); } return 1; });",
+            "1mb"
+        );
+    }
+
+    public void testTripleNestedStaticLambdaBodyAllocationTrips() {
+        // Depth 3: outer -> middle -> inner static lambda. #scriptThis must propagate script -> outer -> middle -> inner
+        // (not special-cased at depth 2), so the innermost body allocation is charged when all three are invoked.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { return Optional.empty().orElseGet(() -> { "
+                + "return Optional.empty().orElseGet(() -> { return new int[1000000]; }); }); });",
+            "1kb"
+        );
+    }
+
+    public void testTripleNestedConstructorReferenceInLambdaBodyTrips() {
+        // Depth 3 with a reference at the leaf: a constructor reference built inside the innermost of three nested static
+        // lambda bodies. Its #scriptThis capture must resolve through two enclosing lambdas; the per-invocation charge trips.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { return Optional.empty().orElseGet(() -> { "
+                + "for (int i = 0; i < 1000000; ++i) { Optional.empty().orElseGet(ArrayList::new); } return 1; }); });",
+            "1mb"
+        );
+    }
+
+    public void testTripleNestedStaticMethodReferenceInLambdaBodyTrips() {
+        // Depth 3 with a method reference at the leaf: a static-method reference invoked inside the innermost of three nested
+        // static lambda bodies, proving the charge machinery threads the script through both enclosing lambdas to a ref.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { return Optional.empty().orElseGet(() -> { "
+                + "return Optional.of(1000000).map(AllocationEstimatorTestObject::staticAllocating); }); });",
+            "1mb"
+        );
+    }
+
+    public void testTripleNestedInstanceMethodReferenceInLambdaBodyTrips() {
+        // Depth 3 with an unbound instance-method reference (String::toUpperCase) at the leaf, inside three nested static
+        // lambda bodies; the per-invocation recase charge trips, proving the script threads through both enclosing lambdas.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { return Optional.empty().orElseGet(() -> { "
+                + "for (int i = 0; i < 1000000; ++i) { Optional.of('abcdefghij').map(String::toUpperCase); } return 1; }); });",
+            "1mb"
+        );
+    }
+
+    public void testTripleNestedBoundInstanceMethodReferenceInLambdaBodyTrips() {
+        // Depth 3 with a bound instance-method reference (s::concat, captured receiver local to the innermost lambda) at the
+        // leaf, inside three nested static lambda bodies; the script capture threads through both enclosing lambdas.
+        assertTripsLimit(
+            "return Optional.empty().orElseGet(() -> { return Optional.empty().orElseGet(() -> { String s = 'abcdefghij'; "
+                + "for (int i = 0; i < 1000000; ++i) { Optional.of(s).map(s::concat); } return 1; }); });",
             "1mb"
         );
     }

@@ -961,6 +961,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 );
             }
         }
+        // Array literals (e.g. ["a*", "b*"]) are not valid scalar patterns; the list form uses parentheses: LIKE ("a*", "b*")
+        if (right instanceof Literal lit && lit.value() instanceof List<?>) {
+            throw new ParsingException(
+                source,
+                "Invalid pattern for {} {}: expected a scalar string, not a list; use {} (\"p1\", \"p2\") for multiple patterns",
+                variant.name(),
+                patternCtx.getText(),
+                variant.name()
+            );
+        }
         // General constant expression: defer type/foldability checks and folding to the analysis phase
         UnresolvedRegexExpression regex = new UnresolvedRegexExpression(source, left, right, variant);
         return not == null ? regex : new Not(source, regex);

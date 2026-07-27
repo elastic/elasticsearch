@@ -1774,6 +1774,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from a | where foo like", "no viable alternative at input 'foo like'");
         // A bare wildcard token is not a valid expression.
         expectError("from a | where foo like *", "no viable alternative at input 'foo like *'");
+        // Array literals are not valid scalar patterns; the correct multi-pattern form is LIKE ("p1", "p2").
+        // Without this check the list would silently fold to a garbled hex-string that matches nothing.
+        expectError(
+            "from a | where foo like [\"Geo*\", \"Ab*\"]",
+            "Invalid pattern for LIKE [\"Geo*\",\"Ab*\"]: expected a scalar string, not a list"
+        );
+        expectError(
+            "from a | where foo rlike [\"geo.*\", \"ab.*\"]",
+            "Invalid pattern for RLIKE [\"geo.*\",\"ab.*\"]: expected a scalar string, not a list"
+        );
     }
 
     public void testIdentifierPatternTooComplex() {

@@ -722,6 +722,42 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             () -> new RemoteFetchOperator(driverContext, 0, fields, List.of(), null, ConfigurationAware.CONFIGURATION_MARKER, 2, client)
         );
         assertThat(noOutputFields.getMessage(), containsString("remote fetch requires at least one output field"));
+
+        IllegalArgumentException fewerOutputFields = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchOperator(
+                driverContext,
+                0,
+                List.of(
+                    new RemoteFetchService.FetchField("salary", DataType.INTEGER),
+                    new RemoteFetchService.FetchField("name", DataType.KEYWORD)
+                ),
+                outputFields,
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        );
+        assertThat(fewerOutputFields.getMessage(), containsString("request fields [2] must match output fields [1]"));
+
+        IllegalArgumentException moreOutputFields = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchOperator(
+                driverContext,
+                0,
+                fields,
+                List.of(
+                    new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER),
+                    new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+                ),
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        );
+        assertThat(moreOutputFields.getMessage(), containsString("request fields [1] must match output fields [2]"));
     }
 
     public void testUnsupportedPushdownRejectedAtOperatorConstruction() {
@@ -879,6 +915,37 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testIsBlockedDrainsReadyPagesBeforeCheckingBlockState() {
+        DriverContext driverContext = driverContext();
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {
+                enqueue(batchId, intPage(driverContext, new int[handles.size()]), true);
+            }
+        };
+
+        try (
+            RemoteFetchOperator operator = new RemoteFetchOperator(
+                driverContext,
+                0,
+                fields,
+                outputFields,
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER,
+                2,
+                client
+            )
+        ) {
+            operator.addInput(new Page(handles(driverContext), carry(driverContext)));
+            assertThat(client.queuedPageCount(), equalTo(2));
+
+            assertTrue(operator.isBlocked().listener().isDone());
+            assertThat(client.queuedPageCount(), equalTo(0));
+        }
+    }
+
     private static Page page(DriverContext driverContext, int intValue, String stringValue) {
         try (
             IntBlock.Builder intBuilder = driverContext.blockFactory().newIntBlockBuilder(1);
@@ -1028,7 +1095,7 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             String nodeId,
             String sessionId,
             List<RemoteFetchService.FetchField> fields,
-            org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan pushdownPlan,
+            PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
             RecordingExchange exchange = new RecordingExchange(nodeId, sessionId);
@@ -1048,6 +1115,10 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             RecordingExchange exchange = exchangesByNode.get(nodeId);
             assertNotNull(exchange);
             exchange.enqueue(exchange.batchId, page, lastPage);
+        }
+
+        int queuedPageCount() {
+            return exchangesByNode.values().stream().mapToInt(exchange -> exchange.pages.size()).sum();
         }
 
         abstract void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles);

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -180,6 +179,11 @@ public final class RemoteFetchOperator implements Operator {
         if (outputFields.isEmpty()) {
             throw new IllegalArgumentException("remote fetch requires at least one output field");
         }
+        if (requestFields.size() != outputFields.size()) {
+            throw new IllegalArgumentException(
+                "remote fetch request fields [" + requestFields.size() + "] must match output fields [" + outputFields.size() + "]"
+            );
+        }
         validatePushdownPlan(pushdownPlan);
         this.driverContext = driverContext;
         this.handleChannel = handleChannel;
@@ -236,7 +240,7 @@ public final class RemoteFetchOperator implements Operator {
             }
             success = true;
         } catch (Exception e) {
-            failure = e;
+            setFailure(e);
         } finally {
             if (success == false) {
                 if (pendingInput != null) {
@@ -260,6 +264,7 @@ public final class RemoteFetchOperator implements Operator {
     @Override
     public boolean isFinished() {
         checkExchangeFailures();
+        // If there's a failure, return false so getOutput() is called to throw the exception.
         if (failure != null) {
             return false;
         }
@@ -316,6 +321,10 @@ public final class RemoteFetchOperator implements Operator {
     @Override
     public IsBlockedResult isBlocked() {
         checkExchangeFailures();
+        if (failure != null) {
+            return NOT_BLOCKED;
+        }
+        drainFetchedPages();
         if (failure != null) {
             return NOT_BLOCKED;
         }
@@ -382,7 +391,7 @@ public final class RemoteFetchOperator implements Operator {
         for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             Exception exchangeFailure = exchange.getFailure();
             if (exchangeFailure != null) {
-                failure = exchangeFailure;
+                setFailure(exchangeFailure);
                 return true;
             }
         }
@@ -415,11 +424,17 @@ public final class RemoteFetchOperator implements Operator {
                 }
             }
         } catch (Exception e) {
-            failure = e;
+            setFailure(e);
         } finally {
             if (keepPage == false) {
                 page.releaseBlocks();
             }
+        }
+    }
+
+    private void setFailure(Exception e) {
+        if (failure == null) {
+            failure = e;
         }
     }
 
@@ -685,7 +700,6 @@ public final class RemoteFetchOperator implements Operator {
                 keptRows.add(rowRef);
             }
         }
-        int[] positions = Arrays.copyOf(survivingPositions, survivors);
 
         // Input columns are narrowed with Block#filter, which preserves the original encoding (constant,
         // vector, ordinal). Fetched columns are a gather across pages, so they are rebuilt with builders.
@@ -694,7 +708,7 @@ public final class RemoteFetchOperator implements Operator {
         boolean success = false;
         try {
             for (int i = 0; i < inputPage.getBlockCount(); i++) {
-                outputBlocks[i] = inputPage.getBlock(i).filter(false, positions);
+                outputBlocks[i] = inputPage.getBlock(i).filter(false, survivingPositions, 0, survivors);
             }
             for (int field = 0; field < outputFields.size(); field++) {
                 Block.Builder builder = PlannerUtils.toElementType(outputFields.get(field).dataType())

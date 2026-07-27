@@ -67,7 +67,7 @@ public class ShutdownPrepareService {
     );
 
     /**
-     * How long we'll wait for the non-relocatable reindexing tasks to fail before
+     * How long we'll wait for the non-relocatable reindexing tasks to cancel before
      * we proceed with shutdown. This should not be very long because we've already timed out
      * waiting for the tasks to relocate.
      */

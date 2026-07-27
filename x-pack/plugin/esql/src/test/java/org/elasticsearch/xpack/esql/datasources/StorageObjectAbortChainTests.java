@@ -88,21 +88,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
-     * Regression guard for {@link FileSplitProvider#probeStridedBoundary} through the same
-     * decorator chain used for uncompressed text files on object storage. A boundary probe deliberately does
-     * <em>not</em> abort: it opens a bounded window, then drains and closes it so the connection returns to the
-     * pool for the next probe (aborting would drop the connection and cost a handshake per probe). What the chain
-     * must preserve is the window's bound, so the total read stays a small fraction of the file rather than a
-     * range opened to end-of-file. A decorator that ignored the requested length would trip the upper bound here.
+     * Regression guard for {@link RecordBoundaryProbe#probeAt} through the same decorator chain used for
+     * uncompressed text files on object storage. At a stride far wider than the probe window a boundary probe
+     * deliberately does <em>not</em> abort: it opens a bounded window, then drains and closes it so the connection
+     * returns to the pool for the next probe (aborting would drop the connection and cost a handshake per probe).
+     * What the chain must preserve is the window's bound, so the total read stays a small fraction of the file
+     * rather than a range opened to end-of-file. A decorator that ignored the requested length would trip the
+     * upper bound here.
      */
     public void testMacroSplitDiscoveryDrainsBoundedWindowsThroughDecoratorChain() throws IOException {
-        StringBuilder csv = new StringBuilder("id,name\n");
-        for (int i = 0; i < 200_000; i++) {
-            csv.append(i).append(",value_").append(i).append('\n');
-        }
-        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        // Wide enough a stride that draining each window is worth the pooled connection; see DRAIN_MIN_STRIDE_RATIO.
+        long stride = RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO * RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        String row = "0123456789,0123456789,012345678\n";
+        byte[] payload = row.repeat(Math.toIntExact(3 * stride / row.length())).getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
-        assertThat("payload must exceed macro-split stride", fileLength, Matchers.greaterThan(2L * 1024 * 1024));
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
@@ -114,14 +113,14 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
-        long stride = fileLength / 4;
         long minSegment = csvReader.minimumSegmentSize();
-        List<Long> starts = FileSplitProvider.probeStridedBoundariesSerially(
+        List<Long> starts = RecordBoundaryProbe.probeStridedSerially(
             csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             chain,
             fileLength,
-            FileSplitProvider.macroSplitProbePositions(fileLength, stride, minSegment),
+            RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment),
             minSegment,
+            stride,
             () -> false
         );
 
@@ -131,7 +130,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         assertThat(
             "each probe drains its full window through the chain",
             tracking.bytesConsumed.get(),
-            Matchers.greaterThanOrEqualTo((starts.size() - 1) * FileSplitProvider.MACRO_SPLIT_PROBE_WINDOW_BYTES)
+            Matchers.greaterThanOrEqualTo((starts.size() - 1) * RecordBoundaryProbe.PROBE_WINDOW_BYTES)
         );
         assertThat(
             "macro-split probes must read bounded windows, not ranges to end-of-file; consumed "

@@ -26,9 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -591,66 +589,39 @@ public final class ParallelParsingCoordinator {
                     + "] supports neither strided nor proven probing and cannot be segmented"
             );
         }
-        List<Long> boundaries = new ArrayList<>();
-        boundaries.add(0L);
-
-        // The last proven record start (range-relative), the base the exact walk streams from on AMBIGUOUS.
-        long exactCursor = 0L;
-        long pos = nominalSize;
-        while (pos < fileLength) {
-            long remaining = fileLength - pos;
-            if (remaining < minSegment) {
-                break;
-            }
-            long boundary;
-            if (strided) {
-                InputStream stream = storageObject.newStream(pos, remaining);
-                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                    long skipped = splitter.findNextRecordBoundary(stream);
-                    if (skipped < 0) {
-                        break;
-                    }
-                    boundary = pos + skipped;
-                }
-            } else {
-                long probed;
-                InputStream probeStream = storageObject.newStream(pos, remaining);
-                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
-                    probed = splitter.findProvenRecordBoundary(probeStream);
-                }
-                if (probed >= 0) {
-                    boundary = pos + probed;
-                } else if (probed == RecordSplitter.AMBIGUOUS) {
-                    // Exact walk from the last proven boundary. This path is range-bounded and read at planning
-                    // time, so it relies on the existing read-time cancellation rather than a new supplier.
-                    long walkRemaining = fileLength - exactCursor;
-                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
-                    long start;
-                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> false);
-                    }
-                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
-                        break;
-                    }
-                    boundary = exactCursor + start;
-                } else {
-                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
-                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
+        // The proven walk is sequential by nature, so it resolves every boundary in one call. Read-time
+        // segmentation carries no cancellable task, so it relies on the existing read-time cancellation
+        // rather than a supplier of its own.
+        List<Long> boundaries;
+        if (strided) {
+            boundaries = new ArrayList<>();
+            boundaries.add(0L);
+            // Unlike planning's fixed offsets, each stride here is re-anchored on the boundary the previous probe
+            // found, so an offset that yields nothing ends the walk rather than merging two segments: the segments
+            // after it would be measured from a boundary that does not exist.
+            long pos = nominalSize;
+            while (pos < fileLength) {
+                if (fileLength - pos < minSegment) {
                     break;
                 }
+                RecordBoundaryProbe.Outcome outcome = RecordBoundaryProbe.probeAt(
+                    splitter,
+                    storageObject,
+                    pos,
+                    fileLength,
+                    minSegment,
+                    nominalSize,
+                    () -> false
+                );
+                if (outcome.found() == false) {
+                    break;
+                }
+                assert outcome.boundary() > boundaries.get(boundaries.size() - 1) : "segment boundary must be strictly increasing";
+                boundaries.add(outcome.boundary());
+                pos = outcome.boundary() + nominalSize;
             }
-            if (boundary >= fileLength) {
-                break;
-            }
-            if (fileLength - boundary < minSegment) {
-                break;
-            }
-            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
-            boundaries.add(boundary);
-            exactCursor = boundary;
-            pos = boundaries.get(boundaries.size() - 1) + nominalSize;
+        } else {
+            boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false);
         }
 
         List<long[]> segments = new ArrayList<>(boundaries.size());

@@ -35,13 +35,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * <p>Two at-rest forms are supported, discriminated by {@code version}:
  * <ul>
- *   <li><b>v1 (plaintext)</b> - the internal API key is stored as-is in the {@code value} field. This is the legacy format and the
- *       explicit opt-out format written only when cluster-state encryption is unavailable and {@code cluster.state.encryption.required}
- *       is {@code false}.</li>
+ *   <li><b>v1 (plaintext)</b> - the internal API key is stored as-is in the {@code value} field. This form is only ever read, never
+ *       written: it is the format of credentials persisted before encryption at rest was introduced.</li>
  *   <li><b>v2 (encrypted)</b> - the internal API key is stored as AES-256-GCM ciphertext in {@code encrypted}
- *       ({@link CloudCredentialEncryptedData}) under the per-project cloud credential encryption key. This is the default.</li>
+ *       ({@link CloudCredentialEncryptedData}) under the per-project cloud credential encryption key. All new credentials use this
+ *       form.</li>
  * </ul>
- *
  */
 public final class PersistedCloudCredential implements Writeable, ToXContentObject, Releasable {
 
@@ -154,8 +153,6 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.internalApiKey = internalApiKey;
         this.encrypted = encrypted;
-        // Each format must carry exactly its own payload (never both, never neither). The factories enforce non-null on input; this
-        // guards the coupling against future callers and fails the build if a new Format is added without wiring its payload here.
         assert switch (format) {
             case PLAINTEXT -> internalApiKey != null && encrypted == null;
             case ENCRYPTED -> encrypted != null && internalApiKey == null;
@@ -163,7 +160,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     /**
-     * Creates an encrypted (v2) credential. This is the default at-rest form.
+     * Creates an encrypted (v2) credential.
      */
     public PersistedCloudCredential(String id, CloudCredentialEncryptedData encrypted) {
         this(Format.ENCRYPTED, id, null, Objects.requireNonNull(encrypted, "encrypted must not be null"));
@@ -211,7 +208,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     /**
-     * The plaintext internal API key for a v1 credential, or {@code null} for v2. Only call this after checking {@link #version()}.
+     * The plaintext internal API key, or {@code null} when this credential is stored encrypted.
      */
     @Nullable
     public SecureString internalApiKey() {
@@ -219,7 +216,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     /**
-     * The encrypted internal API key for a v2 credential, or {@code null} for v1. Only call this after checking {@link #version()}.
+     * The encrypted internal API key, or {@code null} when this credential is stored in plaintext.
      */
     @Nullable
     public CloudCredentialEncryptedData encrypted() {
@@ -228,23 +225,21 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(format.version);
+        out.writeString(id);
         switch (format) {
+            case PLAINTEXT -> out.writeSecureString(internalApiKey);
             case ENCRYPTED -> {
                 if (out.getTransportVersion().supports(CLOUD_CREDENTIAL_ENCRYPTION) == false) {
                     throw new IllegalStateException(
-                        "cannot serialize PersistedCloudCredential to a peer that does not support transport version ["
-                            + CLOUD_CREDENTIAL_ENCRYPTION
-                            + "]. Ensure all nodes are upgraded before publishing encrypted cloud credentials"
+                        "cannot write encrypted cloud credential to a peer at transport version ["
+                            + out.getTransportVersion().toReleaseVersion()
+                            + "]: requires ["
+                            + CLOUD_CREDENTIAL_ENCRYPTION.toReleaseVersion()
+                            + "] or later"
                     );
                 }
-                out.writeVInt(format.version);
-                out.writeString(id);
                 encrypted.writeTo(out);
-            }
-            case PLAINTEXT -> {
-                out.writeVInt(format.version);
-                out.writeString(id);
-                out.writeSecureString(internalApiKey);
             }
         }
     }
@@ -266,7 +261,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     /**
-     * Releases the underlying {@link SecureString} for a v1 credential; a no-op for v2.
+     * Releases the underlying {@link SecureString}.
      */
     @Override
     public void close() {
@@ -297,8 +292,18 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     @Override
     public String toString() {
         return switch (format) {
-            case PLAINTEXT -> "PersistedCloudCredential{version=" + format.version + ", id=" + id + ", internalApiKey=::es_redacted::}";
-            case ENCRYPTED -> "PersistedCloudCredential{version=" + format.version + ", id=" + id + ", keyId=" + encrypted.keyId() + "}";
+            case PLAINTEXT -> "PersistedCloudCredential{version="
+                + format.version
+                + ", apiKeyId="
+                + id
+                + ", internalApiKey=::es_redacted::}";
+            case ENCRYPTED -> "PersistedCloudCredential{version="
+                + format.version
+                + ", apiKeyId="
+                + id
+                + ", encryptionKeyId="
+                + encrypted.keyId()
+                + "}";
         };
     }
 }

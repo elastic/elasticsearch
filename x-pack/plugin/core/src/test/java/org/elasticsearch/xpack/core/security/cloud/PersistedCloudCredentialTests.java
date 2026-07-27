@@ -106,7 +106,7 @@ public class PersistedCloudCredentialTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersionUtils.getPreviousVersion(PersistedCloudCredential.CLOUD_CREDENTIAL_ENCRYPTION));
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> original.writeTo(out));
-        assertThat(ex.getMessage(), containsString("cannot serialize PersistedCloudCredential to a peer that does not support"));
+        assertThat(ex.getMessage(), containsString("cannot write encrypted cloud credential to a peer at transport version"));
     }
 
     public void testToStringDoesNotExposeCiphertext() {

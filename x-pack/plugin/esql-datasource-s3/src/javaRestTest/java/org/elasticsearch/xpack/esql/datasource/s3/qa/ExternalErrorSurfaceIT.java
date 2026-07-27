@@ -185,10 +185,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Set.of("get an unknown dataset", "delete an unknown dataset"),
         // Both are "the resource is not a supported object location"; the message echoes what was given.
         Set.of("unsupported URI scheme", "URI with no scheme at all"),
-        // An S3 prefix is not an object, so "no object at this key" is the same condition as a missing key.
         // The reported_case probes repeat conditions covered elsewhere on a .tsv, deliberately: they exist to
         // keep the exact user-reported shape visible in the report, not to add a new condition.
-        Set.of("tsv object does not exist", "object key does not exist", "key is a prefix, not an object"),
+        Set.of("tsv object does not exist", "object key does not exist"),
         Set.of("tsv object is empty", "zero-byte object"),
         Set.of("tsv declared as parquet", "explicit format contradicts the bytes (parquet declared, CSV content)"),
         // The store answers both with an identical 403 AccessDenied, so the message cannot tell them apart from
@@ -203,6 +202,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * new behaviour.
      */
     private static final Map<String, String> KNOWN_OPEN = Map.of(
+        "key is a prefix, not an object",
+        "reports \"Object not found\", the same as a genuinely absent key. The store can tell the two apart -- a "
+            + "prefix has children a listing would return -- so this is a defect to improve, not one condition "
+            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement",
         "no extension and no explicit format",
         "reports the Iceberg catalog's own failure rather than \"the format cannot be inferred; set [format]\". "
             + "IcebergTableCatalog#canHandle claims every s3:// path, so it claims an extensionless object, fails "

@@ -171,7 +171,7 @@ public final class ExternalFailures {
      * {@code getMessage()} if set, otherwise the class's simple name (so a null-message
      * {@link InterruptedException} reads as {@code "InterruptedException"} rather than {@code "null"}).
      */
-    public static String detail(Throwable failure) {
+    private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
 

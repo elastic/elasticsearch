@@ -204,6 +204,13 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         Mode mode = Mode.SKIP_ROW;
         if (errorModeValue != null) {
             String modeStr = errorModeValue.toString();
+            String rejection = "Invalid value for ["
+                + CONFIG_ERROR_MODE
+                + "]: ["
+                + errorModeValue
+                + "]; supported values are ["
+                + Mode.supportedValues()
+                + "]";
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {

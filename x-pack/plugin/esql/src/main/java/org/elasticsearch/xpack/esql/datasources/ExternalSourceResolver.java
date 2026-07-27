@@ -507,9 +507,10 @@ public class ExternalSourceResolver {
 
     /**
      * Reproduces the previous loop's error contract: a cancelled query surfaces {@link TaskCancelledException}
-     * unwrapped (so the client sees a clean 4xx rather than a generic 500), {@link IllegalArgumentException} and
-     * {@link UnsupportedOperationException} (client-caused) propagate unwrapped, and any other failure is wrapped in
-     * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
+     * unwrapped (so the client sees a clean 4xx rather than a generic 500), a client-caused
+     * {@link IllegalArgumentException} is recovered from the cause chain (it can arrive wrapped -- see below) and
+     * surfaced unchanged, {@link UnsupportedOperationException} propagates unwrapped, and any other failure is
+     * wrapped in an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
      * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
      * cancellation state is consulted directly rather than matched on the exception type.
      * <p>

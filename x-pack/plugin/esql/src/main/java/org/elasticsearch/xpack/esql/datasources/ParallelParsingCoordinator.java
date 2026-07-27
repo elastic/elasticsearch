@@ -589,9 +589,10 @@ public final class ParallelParsingCoordinator {
                     + "] supports neither strided nor proven probing and cannot be segmented"
             );
         }
-        // The proven walk is sequential by nature, so it resolves every boundary in one call. Read-time
-        // segmentation carries no cancellable task, so it relies on the existing read-time cancellation
-        // rather than a supplier of its own.
+        // The proven walk is sequential by nature, so it resolves every boundary in one call. Segmentation runs
+        // on the thread that already carries the read's StorageRetryCancellation scope, so it passes no
+        // cancellation supplier of its own: a probe read parked in retry/throttle backoff observes the read's
+        // own cancel signal through that ambient scope, which a supplier here would displace.
         List<Long> boundaries;
         if (strided) {
             boundaries = new ArrayList<>();

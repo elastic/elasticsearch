@@ -1048,9 +1048,9 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A target split size below the probe window is honoured rather than rounded up to it: the probe window is
-     * capped at the stride instead, which is what keeps one probe's window from reaching into the next offset.
-     * A caller asking for splits smaller than the window gets them, with correspondingly smaller probes.
+     * A target split size below the probe window splits at its own offsets: the probe window is capped at the
+     * stride, which is what keeps one probe's window from reaching into the next offset. A caller asking for
+     * splits smaller than the window gets them, with correspondingly smaller probes.
      */
     public void testTargetStrideBelowTheProbeWindowIsHonoured() {
         long stride = 64 * 1024;
@@ -1061,15 +1061,14 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
         List<ExternalSplit> atWindow = discoverPlainCsvSplits(payloads, RecordBoundaryProbe.PROBE_WINDOW_BYTES, null, null);
 
-        // Every offset resolves, so the split count is the offset count plus the file start. A stride that was
-        // silently floored to the window would instead produce exactly the window-sized split set.
+        // Every offset resolves, so the split count is the offset count plus the file start.
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals("a sub-window stride must split at its own offsets", probes + 1, splits.size());
         assertThat("and into more splits than the probe window would give", splits.size(), greaterThan(atWindow.size()));
         for (int i = 0; i < splits.size() - 1; i++) {
             FileSplit split = (FileSplit) splits.get(i);
             // A boundary sits at most one record past its offset, so every split but the last is one stride long
-            // give or take a record. A stride rounded up to the window would make these four times longer.
+            // give or take a record.
             assertThat("split " + i + " must be about one stride long", split.length(), lessThan(stride + 64));
         }
     }

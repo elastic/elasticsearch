@@ -115,6 +115,103 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals(content.length(), segments.get(0)[1]);
     }
 
+    /**
+     * A record longer than the probe window ends the segmentation walk where it is met. Each stride here is
+     * re-anchored on the boundary the previous probe found, so an offset that finds nothing cannot be stepped
+     * over: every offset after it would be measured against a boundary that does not exist. The rest of the file
+     * past such a record is parsed as a single segment, which trades in-node parallelism for a probe read that
+     * stays bounded whatever the record size. What holds either way is coverage: the segments still tile the file
+     * exactly, so the long record is parsed once and no row is dropped or parsed twice.
+     */
+    public void testARecordLongerThanTheProbeWindowEndsSegmentation() throws IOException {
+        String row = "0123456789,0123456789,012345678\n";
+        long minSegment = 512 * 1024;
+        // Parallelism high enough that fileLength / parallelism falls under minSegment, which pins the stride to
+        // minSegment and so the probe window to the full PROBE_WINDOW_BYTES ceiling rather than a stride-capped one.
+        int parallelism = 64;
+        // The first probe sits at one stride and resolves to the row boundary just past it, putting the second
+        // probe one row into the second stride. Start the long record there and make it outrun the window.
+        long longRecordStart = 2 * minSegment;
+        int longRecordBytes = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES + 128 * 1024);
+
+        StringBuilder text = new StringBuilder();
+        while (text.length() < longRecordStart) {
+            text.append(row);
+        }
+        assertEquals("rows must tile up to the long record exactly", longRecordStart, text.length());
+        text.append("x".repeat(longRecordBytes - 1)).append('\n');
+        while (text.length() < longRecordStart + longRecordBytes + 2 * minSegment) {
+            text.append(row);
+        }
+        byte[] payload = text.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            new NewlineSegmentableReader(minSegment),
+            new InMemoryStorageObject(payload),
+            payload.length,
+            parallelism,
+            minSegment
+        );
+
+        assertEquals("the walk stops at the record no probe window can span", 2, segments.size());
+        long tailStart = segments.get(1)[0];
+        assertThat("the surviving boundary precedes the long record", tailStart, Matchers.lessThan(longRecordStart));
+        assertEquals("the tail segment runs to end of file", payload.length - tailStart, segments.get(1)[1]);
+        assertEquals("so one segment holds the whole long record", 0, segments.get(0)[0]);
+        long covered = 0;
+        for (long[] segment : segments) {
+            covered += segment[1];
+        }
+        assertEquals("segments must still tile the file", payload.length, covered);
+        for (long[] segment : segments) {
+            assertTrue(
+                "segment at " + segment[0] + " must start on a record",
+                segment[0] == 0 || payload[Math.toIntExact(segment[0]) - 1] == '\n'
+            );
+        }
+
+        // The same payload length without the long record segments further, so the truncation above is the record's
+        // doing and not the stride arithmetic's.
+        byte[] shortRowsOnly = row.repeat(payload.length / row.length()).getBytes(StandardCharsets.UTF_8);
+        assertEquals(payload.length, shortRowsOnly.length);
+        List<long[]> unobstructed = ParallelParsingCoordinator.computeSegments(
+            new NewlineSegmentableReader(minSegment),
+            new InMemoryStorageObject(shortRowsOnly),
+            shortRowsOnly.length,
+            parallelism,
+            minSegment
+        );
+        assertThat("a file of short rows segments further", unobstructed.size(), Matchers.greaterThan(segments.size()));
+    }
+
+    /**
+     * A segment probe reads under the ambient {@link StorageRetryCancellation} scope the read installed, not one
+     * of its own. That scope is what a probe parked in retry/throttle backoff consults to abort instead of
+     * sleeping out its retry budget, and read-time segmentation has no separately cancellable task to key a scope
+     * of its own on, so installing one would replace the read's live cancel signal with a dead one.
+     */
+    public void testSegmentProbesReadUnderTheAmbientRetryCancellationScope() throws IOException {
+        byte[] payload = "line1\nline2\nline3\nline4\nline5\nline6\n".getBytes(StandardCharsets.UTF_8);
+        List<Boolean> scopeSeenByProbe = new ArrayList<>();
+        StorageObject obj = new InMemoryStorageObject(payload) {
+            @Override
+            public InputStream newStream(long position, long length) {
+                scopeSeenByProbe.add(StorageRetryCancellation.isCancelled());
+                return super.newStream(position, length);
+            }
+        };
+
+        StorageRetryCancellation.runWithCancellation(
+            () -> true,
+            () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
+        );
+
+        assertFalse("the segment walk must have probed at least once", scopeSeenByProbe.isEmpty());
+        for (boolean seen : scopeSeenByProbe) {
+            assertTrue("a probe read must see the cancellation scope the read installed", seen);
+        }
+    }
+
     public void testComputeSegmentsAlignsToBoundaries() throws IOException {
         String content = "aaaa\nbbbb\ncccc\ndddd\n";
         StorageObject obj = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
@@ -130,9 +227,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@link ParallelParsingCoordinator#computeSegments} opens a range stream for
-     * each nominal split probe, reads only enough bytes to find the next record boundary, then must
-     * call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     * Regression guard: {@link ParallelParsingCoordinator#computeSegments} opens a range stream for each nominal
+     * split probe and reads only enough bytes to find the next record boundary. Whether it then aborts the stream
+     * or drains the rest of the window first depends on how much of the file the windows cover, which is
+     * {@link RecordBoundaryProbe#DRAIN_MIN_STRIDE_RATIO}. This fixture's nominal segment size is well inside that
+     * ratio, so every probe must call {@link StorageObject#abortStream}: draining here would transfer a large
+     * fraction of the file to place a handful of boundaries.
      */
     public void testComputeSegmentsDoesNotDrainStream() throws IOException {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
@@ -158,6 +258,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             csvReader.minimumSegmentSize()
         );
 
+        assertThat(
+            "this fixture's stride must sit inside the drain ratio, or it is no longer testing the abort path",
+            RecordBoundaryProbe.PROBE_WINDOW_BYTES * RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO,
+            Matchers.greaterThan(Math.max(fileLength / 4, csvReader.minimumSegmentSize()))
+        );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
         assertTrue("each segment probe must abort the underlying stream", tracking.abortCalls.get() >= segments.size() - 1);
         assertThat(

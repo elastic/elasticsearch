@@ -25,8 +25,8 @@ import java.util.function.BooleanSupplier;
  * Two callers partition a file at record boundaries and both go through here: {@link FileSplitProvider} cuts a
  * file into cross-node macro-splits at planning time, and {@link ParallelParsingCoordinator} cuts a split into
  * in-node parse segments at read time. They choose their own offsets and differ in what they do with an offset
- * that yields nothing, but the read itself — how wide a window to open, when to drain it and when to abort it,
- * how to read the splitter's sentinels — is one implementation here rather than one per caller.
+ * that yields nothing, but the read itself is one implementation here rather than one per caller: how wide a
+ * window to open, when to drain it and when to abort it, how to read the splitter's sentinels.
  * <p>
  * Which of the two walks applies is a property of the splitter. {@link RecordSplitter#supportsStridedProbing()}
  * means any offset can be probed independently of any other, which is what
@@ -44,7 +44,7 @@ final class RecordBoundaryProbe {
     /**
      * How many bytes a probe reads at its offset before giving up on finding a record boundary there.
      * <p>
-     * A row-oriented record — an NDJSON line, a CSV row — is far smaller than this, so its terminating newline
+     * A row-oriented record (an NDJSON line, a CSV row) is far smaller than this, so its terminating newline
      * is found well within the window and the probe is a small, predictable ranged GET rather than a range
      * opened to end-of-file. A record that does span the whole window yields no boundary rather than reading
      * further; {@link #reduce} explains what that costs.
@@ -101,9 +101,12 @@ final class RecordBoundaryProbe {
      * {@link #DRAIN_MIN_STRIDE_RATIO} for which and why. A probe that fails or is cancelled always aborts, so
      * the connection and its storage permit are released at once rather than after a drain nothing will use.
      * <p>
-     * Runs under a {@link StorageRetryCancellation} scope so a probe parked in retry/throttle backoff aborts on
-     * cancel instead of sleeping out its retry budget. That scope is thread-local, so it is installed here, on
-     * whichever thread runs the probe, rather than once around the caller's whole walk.
+     * The {@link StorageRetryCancellation} scope that lets a read parked in retry/throttle backoff abort on
+     * cancel belongs to the caller, not to this method. That scope is thread-local, so a caller that dispatches
+     * probes to threads of its own installs one per probe, while a caller that already runs under a scope
+     * inherits it. Installing one here would instead overwrite whatever signal the calling thread was carrying
+     * with this method's own, which for a caller whose probes are not separately cancellable would leave the
+     * read unable to observe a cancel at all.
      *
      * @param strideBytes the distance between the offsets the caller is probing, which bounds the window and
      *                    decides whether draining it is worth the bytes
@@ -120,35 +123,33 @@ final class RecordBoundaryProbe {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(CANCELLED_MESSAGE);
         }
-        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
-            long window = probeWindow(pos, fileLength, strideBytes);
-            long skipped;
-            InputStream stream = storageObject.newStream(pos, window);
-            try (ProbeStream probe = new ProbeStream(storageObject, stream)) {
-                skipped = splitter.findNextRecordBoundary(stream);
-                // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
-                // connection to, so there is nothing to buy by draining the rest of the window.
-                if (isCancelled.getAsBoolean()) {
-                    throw new TaskCancelledException(CANCELLED_MESSAGE);
-                }
-                if (window * DRAIN_MIN_STRIDE_RATIO <= strideBytes) {
-                    probe.drain();
-                }
+        long window = probeWindow(pos, fileLength, strideBytes);
+        long skipped;
+        InputStream stream = storageObject.newStream(pos, window);
+        try (ProbeStream probe = new ProbeStream(storageObject, stream)) {
+            skipped = splitter.findNextRecordBoundary(stream);
+            // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
+            // connection to, so there is nothing to buy by draining the rest of the window.
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException(CANCELLED_MESSAGE);
             }
-            // No boundary within the window: its end was reached, or the record exceeds the splitter's maximum.
-            // Either way this offset yields no boundary, and the span before it runs on through the record that
-            // swallowed the window until the next offset that does find one.
-            if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
-                return Outcome.NONE;
+            if (window * DRAIN_MIN_STRIDE_RATIO <= strideBytes) {
+                probe.drain();
             }
-            long boundary = pos + skipped;
-            // Cutting this close to the end would leave a runt final span. Every higher offset resolves to a
-            // boundary at least this far in, so they all yield nothing too and the last span extends to EOF.
-            if (boundary >= fileLength || fileLength - boundary < minSegment) {
-                return Outcome.NONE;
-            }
-            return Outcome.at(boundary);
-        });
+        }
+        // No boundary within the window: its end was reached, or the record exceeds the splitter's maximum.
+        // Either way this offset yields no boundary, and the span before it runs on through the record that
+        // swallowed the window until the next offset that does find one.
+        if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
+            return Outcome.NONE;
+        }
+        long boundary = pos + skipped;
+        // Cutting this close to the end would leave a runt final span. Every higher offset resolves to a
+        // boundary at least this far in, so they all yield nothing too and the last span extends to EOF.
+        if (boundary >= fileLength || fileLength - boundary < minSegment) {
+            return Outcome.NONE;
+        }
+        return Outcome.at(boundary);
     }
 
     /**
@@ -224,6 +225,10 @@ final class RecordBoundaryProbe {
      * Probes each offset on the calling thread. Every probe is independent of every other, so this produces the
      * same boundaries as gathering the same offsets concurrently and reducing the results, which is what lets a
      * node without an executor fall back to this walk without changing how a file is cut.
+     * <p>
+     * The whole walk owns one {@link StorageRetryCancellation} scope: it runs on a single thread, so one scope
+     * covers every probe in it and a probe parked in retry/throttle backoff aborts on cancel rather than
+     * sleeping out its retry budget.
      */
     static List<Long> probeStridedSerially(
         RecordSplitter splitter,
@@ -234,11 +239,13 @@ final class RecordBoundaryProbe {
         long strideBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
-        List<Outcome> outcomes = new ArrayList<>(positions.size());
-        for (long pos : positions) {
-            outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
-        }
-        return reduce(outcomes);
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
+            List<Outcome> outcomes = new ArrayList<>(positions.size());
+            for (long pos : positions) {
+                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
+            }
+            return reduce(outcomes);
+        });
     }
 
     /**

@@ -444,9 +444,24 @@ public class FileSplitProvider implements SplitProvider {
                 case PlanResult.NeedsProbing needsProbing -> {
                     DeferredNewlineSplits deferred = needsProbing.deferred();
                     List<Long> starts = probedBoundaries.get(deferred);
-                    // A file is only deferred when it has offsets to probe, so the probe phase answers for every
-                    // deferred file.
-                    assert starts != null : "no probed boundaries for deferred file " + deferred.filePath();
+                    if (starts == null) {
+                        // A file is only deferred when it has offsets to probe, so the probe phase answers for
+                        // every deferred file. Fail loud rather than on a null if that ever stops holding.
+                        throw new IllegalStateException("no probed boundaries for deferred file " + deferred.filePath());
+                    }
+                    if (starts.size() <= 1) {
+                        // Every offset of a file big enough to macro-split failed to find a record boundary, so one
+                        // node reads all of it. Nothing else records that, and the remedies (a larger
+                        // target_split_size, or records that are not the size of the probe window) are the user's.
+                        LOGGER.warn(
+                            "no record boundary found in [{}] ({} bytes) at any of its {} probe offsets {} bytes "
+                                + "apart; reading it as a single whole-file split",
+                            deferred.filePath(),
+                            deferred.fileLength(),
+                            deferred.positions().size(),
+                            deferred.targetStrideBytes()
+                        );
+                    }
                     splits.addAll(buildNewlineMacroSplits(deferred, starts));
                 }
             }
@@ -540,17 +555,26 @@ public class FileSplitProvider implements SplitProvider {
         }
     }
 
-    /** Probes the one stride offset a task carries, against the file the task belongs to. */
+    /**
+     * Probes the one stride offset a task carries, against the file the task belongs to.
+     * <p>
+     * Carries the cancellation signal as ambient thread-local state so the synchronous retry/throttle backoff
+     * inside the probe read can abort a parked sleep on cancel. The scope is thread-local and a probe runs on
+     * whichever gather thread picks it up, so it is installed per probe rather than once around the gather.
+     */
     private static RecordBoundaryProbe.Outcome runProbe(ProbeTask probe, BooleanSupplier isCancelled) throws IOException {
         DeferredNewlineSplits deferred = probe.deferred();
-        return RecordBoundaryProbe.probeAt(
-            deferred.splitter(),
-            deferred.storageObject(),
-            probe.position(),
-            deferred.fileLength(),
-            deferred.minSegment(),
-            deferred.targetStrideBytes(),
-            isCancelled
+        return StorageRetryCancellation.callWithCancellation(
+            isCancelled,
+            () -> RecordBoundaryProbe.probeAt(
+                deferred.splitter(),
+                deferred.storageObject(),
+                probe.position(),
+                deferred.fileLength(),
+                deferred.minSegment(),
+                deferred.targetStrideBytes(),
+                isCancelled
+            )
         );
     }
 
@@ -1189,22 +1213,18 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * Builds a candidate file's splits from its resolved macro-split starts: one contiguous split per boundary,
      * the last extending to end-of-file, each stamped so the read side can tell where it sits in the file.
-     * Falls back to a single whole-file split when probing found no usable boundary.
+     * Falls back to a single whole-file split when no usable boundary was found.
+     * <p>
+     * That fallback is silent here because what it means depends on the walk that produced {@code starts}, and
+     * only the strided probe phase can tell a real cliff from a file that is merely a little longer than one
+     * split: a strided candidate whose offsets all resolved to within a minimum segment of end-of-file carries
+     * no offsets at all, and the sequential proven walk stops on the same short tail as on an unsplittable
+     * record. The caller that probed the offsets logs the cliff.
      */
     private static List<ExternalSplit> buildNewlineMacroSplits(DeferredNewlineSplits deferred, List<Long> starts) {
         long fileLength = deferred.fileLength();
         Map<String, Object> config = deferred.config();
         if (starts.size() <= 1) {
-            // This file was big enough to be worth splitting, yet no offset yielded a boundary, so the whole of it
-            // will be read by one node. That is a performance cliff with no other trace, so say why it happened.
-            LOGGER.debug(
-                "no record boundary found in [{}] ({} bytes) at any of {} probe offsets {} bytes apart; "
-                    + "reading it as a single whole-file split",
-                deferred.filePath(),
-                fileLength,
-                deferred.positions().size(),
-                deferred.targetStrideBytes()
-            );
             return List.of(
                 wholeFileSplit(
                     deferred.filePath(),

@@ -144,8 +144,10 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
-     * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing
-     * probes record boundaries through the same decorator chain used for uncompressed object-store reads.
+     * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing probes
+     * record boundaries through the same decorator chain used for uncompressed object-store reads. This fixture's
+     * nominal segment size is well inside {@link RecordBoundaryProbe#DRAIN_MIN_STRIDE_RATIO}, so every probe
+     * aborts rather than draining, and the abort must reach the raw object through the chain.
      */
     public void testComputeSegmentsAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -168,6 +170,11 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
 
+        assertThat(
+            "this fixture's stride must sit inside the drain ratio, or it is no longer testing the abort path",
+            RecordBoundaryProbe.PROBE_WINDOW_BYTES * RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO,
+            Matchers.greaterThan(Math.max(fileLength / 4, csvReader.minimumSegmentSize()))
+        );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
         assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= segments.size() - 1);
         assertThat(

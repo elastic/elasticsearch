@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -51,6 +52,9 @@ public class Clusters {
             .setting("xpack.ml.enabled", "false")
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            // ES|QL federation (external data sources / datasets) is off by default; InferredDateRequestFilterParityIT
+            // registers a data source on this cluster, so opt in here.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true")
             .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             .build();
@@ -74,6 +78,9 @@ public class Clusters {
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
             .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
+            // ES|QL federation (external data sources / datasets) is off by default; these suites register data
+            // sources/datasets, so opt in here.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true")
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings

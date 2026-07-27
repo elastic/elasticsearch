@@ -58,6 +58,12 @@ public class Clusters {
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            // ES|QL federation (external data sources / datasets) is off by default; these suites register data
+            // sources/datasets, so opt in on every node. Uses the supplier form (a provider), not the plain-value
+            // form, so multiNodeCoordinatorEnabledDataNodeDisabledCluster's later per-node provider can still win
+            // on the data node: resolveSystemProperties() applies plain-value entries after providers, so a plain
+            // value here would unconditionally override that per-node "false".
+            .systemProperty(Federation.REGISTER_PROPERTY, () -> "true")
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings
@@ -118,11 +124,12 @@ public class Clusters {
     /**
      * A split-role two-node cluster (coordinator-only node 0, master+data node 1) that boots the data node
      * with the ES|QL federation kill switch engaged ({@code es.esql.register_federation_feature=false}) while
-     * the coordinator stays enabled. This reproduces the mixed / rolling-restart window the data-node backstop
-     * in {@code LocalExecutionPlanner.planExternalSource} guards: the enabled coordinator resolves
-     * {@code FROM <dataset>} into an external scan and dispatches it to the disabled data node, which must
-     * refuse it at operator build rather than reading external storage. The property is a static, read-once
-     * lever, so it must be supplied per node at boot rather than toggled at runtime.
+     * the coordinator stays opted in (via {@link #baseBuilder}'s default). This reproduces the mixed /
+     * rolling-restart window the data-node backstop in {@code LocalExecutionPlanner.planExternalSource} guards:
+     * the opted-in coordinator resolves {@code FROM <dataset>} into an external scan and dispatches it to the
+     * disabled data node, which must refuse it at operator build rather than reading external storage. The
+     * property is a static, read-once lever, so it must be supplied per node at boot rather than toggled at
+     * runtime.
      */
     public static ElasticsearchCluster multiNodeCoordinatorEnabledDataNodeDisabledCluster(Supplier<String> s3EndpointSupplier) {
         return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))

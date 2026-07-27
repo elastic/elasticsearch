@@ -17,16 +17,15 @@ import java.util.function.Function;
 
 /**
  * Kill switch for the ES|QL federation feature (external data sources and datasets). The feature is
- * registered by default; an operator suppresses it by setting the system property
- * {@value #REGISTER_PROPERTY} to {@code false}.
+ * <em>not</em> registered by default; an operator opts in by setting the system property
+ * {@value #REGISTER_PROPERTY} to {@code true}.
  *
  * <p>This is a deliberately coarse, static lever, not a dynamic setting: the value is read once at
  * class initialization (forced at node startup by {@code EsqlPlugin}), so changing it requires
- * restarting the node. That trade-off is intentional for an emergency lever that is expected to be
- * used rarely, and it keeps the mechanism simple (a dynamic enabler would be considerably more
- * complex). Cloud/GovCloud can set system properties on any deployment.
+ * restarting the node. That trade-off is intentional to keep the mechanism simple (a dynamic enabler
+ * would be considerably more complex). Cloud/GovCloud can set system properties on any deployment.
  *
- * <p>When suppressed, the goal is that the feature looks like it never existed rather than being
+ * <p>When not opted in, the goal is that the feature looks like it never existed rather than being
  * present-but-forbidden:
  * <ul>
  *   <li>{@code EsqlPlugin} does not register the federation REST handlers or transport actions
@@ -39,18 +38,18 @@ import java.util.function.Function;
  *   <li>Every node keeps a backstop at the physical external-source operator build
  *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}.
  *       This closes the data-node execution path: an already-rewritten {@code ExternalSourceExec}
- *       shipped from an enabled coordinator (in CCS/CPS, or during a rolling restart that has not yet
- *       reached this node) is refused before it can build a scanning operator, so a disabled node runs
- *       no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is closed
+ *       shipped from an opted-in coordinator (in CCS/CPS, or during a rolling restart that has not yet
+ *       reached this node) is refused before it can build a scanning operator, so a not-opted-in node
+ *       runs no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is closed
  *       separately by the {@code DatasetResolver} gate above; the snapshot-only inline {@code EXTERNAL}
- *       command bypasses that gate and is only stopped here at operator build, so on a disabled
+ *       command bypasses that gate and is only stopped here at operator build, so on a not-opted-in
  *       coordinator its planning-time source resolution and split discovery can still touch external
  *       storage before this backstop fires.</li>
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
- * source / dataset create request, the property must be set on <em>all</em> nodes for a complete
- * kill.
+ * source / dataset create request, the property must be set on <em>all</em> nodes for the feature to
+ * be usable cluster-wide.
  */
 public final class Federation {
 
@@ -62,24 +61,24 @@ public final class Federation {
 
     static {
         // Mirror FeatureFlag: surface the effective state in the node log so an operator can confirm
-        // the switch after a bounce. Only log the exceptional (disabled) state to avoid noise. Because
+        // the switch after a bounce. Only log the exceptional (enabled) state to avoid noise. Because
         // the read and this log run in the static initializer, EsqlPlugin forces class initialization
         // at boot rather than deferring it to the first federation operation.
-        if (ENABLED == false) {
-            logger.info("ES|QL federation (external data sources) is not registered ([{}]=false)", REGISTER_PROPERTY);
+        if (ENABLED) {
+            logger.info("ES|QL federation (external data sources) is registered ([{}]=true)", REGISTER_PROPERTY);
         }
     }
 
     private Federation() {}
 
     /**
-     * Parses the enabled state from the given property source. Defaults to enabled when the property
+     * Parses the enabled state from the given property source. Defaults to disabled when the property
      * is absent; an unparseable value fails fast (matching {@code FeatureFlag}).
      */
     static boolean readEnabled(Function<String, String> getProperty) {
         final String value = getProperty.apply(REGISTER_PROPERTY);
         try {
-            return Booleans.parseBoolean(value, true);
+            return Booleans.parseBoolean(value, false);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid value [" + value + "] for system property [" + REGISTER_PROPERTY + "]", e);
         }

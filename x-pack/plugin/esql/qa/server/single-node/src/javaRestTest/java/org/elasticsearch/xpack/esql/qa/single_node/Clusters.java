@@ -13,6 +13,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 
@@ -49,6 +50,10 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            // ES|QL federation (external data sources / datasets) is off by default; this shared cluster backs
+            // DataSourceCrudRestIT and other suites that register data sources/datasets, so opt in here. The
+            // dedicated kill-switch ITs override this per-cluster to exercise the disabled state.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))

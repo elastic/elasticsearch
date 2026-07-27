@@ -32,8 +32,8 @@ public class Clusters {
     /**
      * @param registerFederationFeature supplier for the ES|QL federation kill-switch system property
      *        ({@value org.elasticsearch.xpack.esql.datasources.Federation#REGISTER_PROPERTY}), re-read on every
-     *        (re)start so a test can create federation state while enabled and then bounce the remote with the
-     *        switch off. {@code null} leaves the property unset (federation enabled by default).
+     *        (re)start so a test can create federation state while opted in and then bounce the remote with the
+     *        switch off. {@code null} leaves the property unset (federation disabled by default).
      */
     static ElasticsearchCluster remoteCluster(
         Path csvDataPath,
@@ -85,8 +85,8 @@ public class Clusters {
 
     /**
      * A remote cluster whose ES|QL federation kill switch is driven by {@code registerFederationFeature}, re-read on
-     * every (re)start. Used by the federation kill-switch tests to create dataset state while enabled and then bounce
-     * the remote with the switch engaged.
+     * every (re)start. Used by the federation kill-switch tests to create dataset state while opted in and then
+     * bounce the remote with the switch back off (the default).
      */
     public static ElasticsearchCluster remoteCluster(Supplier<String> registerFederationFeature) {
         return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, registerFederationFeature);

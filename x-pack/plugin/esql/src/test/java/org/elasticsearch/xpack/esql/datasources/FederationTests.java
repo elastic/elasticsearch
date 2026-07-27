@@ -27,12 +27,12 @@ public class FederationTests extends ESTestCase {
         return Map.of(Federation.REGISTER_PROPERTY, value)::get;
     }
 
-    public void testEnabledByDefaultWhenPropertyAbsent() {
-        assertTrue(Federation.readEnabled(key -> null));
+    public void testDisabledByDefaultWhenPropertyAbsent() {
+        assertFalse(Federation.readEnabled(key -> null));
     }
 
-    public void testEnabledByDefaultWhenBlank() {
-        assertTrue(Federation.readEnabled(property("   ")));
+    public void testDisabledByDefaultWhenBlank() {
+        assertFalse(Federation.readEnabled(property("   ")));
     }
 
     public void testEnabledWhenTrue() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -42,6 +43,9 @@ public class ExternalDistributedClusters {
             spec.module("repository-s3");
             spec.module("repository-gcs");
             spec.setting("xpack.ml.enabled", "false");
+            // ES|QL federation (external data sources / datasets) is off by default; this suite registers data
+            // sources/datasets, so opt in here.
+            spec.systemProperty(Federation.REGISTER_PROPERTY, "true");
             spec.setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class));
             // file:// fixtures live under the iceberg-fixtures root (not csvDataPath), so the allowlist must point here.
             spec.setting(

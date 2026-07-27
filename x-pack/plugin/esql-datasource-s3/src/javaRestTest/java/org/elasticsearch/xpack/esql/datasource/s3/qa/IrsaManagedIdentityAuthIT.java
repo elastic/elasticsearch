@@ -26,6 +26,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -101,6 +102,8 @@ public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("esql.datasource.managed_identity.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers a data source.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         // The plugin requires the operator to symlink the EKS-injected web-identity token to a
         // fixed location under config; the cluster builder writes the token bytes there directly.
         .configFile("esql-datasource-s3/aws-web-identity-token-file", Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS))

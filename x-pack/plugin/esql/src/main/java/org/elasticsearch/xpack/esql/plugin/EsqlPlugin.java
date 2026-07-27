@@ -376,7 +376,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .toList();
 
         // Force Federation to initialize now so the kill-switch property is validated (fail fast on an invalid value)
-        // and the disabled state is logged at startup, rather than lazily on the first federation operation.
+        // and the enabled state is logged at startup, rather than lazily on the first federation operation.
         try {
             MethodHandles.publicLookup().ensureInitialized(Federation.class);
         } catch (IllegalAccessException e) {

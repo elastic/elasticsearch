@@ -198,6 +198,10 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.esql_request_filter_on_dataset_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+  // ES|QL federation (external data sources / datasets) is off by default; opt in here so FromDatasetIT,
+  // AbstractExternalDataSourceIT subclasses, DataSourceCrudIT, and the other federation-exercising ITs in this
+  // project's internalClusterTest actually run against a registered feature instead of hitting the kill switch.
+  systemProperty 'es.esql.register_federation_feature', 'true'
   systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
 
   // The IP_LOCATION csv-spec tests load geoip databases, which are memory-mapped by default.

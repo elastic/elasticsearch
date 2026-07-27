@@ -26,6 +26,7 @@ import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -111,6 +112,8 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("esql.datasource.managed_identity.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers a data source.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
         .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         // Redirect the SDK's authority host to the fixture's OAuth token endpoint so federated

@@ -25,17 +25,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end REST coverage for a node that boots with federation suppressed
- * ({@code -Des.esql.register_federation_feature=false}), the always-off deployment shape. Proves the six
- * data-source/dataset routes are unregistered: PUT, GET, and DELETE all return the framework's standard
- * {@code no handler found for uri} ({@code 400}), exactly as if the feature never existed. The switch is read
- * once at node startup, so this needs a dedicated cluster with the system property set on the node JVM (see the
- * {@code @ClassRule}).
+ * End-to-end REST coverage for a node that boots with federation not opted in
+ * ({@code -Des.esql.register_federation_feature} left unset, or explicitly {@code false}), the default deployment
+ * shape. Proves the six data-source/dataset routes are unregistered: PUT, GET, and DELETE all return the
+ * framework's standard {@code no handler found for uri} ({@code 400}), exactly as if the feature never existed.
+ * The switch is read once at node startup, so this needs a dedicated cluster with the system property set on the
+ * node JVM (see the {@code @ClassRule}).
  *
  * <p>Behavior against <em>pre-existing</em> federation state (executing {@code FROM <dataset>} against an existing
  * dataset) cannot be exercised here, because a boot-disabled node cannot create that state; it is covered by
- * {@link FederationKillSwitchRestartRestIT}, which creates state while enabled and then restarts the node with the
- * switch off. The complementary enabled-path CRUD coverage lives in {@link DataSourceCrudRestIT}.
+ * {@link FederationKillSwitchRestartRestIT}, which creates state while opted in and then restarts the node with the
+ * switch off. The complementary opted-in-path CRUD coverage lives in {@link DataSourceCrudRestIT}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationDisabledRestIT extends ESRestTestCase {

@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -86,6 +87,8 @@ public class GcsManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         // Open the workload identity gate so the validator accepts auth=managed_identity.
         .setting("esql.datasource.managed_identity.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers a data source.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()
         // resolves a bearer token against FakeOAuth2HttpHandler instead of metadata.google.internal.
         .environment("GCE_METADATA_HOST", () -> fixture.getAddress().replace("http://", ""))

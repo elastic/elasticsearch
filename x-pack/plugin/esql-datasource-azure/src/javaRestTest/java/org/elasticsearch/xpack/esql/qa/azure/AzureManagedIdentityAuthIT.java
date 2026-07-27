@@ -25,6 +25,7 @@ import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -112,6 +113,8 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         // Open the workload identity gate so the validator accepts auth=managed_identity.
         .setting("esql.datasource.managed_identity.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers a data source.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         // Redirect the Azure IMDS endpoint to our fixture so ManagedIdentityCredential resolves a
         // bearer token against the metadata server instead of the default 169.254.169.254 (which
         // entitlements would block in the cluster JVM anyway).

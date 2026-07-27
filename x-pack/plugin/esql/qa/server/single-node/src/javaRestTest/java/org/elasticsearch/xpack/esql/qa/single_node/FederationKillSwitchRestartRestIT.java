@@ -33,11 +33,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end REST coverage for suppressing federation on a live deployment: a node boots with federation enabled, a
- * data source and dataset are created, then the node is restarted with
- * {@code -Des.esql.register_federation_feature=false}. This is the realistic "flip the switch and bounce" flow (the
- * switch is read once at startup), and it is the only way to observe the suppressed behavior against
- * <em>pre-existing</em> federation state, which a boot-disabled cluster cannot create.
+ * End-to-end REST coverage for suppressing federation on a live deployment: a node boots opted in
+ * ({@code -Des.esql.register_federation_feature=true}), a data source and dataset are created, then the node is
+ * restarted with the property flipped back to {@code false} (the default). This is the realistic "flip the switch
+ * and bounce" flow (the switch is read once at startup), and it is the only way to observe the suppressed behavior
+ * against <em>pre-existing</em> federation state, which a boot-disabled cluster cannot create.
  *
  * <p>The property is supplied to the node JVM through a mutable holder ({@link #registerFederationFeature}); the test
  * flips it and calls {@link ElasticsearchCluster#restart(boolean)}, which re-reads the supplier. After the restart the

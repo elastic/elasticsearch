@@ -26,6 +26,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -84,6 +85,8 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("esql.datasource.managed_identity.enabled", "true")
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers a data source.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(ON_DISK_TOKEN))
         .systemProperty("org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride", stsHttpFixture::getAddress)
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", () -> "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")

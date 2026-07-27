@@ -149,7 +149,10 @@ public class DatasetResolverTests extends ESTestCase {
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation, ProjectMetadata project) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project, future);
+        // Drive the federation-enabled branch explicitly via the package-private overload, since Federation.isAvailable()
+        // now defaults to false and these tests exercise the rewrite itself, not the kill switch (covered separately by
+        // testFederationDisabledReturnsPlanUnchanged).
+        resolver.replaceDatasets(relation, project, future, true);
         return future.actionGet();
     }
 

@@ -983,7 +983,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     /**
      * A LIKE pattern that folds to an invalid wildcard escape sequence (e.g. {@code \a}) must raise
      * a clear {@link org.elasticsearch.xpack.esql.parser.ParsingException} rather than leaking an
-     * {@code InvalidArgumentException} from the {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern} constructor.
+     * {@code InvalidArgumentException} from the
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern} constructor.
      */
     public void testLikeInvalidWildcardEscapeReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());

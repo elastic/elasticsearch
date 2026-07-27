@@ -38,14 +38,6 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         return replace(regexMatch, ctx);
     }
 
-    /**
-     * Rewrites a {@link RegexMatch} into the most specific equivalent expression: {@link IsNotNull}
-     * for a match-all pattern, {@link Equals} for an exact match, or a decomposed
-     * {@code StartsWith}/{@code EndsWith}/{@code Contains} form; the original node is returned when
-     * no rewrite applies. Exposed statically so {@code ReplaceUnresolvedRegex} can reuse the same
-     * conversion after folding a constant pattern expression into a {@link RegexMatch}, keeping the
-     * constant-expression path consistent with the inline-literal path.
-     */
     static Expression replace(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();

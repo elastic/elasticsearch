@@ -124,11 +124,30 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
     }
 
-    public void testAccumulateBucketCountsGivenMissingSummaryCountFieldThrows() {
-        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":120000}"), List.of(newBucket(120_000L, 1L)));
+    public void testAccumulateBucketCountsGivenNullSummaryCountFieldRowIsSkipped() {
+        InputStream ndjson = ndjson("{\"ts\":120000,\"event_count\":2}", "{\"ts\":120000}", "{\"ts\":120000,\"event_count\":3}");
+        stubQueryAndBuckets(START_MS, END_MS, ndjson, List.of(newBucket(120_000L, 3L)));
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        List<BucketWithMissingData> missing = newDetector().detectMissingData(LATEST_MS);
+
+        assertThat(missing, hasSize(1));
+        assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
+    }
+
+    public void testAccumulateBucketCountsGivenStringCountFieldThrowsIllegalArgument() {
+        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":120000,\"event_count\":\"not-a-number\"}"), List.of(newBucket(120_000L, 1L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
         assertThat(e.getMessage(), containsString(COUNT_FIELD));
+        assertThat(e.getMessage(), containsString("numeric"));
+    }
+
+    public void testAccumulateBucketCountsGivenStringTimeFieldThrowsIllegalArgument() {
+        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":\"not-a-number\",\"event_count\":3}"), List.of(newBucket(120_000L, 1L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        assertThat(e.getMessage(), containsString(TIME_FIELD));
+        assertThat(e.getMessage(), containsString("numeric"));
     }
 
     public void testAccumulateBucketCountsGivenNullTimeFieldRowIsSkipped() {

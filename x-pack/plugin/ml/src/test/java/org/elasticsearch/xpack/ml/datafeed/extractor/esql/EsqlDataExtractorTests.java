@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +81,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT ??timeField ASC"));
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "timestamp", IDENTIFIER))));
+        verify(timingStatsReporter).reportSearchDuration(any());
     }
 
     public void testNextGivenSortIsInjectedEvenWhenUserQueryAlreadyHasSort() throws IOException {
@@ -246,6 +248,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         DataExtractor.Result result = extractor.next();
         assertThat(result.data().isPresent(), is(false));
         assertThat(extractor.capturedOrderedQuery, equalTo(null));
+        verify(timingStatsReporter, never()).reportSearchDuration(any());
     }
 
     public void testDestroyAlsoCancels() throws IOException {
@@ -257,6 +260,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         DataExtractor.Result result = extractor.next();
         assertThat(result.data().isPresent(), is(false));
         assertThat(extractor.capturedOrderedQuery, equalTo(null));
+        verify(timingStatsReporter, never()).reportSearchDuration(any());
     }
 
     public void testGetSummaryBuildsEsqlStatsQueryAndConvertsDateColumns() {

@@ -980,6 +980,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertEquals("M", BytesRefs.toString(as(startsWith.prefix(), Literal.class).value()));
     }
 
+    /**
+     * A LIKE pattern that folds to an invalid wildcard escape sequence (e.g. {@code \a}) must raise
+     * a clear {@link org.elasticsearch.xpack.esql.parser.ParsingException} rather than leaking an
+     * {@code InvalidArgumentException} from the {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern} constructor.
+     */
+    public void testLikeInvalidWildcardEscapeReportsError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // concat("pre", "\\a") folds to "pre\a"; the \a escape is invalid in wildcard syntax
+        var plan = defaultAnalyzer().query("from test | where first_name like concat(\"pre\", \"\\\\a\")");
+        var e = expectThrows(org.elasticsearch.xpack.esql.parser.ParsingException.class, () -> optimize(plan));
+        assertThat(e.getMessage(), containsString("Invalid pattern for LIKE"));
+    }
+
     public void testLikeAlwaysTrue_AsLocalRelation() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         var plan = optimize(defaultAnalyzer().query("row abc = \"demo\" | eval filter = concat(\"demo\", \"*\") | where abc like filter"));

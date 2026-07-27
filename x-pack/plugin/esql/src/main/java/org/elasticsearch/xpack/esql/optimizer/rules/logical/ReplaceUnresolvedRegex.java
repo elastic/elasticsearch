@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 /**
  * Converts {@link UnresolvedRegexExpression} nodes into concrete {@link WildcardLike} or
@@ -51,10 +53,21 @@ public final class ReplaceUnresolvedRegex extends OptimizerRules.OptimizerExpres
             return expr;
         }
         String patternStr = BytesRefs.toString(val);
-        RegexMatch<?> regex = switch (expr.variant()) {
-            case LIKE -> new WildcardLike(expr.source(), expr.field(), new WildcardPattern(patternStr));
-            case RLIKE -> new RLike(expr.source(), expr.field(), new RLikePattern(patternStr));
-        };
+        RegexMatch<?> regex;
+        try {
+            regex = switch (expr.variant()) {
+                case LIKE -> new WildcardLike(expr.source(), expr.field(), new WildcardPattern(patternStr));
+                case RLIKE -> new RLike(expr.source(), expr.field(), new RLikePattern(patternStr));
+            };
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(
+                expr.source(),
+                "Invalid pattern for {} [{}]: [{}]",
+                expr.variant().name(),
+                patternStr,
+                e.getMessage()
+            );
+        }
         return ReplaceRegexMatch.replace(regex, ctx);
     }
 }

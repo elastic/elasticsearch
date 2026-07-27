@@ -675,13 +675,17 @@ public class ObjectMapper extends Mapper {
         }
 
         protected static Explicit<Subobjects> parseSubobjects(Map<String, Object> node, MappingParserContext parserContext) {
-            boolean strictColumnar = IndexSettings.MODE.get(parserContext.getSettings()).isStrictColumnar();
-            Object subobjectsNode = node.remove("subobjects");
+            final boolean strictColumnar = IndexSettings.MODE.get(parserContext.getSettings()).isStrictColumnar();
+            final Object subobjectsNode = node.remove("subobjects");
             if (subobjectsNode != null) {
+                final Subobjects requested = Subobjects.from(subobjectsNode);
                 if (strictColumnar) {
-                    throw new MapperParsingException("subobjects params are not supported in columnar mode");
+                    if (requested != Subobjects.DISABLED) {
+                        throw new MapperParsingException("subobjects [true] is not supported in columnar mode");
+                    }
+                    return Defaults.SUBOBJECTS_COLUMNAR;
                 }
-                return Explicit.of(Subobjects.from(subobjectsNode));
+                return Explicit.of(requested);
             }
             if (strictColumnar) {
                 return Defaults.SUBOBJECTS_COLUMNAR;

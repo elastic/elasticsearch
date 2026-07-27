@@ -379,6 +379,70 @@ public class TransformTaskTests extends ESTestCase {
         );
     }
 
+    // see https://github.com/elastic/ml-team/issues/1623: an in-flight failure racing a cancellation-triggered abort
+    // (e.g. the node departure that triggered the cancellation also breaking the in-flight search/bulk request) must not
+    // override the abort with FAILED, which is sticky and would otherwise block the reassigned task from auto-starting.
+    public void testFailWhileIndexerIsAborting() {
+        Clock clock = Clock.systemUTC();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+
+        TransformState transformState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.INDEXING,
+            null,
+            0L,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            transformState,
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap(),
+            mockTransformNode()
+        );
+
+        TaskManager taskManager = mock(TaskManager.class);
+        PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        transformTask.init(persistentTasksService, taskManager, "task-id", 42);
+
+        // Simulate onCancelled() having already flipped the indexer to ABORTING.
+        transformTask.initializeIndexer(
+            indexerBuilder(transformConfig, transformServices(clock, auditor, threadPool)).setIndexerState(IndexerState.ABORTING)
+        );
+
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        transformTask.fail(
+            new RuntimeException("racing failure"),
+            "because",
+            ActionTestUtils.assertNoFailureListener(r -> listenerCalled.compareAndSet(false, true))
+        );
+
+        TransformState state = transformTask.getState();
+        assertEquals(TransformTaskState.STARTED, state.getTaskState());
+        assertThat(state.getReason(), nullValue());
+        assertTrue(listenerCalled.get());
+
+        // fail() returned early: no task completion/unregister and no cluster-state update should have been attempted.
+        verifyNoInteractions(taskManager);
+        verifyNoInteractions(persistentTasksService);
+    }
+
     public void testGetTransformTask() {
         {
             ClusterState clusterState = ClusterState.EMPTY_STATE;

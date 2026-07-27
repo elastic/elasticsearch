@@ -121,7 +121,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         long vectorBytes = (long) length * bulkSize;
         long correctionBytes = 16L * bulkSize;
         return IndexInputUtils.withSlice(in, vectorBytes + correctionBytes, scratch::get, seg -> {
-            dotProductBulk(seg.asSlice(0, vectorBytes), qSeg, length, bulkSize, sSeg);
+            dotProductBulk(seg, qSeg, length, bulkSize, sSeg);
             return ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg.asSlice(vectorBytes, correctionBytes),
@@ -159,7 +159,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         long vectorBytes = (long) length * count;
         long correctionBytes = 16L * count;
         IndexInputUtils.withSlice(in, vectorBytes + correctionBytes, scratch::get, seg -> {
-            dotProductBulkWithOffsets(seg.asSlice(0, vectorBytes), qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
+            dotProductBulkWithOffsets(seg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
             repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
             ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,

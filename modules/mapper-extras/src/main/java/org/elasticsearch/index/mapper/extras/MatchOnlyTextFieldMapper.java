@@ -130,7 +130,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that mode.
         return indexMode.isStrictColumnar()
             ? FieldMapper.DocValuesParameter.Values.ENABLED_HIGH_CARDINALITY
-            : DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
+            : FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
     }
 
     public static class Defaults {

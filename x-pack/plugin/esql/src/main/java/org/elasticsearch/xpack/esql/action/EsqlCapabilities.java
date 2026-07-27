@@ -3352,6 +3352,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_MATCHER_PARAMS,
 
         /**
+         * Support for identifier parameters in PromQL label lists:
+         * <a href="https://github.com/elastic/elasticsearch/issues/152500">#152500</a>
+         */
+        PROMQL_LABEL_LIST_IDENTIFIER_PARAMS,
+
+        /**
          * Fix for PromQL scalar integer division losing the fractional part.
          * Integer literals like {@code 4/6} were folded with integer division (result: 0)
          * instead of float64 division (result: ~0.667).

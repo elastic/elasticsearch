@@ -181,12 +181,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                         if (stubBytes == null) {
                             continue;
                         }
-                        String entryName = FOREIGN_PACKAGE_PREFIX + file.getFileName().toString();
-                        JarEntry entry = new JarEntry(entryName);
-                        entry.setTime(0);
-                        jar.putNextEntry(entry);
-                        jar.write(stubBytes);
-                        jar.closeEntry();
+                        writeEntry(jar, FOREIGN_PACKAGE_PREFIX + file.getFileName().toString(), stubBytes);
                         count++;
                     }
                 }
@@ -199,11 +194,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                     if (stubBytes == null) {
                         continue;
                     }
-                    JarEntry entry = new JarEntry(classPath);
-                    entry.setTime(0);
-                    jar.putNextEntry(entry);
-                    jar.write(stubBytes);
-                    jar.closeEntry();
+                    writeEntry(jar, classPath, stubBytes);
                     count++;
                 }
             } catch (IOException e) {
@@ -284,6 +275,14 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                     "Unexpected class file version " + rawVersion + " for " + cn.name + " (expected " + V21 + " / JDK 21)"
                 );
             }
+        }
+
+        private static void writeEntry(JarOutputStream jar, String entryName, byte[] bytes) throws IOException {
+            JarEntry entry = new JarEntry(entryName);
+            entry.setTime(0);
+            jar.putNextEntry(entry);
+            jar.write(bytes);
+            jar.closeEntry();
         }
     }
 }

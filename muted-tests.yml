@@ -666,3 +666,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromRightSide}
   issue: https://github.com/elastic/elasticsearch/issues/155138
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
+  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
+  issue: https://github.com/elastic/elasticsearch/issues/153700

@@ -1,6 +1,6 @@
 ---
 navigation_title: "Query datasets"
-description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, combine datasets with indices, and troubleshoot common issues."
+description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, review current limitations, and troubleshoot common issues."
 applies_to:
   stack: experimental =9.5
   serverless: experimental
@@ -58,18 +58,6 @@ A dataset's resource path can use glob patterns to match many files. Two cluster
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
 
-## Query across datasets and indices
-
-Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
-
-```esql
-FROM speedtest_data, network_incidents METADATA _index
-| KEEP _index, category, severity, avg_d_kbps, avg_lat_ms
-| LIMIT 10
-```
-
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _index` to see which source each row came from. The `_index` column returns the dataset name for dataset rows and the index name for index rows.
-
 ## Use metadata columns
 
 [Metadata columns](/reference/query-languages/esql/esql-metadata-fields.md) are available using the `METADATA` directive:
@@ -123,9 +111,8 @@ The operations below require structures that only exist in an {{es}} index, such
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
-| A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
-| Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
+| Heterogeneous queries | Querying a dataset together with an index, alias, or view in the same `FROM` is not supported. Query datasets on their own. | |
+| Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) and [cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md) | Datasets on a remote cluster or project cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
 | Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
@@ -135,7 +122,10 @@ The operations below require structures that only exist in an {{es}} index, such
 If a query against a dataset returns unexpected results or errors, check the following common causes.
 
 Unexpected nulls in query results
-:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. Use `METADATA _index` to check which source each row came from. Separately, complex Parquet types MAP and nested LIST return null because they are not currently supported.
+:   Complex Parquet types MAP and nested LIST return null because they are not currently supported.
+
+Error when querying a dataset and an index together
+:   Querying a dataset together with an index, alias, or view in the same `FROM` is not supported. Query datasets on their own.
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.

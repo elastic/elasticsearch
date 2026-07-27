@@ -30,7 +30,7 @@ Query data stored in compatible external storage systems using the same {{esql}}
 : Select which files to query, configure format settings, and control schema inference.
 
 [Query datasets](esql-data-federation-querying.md)
-: Learn how the engine reduces storage reads, combine external and indexed data, review current limitations, and troubleshoot common issues.
+: Learn how the engine reduces storage reads, review current limitations, and troubleshoot common issues.
 
 [Manage access](esql-data-federation-security.md)
 : Control access to data sources and datasets, encrypt credentials, and configure privileges.

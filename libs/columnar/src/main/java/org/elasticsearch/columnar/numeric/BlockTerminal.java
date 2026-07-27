@@ -22,9 +22,13 @@ public interface BlockTerminal {
     /** Frozen stage id, unique among terminals and stable on disk. */
     byte id();
 
-    /** Serializes {@code block}. */
-    void encode(long[] block, DataOutput out) throws IOException;
+    /**
+     * Serializes {@code block}. Only the first {@code valueCount} entries carry real data; a
+     * fixed-width terminal is responsible for handling the {@code [valueCount, block.length)} tail
+     * itself (e.g. by zero-filling it) rather than relying on the caller to pad.
+     */
+    void encode(long[] block, int valueCount, DataOutput out) throws IOException;
 
     /** Reconstructs {@code block} from bytes written by {@link #encode}. */
-    void decode(DataInput in, long[] block) throws IOException;
+    void decode(DataInput in, int valueCount, long[] block) throws IOException;
 }

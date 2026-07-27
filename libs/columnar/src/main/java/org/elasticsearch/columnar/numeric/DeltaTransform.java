@@ -28,11 +28,11 @@ public final class DeltaTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, DataOutput params) throws IOException {
-        if (isMonotonic(block) == false) {
+    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+        if (isMonotonic(block, valueCount) == false) {
             return false;
         }
-        for (int i = block.length - 1; i > 0; --i) {
+        for (int i = valueCount - 1; i > 0; --i) {
             block[i] -= block[i - 1];
         }
         // Keep block[0] as a delta from block[1] to save bits.
@@ -45,13 +45,14 @@ public final class DeltaTransform implements BlockTransform {
     /**
      * A block is monotonic (worth delta-encoding) when all its strict steps go the same direction and
      * there are at least two of them. Stops at the first direction conflict: once the block has shown
-     * both an increase and a decrease it can never be monotonic.
+     * both an increase and a decrease it can never be monotonic. At least two strict steps means at
+     * least three values, so {@link #tryEncode} can safely read {@code block[1]}.
      */
-    private static boolean isMonotonic(long[] block) {
+    private static boolean isMonotonic(long[] block, int valueCount) {
         boolean up = false;
         boolean down = false;
         int strictSteps = 0;
-        for (int i = 1; i < block.length; ++i) {
+        for (int i = 1; i < valueCount; ++i) {
             if (block[i] > block[i - 1]) {
                 up = true;
                 strictSteps++;
@@ -67,10 +68,10 @@ public final class DeltaTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
         block[0] += params.readZLong();
         long sum = 0;
-        for (int i = 0; i < block.length; ++i) {
+        for (int i = 0; i < valueCount; ++i) {
             sum += block[i];
             block[i] = sum;
         }

@@ -121,18 +121,16 @@ public final class NumericColumnWriter {
                     buffer[inBlock++] = value;
                     ordinal++;
                     if (inBlock == BLOCK_SIZE) {
-                        blockBytesCodec.write(out -> encoder.encode(buffer, out), data);
+                        blockBytesCodec.write(out -> encoder.encode(buffer, BLOCK_SIZE, out), data);
                         inBlock = 0;
                     }
                 }
             }
             if (inBlock > 0) {
-                // Pad the final partial block by repeating the last real value, not zeros: zero-padding a
-                // monotonic block would break delta/offset detection. The padding is ignored on read.
-                for (int i = inBlock; i < BLOCK_SIZE; i++) {
-                    buffer[i] = buffer[inBlock - 1];
-                }
-                blockBytesCodec.write(out -> encoder.encode(buffer, out), data);
+                // The final block holds fewer than BLOCK_SIZE values; the encoder is told the real count
+                // and never sees padding, so each stage fits only the real data.
+                final int lastCount = inBlock;
+                blockBytesCodec.write(out -> encoder.encode(buffer, lastCount, out), data);
             }
             if (multiValued) {
                 valueAddresses.add(ordinal);

@@ -53,23 +53,25 @@ public final class NumericBlockEncoder {
     }
 
     /**
-     * Encodes a block: {@code vint fireBitmask}, then the terminal payload, then each fired transform's
-     * params in reverse pipeline order.
+     * Encodes the first {@code valueCount} values of a block: {@code vint fireBitmask}, then the terminal
+     * payload, then each fired transform's params in reverse pipeline order. Every stage sees only the
+     * real values, so a partial last block never needs the caller to pad.
      */
-    public void encode(long[] in, DataOutput out) throws IOException {
+    public void encode(long[] in, int valueCount, DataOutput out) throws IOException {
         assert in.length == numericBlockSize;
+        assert valueCount >= 1 && valueCount <= numericBlockSize : valueCount;
 
         int fireBitmask = 0;
         for (int i = 0; i < transforms.length; i++) {
             ByteBuffersDataOutput params = paramBuffers[i];
             params.reset();
-            if (transforms[i].tryEncode(in, params)) {
+            if (transforms[i].tryEncode(in, valueCount, params)) {
                 fireBitmask |= 1 << i;
             }
         }
 
         out.writeVInt(fireBitmask);
-        terminal.encode(in, out);
+        terminal.encode(in, valueCount, out);
         for (int i = transforms.length - 1; i >= 0; i--) {
             if ((fireBitmask & (1 << i)) != 0) {
                 paramBuffers[i].copyTo(out);
@@ -77,15 +79,16 @@ public final class NumericBlockEncoder {
         }
     }
 
-    /** Decodes longs that have been encoded with {@link #encode}. */
-    public void decode(DataInput in, long[] out) throws IOException {
+    /** Decodes the first {@code valueCount} values of a block encoded with {@link #encode}. */
+    public void decode(DataInput in, int valueCount, long[] out) throws IOException {
         assert out.length == numericBlockSize : out.length;
+        assert valueCount >= 1 && valueCount <= numericBlockSize : valueCount;
 
         int fireBitmask = in.readVInt();
-        terminal.decode(in, out);
+        terminal.decode(in, valueCount, out);
         for (int i = transforms.length - 1; i >= 0; i--) {
             if ((fireBitmask & (1 << i)) != 0) {
-                transforms[i].decode(out, in);
+                transforms[i].decode(out, valueCount, in);
             }
         }
     }

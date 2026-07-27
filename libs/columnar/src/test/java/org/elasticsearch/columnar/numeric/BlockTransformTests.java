@@ -100,22 +100,29 @@ public class BlockTransformTests extends ESTestCase {
 
     private void assertAllStages(long[] original) throws IOException {
         for (BlockTransform stage : stages()) {
-            assertStageRoundTrip(stage, original);
+            // Full block, then a partial count: the stage must fit and round-trip only the real prefix,
+            // ignoring the padded tail.
+            assertStageRoundTrip(stage, original, original.length);
+            assertStageRoundTrip(stage, original, Math.max(1, original.length / 2));
         }
     }
 
-    private static void assertStageRoundTrip(BlockTransform stage, long[] original) throws IOException {
-        String name = stage.getClass().getSimpleName();
+    private static void assertStageRoundTrip(BlockTransform stage, long[] original, int valueCount) throws IOException {
+        String name = stage.getClass().getSimpleName() + "[valueCount=" + valueCount + "]";
         long[] work = original.clone();
         ByteBuffersDataOutput params = new ByteBuffersDataOutput();
-        boolean fired = stage.tryEncode(work, params);
+        boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            stage.decode(decoded, new ByteArrayDataInput(params.toArrayCopy()));
-            assertArrayEquals(name + " must round-trip when it fires", original, decoded);
+            stage.decode(decoded, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+            for (int i = 0; i < valueCount; i++) {
+                assertEquals(name + " must round-trip value " + i + " when it fires", original[i], decoded[i]);
+            }
         } else {
-            // A stage that declines leaves the block and the params buffer untouched.
-            assertArrayEquals(name + " must not mutate the block when it declines", original, work);
+            // A stage that declines leaves the real prefix and the params buffer untouched.
+            for (int i = 0; i < valueCount; i++) {
+                assertEquals(name + " must not mutate value " + i + " when it declines", original[i], work[i]);
+            }
             assertEquals(name + " must not write params when it declines", 0L, params.size());
         }
     }

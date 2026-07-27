@@ -24,12 +24,14 @@ public interface BlockTransform {
     byte id();
 
     /**
-     * Mutates {@code block} in place and writes its reversal params to {@code params} when it helps.
+     * Mutates the first {@code valueCount} entries of {@code block} in place and writes its reversal
+     * params to {@code params} when it helps. Entries beyond {@code valueCount} are ignored, so the fit
+     * depends only on the real values, never on buffer padding.
      *
      * @return whether the transform fired
      */
-    boolean tryEncode(long[] block, DataOutput params) throws IOException;
+    boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException;
 
-    /** Reverses {@link #tryEncode} in place, reading the params it wrote. */
-    void decode(long[] block, DataInput params) throws IOException;
+    /** Reverses {@link #tryEncode} over the first {@code valueCount} entries, reading the params it wrote. */
+    void decode(long[] block, int valueCount, DataInput params) throws IOException;
 }

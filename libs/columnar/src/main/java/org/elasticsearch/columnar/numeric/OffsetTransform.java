@@ -28,12 +28,12 @@ public final class OffsetTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
-        for (long l : block) {
-            min = Math.min(l, min);
-            max = Math.max(l, max);
+        for (int i = 0; i < valueCount; ++i) {
+            min = Math.min(block[i], min);
+            max = Math.max(block[i], max);
         }
 
         // The overflow guard must run first so Math.abs below is safe (Math.abs(Long.MIN_VALUE) overflows).
@@ -48,7 +48,7 @@ public final class OffsetTransform implements BlockTransform {
         if (min == 0) {
             return false;
         }
-        for (int i = 0; i < block.length; ++i) {
+        for (int i = 0; i < valueCount; ++i) {
             block[i] -= min;
         }
         params.writeZLong(min);
@@ -56,9 +56,9 @@ public final class OffsetTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
         long min = params.readZLong();
-        for (int i = 0; i < block.length; ++i) {
+        for (int i = 0; i < valueCount; ++i) {
             block[i] += min;
         }
     }

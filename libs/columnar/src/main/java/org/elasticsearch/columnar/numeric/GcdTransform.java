@@ -29,10 +29,10 @@ public final class GcdTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
         long gcd = 0;
-        for (long l : block) {
-            gcd = MathUtil.gcd(gcd, l);
+        for (int i = 0; i < valueCount; ++i) {
+            gcd = MathUtil.gcd(gcd, block[i]);
             if (gcd == 1) {
                 break;
             }
@@ -43,11 +43,11 @@ public final class GcdTransform implements BlockTransform {
         if ((gcd & (gcd - 1)) == 0) {
             // Power-of-two divisor: shift instead of divide.
             int shift = Long.numberOfTrailingZeros(gcd);
-            for (int i = 0; i < block.length; ++i) {
+            for (int i = 0; i < valueCount; ++i) {
                 block[i] >>>= shift;
             }
         } else {
-            for (int i = 0; i < block.length; ++i) {
+            for (int i = 0; i < valueCount; ++i) {
                 block[i] /= gcd;
             }
         }
@@ -56,16 +56,16 @@ public final class GcdTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
         long gcd = 2 + params.readVLong();
         if ((gcd & (gcd - 1)) == 0) {
             // Power-of-two divisor: shift instead of multiply.
             int shift = Long.numberOfTrailingZeros(gcd);
-            for (int i = 0; i < block.length; ++i) {
+            for (int i = 0; i < valueCount; ++i) {
                 block[i] <<= shift;
             }
         } else {
-            for (int i = 0; i < block.length; ++i) {
+            for (int i = 0; i < valueCount; ++i) {
                 block[i] *= gcd;
             }
         }

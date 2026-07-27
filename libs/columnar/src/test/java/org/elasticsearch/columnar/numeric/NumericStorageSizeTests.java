@@ -62,7 +62,7 @@ public class NumericStorageSizeTests extends ESTestCase {
     private static int encodedSize(long[] block) throws IOException {
         NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        encoder.encode(block.clone(), out);
+        encoder.encode(block.clone(), block.length, out);
         return Math.toIntExact(out.size());
     }
 }

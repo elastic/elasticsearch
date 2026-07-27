@@ -93,12 +93,39 @@ public class NumericBlockEncoderTests extends ESTestCase {
         }
         NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        encoder.encode(block.clone(), out);
+        encoder.encode(block.clone(), block.length, out);
         assertTrue("delta-compressed timestamps must be far below raw: " + out.size(), out.size() < BLOCK * 8L / 2);
 
         long[] decoded = new long[BLOCK];
-        encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), decoded);
+        encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), block.length, decoded);
         assertArrayEquals(block, decoded);
+    }
+
+    public void testPartialBlockRoundTrips() throws IOException {
+        // A partial last block: only the first valueCount entries are real; the rest of the buffer is
+        // stale. Every stage must fit and round-trip the real values without the caller padding.
+        for (int valueCount : new int[] { 1, 2, 3, 7, 63, BLOCK - 1 }) {
+            long[] real = new long[valueCount];
+            long ts = 1_700_000_000_000L;
+            for (int i = 0; i < valueCount; i++) {
+                ts += between(1, 50); // monotonic so delta/offset/gcd all engage
+                real[i] = ts;
+            }
+            long[] buffer = new long[BLOCK];
+            System.arraycopy(real, 0, buffer, 0, valueCount);
+            for (int i = valueCount; i < BLOCK; i++) {
+                buffer[i] = randomLong(); // stale tail the encoder must ignore
+            }
+            NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
+            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+            encoder.encode(buffer, valueCount, out);
+
+            long[] decoded = new long[BLOCK];
+            encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), valueCount, decoded);
+            for (int i = 0; i < valueCount; i++) {
+                assertEquals("value " + i + " of " + valueCount, real[i], decoded[i]);
+            }
+        }
     }
 
     private static long[] filled(long value) {
@@ -124,11 +151,11 @@ public class NumericBlockEncoderTests extends ESTestCase {
         NumericPipeline writePipeline = NumericPipeline.defaultPipeline(BLOCK);
         NumericBlockEncoder writer = new NumericBlockEncoder(writePipeline, BLOCK);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        writer.encode(block.clone(), out);
+        writer.encode(block.clone(), BLOCK, out);
 
         NumericPipeline readPipeline = NumericPipeline.Registry.rebuild(writePipeline.terminalId(), writePipeline.transformIds(), BLOCK);
         long[] decoded = new long[BLOCK];
-        new NumericBlockEncoder(readPipeline, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), decoded);
+        new NumericBlockEncoder(readPipeline, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), BLOCK, decoded);
         assertArrayEquals(block, decoded);
     }
 
@@ -145,10 +172,10 @@ public class NumericBlockEncoderTests extends ESTestCase {
             new NumericPipeline(new BlockTransform[] { new OffsetTransform(), new DeltaTransform() }, new ForTerminal(BLOCK)), };
         for (NumericPipeline write : pipelines) {
             ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-            new NumericBlockEncoder(write, BLOCK).encode(base.clone(), out);
+            new NumericBlockEncoder(write, BLOCK).encode(base.clone(), BLOCK, out);
             NumericPipeline read = NumericPipeline.Registry.rebuild(write.terminalId(), write.transformIds(), BLOCK);
             long[] decoded = new long[BLOCK];
-            new NumericBlockEncoder(read, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), decoded);
+            new NumericBlockEncoder(read, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), BLOCK, decoded);
             assertArrayEquals(base, decoded);
         }
     }
@@ -156,10 +183,10 @@ public class NumericBlockEncoderTests extends ESTestCase {
     private void assertRoundTrip(long[] block) throws IOException {
         NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        encoder.encode(block.clone(), out);
+        encoder.encode(block.clone(), block.length, out);
 
         long[] decoded = new long[BLOCK];
-        encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), decoded);
+        encoder.decode(new ByteArrayDataInput(out.toArrayCopy()), block.length, decoded);
         assertArrayEquals(block, decoded);
     }
 }

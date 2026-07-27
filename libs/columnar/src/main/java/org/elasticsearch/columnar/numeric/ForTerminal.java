@@ -34,7 +34,10 @@ public final class ForTerminal implements BlockTerminal {
     }
 
     @Override
-    public void encode(long[] block, DataOutput out) throws IOException {
+    public void encode(long[] block, int valueCount, DataOutput out) throws IOException {
+        // FOR bit-packs a whole fixed-width block, so zero-fill the tail past the real values. Zeros add
+        // no bits to the frame, and the reader only reads back the real values.
+        Arrays.fill(block, valueCount, block.length, 0L);
         long or = 0;
         for (long l : block) {
             or |= l;
@@ -47,7 +50,7 @@ public final class ForTerminal implements BlockTerminal {
     }
 
     @Override
-    public void decode(DataInput in, long[] block) throws IOException {
+    public void decode(DataInput in, int valueCount, long[] block) throws IOException {
         int bitsPerValue = in.readVInt();
         if (bitsPerValue != 0) {
             forUtil.decode(bitsPerValue, in, block);

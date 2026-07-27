@@ -131,7 +131,9 @@ public final class NumericColumnReader {
         data.seek(blockStart);
         int length = (int) (blockEnd - blockStart);
         DataInput blockData = blockBytesCodec.read(data, length);
-        encoder.decode(blockData, blockBuffer);
+        // Full blocks hold blockSize values; the last block holds the remainder.
+        int valueCount = Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
+        encoder.decode(blockData, valueCount, blockBuffer);
         cachedBlock = block;
     }
 

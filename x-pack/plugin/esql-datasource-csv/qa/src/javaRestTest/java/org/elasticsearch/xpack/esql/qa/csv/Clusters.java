@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -111,6 +112,22 @@ public class Clusters {
     public static ElasticsearchCluster multiNodeTestCluster(Supplier<String> s3EndpointSupplier) {
         return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
             .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
+            .build();
+    }
+
+    /**
+     * A split-role two-node cluster (coordinator-only node 0, master+data node 1) that boots the data node
+     * with the ES|QL federation kill switch engaged ({@code es.esql.register_federation_feature=false}) while
+     * the coordinator stays enabled. This reproduces the mixed / rolling-restart window the data-node backstop
+     * in {@code LocalExecutionPlanner.planExternalSource} guards: the enabled coordinator resolves
+     * {@code FROM <dataset>} into an external scan and dispatches it to the disabled data node, which must
+     * refuse it at operator build rather than reading external storage. The property is a static, read-once
+     * lever, so it must be supplied per node at boot rather than toggled at runtime.
+     */
+    public static ElasticsearchCluster multiNodeCoordinatorEnabledDataNodeDisabledCluster(Supplier<String> s3EndpointSupplier) {
+        return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
+            .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
+            .systemProperty(Federation.REGISTER_PROPERTY, () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()))
             .build();
     }
 }

@@ -502,6 +502,13 @@ public class MetadataCreateIndexService {
             };
         }
 
+        private ActionListener<AcknowledgedResponse> responseListener(
+            AllocationActionMultiListener<AcknowledgedResponse> allocationActionMultiListener
+        ) {
+            // An explicit NONE means the caller does not wait for any active shards, so it does not need to wait for allocation reroute.
+            return request.waitForActiveShards() == ActiveShardCount.NONE ? listener : allocationActionMultiListener.delay(listener);
+        }
+
         @Override
         public String toString() {
             return Strings.format("create-index [%s], in project [%s], cause [%s]", request.index(), request.projectId(), request.cause());
@@ -530,7 +537,7 @@ public class MetadataCreateIndexService {
                         RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired()
                     );
-                    taskContext.success(task.getAckListener(allocationActionMultiListener.delay(task.listener)));
+                    taskContext.success(task.getAckListener(task.responseListener(allocationActionMultiListener)));
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }

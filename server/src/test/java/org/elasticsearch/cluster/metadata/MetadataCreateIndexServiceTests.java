@@ -18,11 +18,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -49,6 +54,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -102,6 +108,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -2289,6 +2296,120 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 verify(allocationService, times(1)).reroute(any(), eq("create-index"), any());
             }
         });
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public void testWaitForActiveShardsNoneDoesNotWaitForReroute() {
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            final var allocationService = mock(AllocationService.class);
+            final var rerouteListener = new AtomicReference<ActionListener<Void>>();
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(invocation -> {
+                rerouteListener.set(invocation.getArgument(2));
+                return invocation.getArgument(0);
+            });
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            final var service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                mockIndicesService(),
+                allocationService,
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                IndexSettingProviders.EMPTY
+            );
+
+            final var noneFuture = new PlainActionFuture<AcknowledgedResponse>();
+            final var defaultFuture = new PlainActionFuture<AcknowledgedResponse>();
+            final var noneTask = new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                new CreateIndexClusterStateUpdateRequest("test", projectId, "none-index", "none-index").waitForActiveShards(
+                    ActiveShardCount.NONE
+                ),
+                TimeValue.THIRTY_SECONDS,
+                noneFuture
+            );
+            final var defaultTask = new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                new CreateIndexClusterStateUpdateRequest("test", projectId, "default-index", "default-index"),
+                TimeValue.THIRTY_SECONDS,
+                defaultFuture
+            );
+            final var noneContext = new CapturingTaskContext<>(noneTask);
+            final var defaultContext = new CapturingTaskContext<>(defaultTask);
+
+            final ClusterStateTaskExecutor rawExecutor = service.createIndexTaskExecutor;
+            try {
+                rawExecutor.execute(
+                    new ClusterStateTaskExecutor.BatchExecutionContext<>(
+                        clusterService.state(),
+                        List.of(noneContext, defaultContext),
+                        () -> () -> {}
+                    )
+                );
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+
+            noneContext.ackListener.onAllNodesAcked();
+            assertTrue("NONE should complete without waiting for allocation reroute", noneFuture.isDone());
+            assertTrue(noneFuture.actionGet().isAcknowledged());
+
+            defaultContext.ackListener.onAllNodesAcked();
+            assertFalse("DEFAULT should retain the existing reroute wait", defaultFuture.isDone());
+
+            rerouteListener.get().onResponse(null);
+            assertTrue(defaultFuture.isDone());
+            assertTrue(defaultFuture.actionGet().isAcknowledged());
+        });
+    }
+
+    private static class CapturingTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
+        private final T task;
+        private ClusterStateAckListener ackListener;
+
+        private CapturingTaskContext(T task) {
+            this.task = task;
+        }
+
+        @Override
+        public T getTask() {
+            return task;
+        }
+
+        @Override
+        public void success(Runnable onPublicationSuccess) {
+            onPublicationSuccess.run();
+        }
+
+        @Override
+        public void success(java.util.function.Consumer<ClusterState> publishedStateConsumer) {}
+
+        @Override
+        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {
+            this.ackListener = clusterStateAckListener;
+            onPublicationSuccess.run();
+        }
+
+        @Override
+        public void success(
+            java.util.function.Consumer<ClusterState> publishedStateConsumer,
+            ClusterStateAckListener clusterStateAckListener
+        ) {
+            this.ackListener = clusterStateAckListener;
+        }
+
+        @Override
+        public void onFailure(Exception failure) {
+            throw new AssertionError(failure);
+        }
+
+        @Override
+        public Releasable captureResponseHeaders() {
+            return () -> {};
+        }
     }
 
     private IndicesService mockIndicesService() {

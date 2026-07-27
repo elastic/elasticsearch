@@ -256,6 +256,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final PendingCommitUploadPressure pendingCommitUploadPressure;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -370,6 +371,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
             );
+        this.pendingCommitUploadPressure = new PendingCommitUploadPressure(settings);
+    }
+
+    /**
+     * Returns the pressure tracker for pending commit uploads. Register it with
+     * {@link org.elasticsearch.index.IndexingPressureMonitor#addContributor} to enable write-path
+     * back-pressure when the pending upload queue grows too large.
+     */
+    public PendingCommitUploadPressure getPendingCommitUploadPressure() {
+        return pendingCommitUploadPressure;
     }
 
     public boolean useReplicatedRanges() {
@@ -1005,6 +1016,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onFailure(Exception e) {
                 assert assertClosedOrRejectionFailure(e);
+                // Release pressure now — this VBCC will never be removed via the handleUploadedBcc path.
+                commitState.releaseUploadPressureIfPending(virtualBcc.getPrimaryTermAndGeneration().generation());
                 ShardCommitState.State state = commitState.state;
                 if (commitState.isClosed()) {
                     logger.debug(
@@ -1964,6 +1977,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc
                 );
                 assert previous == null : "expected null, but got " + previous;
+                pendingCommitUploadPressure.markVbccQueued(expectedVirtualBcc);
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
                 logger.trace(
@@ -2135,6 +2149,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             handleUploadedBcc(batchedCompoundCommit, true, translogReleaseEndFile);
         }
 
+        /**
+         * Removes the given BCC generation from {@code pendingUploadBccGenerations} and releases its
+         * estimated heap pressure, if the entry is still present. Called from {@code onFailure} when an
+         * upload permanently fails, since the normal {@link #handleUploadedBcc} path is never reached.
+         */
+        synchronized void releaseUploadPressureIfPending(long bccGeneration) {
+            var removed = pendingUploadBccGenerations.remove(bccGeneration);
+            if (removed != null) {
+                pendingCommitUploadPressure.markVbccUploaded(removed);
+            }
+        }
+
         private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload, final long translogReleaseEndFile) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
@@ -2151,7 +2177,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (newBccGeneration <= getMaxUploadedBccGeneration()) {
                     if (isUpload) {
                         // Remove the BCC from the pending list regardless just in case
-                        pendingUploadBccGenerations.remove(newBccGeneration);
+                        var removed = pendingUploadBccGenerations.remove(newBccGeneration);
+                        if (removed != null) {
+                            pendingCommitUploadPressure.markVbccUploaded(removed);
+                        }
                     }
                     assert false
                         : "out of order BCC generation ["
@@ -2212,9 +2241,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         + shardId;
                 latestUploadedBcc = uploadedBcc;
                 if (isUpload) {
-                    // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
+                    // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired.
+                    // The entry may be absent if closeAndGetListeners already drained the map; no double-release in that case.
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
-                    assert removed != null : newBccGeneration + "not found";
+                    if (removed != null) {
+                        pendingCommitUploadPressure.markVbccUploaded(removed);
+                    } else {
+                        assert isClosed() : newBccGeneration + " not found and shard is not closed";
+                    }
                 }
                 if (localUploadedGenerationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
@@ -2664,6 +2698,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 fullListenersToFail = generationListeners;
                 generationListeners = null;
                 uploadedBccConsumers = null;
+                // Drain any VBCCs whose upload tasks were not started or whose onFailure races with this
+                // close. In-flight uploads that complete after this point will call handleUploadedBcc or
+                // onFailure, both of which also do a remove-with-null-guard, so no double-release.
+                for (Long gen : new ArrayList<>(pendingUploadBccGenerations.keySet())) {
+                    var removed = pendingUploadBccGenerations.remove(gen);
+                    if (removed != null) {
+                        pendingCommitUploadPressure.markVbccUploaded(removed);
+                    }
+                }
             }
 
             Stream<ActionListener<Void>> local = localListenersToFail != null

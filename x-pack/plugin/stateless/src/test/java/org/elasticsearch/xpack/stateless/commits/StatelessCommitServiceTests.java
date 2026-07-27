@@ -2714,6 +2714,58 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Demonstrates that VBCC upload tasks starve when SHARD_WRITE_THREAD_POOL is saturated with
+     * competing tasks. This reproduces the class of failure observed when an indexing burst kept
+     * all pool threads busy with commit callbacks, preventing upload tasks from executing and
+     * causing VBCCs to accumulate unboundedly in {@code pendingUploadBccGenerations}.
+     */
+    public void testUploadTasksStarveWhenShardWriteThreadPoolSaturated() throws Exception {
+        int numCommits = 5;
+        AtomicInteger uploadCount = new AtomicInteger(0);
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        CountDownLatch blockPool = new CountDownLatch(1);
+
+        // maxCommits=1: every onCommitCreation freezes its VBCC immediately, producing one upload task per commit.
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), 1)) {
+            var commitService = testHarness.commitService;
+            var shardId = testHarness.shardId;
+            commitService.addConsumerForNewUploadedBcc(shardId, info -> uploadCount.incrementAndGet());
+
+            // Fill every thread slot in SHARD_WRITE_THREAD_POOL with a blocking task.
+            int maxThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            var executor = testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+            CyclicBarrier allBlockersRunning = new CyclicBarrier(maxThreads + 1);
+
+            for (int i = 0; i < maxThreads; i++) {
+                executor.execute(() -> {
+                    safeAwait(allBlockersRunning); // signal: this thread slot is occupied
+                    safeAwait(blockPool);          // hold the slot until released
+                });
+            }
+            safeAwait(allBlockersRunning); // wait until all maxThreads slots are confirmed occupied
+
+            // onCommitCreation is synchronous (freezes the VBCC on the caller thread), but the
+            // upload task it submits to SHARD_WRITE_THREAD_POOL queues behind the blocking tasks.
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(numCommits);
+            long lastGeneration = commitRefs.get(commitRefs.size() - 1).getGeneration();
+            for (StatelessCommitRef ref : commitRefs) {
+                commitService.onCommitCreation(ref);
+            }
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastGeneration);
+
+            // All VBCCs are frozen and pending, but no upload has executed yet.
+            assertTrue("Uploads should be pending while pool is saturated", commitService.hasPendingBccUploads(shardId));
+            assertEquals("No uploads should complete while pool is saturated", 0, uploadCount.get());
+
+            // Unblock the pool so upload tasks can run.
+            blockPool.countDown();
+
+            waitUntilBCCIsUploaded(commitService, shardId, lastGeneration);
+            assertThat(uploadCount.get(), greaterThanOrEqualTo(1));
+        }
+    }
+
     public void testMarkCommitDeletedWithMultipleCCsPerBCC() throws Exception {
         var fakeSearchNode = new FakeSearchNode(threadPool);
         Set<StaleCompoundCommit> deletedBCCs = ConcurrentCollections.newConcurrentSet();

@@ -130,6 +130,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final long operationLimit;
 
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<IndexingPressureContributor> contributors = new CopyOnWriteArrayList<>();
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
@@ -292,6 +293,15 @@ public class IndexingPressure implements IndexingPressureMonitor {
                     false
                 );
             }
+            if (forceExecution == false) {
+                try {
+                    checkContributors();
+                } catch (EsRejectedExecutionException e) {
+                    currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+                    coordinatingRejections.getAndIncrement();
+                    throw e;
+                }
+            }
             currentOperations += operations;
             currentOperationsSize += bytes;
             logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
@@ -442,6 +452,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
                     + "]",
                 false
             );
+        }
+        if (forceExecution == false) {
+            try {
+                checkContributors();
+            } catch (EsRejectedExecutionException e) {
+                this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+                this.primaryRejections.getAndIncrement();
+                this.primaryDocumentRejections.addAndGet(operations);
+                throw e;
+            }
         }
         logger.trace(() -> Strings.format("adding [%d] primary operations and [%d] bytes", operations, bytes));
         currentPrimaryBytes.getAndAdd(bytes);
@@ -606,5 +626,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
     @Override
     public void addListener(IndexingPressureListener listener) {
         listeners.add(listener);
+    }
+
+    @Override
+    public void addContributor(IndexingPressureContributor contributor) {
+        contributors.add(contributor);
+    }
+
+    private void checkContributors() {
+        for (var contributor : contributors) {
+            contributor.checkAndMaybeReject();
+        }
     }
 }

@@ -32,6 +32,34 @@ public interface IndexingPressureMonitor {
     void addListener(IndexingPressureListener listener);
 
     /**
+     * Registers a contributor that can reject new indexing operations when an external
+     * resource is under pressure. Implementations must be lightweight and
+     * thread-safe.
+     *
+     * @param contributor the contributor to register
+     */
+    void addContributor(IndexingPressureContributor contributor);
+
+    /**
+     * A source of additional write-path back-pressure. If the contributor's internal limit
+     * is exceeded, it should throw {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException}
+     * to reject the operation. The exception message should include enough context (current value,
+     * limit) for operators to understand and act on the rejection.
+     *
+     * <p>Implementations must be thread-safe and must not block or perform significant
+     * computation, as {@link #checkAndMaybeReject()} is on the hot write path.
+     */
+    interface IndexingPressureContributor {
+        /**
+         * Called before each indexing operation is admitted. Implementations should throw
+         * {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException} if
+         * this contributor's limit is currently exceeded, causing the operation to be rejected
+         * with an HTTP 429 response. Does nothing (returns normally) when not over the limit.
+         */
+        void checkAndMaybeReject();
+    }
+
+    /**
      * Listener interface for receiving notifications about indexing pressure events.
      * Implementations can respond to tracking of primary operations and rejections
      * of large indexing operations.

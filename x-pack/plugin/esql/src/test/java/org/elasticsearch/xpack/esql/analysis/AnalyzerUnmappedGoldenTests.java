@@ -505,22 +505,16 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // id is short in apps_short and unmapped in partial_mapping_sample_data, so it is a single-type partially-unmapped (two-legged PUNK)
     // small numeric
     public void testForkWidensSingleTypePartiallyUnmappedShortField() throws Exception {
-        nullify("""
+        String query = """
             FROM apps_short, partial_mapping_sample_data
             | KEEP id
             | FORK (WHERE true)
                    (WHERE true)
             | KEEP _fork, id
             | SORT _fork
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
-        load("""
-            FROM apps_short, partial_mapping_sample_data
-            | KEEP id
-            | FORK (WHERE true)
-                   (WHERE true)
-            | KEEP _fork, id
-            | SORT _fork
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """;
+        nullify(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+        load(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     // UnionAll counterpart of testForkWidensSingleTypePartiallyUnmappedShortField: id (two-legged short PUNK) must surface as INTEGER
@@ -528,20 +522,15 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     public void testSubqueryWidensSingleTypePartiallyUnmappedShortField() throws Exception {
         // Both branches make id a two-legged short PUNK and only KEEP it; branches and UnionAll output must agree on the widened INTEGER
         // type, else checkUnionAll reports [INTEGER] vs [SHORT]. (Plain short avoided: subqueries don't auto-widen numerics.)
-        nullify("""
+        String query = """
             FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
                  (FROM apps_short, partial_mapping_sample_data | KEEP id)
             | KEEP id
             | SORT id NULLS LAST
             | LIMIT 5
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
-        load("""
-            FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
-                 (FROM apps_short, partial_mapping_sample_data | KEEP id)
-            | KEEP id
-            | SORT id NULLS LAST
-            | LIMIT 5
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """;
+        nullify(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+        load(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the
@@ -680,14 +669,12 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
-        nullify("""
+        String query = """
             TS k8s
             | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
-            """).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
-        load("""
-            TS k8s
-            | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
-            """).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """;
+        nullify(query).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+        load(query).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     // Single subquery without a main index is merged during analysis (no UnionAll), so does_not_exist is loaded into the merged
@@ -947,16 +934,13 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // TO_TEXT is applied directly to that field attribute, so no keyword->keyword auto-cast happens.
     // See also testSingleTypeTextUnmappedToText.
     public void testMappedInOneIndexOnlyToText() throws Exception {
-        nullify("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | EVAL message_text = TO_TEXT(message)
             | KEEP message_text
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
-        load("""
-            FROM sample_data, no_mapping_sample_data
-            | EVAL message_text = TO_TEXT(message)
-            | KEEP message_text
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """;
+        nullify(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+        load(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
@@ -1045,16 +1029,13 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // exactly as for the keyword case in testMappedInOneIndexOnlyToText.
     // https://github.com/elastic/elasticsearch/pull/153015#discussion_r3544806310.
     public void testSingleTypeTextUnmappedToText() throws Exception {
-        nullify("""
+        String query = """
             FROM text_state_mapped, text_state_unmapped
             | EVAL txt_text = TO_TEXT(txt)
             | KEEP txt_text
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
-        load("""
-            FROM text_state_mapped, text_state_unmapped
-            | EVAL txt_text = TO_TEXT(txt)
-            | KEEP txt_text
-            """).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+            """;
+        nullify(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
+        load(query).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {

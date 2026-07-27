@@ -2282,7 +2282,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
-                resolvedProjections.removeIf(resolved::contains);
+                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
+                resolvedProjections.removeIf(resolvedSet::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {

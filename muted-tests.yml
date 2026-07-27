@@ -676,9 +676,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153638
-- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
-  method: testOpenAiEmbeddings {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/154172
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.renameDerivedGroupingPrune [ndjson.bz/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/154238

@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.foreign.Arena;
@@ -61,7 +63,17 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
     }
 
     public static void setup() {
-        arena = Arena.ofConfined();
+        if (rarely()) {
+            try {
+                int pageSize = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class).getPageSize();
+                arena = GuardPageAllocator.ofConfined(pageSize);
+            } catch (Exception e) {
+                // Fall back to a regular arena if guard page allocation is not available (e.g. on Windows)
+                arena = Arena.ofConfined();
+            }
+        } else {
+            arena = Arena.ofConfined();
+        }
     }
 
     public static void cleanup() {

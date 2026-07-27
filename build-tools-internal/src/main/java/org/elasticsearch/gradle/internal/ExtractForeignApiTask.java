@@ -49,8 +49,10 @@ import javax.inject.Inject;
 import static org.objectweb.asm.Opcodes.V21;
 
 /**
- * Extracts public API class files from the {@code java.lang.foreign} package and writes them to a
- * JAR with {@code @PreviewFeature} annotations and the class-file preview flag stripped.
+ * Extracts public API class files from the {@code java.lang.foreign} package, plus individual
+ * {@code java.base} classes outside that package that expose preview methods referencing FFM types,
+ * and writes them to a JAR with {@code @PreviewFeature} annotations and the class-file preview flag
+ * stripped where present.
  *
  * <p> The output JAR is intended for use with {@code --patch-module java.base=<jar>} so that
  * modules compiled with {@code --release 21} can reference {@code MemorySegment} and related
@@ -90,6 +92,11 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
 
     private static final String PREVIEW_FEATURE_DESCRIPTOR = "Ljdk/internal/javac/PreviewFeature;";
     private static final String FOREIGN_PACKAGE_PREFIX = "java/lang/foreign/";
+    /**
+     * Paths relative to {@code modules/java.base/} in the {@code jrt:/} filesystem for classes that
+     * are not under {@code java/lang/foreign/} but contain preview methods (e.g. referencing FFM types).
+     */
+    private static final List<String> ADDITIONAL_CLASSES = List.of("java/nio/channels/FileChannel.class");
     private static final int PUBLIC_OR_PROTECTED = Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED;
 
     @Inject
@@ -138,8 +145,8 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
 
     /**
      * Extraction logic that executes inside the forked JDK 21 worker process.
-     * Reads {@code java.lang.foreign} classes from the worker's own {@code jrt:/} image, so there
-     * are no cross-JDK module-format compatibility concerns.
+     * Reads {@code java.lang.foreign} and {@link ExtractForeignApiTask#ADDITIONAL_CLASSES} from the worker's own
+     * {@code jrt:/} image, so there are no cross-JDK module-format compatibility concerns.
      */
     public abstract static class ExtractionWorkAction implements WorkAction<ExtractionParameters> {
 
@@ -157,17 +164,34 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
             }
 
             FileSystem jrtFs = FileSystems.getFileSystem(URI.create("jrt:/"));
-            Path foreignRoot = jrtFs.getPath("modules", "java.base", "java", "lang", "foreign");
+            Path javaBaseRoot = jrtFs.getPath("modules", "java.base");
+            Path foreignRoot = javaBaseRoot.resolve("java/lang/foreign");
 
             int count = 0;
-            try (
-                JarOutputStream jar = new JarOutputStream(Files.newOutputStream(outputPath));
-                Stream<Path> walk = Files.walk(foreignRoot)
-            ) {
-                for (Path file : (Iterable<Path>) walk::iterator) {
-                    if (Files.isRegularFile(file) == false || file.getFileName().toString().endsWith(".class") == false) {
-                        continue;
+            try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(outputPath))) {
+                try (Stream<Path> walk = Files.walk(foreignRoot)) {
+                    for (Path file : (Iterable<Path>) walk::iterator) {
+                        if (Files.isRegularFile(file) == false || file.getFileName().toString().endsWith(".class") == false) {
+                            continue;
+                        }
+                        byte[] stubBytes;
+                        try (InputStream is = Files.newInputStream(file)) {
+                            stubBytes = createStub(is);
+                        }
+                        if (stubBytes == null) {
+                            continue;
+                        }
+                        String entryName = FOREIGN_PACKAGE_PREFIX + file.getFileName().toString();
+                        JarEntry entry = new JarEntry(entryName);
+                        entry.setTime(0);
+                        jar.putNextEntry(entry);
+                        jar.write(stubBytes);
+                        jar.closeEntry();
+                        count++;
                     }
+                }
+                for (String classPath : ADDITIONAL_CLASSES) {
+                    Path file = javaBaseRoot.resolve(classPath);
                     byte[] stubBytes;
                     try (InputStream is = Files.newInputStream(file)) {
                         stubBytes = createStub(is);
@@ -175,8 +199,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                     if (stubBytes == null) {
                         continue;
                     }
-                    String entryName = FOREIGN_PACKAGE_PREFIX + file.getFileName().toString();
-                    JarEntry entry = new JarEntry(entryName);
+                    JarEntry entry = new JarEntry(classPath);
                     entry.setTime(0);
                     jar.putNextEntry(entry);
                     jar.write(stubBytes);

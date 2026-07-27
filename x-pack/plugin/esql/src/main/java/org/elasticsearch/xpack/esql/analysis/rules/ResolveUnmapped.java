@@ -56,8 +56,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullifyField;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -167,7 +167,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (insisted keywords wrapped in {@link FieldAttribute}) for
+     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (unmapped keywords wrapped in {@link FieldAttribute}) for
      * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
      * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
      */
@@ -227,13 +227,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
-        List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
+        List<FieldAttribute> loaded = new ArrayList<>(unresolved.size());
         for (var ua : unresolved) {
             if (exclude.contains(ua.name()) == false) {
-                insisted.add(insistKeyword(ua));
+                loaded.add(unmappedKeyword(ua));
             }
         }
-        return insisted;
+        return loaded;
     }
 
     // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?

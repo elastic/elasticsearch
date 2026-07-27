@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -26,7 +27,7 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan left = randomChild(0);
         LogicalPlan right = randomChild(0);
         JoinConfig config = randomJoinConfig();
-        return new Join(source, left, right, config, false);
+        return new Join(source, left, right, config, ExecuteLocation.ANY);
     }
 
     private static JoinConfig randomJoinConfig() {
@@ -46,6 +47,6 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
             case 1 -> right = randomValueOtherThan(right, () -> randomChild(0));
             case 2 -> config = randomValueOtherThan(config, JoinSerializationTests::randomJoinConfig);
         }
-        return new Join(instance.source(), left, right, config, false);
+        return new Join(instance.source(), left, right, config, ExecuteLocation.ANY);
     }
 }

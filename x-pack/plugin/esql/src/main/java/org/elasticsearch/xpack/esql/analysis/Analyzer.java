@@ -152,10 +152,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -902,7 +902,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
             final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
-            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            final var resolved = context.enrichResolution().getResolvedPolicy(plan.source());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
@@ -926,7 +926,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(policyName, plan.mode());
+                String error = context.enrichResolution().getError(plan.source());
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
@@ -1119,7 +1119,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -1480,13 +1479,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
+                boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+            }
+        }
+
+        private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {
+            if (mode == ExecuteLocation.COORDINATOR) {
+                return ExecuteLocation.COORDINATOR;
+            } else if (mode == ExecuteLocation.REMOTE || hasRemoteIndices) {
+                return ExecuteLocation.REMOTE;
+            } else {
+                return ExecuteLocation.ANY;
             }
         }
 
@@ -1666,7 +1676,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (alignUnmappedAcrossBranches
                         && forkMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
-                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? insistKeyword(attr) : nullifyField(attr));
+                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -1834,7 +1844,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (unionNames.contains(entry.getKey()) == false) {
                     FieldAttribute dropped = entry.getValue();
                     // Match how the field was materialized: a nullified MissingEsField under nullify, else an insisted keyword under load.
-                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : insistKeyword(dropped));
+                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : unmappedKeyword(dropped));
                 }
             }
             if (loaders.isEmpty()) {
@@ -1931,33 +1941,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {
-            List<Attribute> list = new ArrayList<>();
-            for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput));
-            }
-            return insist.withAttributes(list);
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput) {
-            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
-            // Field isn't mapped anywhere.
-            if (resolvedCol instanceof UnresolvedAttribute) {
-                return insistKeyword(attribute);
-            }
-
-            // Partially unmapped fields are already wrapped during index resolution:
-            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → TypeConflictedField.potentiallyUnmapped.
-            return resolvedCol;
-        }
-
-        public static FieldAttribute insistKeyword(Attribute attribute) {
+        public static FieldAttribute unmappedKeyword(Attribute attribute) {
+            String name = attribute.name();
+            int lastDot = name.lastIndexOf('.');
+            String parentName = lastDot < 0 ? null : name.substring(0, lastDot);
+            String leafName = lastDot < 0 ? name : name.substring(lastDot + 1);
             return new FieldAttribute(
                 attribute.source(),
-                null,
+                parentName,
                 attribute.qualifier(),
-                attribute.name(),
-                new PotentiallyUnmappedKeywordEsField(attribute.name())
+                name,
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 
@@ -2288,7 +2282,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
-                resolvedProjections.removeIf(resolved::contains);
+                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
+                resolvedProjections.removeIf(resolvedSet::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {

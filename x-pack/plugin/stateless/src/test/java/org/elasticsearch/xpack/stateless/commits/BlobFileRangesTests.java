@@ -149,6 +149,12 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         assertThat(withReplicated.reconcileWith(withReplicated).locationOfFirstReplicatedContents(), equalTo(expectedCopy));
     }
 
+    public void testMostRecentKnownTimestampPrefersNonNegativeOverUnknown() {
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 1000L), equalTo(1000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(2000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(2000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(1000L, 3000L), equalTo(3000L));
+    }
+
     private static BlobLocation randomBlobLocation() {
         return createBlobLocation(
             randomLongBetween(1, 10),

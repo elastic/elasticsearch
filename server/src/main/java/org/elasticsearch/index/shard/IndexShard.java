@@ -83,6 +83,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -94,6 +96,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -163,7 +166,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -1142,29 +1144,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
      * signaling the caller to fall back to the item-by-item path.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(EngineBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations, batch);
+        return indexBatch(engine, batch);
     }
 
     /**
      * Applies a batch of index operations on a replica.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(EngineBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations, batch);
+        return indexBatch(engine, batch);
     }
 
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, SourceBatch batch) throws IOException {
+    private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
+        final List<Engine.Index> operations = batch.operations();
         List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
         // TODO: Right now the only production users are stats. Should add batch listener.
         for (Engine.Index op : operations) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps, batch);
+            List<Engine.IndexResult> results = engine.indexBatch(new EngineBatch(preIndexOps, batch.sourceBatch()));
             // TODO: Look at if these can be batch optimized
             for (int i = 0; i < results.size(); i++) {
                 indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
@@ -1478,6 +1481,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public SeqNoStats seqNoStats() {
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+    }
+
+    /**
+     * Returns the engine's max sequence number
+     *
+     * @return the max sequence number
+     */
+    public long getMaxSeqNo() {
+        return getEngine().getMaxSeqNo();
     }
 
     public IndexingStats indexingStats() {
@@ -3275,17 +3287,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
-        final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
+        final long maxSeqNo = getMaxSeqNo();
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
-        if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
+        if (maxSeqNo == globalCheckpoint || asyncDurability) {
             final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();
             // async durability means that the local checkpoint might lag (as it is only advanced on fsync)
             // periodically ask for the newest local checkpoint by syncing the global checkpoint, so that ultimately the global
             // checkpoint can be synced. Also take into account that a shard might be pending sync, which means that it isn't
             // in the in-sync set just yet but might be blocked on waiting for its persisted local checkpoint to catch up to
             // the global checkpoint.
-            final boolean syncNeeded = (asyncDurability
-                && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
+            final boolean syncNeeded = (asyncDurability && (globalCheckpoint < maxSeqNo || replicationTracker.pendingInSync()))
                 || trackedGlobalCheckpointsNeedSync;
             // only sync if index is not closed and there is a shard lagging the primary
             if (syncNeeded && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
@@ -3916,7 +3928,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // called by the current engine
         @Override
         public void onFailedEngine(String reason, @Nullable Exception failure) {
-            final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
+            final ShardFailure shardFailure = new ShardFailure(shardRouting, getPendingPrimaryTerm(), reason, failure);
             for (Consumer<ShardFailure> listener : delegates) {
                 try {
                     listener.accept(shardFailure);
@@ -3964,10 +3976,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        return buildIndexAnalyzer(mapperService, TokenCountingMetrics.NOOP);
+    }
+
+    /**
+     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * that records the number of tokens produced per field value to the metrics histogram.
+     *
+     * @param mapperService          the mapper service to use for field analyzer resolution
+     * @param tokenCountingMetrics   metrics instance for recording token counts per field value
+     * @return the analyzer to use for indexing, or null if no mapper service is available
+     */
+    public static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
         if (mapperService == null) {
             return null;
         }
-        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
@@ -3976,6 +4000,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         };
+        return new TokenCountingAnalyzer(baseAnalyzer, tokenCountingMetrics);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3996,7 +4021,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(buildIndexAnalyzer(mapperService))
+            .analyzer(
+                buildIndexAnalyzer(
+                    mapperService,
+                    mapperService != null ? mapperService.getMapperMetrics().tokenCountingMetrics() : TokenCountingMetrics.NOOP
+                )
+            )
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)
@@ -4323,7 +4353,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     bumpPrimaryTerm(opPrimaryTerm, () -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
-                        final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                        final long maxSeqNo = getMaxSeqNo();
                         logger.info(
                             "detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
                             opPrimaryTerm,
@@ -4485,7 +4515,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      */
-    public record ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {}
+    public record ShardFailure(ShardRouting routing, long primaryTerm, String reason, @Nullable Exception cause) {}
 
     EngineFactory getEngineFactory() {
         return engineFactory;

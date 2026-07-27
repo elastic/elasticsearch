@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154315
+pr: 154317
+summary: Guard ROUND_TO to fields coming from indices in the physical optimized
+type: bug

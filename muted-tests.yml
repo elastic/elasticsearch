@@ -756,3 +756,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.mvJoinKeyFromRowExpanded}
   issue: https://github.com/elastic/elasticsearch/issues/155184
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSide}
+  issue: https://github.com/elastic/elasticsearch/issues/155190

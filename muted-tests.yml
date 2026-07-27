@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.weightedAvgWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/155104
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:folding.mvDouble_Equals_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/155105
 
 # Examples:
 #

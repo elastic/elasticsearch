@@ -204,8 +204,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      */
     private static final Map<String, String> KNOWN_OPEN = Map.of(
         "no extension and no explicit format",
-        "reports an internal config key (_datasource) instead of naming the format that cannot be inferred; the "
-            + "right message already exists in FileDataSourceValidator but this path does not reach it"
+        "reports the Iceberg catalog's own failure rather than \"the format cannot be inferred; set [format]\". "
+            + "IcebergTableCatalog#canHandle claims every s3:// path, so it claims an extensionless object, fails "
+            + "for its own reasons, and its failure is the one surfaced -- the no-reader message never fires because "
+            + "a factory did claim. Narrowing that claim is a behaviour change, not a message fix"
     );
 
     // ---------------------------------------------------------------------------------------------

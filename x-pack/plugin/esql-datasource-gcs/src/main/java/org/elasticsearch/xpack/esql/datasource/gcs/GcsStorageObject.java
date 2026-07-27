@@ -343,7 +343,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path + ": " + GcsFailureDetail.of(e), e);
             }
         }
     }

@@ -367,6 +367,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderIT
   method: testRRFRetrieverPartialSearchErrorsTrue
   issue: https://github.com/elastic/elasticsearch/issues/155068
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
+  method: testSimple
+  issue: https://github.com/elastic/elasticsearch/issues/155069
 
 # Examples:
 #

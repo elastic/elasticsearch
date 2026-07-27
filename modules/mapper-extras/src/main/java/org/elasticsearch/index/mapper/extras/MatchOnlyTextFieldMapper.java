@@ -126,23 +126,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that mode.
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
-        }
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new FieldMapper.DocValuesParameter.Values(
-            true,
-            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-            multiValue,
-            nullability,
-            onFailure
-        );
-    }
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -195,8 +178,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.indexSettings = indexSettings;
             this.indexMode = indexSettings.getMode();
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                () -> defaultDocValuesParameters(indexSettings),
-                defaultDocValuesParameters(indexSettings),
+                () -> FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
+                ),
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
+                ),
                 m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
                 indexSettings.getMode().isStrictColumnar()
             );

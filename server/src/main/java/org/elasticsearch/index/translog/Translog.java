@@ -15,6 +15,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -73,7 +74,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -144,7 +145,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier primaryTermSupplier;
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
-    private final LongConsumer persistedSequenceNumberConsumer;
+    private final Consumer<LongsRef> persistedSequenceNumbersConsumer;
     private final OperationListener operationListener;
     private final TranslogOperationAsserter operationAsserter;
 
@@ -164,8 +165,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
      *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
      *                                 and reject operation whose term is higher than the primary term stored in the translog header.
-     * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
-     *                                        persisted.
+     * @param persistedSequenceNumbersConsumer a callback that's called whenever some operations with the given sequence numbers are
+     *                                         successfully persisted.
      */
     @SuppressWarnings("this-escape")
     public Translog(
@@ -174,14 +175,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer,
+        final Consumer<LongsRef> persistedSequenceNumbersConsumer,
         final TranslogOperationAsserter operationAsserter
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
-        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.persistedSequenceNumbersConsumer = persistedSequenceNumbersConsumer;
         this.operationListener = config.getOperationListener();
         this.operationAsserter = operationAsserter;
         this.deletionPolicy = deletionPolicy;
@@ -227,7 +228,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     checkpoint.generation + 1,
                     getMinFileGeneration(),
                     checkpoint.globalCheckpoint,
-                    persistedSequenceNumberConsumer
+                    persistedSequenceNumbersConsumer
                 );
                 success = true;
             } finally {
@@ -566,7 +567,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             fileGeneration,
             getMinFileGeneration(),
             globalCheckpointSupplier.getAsLong(),
-            persistedSequenceNumberConsumer
+            persistedSequenceNumbersConsumer
         );
         assert writer.sizeInBytes() == DEFAULT_HEADER_SIZE_IN_BYTES
             : "Mismatch translog header size; "
@@ -591,7 +592,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long fileGeneration,
         long initialMinTranslogGen,
         long initialGlobalCheckpoint,
-        LongConsumer persistedSequenceNumberConsumer
+        Consumer<LongsRef> persistedSequenceNumbersConsumer
     ) throws IOException {
         final TranslogWriter newWriter;
         try {
@@ -608,7 +609,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 this::getMinFileGeneration,
                 primaryTermSupplier.getAsLong(),
                 tragedy,
-                persistedSequenceNumberConsumer,
+                persistedSequenceNumbersConsumer,
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,

@@ -116,28 +116,12 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
-        // Select is always nonEmpty because we don't support splitting pages from Categorize
         Block[] keys = packedValuesBlockHash.getKeys(selected);
         if (aggregatorMode.isOutputPartial() == false) {
-            // For final output, the keys are the category regexes.
-            try (
-                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(selected)[0];
-                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys[0].getPositionCount())
-            ) {
-                IntVector idsVector = (IntVector) keys[0].asVector();
-                int idsOffset = categorizeBlockHash.seenNull() ? 0 : -1;
-                BytesRef scratch = new BytesRef();
-                for (int i = 0; i < idsVector.getPositionCount(); i++) {
-                    int id = idsVector.getInt(i);
-                    if (id == 0) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendBytesRef(regexes.getBytesRef(id + idsOffset, scratch));
-                    }
-                }
-                keys[0].close();
-                keys[0] = builder.build();
-            }
+            IntVector idsVector = (IntVector) keys[0].asVector();
+            Block regexes = categorizeBlockHash.getKeys(idsVector)[0];
+            keys[0].close();
+            keys[0] = regexes;
         } else {
             // For intermediate output, the keys are the delegate PackedValuesBlockHash's
             // keys, with the category IDs replaced by the categorizer's internal state

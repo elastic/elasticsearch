@@ -293,6 +293,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static ClusterSettings createClusterSettings(Settings settings) {
         Set<Setting<?>> settingsSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.add(PINNED_WINDOW_DURATION_SETTING);
+        settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingsSet);
     }
 

@@ -63,7 +63,7 @@ public enum StatelessCacheEvictionPolicyType {
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE) ? PINNED_WINDOW : ALWAYS;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+    public static EvictionPolicy<FileCacheKey> createEvictionPolicy(
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,

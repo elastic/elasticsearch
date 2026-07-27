@@ -29,7 +29,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 public class GoogleVertexAiSecretSettings implements SecretSettings {
 
@@ -45,7 +44,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureServiceAccountJson = extractRequiredSecureString(
+        SecureString secureServiceAccountJson = extractOptionalSecureString(
             map,
             SERVICE_ACCOUNT_JSON,
             SERVICE_SETTINGS,
@@ -53,6 +52,11 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         );
 
         validationException.throwIfValidationErrorsExist();
+
+        // No credentials supplied: fall back to Application Default Credentials.
+        if (secureServiceAccountJson == null) {
+            return null;
+        }
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }
@@ -136,9 +140,12 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
                     SERVICE_ACCOUNT_JSON,
                     new SettingsConfiguration.Builder(
                         EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.CHAT_COMPLETION, TaskType.COMPLETION)
-                    ).setDescription("API Key for the provider you're connecting to.")
+                    ).setDescription(
+                        "API Key for the provider you're connecting to. "
+                            + "If omitted, the endpoint falls back to Application Default Credentials."
+                    )
                         .setLabel("Credentials JSON")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(true)
                         .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)

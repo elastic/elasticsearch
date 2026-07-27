@@ -56,6 +56,9 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.operator_privileges.enabled", "true")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        // ES|QL federation is off by default and its transport actions are then unregistered; keep them
+        // registered here so the data_source/dataset entries in Constants.NON_OPERATOR_ACTIONS stay valid.
+        .systemProperty("es.esql.register_federation_feature", "true")
         .plugin("operator-privileges-test")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))

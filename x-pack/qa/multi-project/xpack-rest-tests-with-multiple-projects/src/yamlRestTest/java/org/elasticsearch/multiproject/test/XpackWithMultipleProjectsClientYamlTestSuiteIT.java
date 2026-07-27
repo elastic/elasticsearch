@@ -53,6 +53,10 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
             final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
             return Objects.requireNonNullElse(enabled, "");
         })
+        // ES|QL federation (external data sources / datasets) is off by default; this runner's `includeXpack '*'`
+        // pulls in esql/210_data_source.yml and esql/220_dataset.yml, which gate on the data_sources capability, so
+        // opt in here to keep them running rather than silently skipping.
+        .systemProperty("es.esql.register_federation_feature", "true")
         .build();
 
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

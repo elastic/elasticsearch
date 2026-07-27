@@ -576,7 +576,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }, e -> {
                 logger.debug("[LookupJoinServer] Sink handler completed with error, finishing it: {}", e.getMessage());
                 exchangeService.finishSinkHandler(serverToClientId, e);
-            }));
+            }), threadContext);
         }
         // Unregister this server from ExchangeService
         exchangeService.unregisterBatchExchangeServer(serverToClientId);

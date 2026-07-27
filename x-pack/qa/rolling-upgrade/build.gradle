@@ -13,6 +13,8 @@ apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(':x-pack:qa'))
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

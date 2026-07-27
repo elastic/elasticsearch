@@ -20,7 +20,7 @@ The following data source types are supported:
 :::
 
 :::{note}
-Other S3-compatible services have not been validated and are not supported for this technical preview.
+Other S3-compatible services have not been validated and are not supported.
 :::
 
 ## Manage data sources in the UI

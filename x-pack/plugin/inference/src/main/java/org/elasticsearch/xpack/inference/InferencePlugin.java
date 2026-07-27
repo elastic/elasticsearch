@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
@@ -882,6 +883,11 @@ public class InferencePlugin extends Plugin
     @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return List.of(new SearchPlugin.GenericNamedWriteableSpec(SemanticTextField.NAME, SemanticTextField::new));
     }
 
     @Override

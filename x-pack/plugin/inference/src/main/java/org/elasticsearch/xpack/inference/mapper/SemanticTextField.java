@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -65,8 +69,10 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject, DenseVectorSupplier {
+) implements ToXContentObject, DenseVectorSupplier, GenericNamedWriteable {
 
+    public static final String NAME = "SemanticTextField";
+    private static final TransportVersion GENERIC_VALUE_SERIALIZATION = TransportVersion.fromName("semantic_text_field_generic_value");
     static final String TEXT_FIELD = "text";
     static final String INPUT_FIELD = "input";
     static final String INFERENCE_FIELD = "inference";
@@ -88,6 +94,21 @@ public record SemanticTextField(
         @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
+
+    public SemanticTextField(StreamInput in) throws IOException {
+        this(
+            in.readBoolean(),
+            in.readString(),
+            in.readOptionalCollectionAsList(StreamInput::readString),
+            new InferenceResult(
+                in.readString(),
+                in.readOptionalWriteable(MinimalServiceSettings::new),
+                readChunkingSettings(in),
+                readChunks(in)
+            ),
+            in.readEnum(XContentType.class)
+        );
+    }
 
     /**
      * A single chunk of a semantic (text) field. Exactly one of the three forms is populated:
@@ -128,6 +149,10 @@ public record SemanticTextField(
             this.rawEmbeddings = rawEmbeddings;
         }
 
+        private Chunk(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readInt(), in.readInt(), in.readOptionalInt(), in.readBytesReference());
+        }
+
         @Nullable
         public String text() {
             return text;
@@ -148,6 +173,14 @@ public record SemanticTextField(
 
         public BytesReference rawEmbeddings() {
             return rawEmbeddings;
+        }
+
+        private void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(text);
+            out.writeInt(startOffset);
+            out.writeInt(endOffset);
+            out.writeOptionalInt(inputIndex);
+            out.writeBytesReference(rawEmbeddings);
         }
 
         @Override
@@ -194,6 +227,63 @@ public record SemanticTextField(
 
     public static String getOffsetsFieldName(String fieldName) {
         return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ChunkingSettings readChunkingSettings(StreamInput in) throws IOException {
+        if (in.readBoolean() == false) {
+            return null;
+        }
+        return ChunkingSettingsBuilder.fromMap((Map<String, Object>) in.readGenericValue(), false);
+    }
+
+    private static Map<String, List<Chunk>> readChunks(StreamInput in) throws IOException {
+        int fieldCount = in.readVInt();
+        Map<String, List<Chunk>> chunks = new LinkedHashMap<>(fieldCount);
+        for (int i = 0; i < fieldCount; i++) {
+            String fieldName = in.readString();
+            int chunkCount = in.readVInt();
+            List<Chunk> fieldChunks = new ArrayList<>(chunkCount);
+            for (int j = 0; j < chunkCount; j++) {
+                fieldChunks.add(new Chunk(in));
+            }
+            chunks.put(fieldName, fieldChunks);
+        }
+        return chunks;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(useLegacyFormat);
+        out.writeString(fieldName);
+        out.writeOptionalCollection(originalValues, StreamOutput::writeString);
+        out.writeString(inference.inferenceId);
+        out.writeOptionalWriteable(inference.modelSettings);
+        if (inference.chunkingSettings == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeGenericValue(inference.chunkingSettings.asMap());
+        }
+        out.writeVInt(inference.chunks.size());
+        for (var entry : inference.chunks.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVInt(entry.getValue().size());
+            for (Chunk chunk : entry.getValue()) {
+                chunk.writeTo(out);
+            }
+        }
+        XContentHelper.writeTo(out, contentType);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return GENERIC_VALUE_SERIALIZATION;
     }
 
     protected record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}

@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
@@ -201,6 +203,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
+    }
+
+    public void testCanBeSerializedAsGenericValue() throws IOException {
+        var registry = new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, SemanticTextField.NAME, SemanticTextField::new))
+        );
+        SemanticTextField original = createTestInstance();
+        SemanticTextField copy = asInstanceOf(SemanticTextField.class, copyNamedWriteable(original, registry, GenericNamedWriteable.class));
+        assertThat(copy, equalTo(original));
     }
 
     public void testModelSettingsXContentExcludesEndpointMetadata() throws IOException {

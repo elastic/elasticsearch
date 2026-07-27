@@ -452,7 +452,7 @@ For more information about upgrades, see [Upgrading {{es}}](docs-content://deplo
 
 ## Limitations
 
-### Query datasets across clusters
+### Datasets across clusters
 ```{applies_to}
 stack: experimental =9.5
 ```

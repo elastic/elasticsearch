@@ -382,10 +382,6 @@ FROM logs METADATA _project._alias        <2>
 {{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support).
 The lookup index must exist on every project being queried, because each project uses its own local copy of the lookup index data.
 
-### Query datasets across projects
-
-You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local project only. Querying a dataset on a remote project returns an error.
-
 ### Views across projects
 
 [{{esql}} views](/reference/query-languages/esql/esql-views.md) allows virtual indexes to be defined using {{esql}} queries.

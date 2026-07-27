@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -52,6 +53,8 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     private final ConcurrentHashMap<String, Long> unresolvedSinceNanos = new ConcurrentHashMap<>();
     private final Set<String> fetchScheduledModelIds = ConcurrentHashMap.newKeySet();
     private final AtomicReference<HeapRequirement> cachedRequirement = new AtomicReference<>(new HeapRequirement(0L, true));
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
+    private volatile TimeValue unresolvedModelSizeRetryInterval = UNRESOLVED_MODEL_SIZE_RETRY_INTERVAL;
     private volatile Scheduler.Cancellable retryCancellable;
 
     public IngestModelMemoryService(TrainedModelProvider trainedModelProvider, ThreadPool threadPool) {
@@ -62,7 +65,9 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().isLocalNodeElectedMaster() == false) {
-            clearAllState();
+            if (initialized.getAndSet(false)) {
+                clearAllState();
+            }
             return;
         }
 
@@ -70,7 +75,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
             return;
         }
 
-        if (becameMaster(event)) {
+        if (initialized.compareAndSet(false, true)) {
             repopulateAllProjects(event.state());
             startPeriodicRetry();
             return;
@@ -79,10 +84,6 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         handleRemovedProjects(event);
         handleAddedProjects(event);
         handleChangedProjects(event);
-    }
-
-    private static boolean becameMaster(ClusterChangedEvent event) {
-        return event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false;
     }
 
     private void repopulateAllProjects(ClusterState state) {
@@ -143,7 +144,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         try {
             retryCancellable = threadPool.scheduleWithFixedDelay(
                 this::reconcileModelSizes,
-                UNRESOLVED_MODEL_SIZE_RETRY_INTERVAL,
+                unresolvedModelSizeRetryInterval,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
             );
         } catch (EsRejectedExecutionException e) {
@@ -345,5 +346,21 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
 
     void setUnresolvedSinceNanosForTests(String modelId, long sinceNanos) {
         unresolvedSinceNanos.put(modelId, sinceNanos);
+    }
+
+    boolean isPeriodicRetryRunningForTests() {
+        return retryCancellable != null;
+    }
+
+    boolean isFetchScheduledForTests(String modelId) {
+        return fetchScheduledModelIds.contains(modelId);
+    }
+
+    boolean hasScheduledFetchesForTests() {
+        return fetchScheduledModelIds.isEmpty() == false;
+    }
+
+    void setUnresolvedModelSizeRetryIntervalForTests(TimeValue interval) {
+        this.unresolvedModelSizeRetryInterval = interval;
     }
 }

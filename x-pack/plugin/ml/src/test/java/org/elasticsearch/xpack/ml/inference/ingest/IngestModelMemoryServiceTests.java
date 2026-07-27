@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -81,6 +83,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
         service = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        service.setUnresolvedModelSizeRetryIntervalForTests(TimeValue.timeValueHours(1));
     }
 
     @After
@@ -191,7 +194,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             assertThat(requirement.isExact(), is(true));
         });
 
-        service.reconcileModelSizesForTests();
+        reconcileWhenIdle();
         verify(trainedModelProvider, times(2)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
     }
 
@@ -292,6 +295,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
 
         assertBusy(() -> {
             assertThat(service.getRequiredHeapBytes().isExact(), is(false));
+            assertThat(service.isFetchScheduledForTests("model-a"), is(false));
             verify(trainedModelProvider, times(1)).getTrainedModel(
                 eq("model-a"),
                 eq(GetTrainedModelsAction.Includes.empty()),
@@ -300,7 +304,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             );
         });
 
-        service.reconcileModelSizesForTests();
+        reconcileWhenIdle();
 
         assertBusy(() -> {
             IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
@@ -333,7 +337,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             assertThat(requirement.isExact(), is(true));
         });
 
-        service.reconcileModelSizesForTests();
+        reconcileWhenIdle();
 
         assertBusy(() -> {
             IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
@@ -361,6 +365,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
 
         assertBusy(() -> {
             assertThat(service.getRequiredHeapBytes().isExact(), is(false));
+            assertThat(service.isFetchScheduledForTests("model-a"), is(false));
             verify(trainedModelProvider, times(1)).getTrainedModel(
                 eq("model-a"),
                 eq(GetTrainedModelsAction.Includes.empty()),
@@ -372,7 +377,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         long staleSince = threadPool.relativeTimeInNanos() - IngestModelMemoryService.STALE_MODEL_SIZE_WARN_THRESHOLD.nanos() - 1;
         service.setUnresolvedSinceNanosForTests("model-a", staleSince);
 
-        service.reconcileModelSizesForTests();
+        reconcileWhenIdle();
 
         IngestModelMemoryProvider.HeapRequirement staleRequirement = service.getRequiredHeapBytes();
         assertThat(staleRequirement.heapBytes(), equalTo(0L));
@@ -388,7 +393,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         );
 
         allowResolution.set(true);
-        service.reconcileModelSizesForTests();
+        reconcileWhenIdle();
 
         assertBusy(() -> {
             IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
@@ -420,6 +425,65 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             service.reconcileModelSizesForTests();
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testBecomingMasterWhileStateNotRecoveredShouldInitializeAfterBlockLifts() throws Exception {
+        stubModelConfig("model-a", 100L);
+        Metadata metadata = withIngestModels(Map.of(PROJECT_A, "model-a"));
+        ClusterState blockedMaster = blockedMasterClusterState(metadata);
+        service.clusterChanged(new ClusterChangedEvent("test", blockedMaster, nonMasterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+        assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        assertThat(service.isPeriodicRetryRunningForTests(), is(false));
+        verify(trainedModelProvider, times(0)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        ClusterState recoveredMaster = masterClusterState(metadata);
+        service.clusterChanged(new ClusterChangedEvent("test", recoveredMaster, blockedMaster));
+
+        assertBusy(() -> {
+            IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
+            assertThat(requirement.heapBytes(), equalTo(100L));
+            assertThat(requirement.isExact(), is(true));
+        });
+        assertThat(service.isPeriodicRetryRunningForTests(), is(true));
+        verify(trainedModelProvider, times(1)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+    }
+
+    public void testMasterDemotionShouldStopPeriodicRetryAndReElectionShouldRepopulate() throws Exception {
+        stubModelConfig("model-a", 100L);
+        Metadata metadata = withIngestModels(Map.of(PROJECT_A, "model-a"));
+        ClusterState masterState = masterClusterState(metadata);
+        service.clusterChanged(new ClusterChangedEvent("test", masterState, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> {
+            assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(100L));
+            assertThat(service.isPeriodicRetryRunningForTests(), is(true));
+        });
+
+        ClusterState nonMasterState = nonMasterClusterState(metadata);
+        service.clusterChanged(new ClusterChangedEvent("test", nonMasterState, masterState));
+
+        assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+        assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        assertThat(service.isPeriodicRetryRunningForTests(), is(false));
+
+        ClusterState reElectedMaster = masterClusterState(metadata);
+        service.clusterChanged(new ClusterChangedEvent("test", reElectedMaster, nonMasterState));
+
+        assertBusy(() -> {
+            IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
+            assertThat(requirement.heapBytes(), equalTo(100L));
+            assertThat(requirement.isExact(), is(true));
+            assertThat(service.isPeriodicRetryRunningForTests(), is(true));
+        });
+        verify(trainedModelProvider, times(2)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+    }
+
+    private void reconcileWhenIdle() throws Exception {
+        assertBusy(() -> assertThat(service.hasScheduledFetchesForTests(), is(false)));
+        service.reconcileModelSizesForTests();
+        assertBusy(() -> assertThat(service.hasScheduledFetchesForTests(), is(false)));
     }
 
     private void stubModelConfig(String modelId, long modelSize) {
@@ -493,6 +557,12 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test-cluster"))
             .nodes(DiscoveryNodes.builder().add(masterNode).masterNodeId("master").localNodeId("master").build())
             .metadata(metadata)
+            .build();
+    }
+
+    private static ClusterState blockedMasterClusterState(Metadata metadata) {
+        return ClusterState.builder(masterClusterState(metadata))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
     }
 

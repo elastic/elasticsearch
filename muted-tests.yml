@@ -754,3 +754,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.nulls in groups}
   issue: https://github.com/elastic/elasticsearch/issues/155111
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testRemoteFailureSkipUnavailableTrue
+  issue: https://github.com/elastic/elasticsearch/issues/155120

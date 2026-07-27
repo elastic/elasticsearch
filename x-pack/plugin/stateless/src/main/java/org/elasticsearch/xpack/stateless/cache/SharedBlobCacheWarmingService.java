@@ -1118,8 +1118,6 @@ public class SharedBlobCacheWarmingService {
             final long sizeInBytes = referencedCC.statelessCompoundCommitReference().compoundCommit().sizeInBytes();
             final long warmEndExclusive = startPosition + Math.round(sizeInBytes * warmingRatio);
             final long commitEndExclusive = startPosition + sizeInBytes;
-            // Cap at the compound commit end. The previous region-floor heuristic could shrink the range below commitEndExclusive
-            // when the warm end fell in the first half of a cache region, leaving the commit tail cold.
             return ByteRange.of(startPosition, Math.min(warmEndExclusive, commitEndExclusive));
         }
     }

@@ -530,6 +530,12 @@ indices:
   mapping: "ts_window-mappings.json"
   data: "ts_window.csv"
   settings: "ts_window-settings.json"
+- index: "ts_window_nanos"
+  mapping: "ts_window-mappings.json"
+  data: "ts_window.csv"
+  settings: "ts_window-settings.json"
+  type_mapping:
+    '@timestamp': "date_nanos"
 - index: "ul_logs"
   mapping: "mapping-ul_logs.json"
   data: "ul_logs.csv"
@@ -683,7 +689,7 @@ categories:
   textmap:
     indices: ["flattened_keyed", "flattened_many", "flattened_otel_logs", "flattened_typed", "host_info_lookup", "host_threat_list", "path_lookup", "ts_flattened"]
   timeseries:
-    indices: ["datenanos-k8s", "exp_histo_sample", "flattened_otel_logs", "histogram_standard_index", "histogram_timeseries_index", "k8s", "k8s-downsampled", "k8s_nonexistent", "k8s_retyped", "k8s_stored_source", "k8s_unmapped", "metric_temporality", "otel-metrics", "prom-metrics", "promql_classic_histogram", "promql_histogram_no_le", "tdigest_standard_index", "tdigest_timeseries_index", "ts_window"]
+    indices: ["datenanos-k8s", "exp_histo_sample", "flattened_otel_logs", "histogram_standard_index", "histogram_timeseries_index", "k8s", "k8s-downsampled", "k8s_nonexistent", "k8s_retyped", "k8s_stored_source", "k8s_unmapped", "metric_temporality", "otel-metrics", "prom-metrics", "promql_classic_histogram", "promql_histogram_no_le", "tdigest_standard_index", "tdigest_timeseries_index", "ts_window", "ts_window_nanos"]
   vectors:
     indices: ["dense_vector", "dense_vector_arithmetic", "dense_vector_bfloat16", "dense_vector_coalesce", "dense_vector_text", "mmr_text_vector_keyword", "semantic_text"]
   views:
@@ -853,6 +859,7 @@ files:
   ts-info-remote: "timeseries"
   ts-info: "timeseries"
   ts-window: "timeseries"
+  ts-window-date_nanos: "timeseries"
   tstep: "core"
   union_types: "core"
   unmapped-default: "core"

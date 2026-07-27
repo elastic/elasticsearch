@@ -80,6 +80,9 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
 
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+    public static final NodeFeature INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION = new NodeFeature(
+        "inference.internal_delete_endpoints_action"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -89,7 +92,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
-            ENDPOINT_METADATA_FIELD
+            ENDPOINT_METADATA_FIELD,
+            INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION
         );
     }
 

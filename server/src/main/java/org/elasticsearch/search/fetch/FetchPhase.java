@@ -337,7 +337,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadStoreMetrics()) {
+        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -435,13 +435,14 @@ public final class FetchPhase {
         ActionListener<SearchHitsWithSizeBytes> wrappedListener = new ActionListener<>() {
             @Override
             public void onResponse(SearchHitsWithSizeBytes result) {
-                context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 buildListener.onResponse(null);
                 listener.onResponse(result);
             }
 
             @Override
             public void onFailure(Exception e) {
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 long leakedBytes = docsIterator.getRequestBreakerBytes();
                 if (leakedBytes > 0) {
                     context.circuitBreaker().addWithoutBreaking(-leakedBytes);
@@ -554,13 +555,14 @@ public final class FetchPhase {
                         onFailure(e);
                         return;
                     }
-                    context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     buildListener.onResponse(null);
                     mainBuildListener.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
 

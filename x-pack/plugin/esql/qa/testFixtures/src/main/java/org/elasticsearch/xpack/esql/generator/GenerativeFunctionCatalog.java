@@ -82,6 +82,11 @@ public final class GenerativeFunctionCatalog {
         // Functions that enforce isFoldable() on a required param with no clean literal substitute
         "mv_pseries_weighted_sum",
         "trange",
+        // mv_like/mv_rlike require a constant wildcard/regex pattern as the second argument; the composite
+        // generator supplies arbitrary expressions there. They are covered thoroughly by their own unit,
+        // csv-spec, plan and end-to-end tests.
+        "mv_like",
+        "mv_rlike",
         // top_snippets(field, query): query must be a constant — but it must also be a valid
         // full-text search query string tied to the field's analyzer. Hard to synthesise safely.
         "top_snippets",

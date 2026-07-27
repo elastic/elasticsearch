@@ -214,9 +214,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
-- class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
-  method: testOverflowFails
-  issue: https://github.com/elastic/elasticsearch/issues/150455
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshesAreBlockedUntilBlockIsRemoved
   issue: https://github.com/elastic/elasticsearch/issues/150492
@@ -627,9 +624,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=downsample/100_downsample_histograms/Downsample tdigest with last value}
   issue: https://github.com/elastic/elasticsearch/issues/155028
-- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
-  method: testOverflowInGroupingProducesNullAndWarning
-  issue: https://github.com/elastic/elasticsearch/issues/150769
 - class: org.elasticsearch.indices.ShardLimitValidatorTests
   method: testValidateShardLimitOpenIndices
   issue: https://github.com/elastic/elasticsearch/issues/154859

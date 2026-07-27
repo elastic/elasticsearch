@@ -87,22 +87,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
-        }
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new FieldMapper.DocValuesParameter.Values(
-            true,
-            FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-            multiValue,
-            nullability,
-            onFailure
-        );
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
@@ -152,7 +136,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );

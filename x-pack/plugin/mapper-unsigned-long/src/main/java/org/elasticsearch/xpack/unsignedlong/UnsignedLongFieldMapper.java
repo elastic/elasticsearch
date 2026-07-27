@@ -85,22 +85,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
     private static final BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
 
-    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
-        }
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new FieldMapper.DocValuesParameter.Values(
-            true,
-            FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-            multiValue,
-            nullability,
-            onFailure
-        );
-    }
-
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
         return (UnsignedLongFieldMapper) in;
     }
@@ -130,7 +114,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );

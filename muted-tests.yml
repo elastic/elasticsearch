@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecTopNIT
   method: test {csv-spec:topN.topNLongRangeWildcardSort}
   issue: https://github.com/elastic/elasticsearch/issues/150874
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnionTypesIT
-  method: test {csv-spec:union_types.singleIndexIpStats}
-  issue: https://github.com/elastic/elasticsearch/issues/150982
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
@@ -253,9 +250,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
-  issue: https://github.com/elastic/elasticsearch/issues/151413
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -547,18 +541,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testMountPartialCopyAndRecoversCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/154614
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testBlobStoreCacheWithFullCopyInMixedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/154615
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testMountFullCopyAndRecoversCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/154616
-- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
-  method: testBlobStoreCacheWithPartialCopyInMixedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/154617
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testAccessTokensWorkInMixedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154618
@@ -594,9 +576,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
-- class: org.elasticsearch.cluster.routing.ShardRoutingTests
-  method: testEqualsIgnoringVersion
-  issue: https://github.com/elastic/elasticsearch/issues/154886
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdateTests
   method: testIsUserInitiatedProjectRoutingChangeWhenRoutingNarrowsShouldReturnTrue
   issue: https://github.com/elastic/elasticsearch/issues/154908
@@ -633,3 +612,42 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/154988
+- class: org.elasticsearch.foreign.DefaultMethodHandleResolverTests
+  method: testDefaultResolverBuildsWorkingMethodHandle
+  issue: https://github.com/elastic/elasticsearch/issues/155012
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search/160_exists_query/Test exists query on object inner field in empty index}
+  issue: https://github.com/elastic/elasticsearch/issues/155016
+- class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
+  method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
+  issue: https://github.com/elastic/elasticsearch/issues/152599
+- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
+  method: testRandomMultipleColumns
+  issue: https://github.com/elastic/elasticsearch/issues/155019
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:promql-native-histogram-support.histogram_sum_increase_exp_histo_all_instances}
+  issue: https://github.com/elastic/elasticsearch/issues/155023
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:promql-native-histogram-support.histogram_avg_increase_exp_histo_all_instances}
+  issue: https://github.com/elastic/elasticsearch/issues/155024
+- class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
+  method: testValidateIndexOptionsWithBasicLicense
+  issue: https://github.com/elastic/elasticsearch/issues/155026
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=downsample/100_downsample_histograms/Downsample tdigest with last value}
+  issue: https://github.com/elastic/elasticsearch/issues/155028
+- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
+  method: testOverflowInGroupingProducesNullAndWarning
+  issue: https://github.com/elastic/elasticsearch/issues/150769
+- class: org.elasticsearch.indices.ShardLimitValidatorTests
+  method: testValidateShardLimitOpenIndices
+  issue: https://github.com/elastic/elasticsearch/issues/154859
+- class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
+  method: testSumIntOverArrowBufferMasked
+  issue: https://github.com/elastic/elasticsearch/issues/153586
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.inner_hits/10_basic/Inner hits with disabled _source}
+  issue: https://github.com/elastic/elasticsearch/issues/155041
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search/350_point_in_time/delete invalid PIT returns error}
+  issue: https://github.com/elastic/elasticsearch/issues/155066

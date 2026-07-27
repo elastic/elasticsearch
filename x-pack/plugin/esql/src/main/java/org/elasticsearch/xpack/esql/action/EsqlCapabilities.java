@@ -3245,6 +3245,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * With a request filter and {@code unmapped_fields="nullify"}/{@code "load"}, re-resolve indices without the filter when a
+         * referenced field resolved as unmapped. The filter (a field_caps index_filter) can prune an index that maps the field, and -
+         * unlike DEFAULT - these modes don't raise a VerificationException to trigger that retry. See #154708.
+         */
+        OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

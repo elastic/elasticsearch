@@ -162,6 +162,80 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Companion to {@link #testFieldExistsFilter_With_ExplicitUseOfDiscardedIndexFields} for {@code unmapped_fields="nullify"}: a field
+     * mapped only in the filter-pruned index still resolves to its real type ({@code integer}), not {@code null}. See #154708.
+     */
+    public void testFieldExistsFilterWithNullifyResolvesPrunedFieldType() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest1 = randomIntBetween(1, 5);
+        int docsTest2 = randomIntBetween(0, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+        indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(
+            "SET unmapped_fields=\"nullify\"; " + from("test*") + " METADATA _index | SORT id2 | KEEP _index, id1, id2"
+        );
+        Map<String, Object> result = runEsql(builder);
+        assertQueryResult(
+            result,
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
+        );
+        @SuppressWarnings("unchecked")
+        var values = (List<List<Object>>) result.get("values");
+        for (List<Object> row : values) {
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
+            assertThat(row.get(1), instanceOf(Integer.class));
+            assertThat(row.get(2), nullValue());
+        }
+    }
+
+    /**
+     * As {@link #testFieldExistsFilterWithNullifyResolvesPrunedFieldType} but for {@code unmapped_fields="load"}: id2 resolves to its real
+     * ({@code integer}) mapping instead of being loaded from {@code _source} as {@code keyword}. See #154708.
+     */
+    public void testFieldExistsFilterWithLoadResolvesPrunedFieldType() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest1 = randomIntBetween(1, 5);
+        int docsTest2 = randomIntBetween(0, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+        indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(
+            "SET unmapped_fields=\"load\"; " + from("test*") + " METADATA _index | SORT id2 | KEEP _index, id1, id2"
+        );
+        Map<String, Object> result = runEsql(builder);
+        assertQueryResult(
+            result,
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
+        );
+        @SuppressWarnings("unchecked")
+        var values = (List<List<Object>>) result.get("values");
+        for (List<Object> row : values) {
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
+            assertThat(row.get(1), instanceOf(Integer.class));
+            assertThat(row.get(2), nullValue());
+        }
+    }
+
     public void testFieldNameTypo() throws IOException {
         int docsTest1 = randomIntBetween(0, 5);
         int docsTest2 = randomIntBetween(0, 5);

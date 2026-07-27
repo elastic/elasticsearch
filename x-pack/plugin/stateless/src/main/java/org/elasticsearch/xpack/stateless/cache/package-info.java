@@ -36,11 +36,11 @@
 /// The list below documents, for each way a search node populates the cache, which timestamp is used and at what granularity. This is the
 /// current state and is expected to evolve.
 ///
-///   - BCC metadata reads (`readBatchedCompoundCommitUsingCache` and `readReferencedCompoundCommitsUsingCache` in
-///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService]) are not handled yet: these regions should be populated with
-///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] and backfilled to a resolved value
-///     after parsing. See the TODOs at the call sites in [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] and
-///     [org.elasticsearch.xpack.stateless.engine.SearchEngine].
+///   - BCC metadata reads, during both recovery and on new-commit notifications, BCCs are read to discover the referenced CCs and their
+///     file ranges. For time-based indices, the initial reads stamp the regions with
+///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP]. After reading and parsing the CCs,
+///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions stamped
+///     {@code BACKFILL_IN_PROGRESS_TIMESTAMP}. CCs with no timestamp range resolve to minimal real timestamp.
 ///
 ///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,

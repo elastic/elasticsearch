@@ -21,14 +21,14 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-/**
- * Eviction policy that does not evict cache regions for shards present on this node whose content timestamp
- * falls within a configurable pinned window.
- * <p>
- * Regions for shards present on this node with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} are also
- * protected from eviction until a content timestamp is available. This avoids evicting data whose
- * age relative to the pinned window cannot yet be determined.
- */
+/// Eviction policy that does not evict cache regions for shards present on this node whose content timestamp
+/// falls within a configurable pinned window.
+///
+/// Regions are classified by their [CacheRegion#timestampMillis()] (for shards present on this node):
+///   - a positive timestamp (`> 0`) is pinned iff it falls within the pinned window;
+///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
+///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
+///
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     /**
@@ -94,9 +94,9 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
                 return true;
             }
             final long timestampMillis = region.timestampMillis();
-            // Protect regions for shards present on this node until their content age can be evaluated.
-            // Also protect shards without timestamps.
-            if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            if (timestampMillis < 0) {
+                assert timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+                    || timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP : "unexpected negative timestamp: " + timestampMillis;
                 return false;
             }
             // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be

@@ -231,7 +231,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
     }
 
-    private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
+    private static void logBootstrappingFromObjectStore(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
         logger.info(
             "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
             indexShard.shardId(),
@@ -243,20 +243,22 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
     }
 
-    private static void logBootstrapping(
+    private static void logBootstrappingFromIndexingShard(
         IndexShard indexShard,
         StatelessCompoundCommit latestCommit,
         PrimaryTermAndGeneration latestUploaded
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary() == false;
         assert latestCommit != null;
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
         logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
             indexShard.shardId(),
             indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
             latestCommit.toShortDescription(),
+            uploaded ? "uploaded" : "pending upload",
             latestUploaded,
             describe(indexShard.recoveryState())
         );
@@ -328,7 +330,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             var store = indexShard.store();
             var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             var batchedCompoundCommit = indexingShardState.latestCommit();
-            logBootstrapping(indexShard, batchedCompoundCommit);
+            logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
 
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
@@ -441,7 +443,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                     assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                    logBootstrapping(indexShard, batchedCompoundCommit);
+                    logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
                     // If there is no batched compound commit found in the object store, then recover from an empty commit
                     if (batchedCompoundCommit == null) {
                         l.onResponse(null);
@@ -455,7 +457,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
                 } else {
                     compoundCommit = response.getCompoundCommit();
-                    logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                    logBootstrappingFromIndexingShard(indexShard, compoundCommit, lastUploaded);
                 }
 
                 assert batchedCompoundCommit == null

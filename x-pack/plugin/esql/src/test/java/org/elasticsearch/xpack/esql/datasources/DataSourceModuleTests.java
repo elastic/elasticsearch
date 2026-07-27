@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
@@ -73,9 +74,8 @@ public class DataSourceModuleTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
@@ -864,6 +864,132 @@ public class DataSourceModuleTests extends ESTestCase {
             "Reader should be CompressionDelegatingFormatReader",
             reader.getClass().getSimpleName().contains("CompressionDelegating")
         );
+    }
+
+    /**
+     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format}
+     * override composes with the resource's outer compression suffix instead of bypassing it.
+     * {@code FormatNameResolver.resolveReader} is the exact chokepoint {@code FileSourceFactory} and
+     * {@code FileSplitProvider} use for the real read path.
+     */
+    public void testExplicitFormatComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // Mirrors the reported scenario: settings.format = "csv" over a resource that ends in .csv.gz.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv.gz", registry);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "An explicit format over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Same fix, via the {@code reader} alias override rather than {@code format}: {@code reader=java} maps
+     * to the {@code parquet} format name ({@link FormatNameResolver#READER_JAVA}), so a mock {@code parquet}
+     * format (unlike the real Parquet reader, this stand-in supports whole-file compression) is registered
+     * to exercise the alias branch of {@link FormatNameResolver#resolveReader} against a compressed object.
+     */
+    public void testExplicitReaderAliasComposesWithCompressionSuffix() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new MockParquetFormatPlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("reader", "java"), "hits_00.parquet.gz", registry);
+        assertEquals("parquet", reader.formatName());
+        assertTrue(
+            "reader=java over a compressed resource should still wrap in CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
+     * Test-only plugin registering a mock {@code parquet} format so {@code reader=java}/{@code reader=parquet-rs}
+     * resolve to a real registry entry without pulling in the actual (whole-file-compression-incompatible)
+     * Parquet reader.
+     */
+    private static class MockParquetFormatPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parquet", ".parquet"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parquet", (s, bf) -> new MockCsvFormatReader("parquet", List.of(".parquet")));
+        }
+    }
+
+    /**
+     * An explicit {@code format} override over an uncompressed resource (the common case) must be
+     * unaffected by the fix: no compression suffix means no wrapping, same reader instance as before.
+     */
+    public void testExplicitFormatWithNoCompressionSuffixIsUnchanged() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits_00.csv", registry);
+        assertFalse("An uncompressed resource must not be wrapped", reader.getClass().getSimpleName().contains("CompressionDelegating"));
+        assertTrue(reader instanceof MockCsvFormatReader);
+    }
+
+    /**
+     * An explicit {@code format} naming a format that cannot be wrapped in a whole-file decompressor
+     * (e.g. Parquet/ORC) must be rejected up front — the same error {@link FormatReaderRegistry#byExtension}
+     * already raises for the equivalent extension-inferred case — rather than silently ignoring the
+     * resource's compression suffix and failing later with a confusing parse error.
+     */
+    public void testExplicitFormatRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("does not support whole-file compression"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+    }
+
+    /**
+     * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
+     * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
+     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+     */
+    public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin(), new Bzip2DataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd"));
+
+        // The benchmarked codec still resolves and still composes with the explicit format.
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);
+        assertTrue(reader.getClass().getSimpleName().contains("CompressionDelegating"));
     }
 
     /**

@@ -86,7 +86,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByPaginatedSearchRequ
     }
 
     /**
-     * The scroll size to control number of documents processed per batch
+     * The batch size to control number of documents processed per paginated search batch
      */
     public UpdateByQueryRequest setBatchSize(int size) {
         getSearchRequest().source().size(size);

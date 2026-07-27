@@ -30,7 +30,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex(this::ensureYellow);
+        createAndPopulateIndices(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -483,29 +483,83 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMatchRuntimeEvalWithOptionsThrowsError() {
+    public void testUnmappedWithIndexedText() {
         var query = """
-            FROM test
-            | EVAL new_content = to_text(concat(content, " extra"))
-            | WHERE match(new_content, "fox", {"analyzer": "standard"})
-            | KEEP new_content
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
             """;
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
-        );
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_unmapped")));
+        }
     }
 
-    public void testMatchRuntimeRowWithOptionsThrowsError() {
+    public void testUnmappedWithIndexedKeyword() {
         var query = """
-            ROW content = to_text("This is a brown fox")
-            | WHERE match(content, "fox AND brown", {"operator": "AND"})
+            SET unmapped_fields = "LOAD";
+            FROM test_unmapped, test_keyword METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedTextAndKeyword() {
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_keyword, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testWithKeywordAndTextConflictDataType() {
+        var query = """
+            FROM test, test_keyword METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "quick")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword")));
+        }
+    }
+
+    public void testMatchRuntimeEvalNonTextTypeWithOptionsThrowsError() {
+        var query = """
+             FROM test
+             | EVAL new_id = to_long(id)
+             | WHERE match(new_id, "200", {"analyzer": "whitespace" })
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [new_id]")
         );
     }
 
@@ -522,6 +576,31 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
             error.getMessage()
         );
+    }
+
+    public void testMatchRuntimeWithAnalyzerOptionThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("The analyzer option is not supported for [MATCH] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchRuntimeWithInvalidOptionsThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"fuzziness": "INVALID"})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function failed to build query for non-index-mapped field [new_content]"));
     }
 
     public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
@@ -615,13 +694,33 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
-        var indexName = "test";
+    static void createAndPopulateIndices(Consumer<String[]> ensureYellow) {
+        createTestIndex("test", """
+            {
+              "properties":{ "id": { "type": "integer" }, "content": { "type": "text" } }
+            }
+            """);
+        createTestIndex("test_keyword", """
+            {
+              "properties":{ "id": { "type": "integer" }, "content": { "type": "keyword" } }
+            }
+            """);
+        createTestIndex("test_unmapped", "{ \"dynamic\": false }");
+
+        var lookupIndexName = "test_lookup";
+        var client = client().admin().indices();
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow.accept(new String[] { "test", "test_lookup", "test_keyword", "test_unmapped" });
+    }
+
+    static void createTestIndex(String indexName, String mapping) {
         var client = client().admin().indices();
         var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+            .setMapping(mapping);
         assertAcked(createRequest);
+
         client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
             .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
@@ -631,11 +730,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-
-        var lookupIndexName = "test_lookup";
-        createAndPopulateLookupIndex(client, lookupIndexName);
-
-        ensureYellow.accept(new String[] { indexName, lookupIndexName });
     }
 
     static void createAndPopulateLookupIndex(IndicesAdminClient client, String lookupIndexName) {

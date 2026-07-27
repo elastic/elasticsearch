@@ -225,7 +225,7 @@ You can now query the remote data with {{esql}}.
 
 ## Complete AWS CLI example
 
-The preceding steps explain each AWS resource on its own. The following is a worked example of that setup end to end, using sample values for one scenario. It is illustrative, not a script to run as-is: replace the example values with your own before you run it. As with the individual steps, AWS is the authoritative reference for these commands.
+The preceding steps explain each AWS resource on its own. The following is an end-to-end AWS example of that setup, using sample values for one scenario. It is illustrative, not a script to run as-is: replace the example values with your own before you run it. As with the individual steps, AWS is the authoritative reference for these commands.
 
 :::{dropdown} Show the complete AWS CLI example
 This example sets up federated identity for reading a single Parquet file at `s3://private-bucket/some/sample.parquet`. Run the commands in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured.

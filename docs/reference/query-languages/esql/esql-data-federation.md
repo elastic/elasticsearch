@@ -61,7 +61,7 @@ FROM my_s3_bucket_logs
 ```
 
 :::{tip}
-For a full example, refer to [](esql-data-federation-quickstart.md).
+For a hands-on example, refer to [](esql-data-federation-quickstart.md).
 :::
 ::::::
 

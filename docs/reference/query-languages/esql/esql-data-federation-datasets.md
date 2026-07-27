@@ -150,7 +150,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 ::::
 
 :::{tip}
-After creating a dataset, you can check the field mappings that {{es}} inferred from your files. Refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart for a worked example.
+After creating a dataset, you can check the field mappings that {{es}} inferred from your files. Refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart for a hands-on example.
 :::
 
 ### Declare a dataset mapping

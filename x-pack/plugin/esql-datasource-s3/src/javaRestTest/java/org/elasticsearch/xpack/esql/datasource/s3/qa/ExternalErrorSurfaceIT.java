@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -90,6 +91,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "esql-error-surface-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
+        // ES|QL federation (external data sources / datasets) is off by default; this test registers data sources.
+        .systemProperty(Federation.REGISTER_PROPERTY, "true")
         .environment("AWS_REGION", regionSupplier)
         // Keep the AWS SDK away from ~/.aws, which it is not entitled to read.
         .environment("AWS_CONFIG_FILE", "/dev/null/aws/config")

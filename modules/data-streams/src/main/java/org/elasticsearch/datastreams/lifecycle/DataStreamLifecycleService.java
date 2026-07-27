@@ -643,7 +643,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
             Optional.ofNullable(projectMetadata.index(index))
                 .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
-                .filter(indexMeta -> DLM_CREATED_SETTING.get(indexMeta.getSettings()) == false)
+                .filter(indexMeta -> frozenTransitionCompleted(indexMeta) == false)
                 .ifPresent(metadata -> candidates.add(metadata.getIndex()));
         }
         return candidates;

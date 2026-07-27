@@ -433,7 +433,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return false;
         }
         var qp = result.executionInfo().queryProfile();
-        return qp != null && qp.splitsScanned() > 0;
+        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
     }
 
     private void collectMetrics(Result result) {

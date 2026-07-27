@@ -110,4 +110,30 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat(lastMetrics, nullValue());
     }
+
+    public void testWarmAggregate() throws Exception {
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("emp_no:integer,salary:long\n");
+        for (int i = 0; i < 100; i++) {
+            csv.append(i).append(",").append(50000 + i).append('\n');
+        }
+        Files.writeString(dir.resolve("data.csv"), csv.toString());
+
+        String ds = registerDataset("warm_agg_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        // Cold scan: populates the stats cache (row count, column stats).
+        lastMetrics = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | LIMIT 200"), TIMEOUT)) {}
+        assertThat("cold scan must be metered", lastMetrics, notNullValue());
+
+        // Warm aggregate: answered from cached stats — splitsScanned stays 0,
+        // so the gate in hasExternalSources() does not fire even though the
+        // external datasource drove the result.
+        lastMetrics = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
+        // This assertion FAILS with the current code, demonstrating the false negative:
+        assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
+    }
 }

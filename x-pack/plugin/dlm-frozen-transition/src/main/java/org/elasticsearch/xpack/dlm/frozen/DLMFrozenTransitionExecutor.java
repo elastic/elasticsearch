@@ -50,7 +50,7 @@ class DLMFrozenTransitionExecutor {
     private final MasterServiceTaskQueue<UnmarkIndexForFrozenTask> unmarkIndexForDlmFrozenConversionQueue;
     private final DLMFrozenTransitionSettings frozenTransitionSettings;
 
-    private volatile Map<TransitionKey, TransitionTracker> submittedTransitions;
+    private volatile Map<TransitionKey, SubmittedTransition> submittedTransitions;
     private volatile boolean isAccepting = true;
 
     DLMFrozenTransitionExecutor(
@@ -85,8 +85,8 @@ class DLMFrozenTransitionExecutor {
      * executor. An index with no submitted transition is reported as {@link FrozenTransitionInfoProvider.Status#NOT_STARTED}.
      */
     public FrozenTransitionInfoProvider.Status getTransitionStatus(ProjectId projectId, String indexName) {
-        TransitionTracker tracker = submittedTransitions.get(new TransitionKey(projectId, indexName));
-        return tracker == null ? FrozenTransitionInfoProvider.Status.NOT_STARTED : tracker.status;
+        SubmittedTransition submitted = submittedTransitions.get(new TransitionKey(projectId, indexName));
+        return submitted == null ? FrozenTransitionInfoProvider.Status.NOT_STARTED : submitted.tracker().status;
     }
 
     // We need the thread to be interrupted to prevent concurrent transitions on multiple nodes,
@@ -94,7 +94,7 @@ class DLMFrozenTransitionExecutor {
     @SuppressForbidden(reason = "Future#cancel()")
     public synchronized void stop() {
         isAccepting = false;
-        submittedTransitions.values().forEach(tracker -> tracker.future.cancel(true));
+        submittedTransitions.values().forEach(submitted -> submitted.future().cancel(true));
         submittedTransitions = Collections.synchronizedMap(new HashMap<>(maxSubmitted));
     }
 
@@ -109,8 +109,7 @@ class DLMFrozenTransitionExecutor {
         }
         TransitionTracker tracker = new TransitionTracker();
         FutureTask<?> futureTask = new FutureTask<>(new WrappedDlmFrozenTransitionRunnable(task, submittedTransitions, tracker), null);
-        tracker.future = futureTask;
-        TransitionTracker previousValue = submittedTransitions.put(key, tracker);
+        SubmittedTransition previousValue = submittedTransitions.put(key, new SubmittedTransition(futureTask, tracker));
         assert Objects.isNull(previousValue) : "expected the previous value be null, but it was " + previousValue;
         try {
             executor.execute(futureTask);
@@ -159,12 +158,22 @@ class DLMFrozenTransitionExecutor {
     }
 
     /**
-     * Tracks a single submitted transition: its execution status (queued when submitted, running once the task
-     * starts) and the future used to cancel it on {@link #stop()}.
+     * A single submitted transition as held in {@link #submittedTransitions}: the {@link Future} used to cancel
+     * the task on {@link #stop()}, plus the {@link TransitionTracker} exposing its execution status.
+     * <p>
+     * Keeping the future here rather than on the tracker breaks what would otherwise be a reference cycle
+     * ({@code future -> runnable -> tracker -> future}): the running task references only the tracker, and this
+     * value is constructed in {@link #submit} after the {@link FutureTask} already exists, so no field needs to
+     * be back-patched.
+     */
+    private record SubmittedTransition(Future<?> future, TransitionTracker tracker) {}
+
+    /**
+     * Tracks the execution status of a single submitted transition: queued when submitted, running once the task
+     * starts. Mutated by the running task via {@link WrappedDlmFrozenTransitionRunnable}.
      */
     static final class TransitionTracker {
         volatile FrozenTransitionInfoProvider.Status status = FrozenTransitionInfoProvider.Status.QUEUED;
-        volatile Future<?> future;
     }
 
     /**
@@ -182,13 +191,13 @@ class DLMFrozenTransitionExecutor {
      */
     class WrappedDlmFrozenTransitionRunnable implements Runnable {
         private final DLMFrozenTransitionRunnable task;
-        private final Map<TransitionKey, TransitionTracker> transitionsMap;
+        private final Map<TransitionKey, SubmittedTransition> transitionsMap;
         private final TransitionTracker tracker;
         private final TransitionKey key;
 
         private WrappedDlmFrozenTransitionRunnable(
             DLMFrozenTransitionRunnable task,
-            Map<TransitionKey, TransitionTracker> transitionsMap,
+            Map<TransitionKey, SubmittedTransition> transitionsMap,
             TransitionTracker tracker
         ) {
             this.task = task;

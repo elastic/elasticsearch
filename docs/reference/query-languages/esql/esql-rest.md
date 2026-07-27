@@ -342,8 +342,8 @@ Depending on the query and the source mappings, a column object can also include
 | --- | --- |
 | `name` | The column name. |
 | `type` | The resolved {{esql}} type for the column. |
-| `original_types` | The original {{es}} mapping types for a column. This is returned when the column has an unsupported type or conflicting types across the queried indices. {applies_to}`stack: ga 9.1` |
-| `suggested_cast` | A type that {{esql}} can use to resolve the values from `original_types` to a supported type. This is returned only when {{esql}} can suggest a cast for the original types. {applies_to}`stack: ga 9.1` |
+| `original_types` | The original {{es}} mapping types for a column. This is returned when the column has an unsupported type or conflicting types across the queried indices. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `suggested_cast` | A type that {{esql}} can use to resolve the values from `original_types` to a supported type. This is returned only when {{esql}} can suggest a cast for the original types. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
 | `_meta` | Additional column metadata produced by {{esql}}. |
 
 For example, a column with conflicting mapping types can include `original_types` and `suggested_cast`:

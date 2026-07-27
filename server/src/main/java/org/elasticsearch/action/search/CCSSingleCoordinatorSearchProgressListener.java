@@ -207,30 +207,25 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
 
-        for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
-            String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue();
-
+        for (String clusterAlias : totalByClusterAlias.keySet()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
                 if (status != SearchResponse.Cluster.Status.RUNNING) {
                     // don't swap in a new Cluster if the final state has already been set
                     return v;
                 }
-                TimeValue took = null;
-                int successfulShards = successfulCount + v.getSkippedShards();
+                int successfulShards = v.getSuccessfulShards();
                 if (successfulShards == v.getTotalShards()) {
                     status = v.isTimedOut() ? SearchResponse.Cluster.Status.PARTIAL : SearchResponse.Cluster.Status.SUCCESSFUL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
                 } else if (successfulShards + v.getFailedShards() == v.getTotalShards()) {
                     // Final shard, partial failure
                     status = SearchResponse.Cluster.Status.PARTIAL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
-                } else if (successfulShards == v.getSuccessfulShards()) {
-                    // Successful shard count is up to date, no update needed
+                } else {
                     return v;
                 }
-                return new SearchResponse.Cluster.Builder(v).setStatus(status).setSuccessfulShards(successfulShards).setTook(took).build();
+                return new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                    .build();
             });
         }
     }

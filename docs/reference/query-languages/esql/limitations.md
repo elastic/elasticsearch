@@ -82,7 +82,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `search_as_you_type`
 
 
-Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all.
+Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all. To understand how unsupported types are reported in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
 
 
 ### Limitations on supported types [_limitations_on_supported_types]

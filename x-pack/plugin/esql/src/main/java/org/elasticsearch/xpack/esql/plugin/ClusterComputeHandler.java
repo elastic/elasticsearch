@@ -247,7 +247,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
-        exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
+        exchangeSink.addCompletionListener(
+            ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)),
+            transportService.getThreadPool().getThreadContext()
+        );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
@@ -264,7 +267,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );
             try (Releasable ignored = exchangeSource.addEmptySink()) {
-                exchangeSink.addCompletionListener(computeListener.acquireAvoid());
+                exchangeSink.addCompletionListener(computeListener.acquireAvoid(), transportService.getThreadPool().getThreadContext());
                 computeService.runCompute(
                     parentTask,
                     new ComputeContext(

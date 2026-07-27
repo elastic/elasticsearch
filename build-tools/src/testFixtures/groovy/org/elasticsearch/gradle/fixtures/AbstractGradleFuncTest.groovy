@@ -76,7 +76,7 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME\n"
         // Pin the JAXP TransformerFactory to the JDK built-in implementation.
         // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
         // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a

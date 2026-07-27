@@ -23,6 +23,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -89,7 +92,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -354,7 +356,7 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected LongConsumer translogPersistedSeqNoConsumer() {
+    protected Consumer<LongsRef> translogPersistedSeqNosConsumer() {
         return seqNo -> {};
     }
 
@@ -363,11 +365,11 @@ public class IndexEngine extends InternalEngine {
         return false;
     }
 
-    public LongConsumer objectStorePersistedSeqNoConsumer() {
+    public Consumer<LongsRef> objectStorePersistedSeqNoConsumer() {
         return seqNo -> {
             final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
             if (tracker != null) {
-                tracker.markSeqNoAsPersisted(seqNo);
+                tracker.markSeqNosAsPersisted(seqNo);
             }
         };
     }
@@ -517,6 +519,22 @@ public class IndexEngine extends InternalEngine {
             documentParsingReporter.onIndexingCompleted(parsedDocument);
         }
         return result;
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        List<Index> operations = engineBatch.operations();
+        for (Index operation : operations) {
+            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
+        }
+        List<IndexResult> results = super.indexBatch(engineBatch);
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).getResultType() == Result.Type.SUCCESS) {
+                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+            }
+        }
+        return results;
     }
 
     @Override

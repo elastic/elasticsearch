@@ -11,6 +11,12 @@ The direction, the decisions that constrain it, and the build order. Update as d
   attribute + framing.
 - **Per-field encoding is the driver.** The integration picks the encoding from what it knows about
   the field (type, sorted, metric role). Keep the seam open.
+- **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
+  from that segment's cardinality; ordinals never surface (the read API stays binary), and a segment
+  carries a dictionary only if it chose ordinals. The upper layer sees bytes, never ordinal shapes.
+- **Reuse native Zstd for block compression.** Zstd is planned as the last encoder in the block
+  pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
+  LZ4/Zstd (the native codec is faster).
 - **Order preserved; nothing column-sized on the heap.** See `AGENTS.md`.
 
 ## Done
@@ -32,10 +38,22 @@ The direction, the decisions that constrain it, and the build order. Update as d
   via an attribute, instead of always using the default. Metadata already records the list and decode
   already rebuilds it (`NumericPipeline.Registry` maps id → stage); this just adds the write-side
   selector, so counter (`SplitDelta`), ALP-for-doubles, etc. can be chosen and plugged in.
-- **String columns**: ordinal + terms-dictionary (prefix + block-LZ4), ordinals internal.
+- **Adaptive keyword (string) column**: measure cardinality while writing a segment and pick the
+  layout per segment — **plain** (values stored directly) for high-cardinality segments, **ordinals**
+  (a per-segment terms dictionary + ordinal codes) for low-cardinality ones. Ordinals stay entirely
+  internal: the surface remains binary (`getBinary`), never `SortedSet`/ordinal shapes, and only the
+  segments that chose ordinals carry a dictionary. The cardinality threshold and dictionary layout are
+  the tuning knobs.
+- **Block compression via native Zstd**: add Zstd as the last encoder in the block pipeline (its own
+  frozen id, applied after the terminal, so it stays additive and BWC), backed by
+  `org.elasticsearch.nativeaccess.Zstd` rather than a Java LZ4. Most useful on the low-entropy stages
+  (terms dictionary, plain keyword bytes).
 - Multi-segment merge efficiency (sequential merge reads).
-- Terminal LZ4/Zstd byte codecs behind the frozen `BlockBytesCodec` ids.
 - Block-loader binding to ES|QL (server-side adapter).
+- **Decompose the write loop**: the single pass in `NumericColumnWriter.write` drives three orthogonal
+  consumers (block encoder, skip writer, address table) off shared loop state. A producer/consumer
+  split lets each be unit-tested against a controlled `NumericColumnValues` without a `Directory`, and
+  removes the round-trip ambiguity where a shared encode/decode bug hides which consumer failed.
 
 ## Working agreements
 

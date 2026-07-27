@@ -18,7 +18,9 @@ Every field is a `BinaryDocValues` field tagged with a `ColumnarFieldType` (the 
   - `ColumnarNumericRangeQuery` — a self-contained Lucene range query, vectorized and skipper-aware;
   - `ColumnarNumericBinaryDocValues.bulkLongs` — column-at-a-time reads for aggregation/block loading;
   - `binaryValue()` — re-emits the payload for a classic binary consumer.
-- **`STRING`** — ordinal/bytes column, not built yet.
+- **`STRING` (keyword)** — an adaptive per-segment column: plain bytes, or an internal terms
+  dictionary + ordinals, chosen from that segment's cardinality. Ordinals never surface (the read API
+  stays binary) and a segment carries a dictionary only if it picked ordinals. Not built yet.
 
 The typed shapes (`Numeric`, `SortedNumeric`, `Sorted`, `SortedSet`) are **not** this library's
 surface: they throw. There is no delegate format — a type it can't handle is an error. A typed view,
@@ -60,6 +62,9 @@ reuse or renumber an id.
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; offset
 and address tables use `DirectMonotonic` (temp file on write, mapped slice on read). Each segment
 carries a version stamp; the on-disk ids (block encoding, block-bytes codec) are frozen once shipped.
+Block bytes pass through a `BlockBytesCodec` (identity today). Planned block compression adds Zstd as
+the pipeline's last encoder, reusing the native `org.elasticsearch.nativeaccess.Zstd` binding rather
+than a Java LZ4.
 
 See `docs/PLAN.md` for the roadmap, `docs/BENCHMARKS.md` for the benchmarks, and `AGENTS.md` for
 conventions.

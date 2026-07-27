@@ -517,6 +517,41 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
+         * Array-backed variant of {@link #encode(Collection)} for callers that buffer slots in a
+         * pre-allocated array. Avoids {@link java.util.List} allocation for the common small
+         * multi-value case. A {@code null} element at position {@code i < count} denotes a null slot.
+         * Must only be called when at least one non-null value is present.
+         */
+        public static BytesRef encode(BytesRef[] slots, int count) {
+            assert count >= 1 : "encode requires at least one slot";
+            if (count == 1) {
+                assert slots[0] != null : "a lone null slot must not write a binary value";
+                return slots[0];
+            }
+            int byteCount = 0;
+            for (int i = 0; i < count; i++) {
+                if (slots[i] != null) {
+                    byteCount += slots[i].length;
+                }
+            }
+            int streamSize = byteCount + count * VINT_MAX_BYTES;
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                for (int i = 0; i < count; i++) {
+                    BytesRef slot = slots[i];
+                    if (slot == null) {
+                        out.writeVInt(0);
+                    } else {
+                        out.writeVInt(slot.length + 1);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to encode binary value", e);
+            }
+        }
+
+        /**
          * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) non-null value from a multi-slot
          * ({@code slotCount > 1}) {@code ArrayOrderInlineNull} blob. Values are stored in document order (not sorted) with
          * inline nulls, so unlike {@link SeparateCount#decodeExtreme}, this must scan every slot and compare values;

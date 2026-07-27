@@ -10,16 +10,12 @@ products:
 
 # {{esql}} Data Federation
 
-::::{admonition} Requirements
-:applies_to: { ess:, ece:, eck:, self: }
-For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
-::::
-
-:::{note}
-This feature is experimental and must be enabled before you can use it.
-:::
-
 You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}. You query the files in place: nothing is copied into {{es}}, and there is no mapping to define up front: the schema is discovered from the files.
+
+## Requirements
+
+- This feature is experimental and must be enabled before you can use it.
+- For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 ## Why use federated data
 

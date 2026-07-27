@@ -103,6 +103,11 @@ public class PendingCommitUploadPressure implements IndexingPressureContributor 
         }
     }
 
+    // Package-private: exposed only for tests to observe the tracked backlog.
+    long getPendingBytes() {
+        return pendingBytes.get();
+    }
+
     // Package-private: exposed only so tests can drive inputs relative to the heap-derived limit.
     long getPendingBytesLimit() {
         return pendingBytesLimit;

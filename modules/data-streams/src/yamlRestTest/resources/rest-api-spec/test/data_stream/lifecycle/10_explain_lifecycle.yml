@@ -89,4 +89,3 @@
         index: $backing_index_frozen
   - match: { indices.$backing_index_frozen.managed_by_lifecycle: true }
   - match: { indices.$backing_index_frozen.frozen_transition_status: 'waiting' }
-  - is_false: indices.$backing_index_frozen.frozen

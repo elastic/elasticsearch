@@ -572,7 +572,6 @@ c:long
 
 from drop
 required_capability: categorize_v6
-ignoreOrder: true
 
 FROM sample_data
   | STATS c = COUNT() BY category=CATEGORIZE(message)
@@ -580,6 +579,7 @@ FROM sample_data
   | SORT c
 ;
 
+ignoreOrder: true
 c:long
 1
 3

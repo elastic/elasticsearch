@@ -27,12 +27,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EmbedExec extends InferenceExec {
+public class DenseVectorExec extends InferenceExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "EmbedExec",
-        EmbedExec::new
+        "DenseVectorExec",
+        DenseVectorExec::new
     );
 
     private final Expression input;
@@ -40,11 +40,11 @@ public class EmbedExec extends InferenceExec {
     private final TimeValue timeout;
     private List<Attribute> lazyOutput;
 
-    public EmbedExec(Source source, PhysicalPlan child, Expression inferenceId, Expression input, Attribute targetField) {
+    public DenseVectorExec(Source source, PhysicalPlan child, Expression inferenceId, Expression input, Attribute targetField) {
         this(source, child, inferenceId, input, targetField, null);
     }
 
-    public EmbedExec(
+    public DenseVectorExec(
         Source source,
         PhysicalPlan child,
         Expression inferenceId,
@@ -58,7 +58,7 @@ public class EmbedExec extends InferenceExec {
         this.timeout = timeout;
     }
 
-    public EmbedExec(StreamInput in) throws IOException {
+    public DenseVectorExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
@@ -98,12 +98,12 @@ public class EmbedExec extends InferenceExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EmbedExec::new, child(), inferenceId(), input, targetField, timeout);
+        return NodeInfo.create(this, DenseVectorExec::new, child(), inferenceId(), input, targetField, timeout);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new EmbedExec(source(), newChild, inferenceId(), input, targetField, timeout);
+        return new DenseVectorExec(source(), newChild, inferenceId(), input, targetField, timeout);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class EmbedExec extends InferenceExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        EmbedExec embed = (EmbedExec) o;
+        DenseVectorExec embed = (DenseVectorExec) o;
 
         return Objects.equals(input, embed.input)
             && Objects.equals(targetField, embed.targetField)

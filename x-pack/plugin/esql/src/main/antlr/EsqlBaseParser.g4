@@ -82,7 +82,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? dedupCommand
     | {this.isDevVersion()}? highlightCommand
-    | {this.isDevVersion()}? embedCommand
+    | {this.isDevVersion()}? denseVectorCommand
     ;
 
 whereCommand
@@ -437,6 +437,6 @@ mmrQueryVectorParams
     | primaryExpression                   # mmrQueryVectorExpression
     ;
 
-embedCommand
-    : DEV_EMBED (targetField=qualifiedName ASSIGN)? input=primaryExpression commandNamedParameters
+denseVectorCommand
+    : DEV_DENSE_VECTOR (targetField=qualifiedName ASSIGN)? input=primaryExpression commandNamedParameters
     ;

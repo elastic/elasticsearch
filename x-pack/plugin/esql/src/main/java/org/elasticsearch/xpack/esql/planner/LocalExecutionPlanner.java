@@ -202,7 +202,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
-import org.elasticsearch.xpack.esql.plan.physical.inference.EmbedExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -412,8 +412,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
-        } else if (node instanceof EmbedExec embed) {
-            return planEmbed(embed, context);
+        } else if (node instanceof DenseVectorExec embed) {
+            return planDenseVector(embed, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -578,7 +578,7 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planEmbed(EmbedExec embed, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planDenseVector(DenseVectorExec embed, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(embed.child(), context);
         String inferenceId = BytesRefs.toString(embed.inferenceId().fold(context.foldCtx()));
         Layout outputLayout = source.layout.builder().append(embed.targetField()).build();

@@ -36,13 +36,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETION_ROW_LIMIT_SETTING;
 
-public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostAnalysisVerificationAware {
+public class DenseVector extends InferencePlan<DenseVector> implements TelemetryAware, PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "embedding";
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Embed", Embed::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "DenseVector",
+        DenseVector::new
+    );
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
@@ -51,15 +55,22 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
 
     private List<Attribute> lazyOutput;
 
-    public Embed(Source source, LogicalPlan p, Expression rowLimit, Expression input, Attribute targetField) {
+    public DenseVector(Source source, LogicalPlan p, Expression rowLimit, Expression input, Attribute targetField) {
         this(source, p, Literal.NULL, rowLimit, input, targetField, null);
     }
 
-    public Embed(Source source, LogicalPlan child, Expression inferenceId, Expression rowLimit, Expression input, Attribute targetField) {
+    public DenseVector(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression input,
+        Attribute targetField
+    ) {
         this(source, child, inferenceId, rowLimit, input, targetField, null);
     }
 
-    public Embed(
+    public DenseVector(
         Source source,
         LogicalPlan child,
         Expression inferenceId,
@@ -73,7 +84,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
         this.targetField = targetField;
     }
 
-    public Embed(StreamInput in) throws IOException {
+    public DenseVector(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
@@ -109,25 +120,25 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
     }
 
     @Override
-    public Embed withInferenceId(Expression newInferenceId) {
+    public DenseVector withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
 
-        return new Embed(source(), child(), newInferenceId, rowLimit(), input, targetField, timeout());
+        return new DenseVector(source(), child(), newInferenceId, rowLimit(), input, targetField, timeout());
     }
 
     @Override
-    public Embed withTimeout(TimeValue newTimeout) {
+    public DenseVector withTimeout(TimeValue newTimeout) {
         if (Objects.equals(timeout(), newTimeout)) {
             return this;
         }
-        return new Embed(source(), child(), inferenceId(), rowLimit(), input, targetField, newTimeout);
+        return new DenseVector(source(), child(), inferenceId(), rowLimit(), input, targetField, newTimeout);
     }
 
     @Override
-    public Embed replaceChild(LogicalPlan newChild) {
-        return new Embed(source(), newChild, inferenceId(), rowLimit(), input, targetField, timeout());
+    public DenseVector replaceChild(LogicalPlan newChild) {
+        return new DenseVector(source(), newChild, inferenceId(), rowLimit(), input, targetField, timeout());
     }
 
     @Override
@@ -155,9 +166,9 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
     }
 
     @Override
-    public Embed withGeneratedNames(List<String> newNames) {
+    public DenseVector withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Embed(source(), child(), inferenceId(), rowLimit(), input, this.renameTargetField(newNames.get(0)), timeout());
+        return new DenseVector(source(), child(), inferenceId(), rowLimit(), input, this.renameTargetField(newNames.get(0)), timeout());
     }
 
     private Attribute renameTargetField(String newName) {
@@ -192,7 +203,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Embed::new, child(), inferenceId(), rowLimit(), input, targetField, timeout());
+        return NodeInfo.create(this, DenseVector::new, child(), inferenceId(), rowLimit(), input, targetField, timeout());
     }
 
     @Override
@@ -200,7 +211,7 @@ public class Embed extends InferencePlan<Embed> implements TelemetryAware, PostA
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        Embed embed = (Embed) o;
+        DenseVector embed = (DenseVector) o;
 
         return Objects.equals(input, embed.input) && Objects.equals(targetField, embed.targetField);
     }

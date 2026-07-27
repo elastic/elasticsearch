@@ -27,11 +27,11 @@ public class EsqlBaseParser extends ParserConfig {
     new PredictionContextCache();
   public static final int
     LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, DEV_DEDUP=5, 
-    DEV_EMBED=6, ENRICH=7, DEV_EXPLAIN=8, COMPLETION=9, DISSECT=10, EVAL=11, 
-    GROK=12, LIMIT=13, RERANK=14, ROW=15, SAMPLE=16, SORT=17, STATS=18, WHERE=19, 
-    URI_PARTS=20, METRICS_INFO=21, REGISTERED_DOMAIN=22, TS_INFO=23, USER_AGENT=24, 
-    TS_COLLAPSE=25, IP_LOCATION=26, FROM=27, TS=28, DEV_EXTERNAL=29, FORK=30, 
-    FUSE=31, DEV_HIGHLIGHT=32, INLINE=33, INLINESTATS=34, JOIN_LOOKUP=35, 
+    DEV_DENSE_VECTOR=6, ENRICH=7, DEV_EXPLAIN=8, COMPLETION=9, DISSECT=10, 
+    EVAL=11, GROK=12, LIMIT=13, RERANK=14, ROW=15, SAMPLE=16, SORT=17, STATS=18, 
+    WHERE=19, URI_PARTS=20, METRICS_INFO=21, REGISTERED_DOMAIN=22, TS_INFO=23, 
+    USER_AGENT=24, TS_COLLAPSE=25, IP_LOCATION=26, FROM=27, TS=28, DEV_EXTERNAL=29, 
+    FORK=30, FUSE=31, DEV_HIGHLIGHT=32, INLINE=33, INLINESTATS=34, JOIN_LOOKUP=35, 
     DEV_JOIN_FULL=36, DEV_JOIN_LEFT=37, DEV_JOIN_RIGHT=38, DEV_LOOKUP=39, 
     MMR=40, MV_EXPAND=41, DROP=42, KEEP=43, PROMQL=44, RENAME=45, SET=46, 
     SHOW=47, UNKNOWN_CMD=48, CHANGE_POINT_LINE_COMMENT=49, CHANGE_POINT_MULTILINE_COMMENT=50, 
@@ -93,7 +93,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_qualifiedNames = 77, RULE_uriPartsCommand = 78, RULE_registeredDomainCommand = 79, 
     RULE_userAgentCommand = 80, RULE_ipLocationCommand = 81, RULE_setCommand = 82, 
     RULE_setField = 83, RULE_mmrCommand = 84, RULE_mmrQueryVectorParams = 85, 
-    RULE_embedCommand = 86, RULE_booleanExpression = 87, RULE_regexBooleanExpression = 88, 
+    RULE_denseVectorCommand = 86, RULE_booleanExpression = 87, RULE_regexBooleanExpression = 88, 
     RULE_matchBooleanExpression = 89, RULE_valueExpression = 90, RULE_operatorExpression = 91, 
     RULE_primaryExpression = 92, RULE_functionExpression = 93, RULE_functionName = 94, 
     RULE_functionParam = 95, RULE_lambda = 96, RULE_mapExpression = 97, RULE_entryExpression = 98, 
@@ -127,15 +127,15 @@ public class EsqlBaseParser extends ParserConfig {
       "tsCollapseCommand", "lookupCommand", "dedupCommand", "highlightCommand", 
       "qualifiedNames", "uriPartsCommand", "registeredDomainCommand", "userAgentCommand", 
       "ipLocationCommand", "setCommand", "setField", "mmrCommand", "mmrQueryVectorParams", 
-      "embedCommand", "booleanExpression", "regexBooleanExpression", "matchBooleanExpression", 
-      "valueExpression", "operatorExpression", "primaryExpression", "functionExpression", 
-      "functionName", "functionParam", "lambda", "mapExpression", "entryExpression", 
-      "mapValue", "constant", "booleanValue", "numericValue", "decimalValue", 
-      "integerValue", "string", "comparisonOperator", "joinCommand", "joinTarget", 
-      "joinCondition", "promqlCommand", "valueName", "promqlParam", "promqlParamName", 
-      "promqlParamValue", "promqlQueryContent", "promqlQueryPart", "promqlIndexPattern", 
-      "promqlClusterString", "promqlSelectorString", "promqlUnquotedIndexString", 
-      "promqlIndexString"
+      "denseVectorCommand", "booleanExpression", "regexBooleanExpression", 
+      "matchBooleanExpression", "valueExpression", "operatorExpression", "primaryExpression", 
+      "functionExpression", "functionName", "functionParam", "lambda", "mapExpression", 
+      "entryExpression", "mapValue", "constant", "booleanValue", "numericValue", 
+      "decimalValue", "integerValue", "string", "comparisonOperator", "joinCommand", 
+      "joinTarget", "joinCondition", "promqlCommand", "valueName", "promqlParam", 
+      "promqlParamName", "promqlParamValue", "promqlQueryContent", "promqlQueryPart", 
+      "promqlIndexPattern", "promqlClusterString", "promqlSelectorString", 
+      "promqlUnquotedIndexString", "promqlIndexString"
     };
   }
   public static final String[] ruleNames = makeRuleNames();
@@ -168,40 +168,41 @@ public class EsqlBaseParser extends ParserConfig {
   private static String[] makeSymbolicNames() {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "DEV_DEDUP", 
-      "DEV_EMBED", "ENRICH", "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", 
-      "GROK", "LIMIT", "RERANK", "ROW", "SAMPLE", "SORT", "STATS", "WHERE", 
-      "URI_PARTS", "METRICS_INFO", "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", 
-      "TS_COLLAPSE", "IP_LOCATION", "FROM", "TS", "DEV_EXTERNAL", "FORK", "FUSE", 
-      "DEV_HIGHLIGHT", "INLINE", "INLINESTATS", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
-      "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MMR", "MV_EXPAND", 
-      "DROP", "KEEP", "PROMQL", "RENAME", "SET", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
-      "CHANGE_POINT_MULTILINE_COMMENT", "CHANGE_POINT_WS", "ENRICH_POLICY_NAME", 
-      "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", 
-      "ENRICH_FIELD_MULTILINE_COMMENT", "ENRICH_FIELD_WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", 
-      "EXPLAIN_MULTILINE_COMMENT", "PIPE", "QUOTED_STRING", "INTEGER_LITERAL", 
-      "DECIMAL_LITERAL", "AND", "ASC", "ASSIGN", "BY", "CAST_OP", "COLON", 
-      "SEMICOLON", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "IN", "IS", "LAST", 
-      "LIKE", "NOT", "NULL", "NULLS", "ON", "OR", "PARAM", "RLIKE", "TRUE", 
-      "WITH", "EQ", "CIEQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", 
-      "ASTERISK", "SLASH", "PERCENT", "LEFT_BRACES", "RIGHT_BRACES", "ARROW", 
-      "DOUBLE_PARAMS", "NAMED_OR_POSITIONAL_PARAM", "NAMED_OR_POSITIONAL_DOUBLE_PARAMS", 
-      "OPENING_BRACKET", "CLOSING_BRACKET", "LP", "RP", "UNQUOTED_IDENTIFIER", 
-      "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", "EXPR_WS", 
-      "METADATA", "UNQUOTED_SOURCE", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
-      "FROM_WS", "FORK_WS", "FORK_LINE_COMMENT", "FORK_MULTILINE_COMMENT", 
-      "GROUP", "SCORE", "KEY", "FUSE_LINE_COMMENT", "FUSE_MULTILINE_COMMENT", 
-      "FUSE_WS", "INLINE_STATS", "INLINE_LINE_COMMENT", "INLINE_MULTILINE_COMMENT", 
-      "INLINE_WS", "AFTER_IN_LINE_COMMENT", "AFTER_IN_MULTILINE_COMMENT", "AFTER_IN_WS", 
-      "IN_EXPR_FALLBACK", "JOIN", "USING", "JOIN_LINE_COMMENT", "JOIN_MULTILINE_COMMENT", 
-      "JOIN_WS", "LOOKUP_LINE_COMMENT", "LOOKUP_MULTILINE_COMMENT", "LOOKUP_WS", 
-      "LOOKUP_FIELD_LINE_COMMENT", "LOOKUP_FIELD_MULTILINE_COMMENT", "LOOKUP_FIELD_WS", 
-      "MMR_LIMIT", "MMR_LINE_COMMENT", "MMR_MULTILINE_COMMENT", "MMR_WS", "MVEXPAND_LINE_COMMENT", 
-      "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT", 
-      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "PROMQL_PARAMS_LINE_COMMENT", 
-      "PROMQL_PARAMS_MULTILINE_COMMENT", "PROMQL_PARAMS_WS", "PROMQL_QUERY_COMMENT", 
-      "PROMQL_SINGLE_QUOTED_STRING", "PROMQL_OTHER_QUERY_CONTENT", "AS", "RENAME_LINE_COMMENT", 
-      "RENAME_MULTILINE_COMMENT", "RENAME_WS", "SET_LINE_COMMENT", "SET_MULTILINE_COMMENT", 
-      "SET_WS", "INFO", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", "SHOW_WS"
+      "DEV_DENSE_VECTOR", "ENRICH", "DEV_EXPLAIN", "COMPLETION", "DISSECT", 
+      "EVAL", "GROK", "LIMIT", "RERANK", "ROW", "SAMPLE", "SORT", "STATS", 
+      "WHERE", "URI_PARTS", "METRICS_INFO", "REGISTERED_DOMAIN", "TS_INFO", 
+      "USER_AGENT", "TS_COLLAPSE", "IP_LOCATION", "FROM", "TS", "DEV_EXTERNAL", 
+      "FORK", "FUSE", "DEV_HIGHLIGHT", "INLINE", "INLINESTATS", "JOIN_LOOKUP", 
+      "DEV_JOIN_FULL", "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MMR", 
+      "MV_EXPAND", "DROP", "KEEP", "PROMQL", "RENAME", "SET", "SHOW", "UNKNOWN_CMD", 
+      "CHANGE_POINT_LINE_COMMENT", "CHANGE_POINT_MULTILINE_COMMENT", "CHANGE_POINT_WS", 
+      "ENRICH_POLICY_NAME", "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", 
+      "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", "ENRICH_FIELD_MULTILINE_COMMENT", 
+      "ENRICH_FIELD_WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", "EXPLAIN_MULTILINE_COMMENT", 
+      "PIPE", "QUOTED_STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "AND", 
+      "ASC", "ASSIGN", "BY", "CAST_OP", "COLON", "SEMICOLON", "COMMA", "DESC", 
+      "DOT", "FALSE", "FIRST", "IN", "IS", "LAST", "LIKE", "NOT", "NULL", "NULLS", 
+      "ON", "OR", "PARAM", "RLIKE", "TRUE", "WITH", "EQ", "CIEQ", "NEQ", "LT", 
+      "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", 
+      "LEFT_BRACES", "RIGHT_BRACES", "ARROW", "DOUBLE_PARAMS", "NAMED_OR_POSITIONAL_PARAM", 
+      "NAMED_OR_POSITIONAL_DOUBLE_PARAMS", "OPENING_BRACKET", "CLOSING_BRACKET", 
+      "LP", "RP", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", 
+      "EXPR_MULTILINE_COMMENT", "EXPR_WS", "METADATA", "UNQUOTED_SOURCE", "FROM_LINE_COMMENT", 
+      "FROM_MULTILINE_COMMENT", "FROM_WS", "FORK_WS", "FORK_LINE_COMMENT", 
+      "FORK_MULTILINE_COMMENT", "GROUP", "SCORE", "KEY", "FUSE_LINE_COMMENT", 
+      "FUSE_MULTILINE_COMMENT", "FUSE_WS", "INLINE_STATS", "INLINE_LINE_COMMENT", 
+      "INLINE_MULTILINE_COMMENT", "INLINE_WS", "AFTER_IN_LINE_COMMENT", "AFTER_IN_MULTILINE_COMMENT", 
+      "AFTER_IN_WS", "IN_EXPR_FALLBACK", "JOIN", "USING", "JOIN_LINE_COMMENT", 
+      "JOIN_MULTILINE_COMMENT", "JOIN_WS", "LOOKUP_LINE_COMMENT", "LOOKUP_MULTILINE_COMMENT", 
+      "LOOKUP_WS", "LOOKUP_FIELD_LINE_COMMENT", "LOOKUP_FIELD_MULTILINE_COMMENT", 
+      "LOOKUP_FIELD_WS", "MMR_LIMIT", "MMR_LINE_COMMENT", "MMR_MULTILINE_COMMENT", 
+      "MMR_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", 
+      "ID_PATTERN", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", 
+      "PROMQL_PARAMS_LINE_COMMENT", "PROMQL_PARAMS_MULTILINE_COMMENT", "PROMQL_PARAMS_WS", 
+      "PROMQL_QUERY_COMMENT", "PROMQL_SINGLE_QUOTED_STRING", "PROMQL_OTHER_QUERY_CONTENT", 
+      "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", "RENAME_WS", 
+      "SET_LINE_COMMENT", "SET_MULTILINE_COMMENT", "SET_WS", "INFO", "SHOW_LINE_COMMENT", 
+      "SHOW_MULTILINE_COMMENT", "SHOW_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -710,8 +711,8 @@ public class EsqlBaseParser extends ParserConfig {
     public HighlightCommandContext highlightCommand() {
       return getRuleContext(HighlightCommandContext.class,0);
     }
-    public EmbedCommandContext embedCommand() {
-      return getRuleContext(EmbedCommandContext.class,0);
+    public DenseVectorCommandContext denseVectorCommand() {
+      return getRuleContext(DenseVectorCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -969,7 +970,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(312);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(313);
-        embedCommand();
+        denseVectorCommand();
         }
         break;
       }
@@ -6489,10 +6490,10 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class EmbedCommandContext extends ParserRuleContext {
+  public static class DenseVectorCommandContext extends ParserRuleContext {
     public QualifiedNameContext targetField;
     public PrimaryExpressionContext input;
-    public TerminalNode DEV_EMBED() { return getToken(EsqlBaseParser.DEV_EMBED, 0); }
+    public TerminalNode DEV_DENSE_VECTOR() { return getToken(EsqlBaseParser.DEV_DENSE_VECTOR, 0); }
     public CommandNamedParametersContext commandNamedParameters() {
       return getRuleContext(CommandNamedParametersContext.class,0);
     }
@@ -6504,47 +6505,47 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(QualifiedNameContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public EmbedCommandContext(ParserRuleContext parent, int invokingState) {
+    public DenseVectorCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_embedCommand; }
+    @Override public int getRuleIndex() { return RULE_denseVectorCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterEmbedCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDenseVectorCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitEmbedCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitDenseVectorCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitEmbedCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitDenseVectorCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final EmbedCommandContext embedCommand() throws RecognitionException {
-    EmbedCommandContext _localctx = new EmbedCommandContext(_ctx, getState());
-    enterRule(_localctx, 172, RULE_embedCommand);
+  public final DenseVectorCommandContext denseVectorCommand() throws RecognitionException {
+    DenseVectorCommandContext _localctx = new DenseVectorCommandContext(_ctx, getState());
+    enterRule(_localctx, 172, RULE_denseVectorCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(834);
-      match(DEV_EMBED);
+      match(DEV_DENSE_VECTOR);
       setState(838);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,66,_ctx) ) {
       case 1:
         {
         setState(835);
-        ((EmbedCommandContext)_localctx).targetField = qualifiedName();
+        ((DenseVectorCommandContext)_localctx).targetField = qualifiedName();
         setState(836);
         match(ASSIGN);
         }
         break;
       }
       setState(840);
-      ((EmbedCommandContext)_localctx).input = primaryExpression(0);
+      ((DenseVectorCommandContext)_localctx).input = primaryExpression(0);
       setState(841);
       commandNamedParameters();
       }

@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Embed;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
-import org.elasticsearch.xpack.esql.plan.physical.inference.EmbedExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -148,8 +148,8 @@ public class MapperUtils {
             );
         }
 
-        if (p instanceof Embed embed) {
-            return new EmbedExec(embed.source(), child, embed.inferenceId(), embed.input(), embed.targetField(), embed.timeout());
+        if (p instanceof DenseVector embed) {
+            return new DenseVectorExec(embed.source(), child, embed.inferenceId(), embed.input(), embed.targetField(), embed.timeout());
         }
 
         if (p instanceof Enrich enrich) {

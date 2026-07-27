@@ -186,7 +186,7 @@ MULTILINE_COMMENT
 WS
 CHANGE_POINT
 DEV_DEDUP
-DEV_EMBED
+DEV_DENSE_VECTOR
 ENRICH
 DEV_EXPLAIN
 COMPLETION
@@ -447,7 +447,7 @@ setCommand
 setField
 mmrCommand
 mmrQueryVectorParams
-embedCommand
+denseVectorCommand
 booleanExpression
 regexBooleanExpression
 matchBooleanExpression

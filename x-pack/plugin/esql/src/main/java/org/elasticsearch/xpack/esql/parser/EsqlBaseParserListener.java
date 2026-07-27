@@ -951,15 +951,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#embedCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
    * @param ctx the parse tree
    */
-  void enterEmbedCommand(EsqlBaseParser.EmbedCommandContext ctx);
+  void enterDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#embedCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
    * @param ctx the parse tree
    */
-  void exitEmbedCommand(EsqlBaseParser.EmbedCommandContext ctx);
+  void exitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

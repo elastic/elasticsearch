@@ -60,7 +60,7 @@ curl --fail-with-body --silent --show-error \
   --header "Authorization: ApiKey $ELASTICSEARCH_API_KEY"
 ```
 
-The endpoint uses the `embedding` task type and supports both text and image input. Text support enables text-to-image search, even though the indexed `semantic` field in this example contains only images.
+The endpoint uses the `embedding` task type and supports the text, image, and PDF inputs used in this quickstart.
 
 The response identifies `.jina-embeddings-v5-omni-small` as an `embedding` endpoint. You can now use its ID in a `semantic` field mapping.
 
@@ -225,13 +225,9 @@ curl --fail-with-body --silent --show-error \
   --header "Content-Type: application/json" \
   --data '
 {
-  "_source": [
-    "title",
-    "mission",
-    "year",
-    "description",
-    "source_url"
-  ], <1>
+  "_source": {
+    "excludes": ["image"] <1>
+  },
   "query": {
     "match": {
       "image": { <2>
@@ -242,7 +238,7 @@ curl --fail-with-body --silent --show-error \
 }'
 ```
 
-1. The `_source` filter returns the useful metadata fields without returning the Base64-encoded `image` value.
+1. The `_source` exclusion omits the Base64-encoded `image` value while returning the other source fields.
 2. A `match` query on a `semantic` field sends the text to the field's inference endpoint and compares the resulting embedding with the indexed image embeddings.
 
 The Curiosity document is the highest-ranked result even though its caption is stored in a separate field and the query targets only `image`.
@@ -286,7 +282,7 @@ The Curiosity document is the highest-ranked result even though its caption is s
 ```
 
 1. Curiosity ranks first based on the embedding generated from the indexed image. The `description` field is returned as metadata but does not affect this query. Exact scores can vary.
-2. The `_source` filter returns useful metadata without echoing the Base64-encoded image. The image remains stored in `_source`.
+2. The `_source` exclusion omits the Base64-encoded image from the response. The image remains stored in `_source`.
 
 ::::
 
@@ -302,13 +298,9 @@ curl --fail-with-body --silent --show-error \
   --header "Content-Type: application/json" \
   --data '
 {
-  "_source": [
-    "title",
-    "mission",
-    "year",
-    "description",
-    "source_url"
-  ],
+  "_source": {
+    "excludes": ["image"]
+  },
   "query": {
     "bool": {
       "must": { <1>
@@ -351,12 +343,9 @@ curl --fail-with-body --silent --show-error \
   --header "Content-Type: application/json" \
   --data-binary @- <<JSON
 {
-  "_source": [
-    "title",
-    "mission",
-    "year",
-    "source_url"
-  ],
+  "_source": {
+    "excludes": ["image"]
+  },
   "query": {
     "knn": {
       "field": "image", <1>
@@ -451,12 +440,9 @@ curl --fail-with-body --silent --show-error \
   --header "Content-Type: application/json" \
   --data-binary @- <<JSON
 {
-  "_source": [
-    "title",
-    "mission",
-    "year",
-    "source_url"
-  ],
+  "_source": {
+    "excludes": ["image"]
+  },
   "query": {
     "knn": {
       "field": "image",

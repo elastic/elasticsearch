@@ -969,7 +969,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             cacheService,
                             cacheBlobReaderService,
                             new AtomicMutableObjectStoreUploadTracker(),
-                            shardRouting.shardId()
+                            shardRouting.shardId(),
+                            randomBoolean()
                         );
                     } else {
                         return in;

@@ -15,6 +15,10 @@ products:
 For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 ::::
 
+:::{note}
+This feature is experimental and must be enabled before you can use it.
+:::
+
 Query data stored in compatible external storage systems using the same {{esql}} syntax you use for native indices, without any ingestion into {{es}}.
 
 [Overview](esql-data-federation-overview.md)

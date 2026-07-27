@@ -43,6 +43,25 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
+        return testCluster(csvDataPath, configProvider, shared, true);
+    }
+
+    /**
+     * A cluster with the ES|QL federation opt-in omitted from the spec entirely, so the node boots with
+     * {@value org.elasticsearch.xpack.esql.datasources.Federation#REGISTER_PROPERTY} genuinely unset. That is the
+     * shipping default and an explicit {@code "false"} cannot reproduce it: a present-but-false property takes a
+     * different path through the parsing in {@code Federation.readEnabled}.
+     */
+    public static ElasticsearchCluster testClusterWithoutFederation() {
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false);
+    }
+
+    private static ElasticsearchCluster testCluster(
+        Path csvDataPath,
+        LocalClusterConfigProvider configProvider,
+        boolean shared,
+        boolean registerFederation
+    ) {
         boolean securityEnabled = Booleans.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
         var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
@@ -50,21 +69,23 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
-            // ES|QL federation (external data sources / datasets) is off by default; this shared cluster backs
-            // DataSourceCrudRestIT and other suites that register data sources/datasets, so opt in here. Uses the
-            // supplier form (a provider), not the plain-value form, so FederationKillSwitchRestartRestIT's later
-            // per-cluster provider can still win on restart: resolveSystemProperties() applies plain-value entries
-            // after providers, so a plain value here would unconditionally override that test's "false".
-            // FederationDisabledRestIT still wins with a plain "false" via its config provider.
-            .systemProperty(Federation.REGISTER_PROPERTY, () -> "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .setting("ingest.geoip.downloader.enabled", "false")
-            .apply(() -> configProvider);
+            .setting("ingest.geoip.downloader.enabled", "false");
+        if (registerFederation) {
+            // ES|QL federation (external data sources / datasets) is off by default; this shared cluster backs
+            // DataSourceCrudRestIT and other suites that register data sources/datasets, so opt in here. Uses the
+            // supplier form (a provider), not the plain-value form, so FederationKillSwitchRestartRestIT's later
+            // per-cluster provider can still win on restart: resolveSystemProperties() applies plain-value entries
+            // after providers, so a plain value here would unconditionally override that test's "false".
+            builder.systemProperty(Federation.REGISTER_PROPERTY, () -> "true");
+        }
+        // Applied last (lazily, at spec build time) so a suite's own config provider still overrides the above.
+        builder.apply(() -> configProvider);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

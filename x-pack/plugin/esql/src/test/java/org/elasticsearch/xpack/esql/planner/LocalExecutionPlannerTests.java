@@ -109,6 +109,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * The {@code testExternalSource*} / {@code testPlanExternalSource*} cases here drive
+ * {@code LocalExecutionPlanner.planExternalSource}, which calls {@code Federation.ensureEnabled()}. ES|QL federation is
+ * off unless {@code -Des.esql.register_federation_feature=true} is on the test JVM, so without it those cases fail with
+ * the deliberately terse "external data sources are not available". The Gradle {@code test} task sets the property
+ * (see {@code x-pack/plugin/esql/build.gradle}); an IDE run configuration has to add it by hand.
+ */
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     @ParametersFactory

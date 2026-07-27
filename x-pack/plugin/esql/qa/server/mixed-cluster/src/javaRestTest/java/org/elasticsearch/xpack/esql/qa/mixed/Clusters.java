@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 
@@ -41,7 +42,12 @@ public class Clusters {
             // DLM frozen tier serialization is gated on both a feature flag and a transport version, so nodes in a mixed cluster can
             // disagree on the wire format when their build types differ (snapshot vs release). Disable the flag on every node so
             // serialization is consistent regardless of build type. See https://github.com/elastic/elasticsearch/issues/153679.
-            .systemProperty("es.dlm_searchable_snapshots_feature_flag_enabled", "false");
+            .systemProperty("es.dlm_searchable_snapshots_feature_flag_enabled", "false")
+            // ES|QL federation (external data sources / datasets) is off by default; the esql/210_data_source.yml and
+            // esql/220_dataset.yml suites pulled in via `includeXpack 'esql'` gate on the data_sources route capability,
+            // which every node must report, so opt in cluster-wide rather than on the current-version nodes only. Nodes
+            // predating the feature ignore the unknown property, and those suites keep skipping via the capability check.
+            .systemProperty(Federation.REGISTER_PROPERTY, "true");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

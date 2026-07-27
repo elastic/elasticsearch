@@ -61,11 +61,15 @@ public final class Federation {
 
     static {
         // Mirror FeatureFlag: surface the effective state in the node log so an operator can confirm
-        // the switch after a bounce. Only log the exceptional (enabled) state to avoid noise. Because
-        // the read and this log run in the static initializer, EsqlPlugin forces class initialization
-        // at boot rather than deferring it to the first federation operation.
+        // the switch after a bounce. Only the exceptional (enabled) state is logged at INFO to avoid
+        // noise; the default state is logged at DEBUG so an operator who expected the feature to be on
+        // (a misspelled property leaves no other trace) can tell the read happened and returned false.
+        // Because the read and this log run in the static initializer, EsqlPlugin forces class
+        // initialization at boot rather than deferring it to the first federation operation.
         if (ENABLED) {
             logger.info("ES|QL federation (external data sources) is registered ([{}]=true)", REGISTER_PROPERTY);
+        } else {
+            logger.debug("ES|QL federation (external data sources) is not registered ([{}] is not true)", REGISTER_PROPERTY);
         }
     }
 

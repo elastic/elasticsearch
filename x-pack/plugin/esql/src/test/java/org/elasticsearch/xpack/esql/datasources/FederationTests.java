@@ -31,6 +31,11 @@ public class FederationTests extends ESTestCase {
         assertFalse(Federation.readEnabled(key -> null));
     }
 
+    /**
+     * A blank value falls back to the default, which is now {@code false} — the same answer an explicit {@code false}
+     * gives, so this no longer distinguishes blank-as-absent from disabled. What it still pins is that blank is treated
+     * as absent rather than reaching the strict parse that makes an unparseable value fail node startup.
+     */
     public void testDisabledByDefaultWhenBlank() {
         assertFalse(Federation.readEnabled(property("   ")));
     }

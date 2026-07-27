@@ -171,6 +171,12 @@ public class Clusters {
      * settings in its config: the remote connection is configured by the test through the cluster settings API. This
      * is required when the remote is restarted mid-test on new ports, because a seed pinned in {@code elasticsearch.yml}
      * cannot be updated through the API, whereas an API-managed seed can be re-pointed after the bounce.
+     *
+     * <p>Note that the ES|QL federation kill switch is deliberately <em>not</em> opted in here: its only consumer,
+     * {@link FederationRemoteDatasetGateRestIT}, exercises the remote-side gate and needs nothing from the coordinator
+     * beyond forwarding the request. That holds only because two behaviors are unconditional — see the note on that
+     * test — so if either becomes gated on the coordinator's own {@code Federation.isAvailable()}, the coordinator must
+     * be opted in here or the test degrades to a silent skip.
      */
     public static ElasticsearchCluster localClusterForDynamicRemote(Path csvDataPath) {
         Version version = distributionVersion("tests.version.local_cluster");

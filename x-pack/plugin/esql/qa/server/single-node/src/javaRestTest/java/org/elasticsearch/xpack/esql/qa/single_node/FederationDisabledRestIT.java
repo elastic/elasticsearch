@@ -25,12 +25,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end REST coverage for a node that boots with federation not opted in
- * ({@code -Des.esql.register_federation_feature} left unset, or explicitly {@code false}), the default deployment
- * shape. Proves the six data-source/dataset routes are unregistered: PUT, GET, and DELETE all return the
- * framework's standard {@code no handler found for uri} ({@code 400}), exactly as if the feature never existed.
- * The switch is read once at node startup, so this needs a dedicated cluster with the system property set on the
- * node JVM (see the {@code @ClassRule}).
+ * End-to-end REST coverage for a node that boots with federation not opted in, the shipping deployment shape: the
+ * cluster is built <em>without</em> {@code -Des.esql.register_federation_feature} at all rather than with an explicit
+ * {@code false}, so the genuinely-absent property is what gets exercised. Proves the six data-source/dataset routes
+ * are unregistered: PUT, GET, and DELETE all return the framework's standard {@code no handler found for uri}
+ * ({@code 400}), exactly as if the feature never existed. The switch is read once at node startup, so this needs a
+ * dedicated cluster (see the {@code @ClassRule}).
+ *
+ * <p>The explicit-{@code false} shape is covered elsewhere: {@link FederationKillSwitchRestartRestIT} restarts with
+ * {@code "false"}, and {@code FederationDataNodeBackstopRestIT} in {@code esql-datasource-csv} boots its data node
+ * with it.
  *
  * <p>Behavior against <em>pre-existing</em> federation state (executing {@code FROM <dataset>} against an existing
  * dataset) cannot be exercised here, because a boot-disabled node cannot create that state; it is covered by
@@ -41,7 +45,7 @@ import static org.hamcrest.Matchers.not;
 public class FederationDisabledRestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.systemProperty(Federation.REGISTER_PROPERTY, "false"));
+    public static ElasticsearchCluster cluster = Clusters.testClusterWithoutFederation();
 
     @Override
     protected String getTestRestCluster() {

@@ -58,6 +58,18 @@ import static org.hamcrest.Matchers.not;
  * remote index resolution and fails as a plain missing index, exactly like a nonexistent name. If the gate were
  * removed the still-present dataset would instead surface a {@code RemoteDatasetNotSupportedException} naming it, so
  * the phase-2 assertions go red exactly when the wiring is lost.
+ *
+ * <p>The local coordinator is <em>not</em> opted into federation (see {@link Clusters#localClusterForDynamicRemote}),
+ * which works only because two behaviors are unconditional rather than gated on the coordinator's own
+ * {@code Federation.isAvailable()}:
+ * <ul>
+ *   <li>{@link EsqlCapabilities.Cap#REGISTER_FEDERATION_FEATURE} is a plain enum constant, so the coordinator reports
+ *       it regardless of its own switch and the {@code assumeTrue} below still passes.</li>
+ *   <li>{@code EsqlResolveFieldsAction}'s {@code executeRemoteRequest} sets {@code resolveDatasets(true)} on every
+ *       request it forwards to a remote, so the remote-side gate is reached at all.</li>
+ * </ul>
+ * If either becomes conditional this test degrades to a silent skip (or a green that proves nothing) instead of
+ * failing, so opt the local cluster in at that point.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
@@ -88,7 +100,9 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
         // The remote-dataset gate needs the federation kill switch on both nodes: the coordinator sends the
         // resolveDatasets option to the remote, and the remote honors the switch by dropping its datasets. Older nodes
-        // predate the feature and do not report the capability, so a mixed cluster correctly skips this scenario.
+        // predate the feature and do not report the capability, so a mixed cluster correctly skips this scenario. Note
+        // that the capability is unconditional, so the not-opted-in local coordinator still reports it (see the class
+        // javadoc); making it conditional would turn this assumption into a silent skip.
         List<String> killSwitchCapability = List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName());
         try (RestClient capabilityClient = remoteClusterClient()) {
             assumeTrue(

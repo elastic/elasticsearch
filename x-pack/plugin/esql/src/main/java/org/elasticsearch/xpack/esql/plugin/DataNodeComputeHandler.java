@@ -389,7 +389,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 // don't return until all pages are fetched
                 var completionListener = computeListener.acquireAvoid();
                 exchangeSink.addCompletionListener(
-                    ActionListener.runAfter(completionListener, () -> exchangeService.finishSinkHandler(request.sessionId(), null))
+                    ActionListener.runAfter(completionListener, () -> exchangeService.finishSinkHandler(request.sessionId(), null)),
+                    threadPool.getThreadContext()
                 );
                 blockingSink.finish();
             }
@@ -463,7 +464,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         externalSink.addCompletionListener(ActionListener.running(() -> {
                             exchangeService.finishSinkHandler(externalId, null);
                             reductionListener.onResponse(resp);
-                        }));
+                        }), threadPool.getThreadContext());
                     }, e -> {
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);

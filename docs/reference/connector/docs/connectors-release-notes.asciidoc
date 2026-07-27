@@ -10,6 +10,29 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-19]]
+=== 8.19.19
+
+[discrete]
+[[es-connectors-release-notes-8-19-19-bug-fixes]]
+===== Bug fixes
+
+* Fixed an Outlook connector issue where unexpected item types caused sync failures; hardened folder and account error handling.
+See: https://github.com/elastic/connectors/pull/4178[*PR 4178*]
+* Fixed the MongoDB connector crashing on out-of-range BSON datetimes by converting them to strings instead of failing the sync.
+See: https://github.com/elastic/connectors/pull/4157[*PR 4157*]
+* Fixed an Outlook connector crash when dispatching Contacts by hardening item-type dispatch and folder/field assumptions.
+See: https://github.com/elastic/connectors/pull/4153[*PR 4153*]
+* Fixed the GitHub connector swallowing fetch errors silently; errors are now propagated and surfaced correctly.
+See: https://github.com/elastic/connectors/pull/4136[*PR 4136*]
+* Fixed the Outlook connector failing when Exchange returns missing field values during sync.
+See: https://github.com/elastic/connectors/pull/4133[*PR 4133*]
+* Dropped unused `space.permissions` from the content query in the Confluence Data Center and Server connector, reducing API load.
+See: https://github.com/elastic/connectors/pull/4122[*PR 4122*]
+* Fixed the Outlook connector to verify Exchange TLS certificates with an in-memory CA, removing a cert-file race condition.
+See: https://github.com/elastic/connectors/pull/4116[*PR 4116*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-18]]
 === 8.19.18
 

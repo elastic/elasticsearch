@@ -14,9 +14,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -31,6 +33,8 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestEncoder;
+import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -72,6 +76,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
@@ -83,9 +88,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpHeaderValues.CLOSE;
 import static io.netty.handler.codec.http.HttpMethod.POST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
@@ -317,25 +325,60 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures that server reply 413-too-large on oversized request with expect-100-continue
+    // ensures that server reply 413-too-large on oversized request with expect-100-continue, and closes the connection
     public void test413TooLargeOnExpect100Continue() throws Exception {
         try (var ctx = setupClientCtx()) {
-            for (int reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
-                var id = opaqueId(reqNo);
-                var oversized = MAX_CONTENT_LENGTH + 1;
+            final var request = httpRequest(opaqueId(0), MAX_CONTENT_LENGTH + 1);
+            HttpUtil.set100ContinueExpected(request, true);
 
-                // send request header and await 413 too large
-                var req = httpRequest(id, oversized);
-                HttpUtil.set100ContinueExpected(req, true);
-                ctx.clientChannel.writeAndFlush(req);
-                var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
-                assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-                resp.release();
+            var channel = ctx.clientChannel;
+            channel.writeAndFlush(request);
 
-                // terminate request
-                ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-            }
+            final var response = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
+            assertEquals(CLOSE.toString(), response.headers().get(CONNECTION));
+            response.release();
+
+            safeAwait(l -> Netty4Utils.addListener(channel.closeFuture(), ignored -> l.onResponse(null)));
+            assertFalse("client connection must be closed", channel.isActive());
+            assertFalse("client connection must be closed", channel.isOpen());
         }
+    }
+
+    // ensures that requests after a 413-too-large reply are dropped
+    public void test413TooLargeOnExpect100ContinueWithSmuggledRequest() throws Exception {
+        try (
+            var ctx = setupClientCtx(
+                new HttpResponseDecoder() // manually encoding the requests because HttpClientCodec doesn't permit smuggling
+            )
+        ) {
+            final var request = httpRequest(opaqueId(0), MAX_CONTENT_LENGTH + 1);
+            HttpUtil.set100ContinueExpected(request, true);
+            final var followUpRequest = httpRequest(opaqueId(1), 0);
+
+            var channel = ctx.clientChannel;
+            var host = ((InetSocketAddress) channel.remoteAddress()).getHostString();
+
+            var out = Unpooled.compositeBuffer();
+            for (var httpRequest : List.of(request, followUpRequest)) {
+                var encoder = new EmbeddedChannel(new HttpRequestEncoder());
+                httpRequest.headers().set(HOST, host);
+                encoder.writeOutbound(httpRequest);
+                while (encoder.outboundMessages().isEmpty() == false) {
+                    out.addComponent(true, encoder.readOutbound());
+                }
+            }
+            channel.writeAndFlush(out);
+
+            final var response = (FullHttpResponse) safePoll(ctx.clientRespQueue);
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
+            assertEquals(CLOSE.toString(), response.headers().get(CONNECTION));
+            response.release();
+
+            safeAwait(l -> Netty4Utils.addListener(channel.closeFuture(), ignored -> l.onResponse(null)));
+            assertFalse("client connection must be closed", channel.isActive());
+            assertFalse("client connection must be closed", channel.isOpen());
+        } // close ensures no more responses available
     }
 
     // ensures that oversized chunked encoded request has maxContentLength limit and returns 413
@@ -539,14 +582,22 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     }
 
     Ctx setupClientCtx() throws Exception {
+        return setupClientCtx(new HttpClientCodec());
+    }
+
+    Ctx setupClientCtx(ChannelHandler httpInboundCodec) throws Exception {
         var nodeName = internalCluster().getRandomNodeName();
         var clientRespQueue = new LinkedBlockingDeque<>(16);
-        var bootstrap = bootstrapClient(nodeName, clientRespQueue);
+        var bootstrap = bootstrapClient(nodeName, clientRespQueue, httpInboundCodec);
         var channel = bootstrap.connect().sync().channel();
         return new Ctx(getTestName(), nodeName, bootstrap, channel, clientRespQueue);
     }
 
     Bootstrap bootstrapClient(String node, BlockingQueue<Object> queue) {
+        return bootstrapClient(node, queue, new HttpClientCodec());
+    }
+
+    Bootstrap bootstrapClient(String node, BlockingQueue<Object> queue, ChannelHandler httpInboundCodec) {
         var httpServer = internalCluster().getInstance(HttpServerTransport.class, node);
         var remoteAddr = randomFrom(httpServer.boundAddress().boundAddresses());
         return new Bootstrap().group(new NioEventLoopGroup(1))
@@ -556,7 +607,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 @Override
                 protected void initChannel(SocketChannel ch) {
                     var p = ch.pipeline();
-                    p.addLast(new HttpClientCodec());
+                    p.addLast(httpInboundCodec);
                     p.addLast(new HttpObjectAggregator(4096));
                     p.addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
                         @Override

@@ -231,6 +231,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
   task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
   task.skipTest("esql/10_basic/Test wrong LIMIT parameter", "Error message changed")
+  task.skipTest("esql/40_tsdb/to_aggregate_metric_double with multi_values", "We convert correctly the unsigned long")
 })
 
 

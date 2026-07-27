@@ -274,4 +274,8 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
         return super.getDoubleLE(index);
     }
+
+    public BytesReference[] references() {
+        return references;
+    }
 }

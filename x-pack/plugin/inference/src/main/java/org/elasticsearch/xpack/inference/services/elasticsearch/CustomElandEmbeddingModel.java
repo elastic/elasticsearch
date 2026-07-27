@@ -16,14 +16,14 @@ public class CustomElandEmbeddingModel extends CustomElandModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings,
+        ElasticsearchInternalTextEmbeddingServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
     }
 
     @Override
-    public CustomElandInternalTextEmbeddingServiceSettings getServiceSettings() {
-        return (CustomElandInternalTextEmbeddingServiceSettings) super.getServiceSettings();
+    public ElasticsearchInternalTextEmbeddingServiceSettings getServiceSettings() {
+        return (ElasticsearchInternalTextEmbeddingServiceSettings) super.getServiceSettings();
     }
 }

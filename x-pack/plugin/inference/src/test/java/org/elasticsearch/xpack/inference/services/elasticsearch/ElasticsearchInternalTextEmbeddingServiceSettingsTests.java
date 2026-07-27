@@ -12,10 +12,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationSettingsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 
@@ -28,10 +31,10 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
 import static org.hamcrest.Matchers.is;
 
-public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractWireSerializingTestCase<
-    CustomElandInternalTextEmbeddingServiceSettings> {
+public class ElasticsearchInternalTextEmbeddingServiceSettingsTests extends AbstractWireSerializingTestCase<
+    ElasticsearchInternalTextEmbeddingServiceSettings> {
 
-    public static CustomElandInternalTextEmbeddingServiceSettings createRandom() {
+    public static ElasticsearchInternalTextEmbeddingServiceSettings createRandom() {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var adaptiveAllocationsSettings = withAdaptiveAllocations
@@ -44,7 +47,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var dims = setDimensions ? 123 : null;
         var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
 
-        return new CustomElandInternalTextEmbeddingServiceSettings(
+        return new ElasticsearchInternalTextEmbeddingServiceSettings(
             numAllocations,
             numThreads,
             modelId,
@@ -61,7 +64,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -82,7 +85,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalTextEmbeddingServiceSettings(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -100,7 +103,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var modelId = "model-foo";
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId, NUM_ALLOCATIONS, numAllocations, NUM_THREADS, numThreads)),
             ConfigurationParseContext.REQUEST
         );
@@ -108,7 +111,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalTextEmbeddingServiceSettings(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -127,7 +130,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -150,7 +153,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalTextEmbeddingServiceSettings(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -169,7 +172,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var numAllocations = 1;
         var numThreads = 1;
-        var serviceSettings = CustomElandInternalTextEmbeddingServiceSettings.fromMap(
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -192,7 +195,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         assertThat(
             serviceSettings,
             is(
-                new CustomElandInternalTextEmbeddingServiceSettings(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
                     numAllocations,
                     numThreads,
                     modelId,
@@ -206,8 +209,75 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         );
     }
 
+    public void testFromMapWithBuilder_ParsesSimilarityAndElementType() {
+        var modelId = "model-foo";
+        var deploymentId = "deployment-foo";
+        var numAllocations = 1;
+        var numThreads = 1;
+        var builder = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(numAllocations)
+            .setNumThreads(numThreads)
+            .setModelId(modelId)
+            .setDeploymentId(deploymentId);
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.SIMILARITY,
+                SimilarityMeasure.DOT_PRODUCT.toString(),
+                ELEMENT_TYPE,
+                DenseVectorFieldMapper.ElementType.BYTE.toString()
+            )
+        );
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, builder);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
+                    numAllocations,
+                    numThreads,
+                    modelId,
+                    null,
+                    deploymentId,
+                    null,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    DenseVectorFieldMapper.ElementType.BYTE
+                )
+            )
+        );
+        assertTrue(map.isEmpty());
+    }
+
+    public void testFromMapWithBuilder_DefaultsSimilarityAndElementTypeWhenAbsent() {
+        var modelId = "model-foo";
+        var deploymentId = "deployment-foo";
+        var numAllocations = 1;
+        var numThreads = 1;
+        var builder = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(numAllocations)
+            .setNumThreads(numThreads)
+            .setModelId(modelId)
+            .setDeploymentId(deploymentId);
+
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(new HashMap<>(), builder);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
+                    numAllocations,
+                    numThreads,
+                    modelId,
+                    null,
+                    deploymentId,
+                    null,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            )
+        );
+    }
+
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new CustomElandInternalTextEmbeddingServiceSettings(
+        var entity = new ElasticsearchInternalTextEmbeddingServiceSettings(
             1,
             1,
             "model_id",
@@ -227,18 +297,50 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
     }
 
     @Override
-    protected Writeable.Reader<CustomElandInternalTextEmbeddingServiceSettings> instanceReader() {
-        return CustomElandInternalTextEmbeddingServiceSettings::new;
+    protected Writeable.Reader<ElasticsearchInternalTextEmbeddingServiceSettings> instanceReader() {
+        return ElasticsearchInternalTextEmbeddingServiceSettings::new;
     }
 
     @Override
-    protected CustomElandInternalTextEmbeddingServiceSettings createTestInstance() {
+    protected ElasticsearchInternalTextEmbeddingServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected CustomElandInternalTextEmbeddingServiceSettings mutateInstance(CustomElandInternalTextEmbeddingServiceSettings instance)
+    protected ElasticsearchInternalTextEmbeddingServiceSettings mutateInstance(ElasticsearchInternalTextEmbeddingServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, CustomElandInternalTextEmbeddingServiceSettingsTests::createRandom);
+        var numAllocations = instance.getNumAllocations();
+        var numThreads = instance.getNumThreads();
+        var modelId = instance.modelId();
+        var adaptiveAllocationsSettings = instance.getAdaptiveAllocationsSettings();
+        var deploymentId = instance.getDeploymentId();
+        var dimensions = instance.dimensions();
+        var similarity = instance.similarity();
+        var elementType = instance.elementType();
+        switch (randomInt(7)) {
+            case 0 -> numAllocations = randomValueOtherThan(numAllocations, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> numThreads = randomValueOtherThan(numThreads, () -> randomIntBetween(1, 10));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 3 -> adaptiveAllocationsSettings = randomValueOtherThan(
+                adaptiveAllocationsSettings,
+                () -> randomFrom(AdaptiveAllocationSettingsTests.testInstance(), null)
+            );
+            case 4 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLengthOrNull(8));
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 6 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
+            case 7 -> elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new ElasticsearchInternalTextEmbeddingServiceSettings(
+            numAllocations,
+            numThreads,
+            modelId,
+            adaptiveAllocationsSettings,
+            deploymentId,
+            dimensions,
+            similarity,
+            elementType
+        );
     }
 }

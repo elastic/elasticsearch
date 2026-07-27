@@ -36,6 +36,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
@@ -123,6 +124,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -883,8 +885,18 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> response = client.post(remoteAddress.address(), List.of(Tuple.tuple(uri, requestString)));
-                assertThat(response, hasSize(1));
-                assertThat(response.stream().findFirst().get().status(), is(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
+                // Sending body after close might yield RST, discarding response from TCP buffer before we read it:
+                assertThat(response, hasSize(lessThanOrEqualTo(1)));
+                assertTrue(response.stream().map(HttpResponse::status).allMatch(s -> s == HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
+
+                // Sending headers only yields no RST and triggers response because of Content-Length header
+                final var headersOnlyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri);
+                if (randomBoolean()) {
+                    HttpUtil.set100ContinueExpected(headersOnlyRequest, true);
+                }
+                HttpUtil.setContentLength(headersOnlyRequest, requestString.length());
+                final FullHttpResponse headersOnlyResponse = client.send(remoteAddress.address(), headersOnlyRequest);
+                assertThat(headersOnlyResponse.status(), is(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
             }
         }
     }

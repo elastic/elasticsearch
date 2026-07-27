@@ -87,9 +87,12 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     }
 
     public void testBuildModelValidator_ValidTaskType() {
-        taskTypeToModelValidatorClassMap().forEach((taskType, modelValidatorClass) -> {
-            assertThat(ModelValidatorBuilder.buildModelValidator(taskType, null), isA(modelValidatorClass));
-        });
+        taskTypeToModelValidatorClassMap().forEach(
+            (taskType, modelValidatorClass) -> assertThat(
+                ModelValidatorBuilder.buildModelValidator(taskType, mock()),
+                isA(modelValidatorClass)
+            )
+        );
     }
 
     private Map<TaskType, Class<? extends ModelValidator>> taskTypeToModelValidatorClassMap() {

@@ -75,8 +75,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final RecoverySchedulingListener schedulingListener;
     private final Supplier<Collection<RecoveryGate>> gatesSupplier;
     private final LongSupplier relativeTimeInMillisSupplier;
-    /// The node's recovery gates, resolved once in [#doStart] from [#gatesSupplier]; volatile (written on start, read by [#fillSlots]).
-    private volatile RecoveryGates recoveryGates;
+    private RecoveryGates recoveryGates;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -117,8 +116,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     @Override
     protected void doStart() {
-        // Resolve the fixed set of gates once, now that plugin-contributed gates exist. fillSlots is the re-check handler a gate invokes
-        // when its decision may have changed; onGatesDecisionChanged reports aggregate transitions to the scheduling listener.
         recoveryGates = new RecoveryGates(gatesSupplier.get(), this::fillSlots, this::onGatesDecisionChanged, relativeTimeInMillisSupplier);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
@@ -327,11 +324,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Consults the recovery gates via [RecoveryGates#check] (off this service's lock) and drains the pending queue up to the max slot
     /// capacity. Called on every enqueue, slot release, and gate change.
     private void fillSlots() {
-        final RecoveryGates gates = recoveryGates;
-        if (gates == null) {
-            return; // not started yet; the first post-start dispatch attempt will consult the gates
+        if (lifecycle.started() == false) {
+            return;
         }
-        final RecoveryGate.Decision decision = gates.check();
+        final RecoveryGate.Decision decision = recoveryGates.check();
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (isClosed()) {
@@ -341,7 +337,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 logger.debug(
                     "recovery dispatch still blocked by gate [{}] for [{}]: {}",
                     decision.gateName(),
-                    TimeValue.timeValueMillis(gates.blockedDurationMillis()),
+                    TimeValue.timeValueMillis(recoveryGates.blockedDurationMillis()),
                     decision.reason()
                 );
                 return;

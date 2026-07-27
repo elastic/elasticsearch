@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -83,6 +85,11 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             }
             String normalized = value.toUpperCase(Locale.ROOT).replace(" ", "_");
             return Mode.valueOf(normalized);
+        }
+
+        /** The accepted spellings, lower case, for inclusion in a rejection message. */
+        public static String supportedValues() {
+            return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
         }
     }
 
@@ -200,10 +207,27 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]",
+                    e
+                );
             }
             if (mode == null) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]"
+                );
             }
         }
 

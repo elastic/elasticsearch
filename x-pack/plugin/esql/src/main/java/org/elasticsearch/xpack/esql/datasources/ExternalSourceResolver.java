@@ -585,7 +585,12 @@ public class ExternalSourceResolver {
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        // rootDetail, not getMessage: the arm above recovers a buried IllegalArgumentException by type, but the
+        // file-metadata rail raises a plain IOException that no type-specific arm claims, and it arrives inside the
+        // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
+        // print "java.io.IOException: Object not found: ..." at the user. Status is unchanged -- this is the same
+        // catch-all, only better worded.
+        String detail = ExternalFailures.rootDetail(e);
         return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
     }
 
@@ -1974,6 +1979,18 @@ public class ExternalSourceResolver {
         return "false".equalsIgnoreCase(value.toString()) == false;
     }
 
+    /**
+     * Surfaces the last factory failure after every claiming factory has been tried. The
+     * {@link IllegalArgumentException} wrapper is what types a factory failure as client-caused, so it stays; only
+     * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
+     * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
+     * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
+     * the diagnosis instead; see {@link ExternalFailures#resolutionFailureMessage}.
+     */
+    private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
+        return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
+    }
+
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
         // Early scheme validation: reject unsupported schemes without loading any plugin factories
         try {
@@ -2006,7 +2023,7 @@ public class ExternalSourceResolver {
             }
         }
         if (lastFailure != null) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+            throw lastFactoryFailure(path, lastFailure);
         }
         throw noReaderError(path);
     }
@@ -2097,7 +2114,7 @@ public class ExternalSourceResolver {
     ) {
         if (index >= candidates.size()) {
             if (lastFailure != null) {
-                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                listener.onFailure(lastFactoryFailure(path, lastFailure));
                 return;
             }
             listener.onFailure(noReaderError(path));

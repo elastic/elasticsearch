@@ -85,6 +85,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -2258,6 +2259,101 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The everyday failure — the object is missing, unreadable, or not the format it claims to be — reaches the
+     * resolver as a checked {@link IOException} from the reader. Whatever wrapping it picks up on the way out, the
+     * message the caller sees must carry the reader's own diagnosis and must not contain a JVM type name.
+     * <p>
+     * Asserted on the uncached path. On the cacheable rail the failure is additionally wrapped by
+     * {@code Cache#computeIfAbsent} in an {@code ExecutionException} whose message is its cause's {@code toString()},
+     * which prefixes a JVM type name onto whatever is inside; removing that wrapper is the subject of a separate
+     * change, and this one is about making the message inside it worth reading. The two compose — with the wrapper
+     * gone, what the client sees is exactly what is asserted here.
+     * <p>
+     * Status is deliberately not asserted: this change is scoped to messages.
+     */
+    public void testMetadataResolutionUnreadableObjectCarriesTheReaderDetail() {
+        String detail = "Object not found: the reader's own words";
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                formatName,
+                format[1],
+                schemasByPath,
+                () -> new IOException(detail),
+                null
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), future);
+
+            String where = "format [" + formatName + "]";
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(where + " must name the source", e.getMessage(), containsString(path));
+            assertThat(where + " must carry the reader's diagnosis", e.getMessage(), containsString(detail));
+            assertThat(where + " must not leak a java type name", e.getMessage(), not(containsString("java.")));
+        }
+    }
+
+    /**
+     * The path is context, not the diagnosis, and it is added by exactly one layer. Historically the factory wrapper
+     * and the resolver's fall-through wrapper both stated it, and the message said nothing else. Pins that the
+     * user-visible reason names the path once, on the cached and uncached paths alike.
+     */
+    public void testResolutionFailureNamesThePathOnce() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "csv",
+            ".csv",
+            schemasByPath,
+            () -> new IOException("CSV file has no schema line"),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        String message = expectThrows(Exception.class, future::actionGet).getMessage();
+        assertEquals("the path must appear once in [" + message + "]", 1, occurrences(message, path));
+    }
+
+    /**
+     * Two different unreadable-object conditions must not produce the same sentence: collapsing them onto one message
+     * is what makes an external-source failure unactionable, since the reason is the only part of the response most
+     * clients surface. Runs on the cached path, which is where the collapse happened.
+     */
+    public void testDistinctResolutionFailuresProduceDistinctMessages() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        List<String> messages = new ArrayList<>();
+        for (String detail : List.of("CSV file has no schema line", "Object not found: " + path)) {
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                    "csv",
+                    ".csv",
+                    schemasByPath,
+                    () -> new IOException(detail),
+                    cacheService
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(path), Map.of(), future);
+                messages.add(expectThrows(Exception.class, future::actionGet).getMessage());
+            }
+            // Runs on the cacheable rail deliberately: distinctness has to survive the ExecutionException wrapper,
+            // because that is the rail a real single-file resolve takes.
+        }
+        assertThat("distinct conditions must not share a message", messages.get(0), not(equalTo(messages.get(1))));
+    }
+
+    private static int occurrences(String haystack, String needle) {
+        int count = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+            count++;
+        }
+        return count;
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -3553,7 +3649,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String formatName,
         String extension,
         Map<String, List<Attribute>> schemasByPath,
-        Supplier<? extends RuntimeException> failure,
+        Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
@@ -3562,9 +3658,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
 
+            // Declares IOException so a suite can inject the checked storage/reader failure that the real
+            // readers raise (the shape FileSourceFactory types as client-caused), not only unchecked ones.
             @Override
-            public SourceMetadata metadata(StorageObject object) {
-                throw failure.get();
+            public SourceMetadata metadata(StorageObject object) throws IOException {
+                Exception e = failure.get();
+                if (e instanceof IOException io) {
+                    throw io;
+                }
+                throw (RuntimeException) e;
             }
 
             @Override
@@ -3872,7 +3974,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(e.getMessage(), containsString("Failed to resolve metadata"));
+            // Pins what the caller needs — which file aborted the fan-out and why — rather than the wrapper's
+            // boilerplate. The wrapper now keeps the reader's diagnosis instead of replacing it with a constant.
+            assertThat(e.getMessage(), containsString("simulated read failure"));
+            assertThat(e.getMessage(), containsString(failPath));
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();

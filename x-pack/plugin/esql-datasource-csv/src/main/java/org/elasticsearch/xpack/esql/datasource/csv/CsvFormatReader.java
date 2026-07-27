@@ -1144,7 +1144,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 break;
             }
             if (headerLine == null) {
-                throw new IOException("CSV file has no schema line");
+                // Names the format the user asked for, not the reader's class. This reader serves tsv as well as
+                // csv, so a hard-coded "CSV" told someone querying a .tsv about a format they never mentioned.
+                throw new IOException(
+                    format.toUpperCase(Locale.ROOT) + " file has no schema line: the object is empty or contains only comments"
+                );
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {

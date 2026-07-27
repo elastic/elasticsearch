@@ -1828,8 +1828,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
         assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
         int partialClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
-        int skippedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED);
-        int failedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED);
+        int skippedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED);
+        int failedClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED);
         assertThat(partialClusters + skippedClusters + failedClusters, equalTo(numClusters));
 
         if (localIncluded == false) {

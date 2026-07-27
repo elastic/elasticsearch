@@ -179,10 +179,6 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
         // watermarks) within a single decision.
-        final boolean enabled = this.enabled;
-        final CacheAccountingMode accountingMode = this.accountingMode;
-        final RatioValue lowWatermark = this.lowWatermark;
-
         if (enabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
@@ -283,12 +279,10 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
         // watermarks) within a single decision.
-        final boolean deciderEnabled = this.enabled;
-        final boolean canRemainEnabled = this.canRemainEnabled;
         final CacheAccountingMode accountingMode = this.accountingMode;
         final RatioValue highWatermark = this.highWatermark;
 
-        if (deciderEnabled == false) {
+        if (enabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
 
@@ -343,9 +337,5 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             highWatermark.getAsPercent(),
             accountingMode
         );
-    }
-
-    private static long getRequirementWithFallback(long requirementInBytes) {
-        return requirementInBytes == NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT ? 0L : requirementInBytes;
     }
 }

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.Unroll
-
 import com.github.tomakehurst.wiremock.WireMockServer
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome

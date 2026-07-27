@@ -714,3 +714,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:string.locateWarnings}
   issue: https://github.com/elastic/elasticsearch/issues/155156
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
+  method: test {csv-spec:change_point.multivalued in groups}
+  issue: https://github.com/elastic/elasticsearch/issues/155158

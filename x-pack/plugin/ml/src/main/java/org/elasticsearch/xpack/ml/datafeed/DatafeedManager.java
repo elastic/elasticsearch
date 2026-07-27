@@ -236,7 +236,9 @@ public final class DatafeedManager {
                         listener.onFailure(e);
                     }
                 });
-                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                if (request.getDatafeed().getEsqlQuery() != null) {
+                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                } else if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {
                     executeAsyncWithOrigin(

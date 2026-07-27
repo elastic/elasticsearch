@@ -72,8 +72,10 @@ public class EsqlDatafeedQueryValidator {
                 listener.onFailure(e);
             }
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                // Tolerate a missing index: the datafeed may be created before the index exists.
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+                // Deferred-existence cases: the project may be linked later or the index may not
+                // exist yet. Skip the column check — there is nothing to validate against.
                 listener.onResponse(Boolean.TRUE);
             } else {
                 listener.onFailure(e);
@@ -102,12 +104,9 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof NoMatchingProjectException) {
-                // Flat-world (unqualified) routing matched no project right now; a project may be
-                // linked later. Defer to runtime — consistent with the classic SearchRequest probe.
-                listener.onResponse(null);
-            } else if (cause instanceof IndexNotFoundException) {
-                // The target index may not exist yet; tolerate and defer to runtime.
+            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+                // Deferred-existence cases: the project may be linked later or the index may not
+                // exist yet. Defer to runtime — consistent with the classic SearchRequest probe.
                 listener.onResponse(null);
             } else {
                 listener.onFailure(e);
@@ -155,7 +154,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = (EsqlQueryRequestBuilder<
             EsqlQueryRequest,
-            EsqlQueryResponse>) EsqlQueryRequestBuilder.newRequestBuilder(client).query(query);
+            EsqlQueryResponse>) EsqlQueryRequestBuilder.newRequestBuilder(client).query(query).allowPartialResults(false);
         if (projectRouting != null) {
             builder.projectRouting(projectRouting);
         }

@@ -146,6 +146,25 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
+    public void testValidateQueryGivenNoMatchingProjectIsDeferred() {
+        TestValidator validator = new TestValidator(new NoMatchingProjectException("_alias:*"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:*",
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected deferral for NoMatchingProjectException", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
     public void testValidateQueryGivenOtherExecutionFailurePropagates() {
         RuntimeException boom = new RuntimeException("query syntax error");
         TestValidator validator = new TestValidator(boom);

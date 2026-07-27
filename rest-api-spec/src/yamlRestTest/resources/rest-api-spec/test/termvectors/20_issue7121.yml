@@ -1,3 +1,24 @@
+---
+setup:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            # TRACE on IndexShard/Engine is enabled to capture unexpected refreshes
+            # if the found: false assertion fails again (see #138370)
+            logger.org.elasticsearch.index.shard.IndexShard: TRACE
+            logger.org.elasticsearch.index.engine.Engine: TRACE
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            logger.org.elasticsearch.index.shard.IndexShard: null
+            logger.org.elasticsearch.index.engine.Engine: null
+
+---
 "Term vector API should return 'found: false' for docs between index and refresh":
   - do:
       indices.create:

@@ -276,6 +276,42 @@ result:double | step:datetime
 31.0          | 2025-01-01T00:01:00.000Z
 ;
 
+instant_timestamp_of_vector
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_timestamp
+required_capability: promql_time
+// vector() samples are stamped at the evaluation timestamp, so timestamp(vector(1)) equals time().
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" result=(timestamp(vector(1)));
+
+result:double | step:datetime
+1.71529938E9  | 2024-05-10T00:03:00.000Z
+;
+
+instant_timestamp_of_sum
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_timestamp
+required_capability: promql_time
+// Across-series aggregations stamp results at evaluation time.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" result=(timestamp(sum(network.cost)));
+
+result:double | step:datetime
+1.71529938E9  | 2024-05-10T00:03:00.000Z
+;
+
+instant_timestamp_of_selector
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_timestamp
+// Instant selectors preserve the scrape timestamp of the selected sample (00:02:53 for prod/two).
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" result=(timestamp(network.cost{cluster="prod", pod="two"}))
+| KEEP result, step;
+
+result:double    | step:datetime
+1.715299373E9    | 2024-05-10T00:03:00.000Z
+;
+
 instant_empty_result_outside_window
 required_capability: promql_command_v0
 required_capability: promql_instant_query

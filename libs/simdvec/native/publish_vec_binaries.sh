@@ -34,6 +34,14 @@ if [ "$LOCAL" = false ] || [ "$FORCE_UPLOAD" = true ]; then
   UPLOAD=true
 fi
 
+# zip runs inside the upload pipelines below; if it is missing, pipefail only
+# aborts after curl has already uploaded an empty archive from the dead pipe,
+# permanently burning the version number. Fail fast instead.
+if ! command -v zip > /dev/null; then
+  echo 'Error: zip must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;

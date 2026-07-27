@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedCloudCredentialDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +83,19 @@ public class DataExtractorUtilsTests extends ESTestCase {
         DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
 
         assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHORIZATION));
+    }
+
+    public void testCloudCredentialSearchPhaseNonElasticsearchShardCauseShouldNotRecurseInfinitely() {
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new IOException("connection reset"));
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
+            "blah",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
     }
 
     public void testCloudCredentialSecurityFailureWithoutCredentialIdShouldNotClassify() {

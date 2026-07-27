@@ -259,7 +259,13 @@ public final class DataExtractorUtils {
 
     private static CloudCredentialFailureKind failureKindAtThrowable(Throwable failure) {
         if (failure instanceof SearchPhaseExecutionException searchPhaseExecutionException) {
-            return failureKindAtThrowable(ExceptionsHelper.findSearchExceptionRootCause(searchPhaseExecutionException));
+            Throwable rootCause = ExceptionsHelper.findSearchExceptionRootCause(searchPhaseExecutionException);
+            if (rootCause == searchPhaseExecutionException) {
+                // findSearchExceptionRootCause() returns the exception unchanged when no shard
+                // failure unwraps to an ElasticsearchException; recursing on it again would loop forever.
+                return failureKindFromShardFailures(searchPhaseExecutionException.shardFailures());
+            }
+            return failureKindAtThrowable(rootCause);
         }
         if (failure instanceof ElasticsearchSecurityException securityException) {
             return failureKindForStatus(securityException.status());
@@ -274,6 +280,17 @@ public final class DataExtractorUtils {
             return failureKindForStatus(shardSearchFailure.status());
         }
         return CloudCredentialFailureKind.NONE;
+    }
+
+    private static CloudCredentialFailureKind failureKindFromShardFailures(ShardSearchFailure[] shardFailures) {
+        CloudCredentialFailureKind kind = CloudCredentialFailureKind.NONE;
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            kind = strongerCredentialFailureKind(kind, failureKindAtThrowable(shardFailure));
+            if (kind == CloudCredentialFailureKind.AUTHENTICATION) {
+                return kind;
+            }
+        }
+        return kind;
     }
 
     private static CloudCredentialFailureKind failureKindForStatus(RestStatus status) {

@@ -357,7 +357,7 @@ For example, a column with conflicting mapping types can include `original_types
 }
 ```
 
-{applies_to}`stack: ga 9.5` Columns created with `BUCKET` can include bucket interval metadata:
+{applies_to}`stack: preview 9.5` Columns created with `BUCKET` can include bucket interval metadata:
 
 ```json
 {
@@ -372,7 +372,7 @@ For example, a column with conflicting mapping types can include `original_types
 }
 ```
 
-{applies_to}`stack: ga 9.5` Numeric bucket columns include only the `interval` value:
+{applies_to}`stack: preview 9.5` Numeric bucket columns include only the `interval` value:
 
 ```json
 {
@@ -386,7 +386,7 @@ For example, a column with conflicting mapping types can include `original_types
 }
 ```
 
-{applies_to}`stack: ga 9.4` Approximation helper columns can include approximation metadata.
+{applies_to}`stack: preview 9.4, ga 9.5+` Approximation helper columns can include approximation metadata.
 The `approximation.type` value is `confidence_interval` or `certified`, and `approximation.column` identifies the source column:
 
 ```json

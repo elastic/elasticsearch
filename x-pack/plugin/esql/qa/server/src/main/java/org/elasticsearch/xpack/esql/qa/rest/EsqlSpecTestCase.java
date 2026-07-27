@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
@@ -120,9 +121,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * Intended for use by generated per-spec-file test classes.
      */
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
-        List<URL> urls = classpathResources(specFile);
-        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        URL url = classpathResource(specFile);
+        assertNotNull("No resource found for " + specFile, url);
+        return SpecReader.readScriptSpec(List.of(url), CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(

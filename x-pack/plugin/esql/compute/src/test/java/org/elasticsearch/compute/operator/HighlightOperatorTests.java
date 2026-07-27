@@ -65,7 +65,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
             "HighlightOperator[query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, fragment_size=0, "
-                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, max_analyzed_offset=-1, fields=1]"
+                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, max_analyzed_offset=-1, fields=1]"
         );
     }
 
@@ -73,7 +73,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "HighlightOperator[query=content:fox, query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
-                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, "
+                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, "
                 + "max_analyzed_offset=-1, fields=[Attribute[channel=0]]]"
         );
     }
@@ -172,6 +172,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             false,
             Locale.ROOT,
             false,
+            null,
             -1
         );
         BytesRefBlock result = highlightSingle(config, text);
@@ -404,6 +405,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             false,
             Locale.ROOT,
             false,
+            null,
             -1
         );
     }
@@ -427,6 +429,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             wordBoundary,
             Locale.ROOT,
             orderByScore,
+            null,
             -1
         );
     }

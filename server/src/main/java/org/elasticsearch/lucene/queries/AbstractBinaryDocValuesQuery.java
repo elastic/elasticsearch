@@ -24,8 +24,10 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -50,6 +52,9 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. These are full-column scans, so every surviving decoder actually
+        // decodes and allocates its buffer - the circuit breaker is the primary guard here.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -58,6 +63,8 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                 if (iterator == null) {
                     return null;
                 }
+                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 

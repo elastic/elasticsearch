@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -92,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -155,6 +158,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        AcrossSeriesReduction.class,
         HistogramQuantile.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
@@ -201,7 +205,11 @@ public class ApproximationSupportTests extends ESTestCase {
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
-        SparklineGenerateEmptyBuckets.class
+        SparklineGenerateEmptyBuckets.class,
+
+        // internals
+        PackDims.class,
+        UnpackDims.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(

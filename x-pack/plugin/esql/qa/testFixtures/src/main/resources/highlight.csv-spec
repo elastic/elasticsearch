@@ -1,6 +1,6 @@
 # Basic single-field highlight, default <em> tags, single short sentence.
 highlightSingleField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT "fox" ON content
@@ -14,7 +14,7 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 
 # Custom prefix renames the generated highlight column from highlight_<field> to <prefix><field>.
 highlightCustomPrefix
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT prefix = "hl_" "fox" ON content
@@ -28,7 +28,7 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 
 # If prefix + column collides with an existing column, HIGHLIGHT will replace the column.
 highlightCustomPrefixShadowsExistingColumn
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | EVAL hl_content = "shadowed"
@@ -43,7 +43,7 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 
 # Empty prefix overwrites the source column name instead of creating highlight_<field>.
 highlightEmptyPrefix
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT prefix = "" "fox" ON content
@@ -57,7 +57,7 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 
 # Empty prefix applies the same overwrite behavior to each ON field.
 highlightEmptyPrefixMultipleFields
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT prefix = "" "king tolkien" ON title, body
@@ -71,7 +71,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 
 # Non-empty prefix keeps the source column and adds <prefix><field>.
 highlightCustomPrefixKeepsOriginalColumn
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT prefix = "hl_" "ring" ON content
@@ -85,7 +85,7 @@ The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
 
 # Prefix and WITH options can be used together.
 highlightCustomPrefixWithOptions
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT prefix = "hl_" "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
@@ -99,7 +99,7 @@ The quick brown <b>fox</b> jumps over the lazy dog.
 
 # A prefix containing whitespace 
 highlightWhitespacePrefix
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | EVAL `label 1` = "match"
@@ -114,7 +114,7 @@ match           | The quick brown <em>fox</em> jumps over the lazy dog.
 
 # Custom pre/post tags via WITH.
 highlightCustomTags
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
@@ -128,7 +128,7 @@ The quick brown <b>fox</b> jumps over the lazy dog.
 
 # Multiple query terms (OR'd) wrap independently within a single sentence.
 highlightMultipleTermsQuery
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Sauron forged the One Ring in the fires of Mount Doom."
 | HIGHLIGHT "ring sauron" ON content
@@ -142,7 +142,7 @@ highlight_content:keyword
 
 # Matching is case-insensitive; original casing preserved.
 highlightCaseInsensitive
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "RING" ON content
@@ -156,7 +156,7 @@ The One <em>Ring</em> was forged by Sauron.
 
 # HTML encoder escapes markup and special characters while still wrapping matches.
 highlightHtmlEncoder
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Use <b>bold</b> tags & special chars with the Ring."
 | HIGHLIGHT "ring" ON content WITH { "encoder": "html" }
@@ -170,7 +170,7 @@ Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>
 
 # No match in the field -> null (default no_match_size = 0).
 highlightNoMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "A plain text with no matching terms."
 | HIGHLIGHT "nonexistent" ON content
@@ -184,7 +184,7 @@ null
 
 # no_match_size > 0 makes a non-matching field fall back to its leading text instead of null.
 highlightNoMatchSize
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Gardens and flowers bloom in spring."
 | HIGHLIGHT "elasticsearch" ON content WITH { "no_match_size": 200 }
@@ -198,7 +198,7 @@ Gardens and flowers bloom in spring.
 
 # Query text that analyzes to no terms still behaves as a no-match query.
 highlightEmptyQueryNoMatchSize
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Plain fallback text."
 | HIGHLIGHT "" ON content WITH { "no_match_size": 200 }
@@ -212,7 +212,7 @@ Plain fallback text.
 
 # Multiple ON fields each get their own highlight_<field> column.
 highlightMultipleFields
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -226,7 +226,7 @@ Return of the <em>King</em>      | <em>Tolkien</em> wrote the epic saga.
 
 # A field that the query does not match yields null while the other is populated.
 highlightFieldWithNoMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT "king" ON title, body
@@ -240,7 +240,7 @@ Return of the <em>King</em>   | null
 
 # Multi-valued field: every value is highlighted, order preserved.
 highlightMultivaluedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW positions = ["Senior Team Lead", "Lead Architect"]
 | HIGHLIGHT "lead" ON positions
@@ -256,7 +256,7 @@ highlight_positions:keyword
 # boundaries (SplittingBreakIterator on the MV separator); this is an intentional divergence from Query DSL, where a
 # fragment can span values when no sentence boundary separates them and they fit within fragment_size.
 highlightMultivaluedFragmentsDoNotCrossValues
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW positions = ["Senior lead lead", "Lead architect"]
 | HIGHLIGHT "lead" ON positions WITH { "number_of_fragments": 1 }
@@ -270,7 +270,7 @@ Senior <em>lead</em> <em>lead</em>
 
 # number_of_fragments is Lucene maxPassages: best-N by score in document order (not first-N).
 highlightNumberOfFragments
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = ["fox", "fox fox", "fox fox fox"]
 | HIGHLIGHT "fox" ON content WITH { "number_of_fragments": 2 }
@@ -284,7 +284,7 @@ highlight_content:keyword
 
 # A single short sentence stays one fragment regardless of number_of_fragments.
 highlightSingleFragmentForShortText
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Elasticsearch powers fast search."
 | HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 5 }
@@ -298,7 +298,7 @@ highlight_content:keyword
 
 # number_of_fragments = 0 disables fragmentation: the whole value is returned as one fragment, matches still wrapped.
 highlightNumberOfFragmentsZero
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open."
 | HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 0 }
@@ -312,7 +312,7 @@ highlight_content:keyword
 
 # HIGHLIGHT over fields loaded from an index, after a full-text WHERE filter.
 highlightFromIndexAfterMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -331,7 +331,7 @@ book_no:keyword | highlight_title:keyword
 # Sorting on a highlight_* column forces HIGHLIGHT to run before the final TopN, so it is
 # pushed down to the data nodes; this exercises HighlightExec serialization end-to-end.
 highlightPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -350,7 +350,7 @@ book_no:keyword | highlight_title:keyword
 
 # Empty prefix overwrite is preserved when HIGHLIGHT is pushed to data nodes by SORT.
 highlightEmptyPrefixPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -369,7 +369,7 @@ book_no:keyword | title:keyword
 
 # HIGHLIGHT runs after the final SORT ... LIMIT (TopN), like Query DSL's post-fetch highlight.
 highlightAfterSortLimit
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books METADATA _score
@@ -389,7 +389,7 @@ book_no:keyword | highlight_title:keyword
 
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "ring" ON content
@@ -403,7 +403,7 @@ The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
 
 # fragment_size bounds each sentence-based fragment; a large value lets both sentences share one fragment.
 highlightFragmentSizeLargerThanText
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Elasticsearch is fast. Elasticsearch is scalable."
 | HIGHLIGHT "elasticsearch" ON content WITH { "fragment_size": 100 }
@@ -417,7 +417,7 @@ highlight_content:keyword
 
 # A small fragment_size keeps each sentence in its own fragment, so the two matching sentences become two values.
 highlightSmallFragmentSizeSplitsSentences
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Elasticsearch is fast. Elasticsearch is scalable."
 | HIGHLIGHT "elasticsearch" ON content WITH { "fragment_size": 25 }
@@ -431,7 +431,7 @@ highlight_content:keyword
 
 # boundary_scanner=sentence (the default) breaks fragments on sentences, so the match brings back the whole sentence.
 highlightSentenceBoundaryScanner
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron. Frodo carried it to Mount Doom."
 | HIGHLIGHT "ring" ON content WITH { "boundary_scanner": "sentence" }
@@ -445,7 +445,7 @@ The One <em>Ring</em> was forged by Sauron. Frodo carried it to Mount Doom.
 
 # boundary_scanner=word breaks on word boundaries, so the fragment is scoped to the matched word.
 highlightWordBoundaryScanner
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron. Frodo carried it to Mount Doom."
 | HIGHLIGHT "ring" ON content WITH { "boundary_scanner": "word" }
@@ -459,7 +459,7 @@ highlight_content:keyword
 
 # boundary_scanner_locale picks the break-iterator Locale; en-US breaks like the default here, so output is unchanged.
 highlightBoundaryScannerLocale
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "ring" ON content WITH { "boundary_scanner_locale": "en-US" }
@@ -473,7 +473,7 @@ The One <em>Ring</em> was forged by Sauron.
 
 # order=none (the default) keeps fragments in document order regardless of how many matches each one has.
 highlightOrderNoneKeepsDocumentOrder
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = ["fast search", "fast and fast results"]
 | HIGHLIGHT "fast" ON content WITH { "order": "none" }
@@ -487,7 +487,7 @@ highlight_content:keyword
 
 # order=score reorders fragments by descending score: the second value has two matches, so it comes first.
 highlightOrderByScore
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = ["fast search", "fast and fast results"]
 | HIGHLIGHT "fast" ON content WITH { "order": "score" }
@@ -501,7 +501,7 @@ highlight_content:keyword
 
 # max_analyzed_offset caps how far analysis runs; "One" ends at offset 7, so it is still matched under a cap of 10.
 highlightMaxAnalyzedOffsetWithinLimit
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "one" ON content WITH { "max_analyzed_offset": 10 }
@@ -515,7 +515,7 @@ The <em>One</em> Ring was forged by Sauron.
 
 # A match past the max_analyzed_offset cap is never seen: "Sauron" is beyond offset 10, so the row is null.
 highlightMaxAnalyzedOffsetTruncatesMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "sauron" ON content WITH { "max_analyzed_offset": 10 }
@@ -529,7 +529,7 @@ null
 
 # boundary_chars, boundary_max_scan and phrase_limit are FastVectorHighlighter-only, so they are accepted but no-ops.
 highlightUnifiedNoOpOptions
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "ring" ON content WITH { "boundary_chars": ".,!?", "boundary_max_scan": 10, "phrase_limit": 64 }
@@ -543,7 +543,7 @@ The One <em>Ring</em> was forged by Sauron.
 
 # Unquoted adjacent terms wrap independently; use a quoted phrase for a single span.
 highlightAdjacentMatchesWrappedIndependently
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "I love New York City in the spring."
 | HIGHLIGHT "new york" ON content
@@ -557,7 +557,7 @@ I love <em>New</em> <em>York</em> City in the spring.
 
 # A quoted phrase matches the exact word sequence and weight-matches wraps it in a single span.
 highlightPhraseQueryWrapsSingleSpan
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps over the lazy dog."
 | HIGHLIGHT "\"quick brown fox\"" ON content
@@ -571,7 +571,7 @@ The <em>quick brown fox</em> jumps over the lazy dog.
 
 # order=score with a number_of_fragments cap keeps the highest-scoring fragment: the last value wins despite its order.
 highlightOrderByScoreWithFragmentCap
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = ["one fast result", "a slow result", "fast and fast wins"]
 | HIGHLIGHT "fast" ON content WITH { "order": "score", "number_of_fragments": 1 }
@@ -585,7 +585,7 @@ highlight_content:keyword
 
 # no_match_size bounds the leading text returned for a non-matching field, trimmed to the first sentence here.
 highlightNoMatchSizeTruncatesLongText
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Gardens and flowers bloom in spring. Bees hum across the meadow. Rain falls in autumn."
 | HIGHLIGHT "elasticsearch" ON content WITH { "no_match_size": 30 }
@@ -599,7 +599,7 @@ Gardens and flowers bloom in spring
 
 # In a multi-valued field only matching values are returned; the single match here comes back as a single value.
 highlightMultivaluedPartialMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW positions = ["Staff Engineer", "Team Lead", "Product Manager"]
 | HIGHLIGHT "lead" ON positions
@@ -613,7 +613,7 @@ Team <em>Lead</em>
 
 # An empty query analyzes to no terms and, with the default no_match_size = 0, yields null.
 highlightEmptyQueryDefaultNoMatchSizeIsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Plain fallback text."
 | HIGHLIGHT "" ON content
@@ -627,7 +627,7 @@ null
 
 # Column pruning: with two ON fields, KEEP can drop one highlight_<field> column without breaking the block layout.
 highlightColumnPruningKeepsSingleHighlight
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -641,7 +641,7 @@ highlight_body:keyword
 
 # Column pruning can also drop the original ON columns while keeping only the requested highlight column.
 highlightColumnPruningDropsOriginalColumns
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -655,7 +655,7 @@ Return of the <em>King</em>
 
 # Column pruning over fields loaded from an index: two ON fields are highlighted but only highlight_title is kept.
 highlightColumnPruningFromIndex
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -673,7 +673,7 @@ book_no:keyword | highlight_title:keyword
 
 # RENAME a single highlight column: the renamed column carries the highlighted value, the other keeps its name.
 highlightRenameSingleColumn
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -688,7 +688,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 
 # RENAME both highlight columns: each one is renamed independently and keeps its own highlighted value.
 highlightRenameAllColumns
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -703,7 +703,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 
 # DROP one highlight column: dropping highlight_title leaves highlight_body with its correct value.
 highlightDropSingleHighlightColumn
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -717,7 +717,7 @@ highlight_body:keyword
 
 # DROP the original ON columns but keep both highlight columns, leaving only the two highlighted columns.
 highlightDropOriginalColumns
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
 | HIGHLIGHT "king tolkien" ON title, body
@@ -731,7 +731,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 
 # RENAME the original ON column before HIGHLIGHT: it highlights the renamed column and names its output accordingly.
 highlightRenameOnFieldBeforeHighlight
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | RENAME content AS body
@@ -746,7 +746,7 @@ The One <em>Ring</em> was forged by Sauron.
 
 # Boolean AND requires every term to be present; both are highlighted when the row matches.
 highlightBooleanAndBothTermsPresent
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The fox and the dog play."
 | HIGHLIGHT "fox AND dog" ON content
@@ -760,7 +760,7 @@ The <em>fox</em> and the <em>dog</em> play.
 
 # Boolean AND with a missing term does not match the row, so the highlight is null.
 highlightBooleanAndMissingTermYieldsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The fox jumps over the lazy cat."
 | HIGHLIGHT "fox AND dog" ON content
@@ -774,7 +774,7 @@ null
 
 # A prohibited term that is present suppresses the whole match (Query DSL boolean semantics), yielding null.
 highlightProhibitedTermSuppressesMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The fox and the dog play."
 | HIGHLIGHT "fox -dog" ON content
@@ -788,7 +788,7 @@ null
 
 # A trailing wildcard is a prefix query and matches every token starting with the prefix.
 highlightPrefixQuery
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "saur*" ON content
@@ -802,7 +802,7 @@ The One Ring was forged by <em>Sauron</em>.
 
 # Leading wildcards are allowed (ES query_string default), so "*auron" matches "Sauron".
 highlightLeadingWildcard
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "*auron" ON content
@@ -817,7 +817,7 @@ The One Ring was forged by <em>Sauron</em>.
 # A pattern with several wildcards matches every token fitting it: "*a*n*" matches any token with an "a" before an
 # "n", so both Gandalf and Sauron are wrapped while "faced" (an "a" but no following "n") is not.
 highlightWildcardMultipleMatches
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "Gandalf faced Sauron."
 | HIGHLIGHT "*a*n*" ON content
@@ -831,7 +831,7 @@ highlight_content:keyword
 
 # A bare fuzzy term uses AUTO fuzziness: "Sauro~" is one edit from "Sauron".
 highlightFuzzyAutoQuery
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "Sauro~" ON content
@@ -845,7 +845,7 @@ The One Ring was forged by <em>Sauron</em>.
 
 # A regex term between slashes matches "Sauron".
 highlightRegexQuery
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "/s[au]+ron/" ON content
@@ -860,7 +860,7 @@ The One Ring was forged by <em>Sauron</em>.
 # A regexp is matched case-sensitively against the analyzed (lowercased) term, mirroring Query DSL query_string.
 # The uppercase pattern "/M(ount|t)/" never matches the indexed term "mount", so the row is null.
 highlightRegexUppercaseIsCaseSensitiveNoMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron in the fires of Mount Doom."
 | HIGHLIGHT "/M(ount|t)/" ON content
@@ -874,7 +874,7 @@ null
 
 # The lowercase pattern "/m(ount|t)/" matches the indexed term "mount"; the original casing is kept when wrapped.
 highlightRegexLowercaseMatches
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron in the fires of Mount Doom."
 | HIGHLIGHT "/m(ount|t)/" ON content
@@ -888,7 +888,7 @@ The One Ring was forged by Sauron in the fires of <em>Mount</em> Doom.
 
 # A term qualified on a different field parses but never highlights (require_field_match: true), yielding null.
 highlightFieldQualifiedTermYieldsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT "title:ring" ON content
@@ -902,7 +902,7 @@ null
 
 # Grouping with parentheses combines a disjunction and a required term; both matched terms are wrapped.
 highlightGrouping
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The fox jumps over the lazy dog."
 | HIGHLIGHT "(fox OR cat) AND jumps" ON content
@@ -916,7 +916,7 @@ The <em>fox</em> <em>jumps</em> over the lazy dog.
 
 # A conjunction spanning two ON fields matches the row and highlights each targeted field.
 highlightCrossFieldConjunction
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 ROW title = "The quick fox", body = "A loyal dog"
@@ -931,7 +931,7 @@ The quick <em>fox</em>    | A loyal <em>dog</em>
 
 # A MATCH(...) function query targets its field and highlights it exactly like the equivalent literal.
 highlightMatchFunction
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -949,7 +949,7 @@ book_no:keyword | highlight_title:keyword
 
 # Sorting by the highlight column pushes this MATCH query to the data nodes.
 highlightMatchFunctionPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -967,7 +967,7 @@ book_no:keyword | highlight_title:keyword
 
 # The ':' match operator behaves like MATCH as a HIGHLIGHT query.
 highlightMatchOperator
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 required_capability: match_operator_colon
 
@@ -986,7 +986,7 @@ book_no:keyword | highlight_title:keyword
 
 # QSTR with a field-qualified term targets that field and highlights it.
 highlightQueryStringFunction
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 required_capability: qstr_function
 
@@ -1005,7 +1005,7 @@ book_no:keyword | highlight_title:keyword
 
 # Sorting by the highlight column pushes this QSTR query to the data nodes.
 highlightQueryStringFunctionPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1023,7 +1023,7 @@ book_no:keyword | highlight_title:keyword
 
 # Nested KQL groups highlight both the required phrase and the matching alternative on the coordinator.
 highlightKqlNestedGrouping
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1040,7 +1040,7 @@ book_no:keyword | highlight_title:keyword
 
 # Sorting by the highlight column pushes the nested KQL query to the data nodes.
 highlightKqlNestedGroupingPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1058,7 +1058,7 @@ book_no:keyword | highlight_title:keyword
 
 # A KQL wildcard can be combined with grouped MATCH clauses; the coordinator highlights the matching branch.
 highlightKqlWildcardOrGroupedMatch
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1075,7 +1075,7 @@ book_no:keyword | highlight_title:keyword
 
 # Sorting by the highlight column pushes the KQL and MATCH combination to the data nodes.
 highlightKqlWildcardOrGroupedMatchPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1093,7 +1093,7 @@ book_no:keyword | highlight_title:keyword
 
 # A required KQL field outside ON prevents a highlight even when the ON field clause matches.
 highlightKqlRequiredFieldOutsideOnIsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1110,7 +1110,7 @@ book_no:keyword | highlight_title:keyword
 
 # QSTR default_field restricts an unqualified term to one ON field; the other ON field is left un-highlighted (null).
 highlightQueryStringDefaultField
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW title = "Return of the King", body = "The King returns home"
@@ -1125,7 +1125,7 @@ Return of the <em>King</em> | null
 
 # Without default_field, QSTR expands an unqualified term over every ON field, highlighting each independently.
 highlightQueryStringMultiFieldExpansion
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW title = "Return of the King", body = "A wise king ruled"
@@ -1140,7 +1140,7 @@ Return of the <em>King</em> | A wise <em>king</em> ruled
 
 # Field-qualified terms target their own field, so each ON field is highlighted by the clause that names it.
 highlightQueryStringFieldQualifiedAcrossFields
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW title = "The quick fox", body = "A loyal dog"
@@ -1155,7 +1155,7 @@ The quick <em>fox</em>  | A loyal <em>dog</em>
 
 # An explicit field qualifier overrides default_field: body:king targets body, so title is not highlighted.
 highlightQueryStringExplicitFieldOverridesDefaultField
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW title = "Return of the King", body = "A wise king ruled"
@@ -1170,7 +1170,7 @@ null                    | A wise <em>king</em> ruled
 
 # A term qualified on a field outside ON can never highlight (require_field_match parity), so the row is null.
 highlightQueryStringFieldQualifiedOutsideOnYieldsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW content = "The One Ring was forged by Sauron."
@@ -1185,7 +1185,7 @@ null
 
 # A quoted phrase inside QSTR wraps the exact word sequence in a single span, like the literal-string phrase form.
 highlightQueryStringPhrase
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW content = "The quick brown fox jumps."
@@ -1200,7 +1200,7 @@ The <em>quick brown</em> fox jumps.
 
 # A QSTR range query matches every in-range term, so weight-matches wraps them all and the whole sentence lights up.
 highlightQueryStringRangeMatchesAllTerms
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: qstr_function
 
 ROW content = "The One Ring was forged by Sauron."
@@ -1215,7 +1215,7 @@ highlight_content:keyword
 
 # MATCH_PHRASE wraps the whole matched phrase in a single span (weight-matches mode).
 highlightMatchPhraseFunction
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 required_capability: match_phrase_function
 
@@ -1234,7 +1234,7 @@ book_no:keyword | highlight_title:keyword
 
 # Sorting by the highlight column pushes this MATCH_PHRASE query to the data nodes.
 highlightMatchPhraseFunctionPushedToDataNodes
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 required_capability: match_phrase_function
 
@@ -1254,7 +1254,7 @@ book_no:keyword | highlight_title:keyword
 
 # Field-qualified literal highlights when the field is in ON (require_field_match parity).
 highlightFieldQualifiedLiteralMatchesOnField
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -1272,7 +1272,7 @@ book_no:keyword | highlight_title:keyword
 
 # Root-level NOT is accepted but never highlights (MUST_NOT / MatchAllDocs contribute no spans).
 highlightNotQueryAlwaysYieldsNull
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: match_function
 
 FROM books
@@ -1293,7 +1293,7 @@ book_no:keyword | highlight_title:keyword
 
 # HIGHLIGHT wraps the match in a field built by EVAL CONCAT.
 highlightEvalConcatComputedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW a = "quick brown", b = "fox jumps"
 | EVAL c = CONCAT(a, " ", b)
@@ -1308,7 +1308,7 @@ quick brown <em>fox</em> jumps
 
 # HIGHLIGHT sees the post-EVAL value: TO_LOWER lowercases the text before it is highlighted.
 highlightEvalToLowerComputedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW t = "The RING Of Power"
 | EVAL c = TO_LOWER(t)
@@ -1323,7 +1323,7 @@ the <em>ring</em> of power
 
 # A multivalued field built by EVAL (MV_APPEND) is highlighted value-by-value, order preserved.
 highlightEvalMultivalueComputedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW a = "fast fox", b = "lazy fox"
 | EVAL c = MV_APPEND(a, b)
@@ -1338,7 +1338,7 @@ highlight_c:keyword
 
 # DISSECT extracts a keyword column; HIGHLIGHT then wraps the match in that extracted value.
 highlightDissectExtractedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW raw = "2024 Sauron Mordor"
 | DISSECT raw "%{yr} %{name} %{place}"
@@ -1353,7 +1353,7 @@ highlight_name:keyword
 
 # GROK extracts a message column; HIGHLIGHT wraps the match in the extracted text.
 highlightGrokExtractedField
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW raw = "id=7 the ring of power"
 | GROK raw "id=%{NUMBER:id} %{GREEDYDATA:msg}"
@@ -1368,7 +1368,7 @@ the <em>ring</em> of power
 
 # After MV_EXPAND each value is its own row; HIGHLIGHT runs per row, so the non-matching row is null.
 highlightAfterMvExpand
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW tags = ["quick fox", "lazy dog"]
 | MV_EXPAND tags
@@ -1385,7 +1385,7 @@ quick fox    | quick <em>fox</em>
 
 # HIGHLIGHT on a STATS grouping key: the aggregated key column is highlighted like any text value.
 highlightStatsGroupingKey
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE book_no == "8875"
@@ -1401,7 +1401,7 @@ John Ronald Reuel Tolkien | John Ronald Reuel <em>Tolkien</em> | 1
 
 # HIGHLIGHT on a VALUES() aggregate: the collected value is re-analyzed and both query terms are wrapped.
 highlightStatsValues
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE book_no == "2714"
@@ -1417,7 +1417,7 @@ book_no:keyword | highlight_t:keyword
 
 # HIGHLIGHT on a field added by ENRICH: the enriched keyword value is re-analyzed and highlighted.
 highlightAfterEnrich
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW client_ip = "172.21.0.5"
 | ENRICH clientip_policy ON client_ip
@@ -1432,7 +1432,7 @@ highlight_env:keyword
 
 # HIGHLIGHT on a field brought in by LOOKUP JOIN: the joined value is highlighted after the join.
 highlightAfterLookupJoin
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -1447,7 +1447,7 @@ highlight_language_name:keyword
 
 # HIGHLIGHT inside FORK branches: each branch highlights the same field with its own query, keeping outputs independent.
 highlightInsideForkBranch
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: fork_v9
 
 FROM books
@@ -1466,7 +1466,7 @@ fork2         | 2714            | Return of the <em>King</em> Being the Third Pa
 
 # HIGHLIGHT after FORK: the merged fork output is highlighted once, wrapping the match in every branch's rows.
 highlightAfterFork
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: fork_v9
 
 FROM books
@@ -1487,7 +1487,7 @@ fork2         | 7350            | <em>Return</em> of the Shadow
 # HIGHLIGHT after FUSE: the reciprocal-rank-fused result set is highlighted. Note the sentence-boundary
 # fragmentation on titles with internal periods (e.g. "The J. R. R. Tolkien Audio Collection").
 highlightAfterForkFuse
-required_capability: highlight_v4
+required_capability: highlight_v5
 required_capability: fork_v9
 
 FROM books METADATA _score, _id, _index
@@ -1510,7 +1510,7 @@ book_no:keyword | highlight_title:keyword
 
 # MATCH supports fuzzy_rewrite.
 highlightMatchFuzzyRewrite
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1527,7 +1527,7 @@ book_no:keyword | highlight_title:keyword
 
 # MATCH supports zero_terms_query.
 highlightMatchZeroTermsQueryOption
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1545,7 +1545,7 @@ book_no:keyword | highlight_title:keyword
 # With zero_terms_query set to all, punctuation-only input still matches every row. Since analysis produces no terms,
 # there is nothing to highlight.
 highlightMatchZeroTermsQueryAllNoAnalyzedTerms
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1563,7 +1563,7 @@ book_no:keyword | highlight_title:keyword
 # With the AND operator, every analyzed term must be present. Only the title containing both terms matches, and both
 # terms are highlighted.
 highlightMatchAndOperatorMultipleTerms
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1580,7 +1580,7 @@ book_no:keyword | highlight_title:keyword
 
 # QSTR supports phrase_slop.
 highlightQueryStringPhraseSlop
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The quick brown fox jumps."
 | HIGHLIGHT QSTR("\"quick fox\"", {"phrase_slop": 2}) ON content
@@ -1594,7 +1594,7 @@ The <em>quick brown fox</em> jumps.
 
 # QSTR supports analyze_wildcard.
 highlightQueryStringAnalyzeWildcard
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 ROW content = "The One Ring was forged by Sauron."
 | HIGHLIGHT QSTR("RIN*", {"analyze_wildcard": true}) ON content
@@ -1608,7 +1608,7 @@ The One <em>Ring</em> was forged by Sauron.
 
 # Query boosts do not change the matched spans.
 highlightMatchBoostOrderScore
-required_capability: highlight_v4
+required_capability: highlight_v5
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1620,4 +1620,102 @@ FROM books
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 7350            | <em>Return</em> of the Shadow
+;
+
+
+# The english analyzer stems "Rings" to "ring".
+highlightAnalyzerEnglishStemsMatch
+required_capability: highlight_v5
+
+ROW title = "The Lord of the Rings"
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# The standard analyzer does not stem "Rings".
+highlightAnalyzerDefaultMissesStem
+required_capability: highlight_v5
+
+ROW title = "The Lord of the Rings"
+| HIGHLIGHT "ring" ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+null
+;
+
+
+# The whitespace analyzer keeps "fox-like" as one token.
+highlightAnalyzerWhitespaceKeepsPunctuation
+required_capability: highlight_v5
+
+ROW content = "A fox-like creature"
+| HIGHLIGHT "fox" ON content WITH { "analyzer": "whitespace" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+null
+;
+
+
+# The simple analyzer splits "FOX-123" and lowercases its tokens.
+highlightAnalyzerSimpleSplitsPunctuation
+required_capability: highlight_v5
+
+ROW content = "A FOX-123 escaped"
+| HIGHLIGHT "fox" ON content WITH { "analyzer": "simple" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+A <em>FOX</em>-123 escaped
+;
+
+
+# The stop analyzer removes "the" from the query.
+highlightAnalyzerRemovesStopWords
+required_capability: highlight_v5
+
+ROW content = "The ring is here"
+| HIGHLIGHT "the ring" ON content WITH { "analyzer": "stop" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The <em>ring</em> is here
+;
+
+
+# The keyword analyzer emits the full value as one token.
+highlightAnalyzerKeywordExactMatch
+required_capability: highlight_v5
+
+ROW location = "New York City"
+| HIGHLIGHT "New York City" ON location WITH { "analyzer": "keyword" }
+| KEEP highlight_location
+;
+
+highlight_location:keyword
+<em>New York City</em>
+;
+
+
+# A partial query does not match a keyword token.
+highlightAnalyzerKeywordPartialMiss
+required_capability: highlight_v5
+
+ROW location = "New York City"
+| HIGHLIGHT "York" ON location WITH { "analyzer": "keyword" }
+| KEEP highlight_location
+;
+
+highlight_location:keyword
+null
 ;

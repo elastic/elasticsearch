@@ -20,6 +20,8 @@ dependencies {
   }
   api project(':x-pack:plugin:core')
   api project(':x-pack:plugin:ql')
+  // ql no longer re-exports mapper-version transitively (compileOnly); SqlQueryResponse references Version directly.
+  api project(xpackModule('mapper-version'))
   api project(':x-pack:plugin:sql:sql-proto')
 
   testImplementation project(":test:framework")

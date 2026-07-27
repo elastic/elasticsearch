@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -38,7 +39,10 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
+// Implements ExtensiblePlugin so x-pack-esql can declare x-pack-eql in its extendedPlugins and reach the EQL search
+// transport classes (EqlSearchAction/Request/Response) at runtime for the ESQL "EQL source" command, without bundling
+// a duplicate copy of the eql plugin.
+public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin, ExtensiblePlugin {
 
     public static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
     public static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());

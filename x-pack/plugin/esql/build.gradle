@@ -42,6 +42,9 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   compileOnly project(xpackModule('eql'))
   compileOnly project(xpackModule('ql'))
+  // ql/esql-core no longer bundle mapper-version (it is a runtime module via extendedPlugins), so declare the
+  // compile-time dependency directly for the esql.core.* sources that reference Version.
+  compileOnly project(path: xpackModule('mapper-version'))
   compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))

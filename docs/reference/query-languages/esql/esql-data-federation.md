@@ -26,7 +26,7 @@ Many organizations store large volumes of data in cloud object storage for cost 
 - **No ingestion required.** Query external data without copying or indexing it into {{es}}. The data stays in your storage.
 - **One language for all your data.** Use the same {{esql}} syntax for both indexed data and external data. No context-switching, no second query engine.
 - **No extra infrastructure.** Query external data natively in {{es}} without deploying or managing additional compute services, catalogs, or connectors.
-- **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search.
+- **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search. Both tiers stay queryable with the same {{esql}} syntax.
 
 ## How it works
 
@@ -87,7 +87,7 @@ For details on type-specific settings and format options, refer to [](esql-data-
 
 ## Capabilities and limitations
 
-Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices.
+Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring returns `_score` as null, and `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
 
@@ -103,7 +103,7 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 :   Select which files to query, configure format settings, and control schema inference.
 
 [Query datasets](esql-data-federation-querying.md)
-:   Learn how the engine reduces storage reads, review current limitations, and troubleshoot common issues.
+:   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.
 
 [Manage access](esql-data-federation-security.md)
 :   Control access to data sources and datasets, encrypt credentials, and configure privileges.

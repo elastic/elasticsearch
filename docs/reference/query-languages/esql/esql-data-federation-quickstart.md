@@ -363,6 +363,97 @@ The response includes execution metadata, followed by the result columns and val
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
+::::::{step} Query federated and indexed data together
+Datasets share the same namespace as regular indices, so you can query both in a single `FROM`. This lets you combine external data with indexed data in a single query.
+
+First, create an index with a few sample documents to query alongside the dataset:
+
+```console
+PUT /network_incidents
+{
+  "mappings": {
+    "properties": {
+      "category":     { "type": "keyword" },
+      "severity":     { "type": "keyword" },
+      "duration_min": { "type": "integer" }
+    }
+  }
+}
+```
+
+Then index a few documents:
+
+```console
+POST /_bulk
+{"index":{"_index":"network_incidents"}}
+{"category":"outage","severity":"high","duration_min":45}
+{"index":{"_index":"network_incidents"}}
+{"category":"degradation","severity":"medium","duration_min":12}
+{"index":{"_index":"network_incidents"}}
+{"category":"outage","severity":"low","duration_min":8}
+```
+
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _index` to see where each row came from:
+
+::::{tab-set}
+:group: surface
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed, network_incidents METADATA _index
+| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+| LIMIT 5
+```
+:::
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query
+{
+  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | LIMIT 5"
+}
+```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | LIMIT 5"
+}'
+```
+:::
+
+::::
+
+The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. Execution metadata is omitted here:
+
+```json
+{
+  "columns": [
+    { "name": "_index", "type": "keyword" },
+    { "name": "category", "type": "keyword" },
+    { "name": "severity", "type": "keyword" },
+    { "name": "duration_min", "type": "integer" },
+    { "name": "avg_d_kbps", "type": "long" },
+    { "name": "avg_lat_ms", "type": "long" }
+  ],
+  "values": [
+    ["network_incidents", "outage",      "high",   45, null, null],
+    ["network_incidents", "degradation", "medium", 12, null, null],
+    ["network_incidents", "outage",      "low",     8, null, null],
+    ["speedtest_fixed",   null,           null,   null, 8033,  70],
+    ["speedtest_fixed",   null,           null,   null, 10327,  8]
+  ]
+}
+```
+::::::
+
 :::::::
 
 ## Use your own data
@@ -391,7 +482,7 @@ Credential values are never returned in API responses. When you retrieve a data 
 
 ## Clean up
 
-To remove the resources created in this guide, delete the dataset first because a data source cannot be deleted while datasets reference it. Then delete the data source:
+To remove the resources created in this guide, delete the dataset first because a data source cannot be deleted while datasets reference it. Then delete the data source and the sample index:
 
 ::::{tab-set}
 :group: surface
@@ -401,6 +492,7 @@ To remove the resources created in this guide, delete the dataset first because 
 ```console
 DELETE /_query/dataset/speedtest_fixed
 DELETE /_query/data_source/ookla_speedtest
+DELETE /network_incidents
 ```
 :::
 
@@ -411,6 +503,9 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
   -H "Authorization: ApiKey ${API_KEY}"
 
 curl -X DELETE "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
+  -H "Authorization: ApiKey ${API_KEY}"
+
+curl -X DELETE "${ELASTICSEARCH_URL}/network_incidents" \
   -H "Authorization: ApiKey ${API_KEY}"
 ```
 :::

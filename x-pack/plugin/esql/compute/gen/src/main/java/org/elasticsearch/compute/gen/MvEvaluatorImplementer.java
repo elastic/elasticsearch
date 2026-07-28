@@ -36,11 +36,11 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
-import static org.elasticsearch.compute.gen.Types.LONG_RANGE;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.scratchType;
 import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -212,11 +212,11 @@ public class MvEvaluatorImplementer {
             builderType = builderType(blockType(resultType));
         } else if (resultType.equals(BYTES_REF)) {
             builderType = builderType(vectorType(resultType));
-        } else if (resultType.equals(LONG_RANGE)) {
-            // LongRange has no vector type; use the block builder for both nullable and non-nullable paths
-            builderType = builderType(blockType(resultType));
-        } else {
+        } else if (vectorType(resultType) != null) {
             builderType = vectorFixedBuilderType(resultType);
+        } else {
+            // Some types, such as range types have no vector type; use the block builder for both nullable and non-nullable paths
+            builderType = builderType(blockType(resultType));
         }
         builder.beginControlFlow(
             "try ($T builder = driverContext.blockFactory().$L(positionCount))",
@@ -227,16 +227,14 @@ public class MvEvaluatorImplementer {
         if (workType != null && false == workType.equals(fieldType) && workType.isPrimitive() == false) {
             builder.addStatement("$T work = new $T()", workType, workType);
         }
-        if (fieldType.equals(BYTES_REF)) {
+        ClassName scratchType = scratchType(fieldType.toString());
+        if (scratchType != null) {
             if (fieldType.equals(workType)) {
                 builder.addStatement("$T firstScratch = new $T()", BYTES_REF, BYTES_REF);
                 builder.addStatement("$T nextScratch = new $T()", BYTES_REF, BYTES_REF);
             } else {
-                builder.addStatement("$T valueScratch = new $T()", BYTES_REF, BYTES_REF);
+                builder.addStatement("$T valueScratch = new $T()", scratchType, scratchType);
             }
-        }
-        if (fieldType.equals(LONG_RANGE)) {
-            builder.addStatement("$T valueScratch = new $T()", LONG_RANGE, LONG_RANGE);
         }
 
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
@@ -262,9 +260,9 @@ public class MvEvaluatorImplementer {
         }
         builder.endControlFlow();
 
-        // LongRange uses a block builder (not a vector builder) even for the non-nullable path,
+        // Types that don't support vectors (e.g. LongRange) use a block builder (not a vector builder) even for the non-nullable path,
         // so build() already returns a Block and .asBlock() must not be appended.
-        boolean needsAsBlock = nullable == false && resultType.equals(LONG_RANGE) == false;
+        boolean needsAsBlock = nullable == false && vectorType(resultType) != null;
         builder.addStatement("return builder.build()$L", needsAsBlock ? ".asBlock()" : "");
         builder.endControlFlow();
         return builder.build();
@@ -323,7 +321,7 @@ public class MvEvaluatorImplementer {
                 }
             } else {
                 // process function evaluates position at a time
-                String scratch = (fieldType.equals(BYTES_REF) || fieldType.equals(LONG_RANGE)) ? ", valueScratch" : "";
+                String scratch = (scratchType(fieldType.toString()) != null) ? ", valueScratch" : "";
                 builder.addStatement(
                     "$T result = $T.$L(v, first, end$L)",
                     resultType,
@@ -348,10 +346,8 @@ public class MvEvaluatorImplementer {
     }
 
     private void fetch(MethodSpec.Builder builder, String into, TypeName intoType, String index, String scratchName) {
-        if (intoType.equals(BYTES_REF)) {
-            builder.addStatement("$T $L = v.getBytesRef($L, $L)", intoType, into, index, scratchName);
-        } else if (intoType.equals(LONG_RANGE)) {
-            builder.addStatement("$T $L = v.getLongRange($L, $L)", intoType, into, index, scratchName);
+        if (scratchType(intoType.toString()) != null) {
+            builder.addStatement("$T $L = v.$L($L, $L)", intoType, into, getMethod(intoType), index, scratchName);
         } else if (intoType.equals(fieldType) == false && intoType.isPrimitive()) {
             builder.addStatement("$T $L = ($T) v.$L($L)", intoType, into, intoType, getMethod(fieldType), index);
         } else {

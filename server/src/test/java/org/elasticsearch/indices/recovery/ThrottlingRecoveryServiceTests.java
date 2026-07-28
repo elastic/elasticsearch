@@ -591,6 +591,41 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener);
     }
 
+    /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same
+    /// allocation ID, until pruned by [#clusterChanged].
+    public void testRecordedCancellationPersistsForSubsequentEnqueueAttempts() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(10));
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+
+        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
+
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            listener1,
+            newRecoveryState(shardId),
+            allocationId,
+            stats,
+            ignored -> fail("first enqueue attempt should have been rejected due to recorded cancellation")
+        );
+
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            listener2,
+            newRecoveryState(shardId),
+            allocationId,
+            stats,
+            ignored -> fail("second enqueue attempt should also have been rejected")
+        );
+
+        taskQueue.runAllTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener1, listener2);
+    }
+
     public void testCancellationAppliedWhenTaskInPendingQueue() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));

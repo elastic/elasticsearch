@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -77,16 +78,16 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
-     * Selects the eviction policy used by the shared blob cache when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is enabled.
-     * When cache boost preference is disabled, {@link StatelessCacheEvictionPolicyType#ALWAYS} is used regardless of this setting.
-     * Defaults to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} on search nodes and
-     * {@link StatelessCacheEvictionPolicyType#ALWAYS} on all other nodes.
+     * On search nodes, an explicit value takes precedence even when boost preference is disabled. When unset, defaults to
+     * {@link StatelessCacheEvictionPolicyType#ALWAYS} when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled,
+     * and to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} when enabled.
+     * This setting is ignored on non-search nodes, which always use {@link StatelessCacheEvictionPolicyType#ALWAYS}.
      */
-    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
+    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
-            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
-            "stateless.cache_boost_preference.eviction_policy",
+            settings -> StatelessCacheEvictionPolicyType.defaultEvictionPolicyType(settings).name(),
+            "stateless.cache_boost_preference.eviction_policy.search",
             s -> {},
             Setting.Property.NodeScope
         );
@@ -114,7 +115,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
 
-    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -127,68 +127,37 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this(
             environment,
             settings,
+            clusterService.getClusterSettings(),
             threadPool,
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            System::nanoTime,
+            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
             metricsHolder
         );
     }
 
-    // for tests
+    /// The constructor the public one delegates to, and for tests that want to alter/inject behavior.
     protected StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        EvictionPolicy<FileCacheKey> evictionPolicy,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, evictionPolicy);
-        this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
-        this.metricsHolder = metricsHolder;
-        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
-        this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
-    }
-
-    // for tests
-    public StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        LongSupplier relativeTimeInNanosSupplier,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
-        this(
-            environment,
-            settings,
-            threadPool,
-            blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            relativeTimeInNanosSupplier,
-            metricsHolder
-        );
-    }
-
-    // for tests
-    protected StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
+        ClusterSettings clusterSettings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         EvictionPolicy<FileCacheKey> evictionPolicy,
         LongSupplier relativeTimeInNanosSupplier,
+        Executor shardReadThreadPoolExecutor,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.shardReadThreadPoolExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
-        this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            enabled -> this.evictObsoleteRegionsEnabled = enabled
+        );
     }
 
     /**
@@ -320,13 +289,5 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
     public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
-    }
-
-    /// Enable or disable asynchronous force-eviction of cache regions corresponding to obsolete segments that are not referenced anymore.
-    /// - Enabling will only kick in on the next commit notification, if there are obsolete segments, force-eviction will be queued async.
-    /// - Disabling will mean commit notifications won't kick off an async force-eviction, but an existing one for the commit might
-    /// already be queued/executing.
-    public void setEvictObsoleteRegionsEnabled(boolean evictObsoleteRegionsEnabled) {
-        this.evictObsoleteRegionsEnabled = evictObsoleteRegionsEnabled;
     }
 }

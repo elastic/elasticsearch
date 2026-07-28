@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
 
@@ -130,20 +129,6 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[SCORE] function cannot be used after LIMIT"));
-    }
-
-    public void testScoreAfterHighlight() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        var query = """
-            SET unmapped_fields="nullify";
-            FROM test
-            | HIGHLIGHT "fox" ON content
-            | EVAL first_score = score(match(content, "fox"))
-            | KEEP content, first_score, unmapped_field_baz
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[SCORE] function cannot be used after HIGHLIGHT"));
     }
 
     public void testScoreQueryExpressions() {

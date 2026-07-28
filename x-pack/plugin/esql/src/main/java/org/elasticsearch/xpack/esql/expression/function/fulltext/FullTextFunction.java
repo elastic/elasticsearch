@@ -330,7 +330,7 @@ public abstract class FullTextFunction extends Function
             plan,
             scoreFunction.canonical(),
             Score.class,
-            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false) && (lp instanceof Highlight == false),
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
             m -> "[" + m.functionName() + "] function",
             failures
         );

@@ -48,8 +48,8 @@ These settings control which authentication modes data sources can use.
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.datasource.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. |
-| `esql.datasource.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}.|
+| `esql.datasource.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
+| `esql.datasource.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
 
 
 ## Caching
@@ -63,8 +63,3 @@ These settings control the external-source cache, which stores inferred schemas 
 | `esql.source.cache.schema.ttl` | 5m | How long an inferred schema is cached. Applied at node startup only. |
 | `esql.source.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |
 
-## Next steps
-
-- If queries are slow or reading more data than expected, refer to [how external data is read](esql-data-federation-querying.md#how-external-data-is-read) for guidance on column selection, partition pruning, and filter pushdown.
-- To enable federated identity or managed identity after setting the authentication gates on this page, refer to [connect external data sources](esql-data-federation-sources.md#authentication) for setup instructions.
-- For details on how credential encryption interacts with data source creation, refer to [manage credentials and privileges](esql-data-federation-security.md).

@@ -46,12 +46,12 @@ PUT my-index-000001
 
 ## Disabling doc values [_disabling_doc_values]
 
-For all fields that support them, `doc_values` are enabled by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can disable `doc_values` in order to save disk space.
+For all fields that support them, `doc_values` are turned on by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can turn off `doc_values` in order to save disk space.
 
 ::::{note}
-You cannot disable doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/columnar/index.md) index.
+You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/columnar/index.md) index.
 
-In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Enabling or disabling `doc_values` for these fields might result in an error or have no effect.
+In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Turning `doc_values` on or off for these fields might result in an error or have no effect.
 ::::
 
 In the following example, `doc_values` is disabled on one field:
@@ -74,7 +74,7 @@ PUT my-index-000001
 ```
 
 1. The `status_code` field has `doc_values` enabled by default.
-2. The `session_id` has `doc_values` disabled, but can still be queried.
+2. The `session_id` has `doc_values` turned off, but can still be queried.
 
 ## Restricting fields to a single value [doc-values-multi-value]
 

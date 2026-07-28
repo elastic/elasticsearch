@@ -310,12 +310,12 @@ If you enable the [`ignore_malformed`](/reference/elasticsearch/mapping-referenc
 ## Columnar source [columnar-stored]
 
 ```{applies_to}
-stack: preview
+stack: preview 9.5+
 serverless: preview
 ```
 
-The columnar index modes use columnar source. By default this gets generated on the fly from doc values at query time.
-But this can also be stored on disk at index time by using `columnar_stored` source mode.
+The columnar index modes use columnar source. By default this content gets generated dynamically from doc values at query time.
+But this content can also be stored on disk at index time by using `columnar_stored` source mode.
 The `columnar_stored` source mode can be useful for queries that fetch all or most of the fields in the index.
 
 To use columnar-stored source:
@@ -336,9 +336,9 @@ PUT my-columnar-index
 }
 ```
 
-Disabling `_source` entirely (`"_source": {"enabled": false}`) is **not allowed** in columnar modes.
+Turning off `_source` entirely (`"_source": {"enabled": false}`) is **not allowed** in columnar modes.
 
-## Disabling the `_source` field [disable-source-field]
+## Turning off the `_source` field [disable-source-field]
 
 Though very handy to have around, the source field does incur storage overhead within the index. For this reason, it can be disabled as follows:
 

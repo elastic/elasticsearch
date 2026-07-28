@@ -34,9 +34,9 @@ Two columnar index modes are available:
 
     Use this mode for log data.
 
-Both modes are strictly columnar: they reject mapping-level runtime fields and prevent disabling `_source`.
+Both modes are strictly columnar: they reject mapping-level runtime fields and prevent turning off `_source`.
 
-## Enabling columnar mode [enabling-columnar-mode]
+## Turning on columnar mode [enabling-columnar-mode]
 
 Set `mode` index setting at index creation time. The setting cannot be changed after the index is created.
 
@@ -78,14 +78,14 @@ PUT my-logs-index
 ### Index sorting [index-sorting]
 
 An important configuration step when setting up columnar index mode is determining the index sort fields.
-Good index sorting fields allow storing data more efficiently and improving query response times.
+Good index sorting fields facilitate more efficient data storage and improved query response times.
 Good index sorting fields are dependent on the use case and the data.
 
 The `logsdb_columnar` index mode, like `logsdb` index mode, uses by default the `host.name` field in ascending order and `@timestamp` field in descending order as the index sort fields.
 Hosts typically emit similar logs, so storing log entries from the same host sequentially on disk improves the efficiency of compression techniques such as run-length and delta encoding.
 The `@timestamp` field is also used as the index sort field with recent log entries appearing first, improving query performance for queries over recent data.
 
-The `columnar` index mode doesn't enable index sorting by default. Let's say you collect logs from different agents, then sorting by agent id and timestamp might be a good choice:
+The `columnar` index mode doesn't enable index sorting by default. If you collect logs from different agents, sorting by agent ID and timestamp might be a good choice:
 
 ```console
 PUT my-index
@@ -117,21 +117,22 @@ With the columnar modes, fields that are not referenced in static mappings get d
 * Whole numbers are mapped as a long field type.
 * Decimal numbers are mapped as a double type.
 * Strings are mapped as a keyword field type.
-* Objects/arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
+* Objects and arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
 
-Dynamically mapped fields are configured with doc values enabled and indexes disabled by default, in line with the columnar premise of storing each field once using doc values.
+Dynamically mapped fields are configured with doc values turned on and indexes turned off by default, in line with the columnar premise of storing each field once using doc values.
 
 Dynamic mapping behavior is controlled through configuration param `dynamic` that can be set to:
-- **true** (default): Enables the dynamic mapping behaviour as is described above.
-- **false**: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
-- **strict**: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
+- `true` (default): Turns on the dynamic mapping behavior as described in the preceding paragraphs.
+- `false`: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
+- `strict`: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
 
-Note that the *runtime* option is not supported in columnar mode.
+Note that the `runtime` option is not supported in columnar mode.
 
-### Dynamic false [dynamic-false]
+:::{note}
 
 If dynamic false has been configured, then only fields that are explicitly mapped in the mappings are stored.
 Fields that are not explicitly mapped in the mappings are not stored and therefore lost.
+:::
 
 ## Auto flattening [auto-flattening]
 
@@ -171,7 +172,7 @@ PUT my-index
 }
 ```
 
-The processed mapping (`GET my-index/_mapping`) shows the object mappers removed and their settings captured under `prefix_properties`:
+The processed mapping shows the object mappers removed and their settings captured under `prefix_properties`. For example, `GET my-index/_mapping` returns:
 
 ```json
 {
@@ -202,7 +203,7 @@ The `attributes` and `labels` object mappers are gone from `properties`; only th
 Columnar index modes don't store the original JSON `_source` on disk. Two `_source` modes are supported:
 
 **Synthetic columnar `_source`**
-:   Reconstructs a flattened representation of `_source` from doc values at query time. Requires an [Enterprise license](https://www.elastic.co/subscriptions). For more information, see [Synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
+:   Reconstructs a flattened representation of `_source` from doc values at query time. Requires an [appropriate license](https://www.elastic.co/subscriptions) for synthetic `_source`. For more information, refer to [Synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
 **Columnar stored `_source`**
 :   Materializes and stores the columnar `_source` representation on disk at index time as doc values. Used automatically when synthetic columnar `_source` is not licensed, and can also be configured explicitly to speed up `_source` retrieval. For more information, see [Columnar source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#columnar-stored).
@@ -211,11 +212,11 @@ Columnar index modes don't store the original JSON `_source` on disk. Two `_sour
 
 The following features are not supported in columnar index modes:
 
-- **nested field type**: The nested field type is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
+- **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
-- **Disabling doc values**: Mapped fields cannot disable doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
+- **Turning off doc values**: Mapped fields cannot turn off doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
-- **Disabling `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
+- **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
 - **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).

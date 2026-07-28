@@ -1483,8 +1483,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Returns an iterator that interleaves shards across the given subset of nodes, visiting one shard per node
-     * in round-robin order. Only nodes present in {@code nodeIds} are included; specified node IDs should all be
-     * present in {@link #nodesToShards}.
+     * in round-robin order.
+     *
+     * @param nodeIds The IDs of the nodes to iterate over, other nodes will be excluded from the iteration
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator(Set<String> nodeIds) {
         assert nodesToShards.keySet().containsAll(nodeIds) : "Unknown node IDs: " + Sets.difference(nodeIds, nodesToShards.keySet());

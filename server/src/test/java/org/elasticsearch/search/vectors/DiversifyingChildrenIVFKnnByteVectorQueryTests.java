@@ -13,14 +13,22 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.junit.Before;
 
 public class DiversifyingChildrenIVFKnnByteVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<byte[]> {
+
+    @Before
+    public void setUpByteFormat() {
+        format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+    }
 
     @Override
     byte[] vector(int... components) {
         byte[] v = new byte[components.length];
-        for (int i = 0; i < components.length; i++)
+        for (int i = 0; i < components.length; i++) {
             v[i] = (byte) components[i];
+        }
         return v;
     }
 

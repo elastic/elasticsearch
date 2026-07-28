@@ -25,8 +25,9 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQueryTests extends Abstra
     @Override
     byte[] vector(int... components) {
         byte[] v = new byte[components.length];
-        for (int i = 0; i < components.length; i++)
+        for (int i = 0; i < components.length; i++) {
             v[i] = (byte) components[i];
+        }
         return v;
     }
 

@@ -51,8 +51,9 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     @Override
     float[] vector(int... components) {
         float[] v = new float[components.length];
-        for (int i = 0; i < components.length; i++)
+        for (int i = 0; i < components.length; i++) {
             v[i] = components[i];
+        }
         return v;
     }
 

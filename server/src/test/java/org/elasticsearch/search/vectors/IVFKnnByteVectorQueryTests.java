@@ -17,16 +17,24 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.junit.Before;
 
 import java.io.IOException;
 
 public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<byte[]> {
 
+    @Before
+    public void setUpByteFormat() {
+        format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+    }
+
     @Override
     byte[] vector(int... components) {
         byte[] v = new byte[components.length];
-        for (int i = 0; i < components.length; i++)
+        for (int i = 0; i < components.length; i++) {
             v[i] = (byte) components[i];
+        }
         return v;
     }
 

@@ -30,7 +30,7 @@ import java.util.List;
 public class EscfColumnTransformsTests extends ESTestCase {
 
     public void testStringColumn_denseDrains() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addString(utf8("alpha"));
         b.addString(utf8("beta"));
         b.addString(utf8("gamma"));
@@ -41,7 +41,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testStringColumn_absentRowsSkipped() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addString(utf8("x"));
         b.addAbsent();
         b.addString(utf8("z"));
@@ -51,7 +51,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testLongColumn_canonicalToString() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addLong(42L);
         b.addLong(-1L);
         b.addLong(Long.MAX_VALUE);
@@ -61,7 +61,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testLongColumn_sparseDrains() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addAbsent();
         b.addLong(10L);
         b.addAbsent();
@@ -72,7 +72,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testDoubleColumn_canonicalToString() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addDouble(3.14);
         b.addDouble(-0.5);
         EscfColumn col = EscfColumn.from(b.finish(2));
@@ -81,7 +81,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testBoolColumn_trueAndFalse() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addBoolean(true);
         b.addBoolean(false);
         b.addBoolean(true);
@@ -92,7 +92,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
 
     public void testNullInUnion_emitsNullValue() {
         // addNull() promotes to UNION and records a NULL type byte for that row.
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addNull();
         b.addLong(7L);
         EscfColumn col = EscfColumn.from(b.finish(2));
@@ -103,7 +103,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testAllAbsent_emitsNothing() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addAbsent();
         b.addAbsent();
         EscfColumn col = EscfColumn.from(b.finish(2));
@@ -113,7 +113,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
 
     public void testLongArrayColumn_multipleElementsPerDoc() {
         // 3 rows: [[10, 20], [30], []]
-        EscfColumnBuilder childBuilder = new EscfColumnBuilder();
+        EscfColumnBuilder childBuilder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         childBuilder.addLong(10L);
         childBuilder.addLong(20L);
         childBuilder.addLong(30L);
@@ -140,7 +140,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
 
     public void testEmptyArray_emitsNoTuples() {
         // A single row whose element range is empty [0, 0).
-        EscfColumnBuilder childBuilder = new EscfColumnBuilder();
+        EscfColumnBuilder childBuilder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         childBuilder.addLong(99L);
         EscfColumn child = EscfColumn.from(childBuilder.finish(1));
         EscfArrayColumn array = new EscfArrayColumn(1, null, child, intsRef(new int[] { 0, 0 }));
@@ -149,7 +149,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
     }
 
     public void testMixedLongDoubleUnion() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
         b.addLong(10L);
         b.addDouble(3.14);
         b.addLong(20L);

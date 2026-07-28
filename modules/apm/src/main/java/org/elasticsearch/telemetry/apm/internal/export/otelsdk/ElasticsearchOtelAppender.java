@@ -38,12 +38,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -67,14 +63,10 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
 
     private static final String MESSAGE_KEY = "message";
     private static final String TRACE_ID_KEY = "trace.id";
-    private static final int REPLAY_QUEUE_SIZE = 1000;
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchOtelAppender.class);
 
     private volatile OpenTelemetry openTelemetry;
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final BlockingQueue<LogEvent> eventsToReplay = new ArrayBlockingQueue<>(REPLAY_QUEUE_SIZE);
-    private final AtomicBoolean replayLimitWarningLogged = new AtomicBoolean();
 
     private static final int KEY_CACHE_MAX_SIZE = 100;
 
@@ -104,49 +96,21 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
      */
     public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry) {
         super(name, null, null, true, Property.EMPTY_ARRAY);
+        Objects.requireNonNull(openTelemetry, "openTelemetry is null");
         this.openTelemetry = openTelemetry;
     }
 
     /**
-     * Hot-swap the OTel instance and replay any events that were queued before the swap.
-     * Safe to call concurrently with {@link #append}.
+     * Hot-swap the OTel instance. Safe to call concurrently with {@link #append}.
      */
     public void setOpenTelemetry(OpenTelemetry openTelemetry) {
-        lock.writeLock().lock();
-        try {
-            this.openTelemetry = openTelemetry;
-        } finally {
-            lock.writeLock().unlock();
-        }
-        // Drain replay queue after releasing write lock so append() can proceed.
-        LogEvent event;
-        while ((event = eventsToReplay.poll()) != null) {
-            emit(openTelemetry, event);
-        }
+        Objects.requireNonNull(openTelemetry, "openTelemetry is null");
+        this.openTelemetry = openTelemetry;
     }
 
     @Override
     public void append(LogEvent event) {
-        OpenTelemetry ot = openTelemetry;
-        if (ot != null) {
-            // Fast path: no lock needed; volatile read guarantees we see a fully-constructed instance.
-            emit(ot, event);
-            return;
-        }
-        lock.readLock().lock();
-        try {
-            ot = openTelemetry;
-            if (ot != null) {
-                emit(ot, event);
-                return;
-            }
-            // openTelemetry not yet set; queue a snapshot for replay after setOpenTelemetry().
-            if (eventsToReplay.offer(event.toImmutable()) == false && replayLimitWarningLogged.compareAndSet(false, true)) {
-                logger.error("replay queue is full; log events emitted before OTel init are being dropped");
-            }
-        } finally {
-            lock.readLock().unlock();
-        }
+        emit(openTelemetry, event);
     }
 
     private void emit(OpenTelemetry ot, LogEvent event) {
@@ -170,7 +134,9 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         Message message = event.getMessage();
         Context ctx = Context.current();
         if (message instanceof MapMessage<?, ?> mapMessage) {
-            ctx = traceContextFromMapMessage(mapMessage, ctx);
+            if (ctx == Context.root()) {
+                ctx = traceContextFromMapMessage(mapMessage, ctx);
+            }
             captureMapMessage(builder, mapMessage);
         } else if (message != null) {
             builder.setBody(message.getFormattedMessage());
@@ -255,27 +221,24 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
                 arrayToList(arr, o -> Double.valueOf((float) o))
             );
             case Object[] arr -> setListAttribute(builder, key, Arrays.asList(arr));
-            case Map<?, ?> map -> builder.setAttribute(VALUE_KEYS.computeIfAbsent(key, AttributeKey::valueKey), Value.of(toValueMap(map)));
+            case Map<?, ?> map -> {
+                if (map.isEmpty() == false) {
+                    builder.setAttribute(VALUE_KEYS.computeIfAbsent(key, AttributeKey::valueKey), Value.of(toValueMap(map)));
+                }
+            }
             default -> builder.setAttribute(STRING_KEYS.computeIfAbsent(key, AttributeKey::stringKey), value.toString());
         }
     }
 
     /**
      * Probes the first non-null element to pick an OTel typed-array key.
-     * Homogeneity is not verified — the caller is trusted; OTel will reject at export if wrong.
+     * Homogeneity is not verified — the caller is trusted; OTel will reject at export if it can't support it.
      */
     private static void setListAttribute(LogRecordBuilder builder, String key, List<?> list) {
-        Object first = null;
-        for (Object o : list) {
-            if (o != null) {
-                first = o;
-                break;
-            }
-        }
-        if (first == null) {
+        if (list.isEmpty()) {
             return;
         }
-        switch (first) {
+        switch (list.getFirst()) {
             case String ignored -> builder.setAttribute(
                 STRING_ARRAY_KEYS.computeIfAbsent(key, AttributeKey::stringArrayKey),
                 castList(list)

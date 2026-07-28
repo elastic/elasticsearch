@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.KeyValue;
 import io.opentelemetry.api.common.Value;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.data.LogRecordData;
@@ -42,14 +43,13 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
 
     private static InMemoryLogRecordExporter exporter;
     private static SdkLoggerProvider provider;
-    private static OpenTelemetrySdk sdk;
     private static ElasticsearchOtelAppender appender;
 
     @BeforeClass
     public static void start() {
         exporter = InMemoryLogRecordExporter.create();
         provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
-        sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
         appender = new ElasticsearchOtelAppender("test", sdk);
         appender.start();
     }
@@ -68,19 +68,34 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
     // --- helper methods ---
 
     private LogRecordData emitMapMessage(ESLogMessage msg) {
-        appender.append(Log4jLogEvent.newBuilder().setLoggerName("test.logger").setLevel(Level.INFO).setMessage(msg).build());
+        exporter.reset();
+        var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR, Level.TRACE);
+        appender.append(Log4jLogEvent.newBuilder().setLoggerName("test.logger").setLevel(level).setMessage(msg).build());
         List<LogRecordData> records = exporter.getFinishedLogRecordItems();
         assertThat(records, hasSize(1));
+        assertThat(records.getFirst().getSeverity().toString(), equalTo(level.toString()));
         return records.getFirst();
     }
 
     private LogRecordData emitPlainMessage(String text) {
+        var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR, Level.TRACE);
         appender.append(
-            Log4jLogEvent.newBuilder().setLoggerName("test.logger").setLevel(Level.INFO).setMessage(new SimpleMessage(text)).build()
+            Log4jLogEvent.newBuilder().setLoggerName("test.logger").setLevel(level).setMessage(new SimpleMessage(text)).build()
         );
         List<LogRecordData> records = exporter.getFinishedLogRecordItems();
         assertThat(records, hasSize(1));
+        assertThat(records.getFirst().getSeverity().toString(), equalTo(level.toString()));
         return records.getFirst();
+    }
+
+    private <T, R> void assertSimpleMessage(AttributeKey<R> key, T attribute, R result) {
+        ESLogMessage msg = new ESLogMessage().field(key.getKey(), attribute);
+        LogRecordData record = emitMapMessage(msg);
+        assertThat(record.getAttributes().get(key), equalTo(result));
+    }
+
+    private <T> void assertSimpleMessage(AttributeKey<T> key, T attribute) {
+        assertSimpleMessage(key, attribute, attribute);
     }
 
     // --- key naming ---
@@ -92,130 +107,96 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         assertThat(record.getAttributes().get(AttributeKey.stringKey("log4j.map_message.mykey")), nullValue());
     }
 
-    // --- primitive type dispatch ---
+    // --- primitive types ---
 
-    public void testStringAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", "hello");
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.stringKey("k")), equalTo("hello"));
-    }
-
-    public void testLongAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", 42L);
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longKey("k")), equalTo(42L));
-    }
-
-    public void testIntegerWidenedToLong() {
-        ESLogMessage msg = new ESLogMessage().field("k", 7);
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longKey("k")), equalTo(7L));
-    }
-
-    public void testDoubleAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", 3.14);
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.doubleKey("k")), equalTo(3.14));
-    }
-
-    public void testFloatWidenedToDouble() {
-        ESLogMessage msg = new ESLogMessage().field("k", 1.5f);
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.doubleKey("k")), equalTo((double) 1.5f));
-    }
-
-    public void testBooleanAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", true);
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.booleanKey("k")), equalTo(true));
-    }
-
-    public void testUnknownTypeToString() {
-        ESLogMessage msg = new ESLogMessage().field("k", new Object() {
+    public void testPrimitiveAttributes() {
+        // string
+        assertSimpleMessage(AttributeKey.stringKey("k"), "hello");
+        // long
+        assertSimpleMessage(AttributeKey.longKey("k"), 42L);
+        // integer widened to long
+        assertSimpleMessage(AttributeKey.longKey("k"), 7, 7L);
+        // double
+        assertSimpleMessage(AttributeKey.doubleKey("k"), 3.14, 3.14);
+        // float widened to double
+        assertSimpleMessage(AttributeKey.doubleKey("k"), 1.5f, 1.5);
+        // boolean
+        assertSimpleMessage(AttributeKey.booleanKey("k"), true);
+        // unknown type falls back to toString
+        assertSimpleMessage(AttributeKey.stringKey("k"), new Object() {
             @Override
             public String toString() {
                 return "custom";
             }
-        });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.stringKey("k")), equalTo("custom"));
+        }, "custom");
     }
 
-    // --- array type dispatch ---
+    // --- list types ---
 
-    public void testStringListAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", List.of("a", "b", "c"));
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.stringArrayKey("k")), equalTo(List.of("a", "b", "c")));
+    public void testListAttributes() {
+        // string
+        assertSimpleMessage(AttributeKey.stringArrayKey("k"), List.of("a", "b", "c"));
+        // long
+        assertSimpleMessage(AttributeKey.longArrayKey("k"), List.of(1L, 2L, 3L));
+        // integer widened to long
+        assertSimpleMessage(AttributeKey.longArrayKey("k"), List.of(1, 2, 3), List.of(1L, 2L, 3L));
+        // boolean
+        assertSimpleMessage(AttributeKey.booleanArrayKey("k"), List.of(true, false));
+        // double
+        assertSimpleMessage(AttributeKey.doubleArrayKey("k"), List.of(1.5, 2.5));
+        // float widened to double
+        assertSimpleMessage(AttributeKey.doubleArrayKey("k"), List.of(1.0f, 2.0f), List.of(1.0, 2.0));
+        // unknown type falls back to toString
+        assertSimpleMessage(AttributeKey.stringArrayKey("k"), List.of(new Object() {
+            @Override
+            public String toString() {
+                return "obj1";
+            }
+        }, new Object() {
+            @Override
+            public String toString() {
+                return "obj2";
+            }
+        }), List.of("obj1", "obj2"));
     }
 
-    public void testLongListAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", List.of(1L, 2L, 3L));
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longArrayKey("k")), equalTo(List.of(1L, 2L, 3L)));
-    }
+    // --- array types ---
 
-    public void testIntegerListWidenedToLong() {
-        ESLogMessage msg = new ESLogMessage().field("k", List.of(1, 2, 3));
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longArrayKey("k")), equalTo(List.of(1L, 2L, 3L)));
-    }
-
-    public void testBooleanListAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", List.of(true, false));
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.booleanArrayKey("k")), equalTo(List.of(true, false)));
-    }
-
-    // --- primitive and object array type dispatch ---
-
-    public void testStringArrayAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", new String[] { "a", "b" });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.stringArrayKey("k")), equalTo(List.of("a", "b")));
-    }
-
-    public void testLongPrimitiveArrayAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", new long[] { 1L, 2L, 3L });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longArrayKey("k")), equalTo(List.of(1L, 2L, 3L)));
-    }
-
-    public void testIntPrimitiveArrayWidenedToLong() {
-        ESLogMessage msg = new ESLogMessage().field("k", new int[] { 4, 5 });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longArrayKey("k")), equalTo(List.of(4L, 5L)));
-    }
-
-    public void testDoublePrimitiveArrayAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", new double[] { 1.0, 2.5 });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.doubleArrayKey("k")), equalTo(List.of(1.0, 2.5)));
-    }
-
-    public void testFloatPrimitiveArrayWidenedToDouble() {
-        ESLogMessage msg = new ESLogMessage().field("k", new float[] { 1.0f, 2.0f });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.doubleArrayKey("k")), equalTo(List.of((double) 1.0f, (double) 2.0f)));
-    }
-
-    public void testBooleanPrimitiveArrayAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", new boolean[] { true, false, true });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.booleanArrayKey("k")), equalTo(List.of(true, false, true)));
-    }
-
-    public void testLongBoxedArrayAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", new Long[] { 10L, 20L });
-        LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.longArrayKey("k")), equalTo(List.of(10L, 20L)));
+    public void testArrayAttributes() {
+        // string
+        assertSimpleMessage(AttributeKey.stringArrayKey("k"), new String[] { "a", "b" }, List.of("a", "b"));
+        // long primitive
+        assertSimpleMessage(AttributeKey.longArrayKey("k"), new long[] { 1L, 2L, 3L }, List.of(1L, 2L, 3L));
+        // int primitive widened to long
+        assertSimpleMessage(AttributeKey.longArrayKey("k"), new int[] { 4, 5 }, List.of(4L, 5L));
+        // double primitive
+        assertSimpleMessage(AttributeKey.doubleArrayKey("k"), new double[] { 1.0, 2.5 }, List.of(1.0, 2.5));
+        // float primitive widened to double
+        assertSimpleMessage(AttributeKey.doubleArrayKey("k"), new float[] { 1.0f, 2.0f }, List.of(1.0, 2.0));
+        // boolean primitive
+        assertSimpleMessage(AttributeKey.booleanArrayKey("k"), new boolean[] { true, false, true }, List.of(true, false, true));
+        // Long boxed array
+        assertSimpleMessage(AttributeKey.longArrayKey("k"), new Long[] { 10L, 20L }, List.of(10L, 20L));
     }
 
     // --- map type dispatch ---
 
     @SuppressWarnings("unchecked")
     public void testMapAttribute() {
-        ESLogMessage msg = new ESLogMessage().field("k", Map.of("x", "hello", "n", 42L));
+        Map<String, Object> data = new HashMap<>();
+        data.put("s", "hello");
+        data.put("l", 42L);
+        data.put("b", true);
+        data.put("i", 5);
+        data.put("d", 2.5);
+        data.put("f", 1.5f);
+        data.put("o", new Object() {
+            @Override
+            public String toString() {
+                return "obj";
+            }
+        });
+        ESLogMessage msg = new ESLogMessage().field("k", data);
         LogRecordData record = emitMapMessage(msg);
         Value<?> v = record.getAttributes().get(AttributeKey.valueKey("k"));
         assertNotNull(v);
@@ -223,8 +204,13 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         List<KeyValue> kvList = (List<KeyValue>) v.getValue();
         Map<String, Value<?>> map = new HashMap<>();
         kvList.forEach(kv -> map.put(kv.getKey(), kv.getValue()));
-        assertThat(map.get("x"), equalTo(Value.of("hello")));
-        assertThat(map.get("n"), equalTo(Value.of(42L)));
+        assertThat(map.get("s"), equalTo(Value.of("hello")));
+        assertThat(map.get("l"), equalTo(Value.of(42L)));
+        assertThat(map.get("b"), equalTo(Value.of(true)));
+        assertThat(map.get("i"), equalTo(Value.of(5L)));
+        assertThat(map.get("d"), equalTo(Value.of(2.5)));
+        assertThat(map.get("f"), equalTo(Value.of(1.5)));
+        assertThat(map.get("o"), equalTo(Value.of("obj")));
     }
 
     @SuppressWarnings("unchecked")
@@ -275,32 +261,61 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
     public void testEmptyListSkipped() {
         ESLogMessage msg = new ESLogMessage().field("k", List.of());
         LogRecordData record = emitMapMessage(msg);
-        assertThat(record.getAttributes().get(AttributeKey.stringArrayKey("k")), nullValue());
+        assertThat(record.getAttributes().size(), equalTo(0));
     }
 
-    // --- replay ---
+    public void testEmptyArraySkipped() {
+        ESLogMessage msg = new ESLogMessage().field("k", new String[0]);
+        LogRecordData record = emitMapMessage(msg);
+        assertThat(record.getAttributes().size(), equalTo(0));
+    }
 
-    public void testReplayOnSetOpenTelemetry() {
-        // Appender with no OTel instance initially
-        ElasticsearchOtelAppender replayAppender = new ElasticsearchOtelAppender("replay", null);
-        replayAppender.start();
-        try {
-            // Emit before OTel is set — goes into the replay queue
-            replayAppender.append(
-                Log4jLogEvent.newBuilder()
-                    .setLoggerName("replay.logger")
-                    .setLevel(Level.INFO)
-                    .setMessage(new SimpleMessage("queued"))
-                    .build()
-            );
-            assertThat("no records yet", exporter.getFinishedLogRecordItems(), hasSize(0));
+    public void testEmptyMapSkipped() {
+        ESLogMessage msg = new ESLogMessage().field("k", Map.of());
+        LogRecordData record = emitMapMessage(msg);
+        assertThat(record.getAttributes().size(), equalTo(0));
+    }
 
-            // Now wire up OTel — queued event must be replayed
-            replayAppender.setOpenTelemetry(sdk);
-            assertThat("replayed record", exporter.getFinishedLogRecordItems(), hasSize(1));
-            assertThat(exporter.getFinishedLogRecordItems().getFirst().getBodyValue().asString(), equalTo("queued"));
-        } finally {
-            replayAppender.stop();
-        }
+    // --- trace context ---
+
+    public void testTraceIdFromMapMessageSetsSpanContext() {
+        String traceId = "0af7651916cd43dd8448eb211c80319c";
+        ESLogMessage msg = new ESLogMessage().field("trace.id", traceId).field("message", "traced");
+        LogRecordData record = emitMapMessage(msg);
+        SpanContext spanCtx = record.getSpanContext();
+        assertThat(spanCtx.isValid(), equalTo(true));
+        assertThat(spanCtx.getTraceId(), equalTo(traceId));
+    }
+
+    public void testMissingTraceIdLeavesInvalidSpanContext() {
+        ESLogMessage msg = new ESLogMessage().field("message", "no trace");
+        LogRecordData record = emitMapMessage(msg);
+        assertThat(record.getSpanContext().isValid(), equalTo(false));
+    }
+
+    public void testEmptyTraceIdLeavesInvalidSpanContext() {
+        ESLogMessage msg = new ESLogMessage().field("trace.id", "").field("message", "empty trace");
+        LogRecordData record = emitMapMessage(msg);
+        assertThat(record.getSpanContext().isValid(), equalTo(false));
+    }
+
+    // --- exception ---
+    public void testThrowable() {
+        exporter.reset();
+        ESLogMessage msg = new ESLogMessage().field("test", "test");
+        appender.append(
+            Log4jLogEvent.newBuilder()
+                .setLoggerName("test.logger")
+                .setLevel(Level.INFO)
+                .setMessage(msg)
+                .setThrown(new RuntimeException("test exception"))
+                .build()
+        );
+        List<LogRecordData> records = exporter.getFinishedLogRecordItems();
+        assertThat(records, hasSize(1));
+        var record = records.getFirst();
+        assertThat(record.getAttributes().get(AttributeKey.stringKey("test")), equalTo("test"));
+        assertThat(record.getAttributes().get(AttributeKey.stringKey("exception.message")), equalTo("test exception"));
+        assertThat(record.getAttributes().get(AttributeKey.stringKey("exception.type")), equalTo("java.lang.RuntimeException"));
     }
 }

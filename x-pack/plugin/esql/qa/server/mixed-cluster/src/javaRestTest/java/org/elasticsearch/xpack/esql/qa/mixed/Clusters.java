@@ -78,23 +78,27 @@ public class Clusters {
     }
 
     /**
-     * Configures an old-version node, opting it into federation when its version knows the setting. Any node can
-     * coordinate a query and federation has to agree across the cluster, so every node that reads the setting gets it;
-     * a version that predates the setting registers federation unconditionally and has it on without one.
+     * Configures an old-version node, opting it into federation when it knows the setting. Any node can coordinate a
+     * query and federation has to agree across the cluster, so every node that reads the setting gets it; a build that
+     * predates the setting registers federation unconditionally and has it on without one.
      */
     private static void oldVersionNode(LocalNodeSpecBuilder node, String versionString, boolean detached, Version version) {
         node.version(versionString, detached);
-        if (knowsFederationSetting(version)) {
+        if (knowsFederationSetting(version, detached)) {
             node.setting(FEDERATION_ENABLED_SETTING, "true");
         }
     }
 
     /**
-     * Whether a node of this version accepts the federation setting. An older node rejects it as an unknown setting and
-     * never starts.
+     * Whether the old node accepts the federation setting. A node that does not know it rejects it as an unknown setting
+     * and never starts.
+     *
+     * @param detached whether the node is built from a git ref rather than resolved from a release. Such a build reports
+     *        the version it will become, which says nothing about which commits it contains, so the setting is left off:
+     *        the ref can point at a main commit from before the setting was introduced.
      */
-    private static boolean knowsFederationSetting(Version version) {
-        return version.onOrAfter(FEDERATION_SETTING_VERSION);
+    private static boolean knowsFederationSetting(Version version, boolean detached) {
+        return detached == false && version.onOrAfter(FEDERATION_SETTING_VERSION);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

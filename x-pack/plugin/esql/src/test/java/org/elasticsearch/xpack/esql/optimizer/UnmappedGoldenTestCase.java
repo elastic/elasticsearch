@@ -22,6 +22,12 @@ import java.util.Optional;
 
 /** Base for golden tests that run with both unmapped_fields=nullify and unmapped_fields=load. */
 public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
+    protected UnmappedGoldenTestCase() {}
+
+    protected UnmappedGoldenTestCase(String mode) {
+        super(mode);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());

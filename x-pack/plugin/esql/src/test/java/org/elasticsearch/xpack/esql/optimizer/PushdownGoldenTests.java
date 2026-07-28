@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -32,6 +35,15 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
  */
 public class PushdownGoldenTests extends UnmappedGoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PushdownGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     private static final String SALARIES_RESOURCE = "s3://bucket/golden_salaries.parquet";
@@ -212,7 +224,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
@@ -234,7 +246,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();

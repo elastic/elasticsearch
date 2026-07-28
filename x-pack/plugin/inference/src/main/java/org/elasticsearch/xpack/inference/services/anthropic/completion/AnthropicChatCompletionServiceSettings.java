@@ -41,7 +41,9 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
     public static final String NAME = "anthropic_completion_service_settings";
 
-    static final TransportVersion ANTHROPIC_COMPLETION_URL_ADDED = TransportVersion.fromName("anthropic_completion_url_added");
+    static final TransportVersion ANTHROPIC_COMPLETION_URL_ADDED = TransportVersion.fromName(
+        "inference_api_anthropic_completion_url_added"
+    );
 
     // The rate limit for build tier 1 is 50 request per minute
     // Details are here https://docs.anthropic.com/en/api/rate-limits

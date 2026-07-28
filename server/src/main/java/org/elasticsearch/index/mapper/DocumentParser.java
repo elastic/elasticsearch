@@ -897,7 +897,8 @@ public final class DocumentParser {
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
             context.getVectorFormatProviders(),
-            context.indexSettings().isIndexDisabledByDefault()
+            context.indexSettings().isIndexDisabledByDefault(),
+            context.indexSettings().getPostFilterSelectivityThreshold()
         );
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));

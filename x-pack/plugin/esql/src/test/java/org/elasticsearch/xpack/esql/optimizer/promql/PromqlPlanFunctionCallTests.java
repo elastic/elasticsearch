@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -299,11 +301,12 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
      *   \_Filter[ISNOTNULL(result)]
      *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
      *       \_Aggregate[[step],[COUNT(result) AS $$COUNT$result$0, MAX(result) AS $$MAX$result$1, step]]
-     *         \_Aggregate[[step, pack_cluster],[SUM(...) AS result, step]]
-     *           \_Eval[[PACKDIMENSION(cluster) AS pack_cluster]]
-     *             \_TimeSeriesAggregate
-     *               \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
-     *                 \_EsRelation[k8s]
+     *         \_UnpackDims[packed, [cluster]]
+     *           \_Aggregate[[step, _$packed_dims AS packed],[SUM(...) AS result, step, packed]]
+     *             \_PackDims[[cluster], _$packed_dims]
+     *               \_TimeSeriesAggregate
+     *                 \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *                   \_EsRelation[k8s]
      */
     public void testScalarInnerAggregate() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))");
@@ -326,9 +329,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
         assertThat(scalarAgg.aggregates(), hasSize(3));
 
-        var sumAgg = as(scalarAgg.child(), Aggregate.class);
+        var unpack = as(scalarAgg.child(), UnpackDims.class);
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("cluster"));
+
+        var sumAgg = as(unpack.child(), Aggregate.class);
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
+
+        var pack = as(sumAgg.child(), PackDims.class);
+        assertThat(pack.dims(), hasSize(1));
+        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("cluster"));
 
         var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));

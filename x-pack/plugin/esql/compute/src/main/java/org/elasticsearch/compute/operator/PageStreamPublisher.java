@@ -179,11 +179,25 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
         if (frontCount > rows) {
             buffer.pollFirst();
-            Page toDeliver = front.slice(0, rows);
-            Page remainder = front.slice(rows, frontCount);
-            front.releaseBlocks();
-            buffer.addFirst(remainder);
-            return toDeliver;
+            Page toDeliver = null;
+            try {
+                toDeliver = front.slice(0, rows);
+                Page remainder = front.slice(rows, frontCount);
+                front.releaseBlocks();
+                buffer.addFirst(remainder);
+                return toDeliver;
+            } catch (RuntimeException e) {
+                front.releaseBlocks();
+                if (toDeliver != null) {
+                    toDeliver.releaseBlocks();
+                }
+                Page page;
+                while ((page = buffer.pollFirst()) != null) {
+                    page.releaseBlocks();
+                }
+                bufferedRows = 0;
+                throw e;
+            }
         }
 
         int numBlocks = front.getBlockCount();
@@ -202,17 +216,25 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                     builders[b].copyFrom(src.getBlock(b), 0, toCopy);
                 }
                 remaining -= toCopy;
-                buffer.pollFirst();
                 if (toCopy == srcCount) {
+                    buffer.pollFirst();
                     src.releaseBlocks();
                 } else {
                     Page remainder = src.slice(toCopy, srcCount);
+                    buffer.pollFirst();
                     src.releaseBlocks();
                     buffer.addFirst(remainder);
                 }
             }
             Block[] blocks = Block.Builder.buildAll(builders);
             return new Page(rows, blocks);
+        } catch (RuntimeException e) {
+            Page page;
+            while ((page = buffer.pollFirst()) != null) {
+                page.releaseBlocks();
+            }
+            bufferedRows = 0;
+            throw e;
         } finally {
             for (Block.Builder b : builders) {
                 if (b != null) {

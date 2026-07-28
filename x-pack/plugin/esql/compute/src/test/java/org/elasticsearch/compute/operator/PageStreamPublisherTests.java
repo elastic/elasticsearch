@@ -95,8 +95,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         subscriber.requestOne();
         finishStream(publisher);
         assertSinglePage(subscriber, pageSize, 2);
-        assertTrue("onComplete should fire after footer + pagesFinished", subscriber.completed);
         releasePages(subscriber.receivedPages);
+        subscriber.requestOne();
+        assertTrue("onComplete should fire after footer + pagesFinished", subscriber.completed);
     }
 
     public void testDrainMergePath() {

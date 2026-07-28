@@ -948,7 +948,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             if (nodeIdsWithDeferredMoves.isEmpty() == false) {
                 final var secondPassNodesWithDeferredMoves = executeMovesThatMatchPredicate(
                     shardMoved,
-                    allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves),
+                    allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves::contains),
                     bestNonPreferredShardMovementsTracker,
                     canAllocateDecision -> canAllocateDecision == AllocationDecision.YES
                         || canAllocateDecision == AllocationDecision.NOT_PREFERRED

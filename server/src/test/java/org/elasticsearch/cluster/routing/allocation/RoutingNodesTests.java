@@ -447,7 +447,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         // We use this logic to test both the subset and full iterator
         final var interleavingIterator = includedNodes.size() == shardsByNode.size() && randomBoolean()
             ? clusterState.getRoutingNodes().nodeInterleavedShardIterator()
-            : clusterState.getRoutingNodes().nodeInterleavedShardIterator(includedNodes);
+            : clusterState.getRoutingNodes().nodeInterleavedShardIterator(includedNodes::contains);
         while (interleavingIterator.hasNext()) {
             final var shardRouting = interleavingIterator.next();
             final var expectedShards = shardsByNode.get(shardRouting.currentNodeId());
@@ -479,7 +479,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertTrue("Shards on nodes " + nodesWithUnvisitedShards + " were left unvisited", nodesWithUnvisitedShards.isEmpty());
     }
 
-    public void testNodeInterleavedShardIteratorEmptySubset() {
+    public void testNodeInterleavedShardIteratorNoMatchingNodes() {
         final var projectId = randomProjectIdOrDefault();
         final var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
@@ -490,7 +490,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
             .build();
 
-        assertFalse(clusterState.getRoutingNodes().nodeInterleavedShardIterator(Set.of()).hasNext());
+        assertFalse(clusterState.getRoutingNodes().nodeInterleavedShardIterator(nodeId -> false).hasNext());
     }
 
     public void testBuildRoutingNodesForMultipleProjects() {

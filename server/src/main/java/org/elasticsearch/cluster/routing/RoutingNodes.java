@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -46,6 +45,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -1485,15 +1485,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns an iterator that interleaves shards across the given subset of nodes, visiting one shard per node
      * in round-robin order.
      *
-     * @param nodeIds The IDs of the nodes to iterate over, other nodes will be excluded from the iteration
+     * @param nodePredicate A predicate which should return true for node IDs to include in the iteration, and false for node IDs to skip
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator(Set<String> nodeIds) {
-        assert nodesToShards.keySet().containsAll(nodeIds) : "Unknown node IDs: " + Sets.difference(nodeIds, nodesToShards.keySet());
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodeIds.size());
-        for (final var nodeId : nodeIds) {
-            final var routingNode = nodesToShards.get(nodeId);
-            // defensive: assertions may be disabled
-            if (routingNode != null) {
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(Predicate<String> nodePredicate) {
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
+        for (final var entry : nodesToShards.entrySet()) {
+            final var nodeId = entry.getKey();
+            if (nodePredicate.test(nodeId)) {
+                final var routingNode = entry.getValue();
                 final var shards = routingNode.copyShards();
                 if (shards.length > 0) {
                     queue.add(Iterators.forArray(shards));

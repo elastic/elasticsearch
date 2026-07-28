@@ -539,7 +539,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetIndexMetadataHeapBytesZeroWithNoIndices() {
+    public void testGetIndexMetadataEstimatedHeapBytesZeroWithNoIndices() {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))
             .localNodeId("node_0")
@@ -547,11 +547,11 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertThat(service.getIndexMetadataHeapBytes(), equalTo(0L));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(0L));
         assertThat(service.getIndexMemoryOverhead(), equalTo(0L));
     }
 
-    public void testGetIndexMetadataHeapBytesDedupesSharedMappings() throws IOException {
+    public void testGetIndexMetadataEstimatedHeapBytesDedupesSharedMappings() throws IOException {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))
             .localNodeId("node_0")
@@ -605,22 +605,31 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         long sharedMappingBytes = indexA.mapping().ramBytesUsed();
 
         service.clusterChanged(new ClusterChangedEvent("test", clusterState, emptyMaster));
-        assertThat(service.getIndexMetadataHeapBytes(), lessThan(perIndexTotal));
-        assertThat(service.getIndexMetadataHeapBytes(), equalTo(perIndexTotal - sharedMappingBytes));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), lessThan(perIndexTotal));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(perIndexTotal - sharedMappingBytes));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * 2));
     }
 
-    public void testGetIndexMetadataHeapBytesUpdatesWithClusterChange() {
+    public void testGetIndexMetadataEstimatedHeapBytesUpdatesWithClusterChange() {
         ClusterState oneIndexClusterState = randomInitialTwoNodeClusterState(1);
         service.clusterChanged(new ClusterChangedEvent("test", oneIndexClusterState, ClusterState.EMPTY_STATE));
-        long oneIndexHeapBytes = service.getIndexMetadataHeapBytes();
+        long oneIndexHeapBytes = service.getIndexMetadataEstimatedHeapBytes();
         assertThat(oneIndexHeapBytes, greaterThan(0L));
+        // Object-size estimate is expected below the fixed per-index constant used by getIndexMemoryOverhead().
+        assertThat(oneIndexHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD));
 
-        ClusterState manyIndicesClusterState = randomInitialTwoNodeClusterState(10);
+        final int manyIndices = 10;
+        ClusterState manyIndicesClusterState = randomInitialTwoNodeClusterState(manyIndices);
         service.clusterChanged(new ClusterChangedEvent("test", manyIndicesClusterState, ClusterState.EMPTY_STATE));
-        long manyIndicesHeapBytes = service.getIndexMetadataHeapBytes();
+        long manyIndicesHeapBytes = service.getIndexMetadataEstimatedHeapBytes();
 
         assertThat(manyIndicesHeapBytes, greaterThan(oneIndexHeapBytes));
-        assertThat(service.getIndexMetadataHeapBytes(), equalTo(estimateIndexMetadataHeapBytes(manyIndicesClusterState.metadata())));
+        assertThat(
+            service.getIndexMetadataEstimatedHeapBytes(),
+            equalTo(estimateIndexMetadataHeapBytes(manyIndicesClusterState.metadata()))
+        );
+        assertThat(manyIndicesHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * manyIndices));
+        assertThat(manyIndicesHeapBytes, lessThan(service.getIndexMemoryOverhead()));
     }
 
     private static long estimateIndexMetadataHeapBytes(Metadata metadata) {

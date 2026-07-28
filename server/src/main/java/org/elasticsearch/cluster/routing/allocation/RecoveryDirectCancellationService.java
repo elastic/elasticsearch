@@ -61,7 +61,7 @@ public class RecoveryDirectCancellationService {
     /// This limit is conservative (compared to [org.elasticsearch.indices.ShardLimitValidator] limits), but it should
     /// still capture all "still in use" cancellations for the majority of clusters. Each entry is expected to be less
     /// than 200 bytes, including the allocation ID key, the cache entry wrapper and SentCancellation object.
-    /// The max cache size is then less than 4MB (0.2% of a 2GB heap).
+    /// The estimated max cache size is then ~4MB (0.2% of a 2GB heap).
     private static final int MAX_CANCELLATIONS_CACHE_SIZE = 20_000;
 
     /// Should exceed the expected lifetime of a cancelIfStarted=true recovery in the majority of cases. Ensures stale

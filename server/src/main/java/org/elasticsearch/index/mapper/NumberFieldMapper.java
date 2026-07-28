@@ -2782,10 +2782,10 @@ public class NumberFieldMapper extends FieldMapper {
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
+            && docValuesParameters.multiValue() == false
             && indexed == false
             && stored == false
             && indexTerms == false
-            && docValuesParameters.multiValue() == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false

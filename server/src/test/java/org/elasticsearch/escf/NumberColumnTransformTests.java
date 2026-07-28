@@ -537,6 +537,119 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reads per-doc element arrays from a LONG or ARRAY kind {@link EscfColumnData}. Elements are
+     * returned in source order. Absent docs appear as {@code null}.
+     */
+    private static long[][] readArrayValues(EscfColumnData data, int docCount) {
+        LuceneLongColumn col = LuceneLongColumn.of(data, "_test", SortedNumericDocValuesField.TYPE, LongColumn.NumericKind.LONG);
+        int[] counts = new int[docCount];
+        LongTupleCursor c1 = col.tuples();
+        for (int doc = c1.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = c1.nextDoc()) {
+            counts[doc]++;
+        }
+        long[][] result = new long[docCount][];
+        for (int doc = 0; doc < docCount; doc++) {
+            if (counts[doc] > 0) result[doc] = new long[counts[doc]];
+        }
+        int[] idx = new int[docCount];
+        LongTupleCursor c2 = col.tuples();
+        for (int doc = c2.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = c2.nextDoc()) {
+            result[doc][idx[doc]++] = c2.longValue();
+        }
+        return result;
+    }
+
+    /** Integer-token arrays: LONG child, long target type — no-op transform per element. */
+    public void testLongArray_longType() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[1,2,3]}", "{}", "{\"f\":[-9223372036854775808,9223372036854775807]}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+                src,
+                NumberType.LONG,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            );
+            long[][] vals = readArrayValues(out, 3);
+            assertArrayEquals(new long[] { 1L, 2L, 3L }, vals[0]);
+            assertNull(vals[1]);
+            assertArrayEquals(new long[] { Long.MIN_VALUE, Long.MAX_VALUE }, vals[2]);
+        }
+    }
+
+    /** Integer-token array with float target: each element goes through {@code floatToSortableInt}. */
+    public void testLongArray_floatType() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[5,10,-3]}", "{}", "{\"f\":[0]}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+                src,
+                NumberType.FLOAT,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            );
+            long[][] vals = readArrayValues(out, 3);
+            assertArrayEquals(
+                new long[] {
+                    NumericUtils.floatToSortableInt(5f),
+                    NumericUtils.floatToSortableInt(10f),
+                    NumericUtils.floatToSortableInt(-3f) },
+                vals[0]
+            );
+            assertNull(vals[1]);
+            assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(0f) }, vals[2]);
+        }
+    }
+
+    /** Decimal-token arrays: DOUBLE child, double target type — sortableDoubleBits per element. */
+    public void testDoubleArray_doubleType() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[1.5,2.25,-3.5]}", "{}", "{\"f\":[0.75]}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+                src,
+                NumberType.DOUBLE,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            );
+            long[][] vals = readArrayValues(out, 3);
+            assertArrayEquals(
+                new long[] {
+                    NumericUtils.doubleToSortableLong(1.5),
+                    NumericUtils.doubleToSortableLong(2.25),
+                    NumericUtils.doubleToSortableLong(-3.5) },
+                vals[0]
+            );
+            assertNull(vals[1]);
+            assertArrayEquals(new long[] { NumericUtils.doubleToSortableLong(0.75) }, vals[2]);
+        }
+    }
+
+    /** Decimal-token array with float target: double cast to float, then {@code floatToSortableInt}. */
+    public void testDoubleArray_floatType() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[1.5,-2.25]}", "{\"f\":[0.5,2.5]}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+                src,
+                NumberType.FLOAT,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            );
+            long[][] vals = readArrayValues(out, 2);
+            assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(1.5f), NumericUtils.floatToSortableInt(-2.25f) }, vals[0]);
+            assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(0.5f), NumericUtils.floatToSortableInt(2.5f) }, vals[1]);
+        }
+    }
+
+    /** An out-of-range element inside an array throws the same as the scalar path. */
+    public void testLongArray_outOfRange_throws() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[-128,0,128]}")) {
+            EscfColumn src = column(batch, "f");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.BYTE, false, BytesRefRecycler.NON_RECYCLING_INSTANCE)
+            );
+        }
+    }
+
     private static boolean isLongInRange(long l, NumberType type) {
         return switch (type) {
             case BYTE -> l >= Byte.MIN_VALUE && l <= Byte.MAX_VALUE;

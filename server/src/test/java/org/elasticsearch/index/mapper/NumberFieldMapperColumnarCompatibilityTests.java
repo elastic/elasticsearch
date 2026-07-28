@@ -27,7 +27,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
 
     /**
      * Columnar-mode settings that satisfy {@link NumberFieldMapper#supportsColumnarParse}:
-     * single-value doc-values ({@code multi_value=false}) so the mapper opts in.
+     * single-value doc-values ({@code multi_value=false}).
      */
     private static Settings columnarSettings() {
         return Settings.builder()

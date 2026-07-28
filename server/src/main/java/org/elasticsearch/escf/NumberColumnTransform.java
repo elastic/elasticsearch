@@ -40,12 +40,36 @@ public final class NumberColumnTransform {
         return switch (source.kind()) {
             case EscfColumnKind.LONG -> fromLong(source, type, recycler);
             case EscfColumnKind.DOUBLE -> fromDouble(source, type, coerce, recycler);
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
-                    + "] — only LONG and DOUBLE are supported"
+                    + "] — only LONG, DOUBLE, and ARRAY are supported"
             );
         };
+    }
+
+    private static EscfColumnData fromArray(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler
+    ) {
+        // Materialize the array structure: offsets + child data. The child is always dense (all
+        // elements present — absent rows are represented by an empty offset range, not a child gap).
+        EscfColumnData sourceData = source.toColumnData();
+        EscfColumnData childData = sourceData.child();
+        EscfColumn child = EscfColumn.from(childData);
+        EscfColumnData transformedChild = switch (child.kind()) {
+            case EscfColumnKind.LONG -> fromLong(child, type, recycler);
+            case EscfColumnKind.DOUBLE -> fromDouble(child, type, coerce, recycler);
+            default -> throw new UnsupportedOperationException(
+                "toSortableLongColumn: ARRAY child kind ["
+                    + EscfColumnKind.name(child.kind())
+                    + "] is not supported — child must be LONG or DOUBLE"
+            );
+        };
+        return EscfColumnData.ofArray(sourceData.docCount(), sourceData.validity(), sourceData.offsets(), transformedChild);
     }
 
     private static EscfColumnData fromLong(EscfColumn source, NumberFieldMapper.NumberType type, Recycler<BytesRef> recycler) {

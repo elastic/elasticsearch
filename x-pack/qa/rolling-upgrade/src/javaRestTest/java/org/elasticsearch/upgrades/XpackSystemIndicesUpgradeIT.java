@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -19,7 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -123,7 +122,7 @@ public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWith
         createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
 
         try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
-            boolean upgradeRequired = Version.fromString(getOldClusterVersion()).before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION);
+            boolean upgradeRequired = oldClusterHasFeature(InfrastructureFeatures.CURRENT_VERSION) == false;
             String expectedStatus = upgradeRequired ? "MIGRATION_NEEDED" : "NO_MIGRATION_NEEDED";
 
             assertThat(

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_PERCENTILE` function [esql-mv_percentile]
 
-:::{include} ../../_snippets/functions/layout/mv_percentile.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_percentile.md
 :::

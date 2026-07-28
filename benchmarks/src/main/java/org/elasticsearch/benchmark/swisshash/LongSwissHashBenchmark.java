@@ -34,11 +34,21 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 
+/**
+ * Benchmarks {@link LongSwissHash} build throughput, the hot path behind
+ * {@code STATS ... BY <long>} (issue #798).
+ *
+ * <p> Each benchmark method builds a <b>fresh</b> table per invocation so it
+ * measures {@code addAll} of {@code cardinality} keys (inserts plus the probes
+ * for duplicate keys), not a re-add into an already-full table. The keys are
+ * generated once per trial; the table is created and released inside the method.
+ * A large fixed heap keeps GC out of the measurement.
+ */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+@Warmup(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 10, time = 2, timeUnit = TimeUnit.SECONDS)
+@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector", "-Xms4g", "-Xmx4g" })
 @State(Scope.Thread)
 public class LongSwissHashBenchmark {
 
@@ -46,7 +56,7 @@ public class LongSwissHashBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    @Param({ "1000", "10000", "100000", "1000000", "10000000" })
+    @Param({ "1000", "10000", "100000", "1000000", "10000000", "17600000" })
     int cardinality;
 
     @Param({ "uniform", "duplicates", "collision" })
@@ -54,31 +64,89 @@ public class LongSwissHashBenchmark {
 
     long[] keys;
 
-    LongSwissHash swiss;
-    LongHash legacy;
+    BigArrays bigArrays;
+    PageCacheRecycler recycler;
+    NoopCircuitBreaker breaker;
 
-    @Setup(Level.Iteration)
+    @Setup(Level.Trial)
     public void setup() {
-        keys = null;
         keys = generate(distribution, cardinality);
+        bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        breaker = new NoopCircuitBreaker("dummy");
+    }
 
-        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
-        swiss = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
-        legacy = new LongHash(1, bigArrays);
+    private LongSwissHash newSwiss() {
+        return SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
     }
 
     /**
-     * Build Swiss table completely, then iterate.
-     * Mirrors STATS build -> finalize -> output.
+     * Build the Swiss table only (no output iteration). Isolates the {@code add}
+     * probe path, which is the hot path #798 targets
+     * ({@code addAll(17_630_976 random longs)}).
+     */
+    @Benchmark
+    public long swissBuild() {
+        try (LongSwissHash swiss = newSwiss()) {
+            long acc = 0;
+            for (long v : keys) {
+                acc += swiss.add(v);
+            }
+            return acc;
+        }
+    }
+
+    private static final int PREFETCH_BATCH = 128;
+
+    /**
+     * Build via the batched two-level-prefetch loop the block hash will use
+     * (warm control + id), falling back to scalar add until the table is large
+     * enough to prefetch.
+     */
+    @Benchmark
+    public long swissBuildPrefetch2() {
+        return prefetchBuild();
+    }
+
+    private long prefetchBuild() {
+        final int[] hashes = new int[PREFETCH_BATCH];
+        final int n = keys.length;
+        try (LongSwissHash swiss = newSwiss()) {
+            long acc = 0;
+            int dummy = 0;
+            for (int off = 0; off < n; off += PREFETCH_BATCH) {
+                final int batch = Math.min(PREFETCH_BATCH, n - off);
+                if (swiss.shouldPrefetch()) {
+                    for (int i = 0; i < batch; i++) {
+                        final int h = LongSwissHash.hash(keys[off + i]);
+                        hashes[i] = h;
+                        dummy ^= swiss.prefetch(h);
+                    }
+                    for (int i = 0; i < batch; i++) {
+                        acc += swiss.addWithHash(keys[off + i], hashes[i]);
+                    }
+                } else {
+                    for (int i = 0; i < batch; i++) {
+                        acc += swiss.add(keys[off + i]);
+                    }
+                }
+            }
+            return acc + (long) dummy;
+        }
+    }
+
+    /**
+     * Build the Swiss table completely, then iterate. Mirrors STATS build ->
+     * finalize -> output.
      */
     @Benchmark
     public long swissBuildThenIterate(Blackhole bh) {
-        return swissBuildThenIterateImpl(bh::consume);
+        try (LongSwissHash swiss = newSwiss()) {
+            return swissBuildThenIterateImpl(swiss, bh::consume);
+        }
     }
 
-    long swissBuildThenIterateImpl(LongConsumer bh) {
+    long swissBuildThenIterateImpl(LongSwissHash swiss, LongConsumer bh) {
         for (long v : keys) {
             swiss.add(v);
         }
@@ -89,21 +157,19 @@ public class LongSwissHashBenchmark {
     }
 
     /**
-     * Same for legacy hash table.
+     * Same build-then-iterate for the legacy hash table, as a reference point.
      */
     @Benchmark
     public long legacyBuildThenIterate(Blackhole bh) {
-        return legacyBuildThenIterateImpl(bh::consume);
-    }
-
-    long legacyBuildThenIterateImpl(LongConsumer bh) {
-        for (long v : keys) {
-            legacy.add(v);
+        try (LongHash legacy = new LongHash(1, bigArrays)) {
+            for (long v : keys) {
+                legacy.add(v);
+            }
+            for (int i = 0; i < legacy.size(); i++) {
+                bh.consume(legacy.get(i));
+            }
+            return legacy.size();
         }
-        for (int i = 0; i < legacy.size(); i++) {
-            bh.accept(legacy.get(i));
-        }
-        return legacy.size();
     }
 
     private long[] generate(String dist, int size) {

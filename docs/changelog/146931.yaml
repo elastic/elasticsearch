@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 146684
+pr: 146931
+summary: Stop carrying shard request with each shard search result
+type: enhancement

@@ -131,7 +131,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 

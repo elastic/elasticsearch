@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -128,12 +129,30 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
+    public Collection<BlobFileRanges> getBlobFileRanges() {
+        return Collections.unmodifiableCollection(currentMetadata.values());
+    }
+
     /**
      * Returns position of the file in the surrounding blob
      */
     public long getPosition(String fileName, long pos, int length) {
         var blobFileRanges = currentMetadata.get(fileName);
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
+    }
+
+    public long getTimestampMillis(String fileName) {
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null
+            ? BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
+            : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
+    /**
+     * Timestamp to stamp on a cache region whose {@link BlobFileRanges} carry no known data timestamp.
+     */
+    protected long unknownRegionTimestampMillis() {
+        return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -294,17 +313,25 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
+        var blobFile = blobFileRanges.blobLocation().blobFile();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
+            getCacheBlobReader(name, blobFile),
             blobFileRanges,
             blobCacheMetrics,
-            cacheService.getThreadPool().relativeTimeInMillisSupplier()
+            cacheService.getThreadPool().relativeTimeInMillisSupplier(),
+            cacheService.getRegionSize(),
+            context,
+            cacheService.hasSearchRole()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
+        long timestampMillis = BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange());
+        if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            timestampMillis = unknownRegionTimestampMillis();
+        }
         return cacheService.getCacheFile(
             new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
             // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
@@ -314,7 +341,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // blob length (with padding added).
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
-            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime)
+            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
+            timestampMillis
         );
     }
 
@@ -381,6 +409,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
+
+    /**
+     * @return the {@link BlobStoreCacheDirectory} to use when reading BCC/CC metadata through the cache.
+     */
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
+        return createNewBlobStoreCacheDirectoryForWarming();
+    }
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

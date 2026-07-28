@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -73,9 +74,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
                 indexService,
                 shard,
-                shard.acquireSearcherSupplier(),
+                shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -112,9 +114,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
                 indexService,
                 shard,
-                shard.acquireSearcherSupplier(),
+                shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             readerContext.putInContext(
@@ -253,9 +256,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 shardSearchContextId,
                 indexService,
                 shard,
-                shard.acquireSearcherSupplier(),
+                shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), mock(IndicesAccessControl.class));

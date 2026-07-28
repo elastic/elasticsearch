@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -128,15 +129,15 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append("[filter=");
-        sb.append(esFilter);
-        sb.append(", estimatedRowSize=");
-        sb.append(estimatedRowSize);
-        sb.append(", reducer=[");
-        sb.append("], fragment=[<>\n");
-        sb.append(fragment.toString(format));
+        // esFilter is a raw QueryBuilder DSL from request.filter() — opaque content; route it through
+        // the opaque mapper so it prints raw under identity and redacts under anonymization.
+        sb.append("[filter=").append(mapper.opaque(String.valueOf(esFilter)));
+        sb.append(", estimatedRowSize=").append(estimatedRowSize);
+        sb.append(", reducer=[], fragment=[<>\n");
+        sb.append(fragment.toString(format, mapper));
         sb.append("<>]]");
     }
+
 }

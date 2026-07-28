@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern.Kind;
 
 import java.util.Collections;
 import java.util.List;
@@ -38,11 +40,11 @@ import java.util.Objects;
  *       ({@code ALLOW_UNAVAILABLE_TARGETS} + project routing scoped to linked projects only —
  *       {@code IndexResolver.FLAT_WORLD_OPTIONS}). Results land in
  *       {@code AnalyzerContext.optionalLinkedResolution}, keyed by the shadow's full
- *       {@link #optionalLinkedPattern()} (view name + applicable exclusions).
+ *       {@link #linkedIndexPattern()} (view name + applicable exclusions).
  *       <em>(deferred to the lenient field-caps PR)</em></li>
  *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
  *       Initialize batch) consults {@code AnalyzerContext.optionalLinkedResolution} for this shadow's
- *       {@link #optionalLinkedPattern()}. If a remote <em>index</em> is found the shadow is replaced
+ *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found the shadow is replaced
  *       with a corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
  *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
  *       field-caps PR provides real data)</em></li>
@@ -54,17 +56,6 @@ import java.util.Objects;
  *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
  *       <em>(landed)</em></li>
  * </ol>
- * <p>
- * The {@link #exclusions()} list captures any exclusion patterns that appeared <em>after</em>
- * the view's referencing position in the parent {@code UnresolvedRelation} pattern list. These
- * travel with the lenient lookup as part of {@link #optionalLinkedPattern()} so the per-shadow field-caps
- * target is {@code viewName,exclusion1,...} — mirroring the local exclusion scope exactly. See
- * {@code refactor_view_resolver_for_cps.md} for the position-aware semantics. The exclusions
- * are part of the {@code optionalLinkedResolution} map's key (via {@link #optionalLinkedPattern()}), so the
- * same view referenced from positions with different exclusion lists yields distinct lookups
- * and may resolve differently — e.g. one position's exclusions empty out the lenient
- * field-caps target while another resolves to a remote index.
- * <p>
  * The strict, default-options field-caps path on the local cluster keeps {@code resolveViews(true)}
  * unchanged, so a remote project that has a <em>view</em> with the same name still fails the query
  * with {@code RemoteViewNotSupportedException}. This node only enables lookup of remote
@@ -73,30 +64,22 @@ import java.util.Objects;
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 
     private final String viewName;
-    private final List<String> exclusions;
+    private final Kind kind;
+    private final String pattern;
 
-    public ViewShadowRelation(Source source, String viewName, List<String> exclusions) {
+    public ViewShadowRelation(Source source, String viewName, Kind kind, String pattern) {
         super(source);
         this.viewName = viewName;
-        this.exclusions = List.copyOf(exclusions);
+        this.kind = kind;
+        this.pattern = pattern;
     }
 
     public String viewName() {
         return viewName;
     }
 
-    public List<String> exclusions() {
-        return exclusions;
-    }
-
-    /**
-     * The pattern to send to field-caps for the lenient lookup: view name + applicable exclusions.
-     */
-    public IndexPattern optionalLinkedPattern() {
-        if (exclusions.isEmpty()) {
-            return new IndexPattern(source(), viewName);
-        }
-        return new IndexPattern(source(), viewName + "," + String.join(",", exclusions));
+    public LinkedIndexPattern linkedIndexPattern() {
+        return new LinkedIndexPattern(kind, new IndexPattern(source(), pattern));
     }
 
     @Override
@@ -111,7 +94,7 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 
     @Override
     protected NodeInfo<ViewShadowRelation> info() {
-        return NodeInfo.create(this, ViewShadowRelation::new, viewName, exclusions);
+        return NodeInfo.create(this, ViewShadowRelation::new, viewName, kind, pattern);
     }
 
     @Override
@@ -131,12 +114,12 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 
     @Override
     public String unresolvedMessage() {
-        return "view-shadow lookup [" + optionalLinkedPattern() + "] not yet resolved";
+        return "view-shadow lookup [" + pattern + "] not yet resolved";
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), viewName, exclusions);
+        return Objects.hash(source(), viewName, kind, pattern);
     }
 
     @Override
@@ -148,16 +131,16 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
             return false;
         }
         ViewShadowRelation other = (ViewShadowRelation) obj;
-        return Objects.equals(viewName, other.viewName) && Objects.equals(exclusions, other.exclusions);
+        return Objects.equals(viewName, other.viewName) && Objects.equals(kind, other.kind) && Objects.equals(pattern, other.pattern);
     }
 
     @Override
     public List<Object> nodeProperties() {
-        return List.of(viewName, exclusions);
+        return List.of(viewName, kind, pattern);
     }
 
     @Override
     public String toString() {
-        return "?shadow[" + optionalLinkedPattern() + "]";
+        return "?shadow[" + pattern + "]";
     }
 }

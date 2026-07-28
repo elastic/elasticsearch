@@ -995,12 +995,27 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
     }
 
+    public static void throwUnsupportedCacheControlUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with cache control");
+    }
+
+    public static void throwUnsupportedSessionIdUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
 
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+    }
+
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
+        return new ElasticsearchStatusException(
+            Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {

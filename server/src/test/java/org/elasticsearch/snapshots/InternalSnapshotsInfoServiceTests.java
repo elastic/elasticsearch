@@ -87,9 +87,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     private ProjectId projectId;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterServices() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         projectId = randomProjectIdOrDefault();
         clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
@@ -98,9 +96,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void terminateClusterServices() throws Exception {
         final boolean terminated = terminate(threadPool);
         assert terminated;
         clusterService.close();
@@ -365,7 +361,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                     .build(),
                 snapshotsInfoService
             );
-            assertCriticalWarnings(
+            assertWarnings(
                 "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
                     + "See the breaking changes documentation for the next major version."
             );

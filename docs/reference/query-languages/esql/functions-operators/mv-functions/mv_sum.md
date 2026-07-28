@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_SUM` function [esql-mv_sum]
 
-:::{include} ../../_snippets/functions/layout/mv_sum.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_sum.md
 :::

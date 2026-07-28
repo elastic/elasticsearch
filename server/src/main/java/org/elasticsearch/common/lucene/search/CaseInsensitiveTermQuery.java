@@ -11,19 +11,18 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-
-import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveString;
+import org.apache.lucene.util.automaton.Automata;
 
 /**
- * A case insensitive term query.
+ * A case insensitive term query that supports Unicode case folding.
  */
 public class CaseInsensitiveTermQuery extends AutomatonQuery {
     /**
      * Constructs a case insensitive term query.
-     * @param term the term to search for, created into a case insensitive automaton
+     * @param term the term to search for, created into a case insensitive automaton using Unicode case folding
      */
     public CaseInsensitiveTermQuery(Term term) {
-        super(term, toCaseInsensitiveString(term.bytes()));
+        super(term, Automata.makeCaseInsensitiveString(term.bytes().utf8ToString()));
     }
 
     @Override

@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 151502
+summary: "PromQL: Add support for `histogram_count`, `histogram_sum` and `histogram_avg`"
+type: enhancement

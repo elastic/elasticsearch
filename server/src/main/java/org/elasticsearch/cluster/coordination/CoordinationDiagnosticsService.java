@@ -1118,8 +1118,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                             transportTimeout,
                             transportService.getThreadPool(),
                             clusterCoordinationExecutor,
-                            ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                            () -> { /* TODO cancel the remote task? */}
+                            ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable))
                         ),
                         responseReader,
                         clusterCoordinationExecutor

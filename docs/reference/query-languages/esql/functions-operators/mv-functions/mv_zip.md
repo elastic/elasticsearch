@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_ZIP` function [esql-mv_zip]
 
-:::{include} ../../_snippets/functions/layout/mv_zip.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_zip.md
 :::

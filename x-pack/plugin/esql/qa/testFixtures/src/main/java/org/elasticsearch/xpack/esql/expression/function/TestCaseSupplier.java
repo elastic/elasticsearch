@@ -1540,11 +1540,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Like {@link #geoShapeCases(Supplier)} but rejects geometries with more than {@code maxPoints}
+     * vertices. Use this when the operation under test has a JVM-stack-depth sensitivity to geometry
+     * complexity (e.g. recursive JTS simplification algorithms).
+     */
+    public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt, int maxPoints) {
+        return List.of(
+            new TypedDataSupplier(
+                "<geo_shape>",
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(hasAlt.get(), maxPoints)),
+                DataType.GEO_SHAPE
+            )
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_shape>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
+                DataType.CARTESIAN_SHAPE
+            )
+        );
+    }
+
+    /**
+     * Like {@link #cartesianShapeCases(Supplier)} but rejects geometries with more than
+     * {@code maxPoints} vertices.
+     */
+    public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt, int maxPoints) {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_shape>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get(), maxPoints)),
                 DataType.CARTESIAN_SHAPE
             )
         );
@@ -1626,7 +1655,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+        }
     }
 
     public static List<TypedDataSupplier> binaryCases() {
@@ -1706,7 +1737,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
-    static LongRangeBlockBuilder.LongRange randomDateRange() {
+    public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
@@ -1716,10 +1747,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
      */
     public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return exponentialHistogramCases(false);
+    }
+
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(boolean zeroThresholdIsZero) {
         return List.of(
             new TypedDataSupplier(
                 "<random exponential histogram>",
-                EsqlTestUtils::randomExponentialHistogram,
+                () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero),
                 DataType.EXPONENTIAL_HISTOGRAM
             )
         );
@@ -1872,6 +1912,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final Object extra;
         private final boolean allowText;
+        private final boolean injectNullTemporality;
 
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
@@ -1954,6 +1995,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             boolean canBuildEvaluator,
             boolean allowText
         ) {
+            this(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator,
+                allowText,
+                false
+            );
+        }
+
+        private TestCase(
+            Source source,
+            Configuration configuration,
+            List<TypedData> data,
+            Matcher<String> evaluatorToString,
+            DataType expectedType,
+            Matcher<?> matcher,
+            String[] expectedWarnings,
+            String[] expectedBuildEvaluatorWarnings,
+            Class<? extends Throwable> foldingExceptionClass,
+            String foldingExceptionMessage,
+            Object extra,
+            boolean canBuildEvaluator,
+            boolean allowText,
+            boolean injectNullTemporality
+        ) {
             this.source = source;
             this.configuration = configuration;
             this.data = data;
@@ -1969,6 +2044,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.extra = extra;
             this.canBuildEvaluator = canBuildEvaluator;
             this.allowText = allowText;
+            this.injectNullTemporality = injectNullTemporality;
         }
 
         public Source getSource() {
@@ -2218,6 +2294,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
+        public boolean injectNullTemporality() {
+            return injectNullTemporality;
+        }
+
+        /**
+         * Configures the test case so that a constant null block will be automatically injected into {@link TemporalityAware} expressions.
+         * Normally, tests should provide the temporality explicitly. However, this can be used if for example the original
+         * function is not {@link TemporalityAware} but is replaced with surrogates which are.
+         */
+        public TestCase withInjectNullTemporality() {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator,
+                allowText,
+                true
+            );
+        }
+
         public DataType expectedType() {
             return expectedType;
         }
@@ -2238,25 +2342,41 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType type,
         boolean forceLiteral,
         boolean multiRow,
-        List<FunctionAppliesTo> appliesTo
+        List<FunctionAppliesTo> appliesTo,
+        boolean preview
     ) {
+        public TypedDataSupplier(
+            String name,
+            Supplier<Object> supplier,
+            DataType type,
+            boolean forceLiteral,
+            boolean multiRow,
+            List<FunctionAppliesTo> appliesTo
+        ) {
+            this(name, supplier, type, forceLiteral, multiRow, appliesTo, false);
+        }
+
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
-            this(name, supplier, type, forceLiteral, false, List.of());
+            this(name, supplier, type, forceLiteral, false, List.of(), false);
         }
 
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
-            this(name, supplier, type, false, false, List.of());
+            this(name, supplier, type, false, false, List.of(), false);
         }
 
         /**
          * Marks the version of Elasticsearch in which this signature was first supported.
          */
         public TypedDataSupplier withAppliesTo(FunctionAppliesTo appliesTo) {
-            return new TypedDataSupplier(name, supplier, type, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
+            return new TypedDataSupplier(name, supplier, type, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo), preview);
+        }
+
+        public TypedDataSupplier withPreview() {
+            return new TypedDataSupplier(name, supplier, type, forceLiteral, multiRow, appliesTo, true);
         }
 
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow, appliesTo);
+            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow, appliesTo, preview);
         }
     }
 
@@ -2278,6 +2398,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final boolean multiRow;
         private final boolean mapExpression;
         private final List<FunctionAppliesTo> appliesTo;
+        private final boolean preview;
 
         /**
          * @param data         value to test against
@@ -2285,6 +2406,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name         a name for the value, used for generating test case names
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
          * @param multiRow     if true, data is expected to be a List of values, one per row
+         * @param appliesTo    versions of Elasticsearch that support his type
+         * @param preview      if true, the type is expected to be on preview on serverless
          */
         private TypedData(
             Object data,
@@ -2292,7 +2415,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             String name,
             boolean forceLiteral,
             boolean multiRow,
-            List<FunctionAppliesTo> appliesTo
+            List<FunctionAppliesTo> appliesTo,
+            boolean preview
         ) {
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
@@ -2309,6 +2433,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.multiRow = multiRow;
             this.mapExpression = data instanceof MapExpression;
             this.appliesTo = appliesTo;
+            this.preview = preview;
         }
 
         /**
@@ -2317,7 +2442,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, DataType type, String name) {
-            this(data, type, name, false, false, List.of());
+            this(data, type, name, false, false, List.of(), false);
         }
 
         /**
@@ -2338,7 +2463,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public static TypedData multiRow(List<?> data, DataType type, String name) {
-            return new TypedData(data, type, name, false, true, List.of());
+            return new TypedData(data, type, name, false, true, List.of(), false);
         }
 
         /**
@@ -2347,7 +2472,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * must be constants.
          */
         public TypedData forceLiteral() {
-            return new TypedData(data, type, name, true, multiRow, appliesTo);
+            return new TypedData(data, type, name, true, multiRow, appliesTo, preview);
         }
 
         /**
@@ -2368,20 +2493,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return appliesTo;
         }
 
+        public boolean preview() {
+            return preview;
+        }
+
         /**
          * Return a {@link TypedData} with the new data.
          *
          * @param data The new data for the {@link TypedData}.
          */
         public TypedData withData(Object data) {
-            return new TypedData(data, type, name, forceLiteral, multiRow, appliesTo);
+            return new TypedData(data, type, name, forceLiteral, multiRow, appliesTo, preview);
         }
 
         /**
          * Marks the version of Elasticsearch in which this signature was first supported.
          */
         public TypedData withAppliesTo(FunctionAppliesTo appliesTo) {
-            return new TypedData(data, type, name, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
+            return new TypedData(data, type, name, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo), preview);
+        }
+
+        public TypedData withPreview() {
+            return new TypedData(data, type, name, forceLiteral, multiRow, appliesTo, true);
         }
 
         @Override
@@ -2533,6 +2666,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         boolean serverless
     ) {
         return new AppliesTo(lifeCycle, version, description, serverless);
+    }
+
+    /**
+     * Builds a transform that applies {@code preview} to a {@link TypedDataSupplier} and marks it as serverless preview.
+     */
+    public static Function<TypedDataSupplier, TypedDataSupplier> previewTransform(FunctionAppliesTo preview) {
+        return s -> s.withAppliesTo(preview).withPreview();
     }
 
     private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)

@@ -1,0 +1,23 @@
+area: ES|QL
+issues: []
+pr: 149176
+summary: Default external source schema resolution to `UNION_BY_NAME`
+type: enhancement
+highlight:
+  notable: true
+  title: Default ES|QL external source schema resolution to `UNION_BY_NAME`
+  body: |-
+    Multi-file ES|QL external source globs (the Tech Preview `EXTERNAL` command) now default
+    to `schema_resolution = union_by_name` instead of `first_file_wins`. Files in the same
+    glob no longer have to share the exact schema of the lex-smallest file: columns are merged
+    by name across all matched files, missing columns are null-filled per file, and types are
+    reconciled via conservative widening (`INTEGER` -> `LONG`, `INTEGER` -> `DOUBLE`,
+    `DATETIME` -> `DATE_NANOS`). Schemas that genuinely disagree on a column's type now fail
+    at planning time with a clear error instead of silently coercing data at read time.
+
+    To restore the previous behavior on a per-query basis, pass
+    `WITH { "schema_resolution": "first_file_wins" }` on the `EXTERNAL` command. Performance
+    note: the `UNION_BY_NAME` path reads every matched file's metadata in parallel (the FFW
+    path already did this for stats aggregation when more than one file matched) and
+    currently bypasses the listing/schema cache, so first-time and repeat-query latency is
+    higher for very large globs; this is being tracked as a follow-up.

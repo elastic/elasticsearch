@@ -29,7 +29,7 @@ x:integer
 ;
 
 
-adjust stats for sampling
+with stats
 required_capability: sample_v3
 
 FROM employees
@@ -38,7 +38,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double | sum_emp_no:long
-5..95      | 10010.0..10090.0  | 100100..908100
+5..95      | 10010.0..10090.0  | 50500..958550
 ;
 
 

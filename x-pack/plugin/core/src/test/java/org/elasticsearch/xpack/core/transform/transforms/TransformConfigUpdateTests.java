@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
@@ -64,6 +65,29 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     @Override
     protected Reader<TransformConfigUpdate> instanceReader() {
         return TransformConfigUpdate::new;
+    }
+
+    @Override
+    protected TransformConfigUpdate mutateInstanceForVersion(TransformConfigUpdate instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfigUpdate mutateForVersion(TransformConfigUpdate instance, TransportVersion version) {
+        SourceConfig source = instance.getSource();
+        TransformConfigUpdate mutated = new TransformConfigUpdate(
+            source == null ? null : SourceConfigTests.mutateForVersion(source, version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getDescription(),
+            instance.getSettings(),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig()
+        );
+        if (instance.getHeaders() != null) {
+            mutated.setHeaders(instance.getHeaders());
+        }
+        return mutated;
     }
 
     public void testIsNoop() {

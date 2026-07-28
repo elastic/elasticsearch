@@ -15,9 +15,12 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -29,7 +32,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -59,7 +64,12 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     private final Expression field;
     private final Expression subfieldIndex;
 
-    @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "long", "double" },
+        briefSummary = "Converts an aggregate double metric to a single subfield block.",
+        description = "Convert aggregate double metric to a block of a single subfield."
+    )
     public FromAggregateMetricDouble(
         Source source,
         @Param(
@@ -111,6 +121,12 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
+    public boolean isNoop() {
+        // Extracts a single subfield, so it never passes its input through unchanged.
+        return false;
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new FromAggregateMetricDouble(source(), newChildren.get(0), newChildren.get(1));
     }
@@ -147,12 +163,20 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
             public ExpressionEvaluator get(DriverContext context) {
                 final ExpressionEvaluator eval = fieldEvaluator.get(context);
                 final int subFieldIndex = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
-                return new Evaluator(context.blockFactory(), eval, subFieldIndex);
+                return new Evaluator(
+                    context.blockFactory(),
+                    eval,
+                    subFieldIndex,
+                    // We use this factory method to be compatible with the AvgBlockLoader
+                    Warnings.createOnlyWarnings(context.warningsMode(), source())
+                );
             }
         };
     }
 
-    private record Evaluator(BlockFactory blockFactory, ExpressionEvaluator eval, int subFieldIndex) implements ExpressionEvaluator {
+    private record Evaluator(BlockFactory blockFactory, ExpressionEvaluator eval, int subFieldIndex, Warnings warnings)
+        implements
+            ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
@@ -163,9 +187,13 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 if (block.areAllValuesNull()) {
                     return blockFactory.newConstantNullBlock(block.getPositionCount());
                 }
-                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
-                resultBlock.incRef();
-                return resultBlock;
+                if (subFieldIndex == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
+                    return evaluateDefaultBlock((AggregateMetricDoubleBlock) block);
+                } else {
+                    Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
+                    resultBlock.incRef();
+                    return resultBlock;
+                }
             } finally {
                 block.close();
             }
@@ -185,6 +213,39 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         public String toString() {
             return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subFieldIndex + "]";
         }
+
+        private Block evaluateDefaultBlock(AggregateMetricDoubleBlock block) {
+            int positionCount = block.getPositionCount();
+            DoubleBlock sumBlock = block.sumBlock();
+            IntBlock countBlock = block.countBlock();
+            if (sumBlock.areAllValuesNull() || countBlock.areAllValuesNull()) {
+                return blockFactory().newConstantNullBlock(positionCount);
+            }
+            try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    if (sumBlock.isNull(p) || countBlock.isNull(p)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int sumFirstValueIndex = sumBlock.getFirstValueIndex(p);
+                    int countFirstValueIndex = countBlock.getFirstValueIndex(p);
+                    double sum = sumBlock.getDouble(sumFirstValueIndex);
+                    int count = countBlock.getInt(countFirstValueIndex);
+                    if (count <= 0) {
+                        warnings.registerException(
+                            IllegalArgumentException.class,
+                            "[aggregate_metric_double] fields has a non-positive count [value_count="
+                                + count
+                                + "], so it cannot fallback to a single average value, treating result as null"
+                        );
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(sum / count);
+                    }
+                }
+                return builder.build();
+            }
+        }
     }
 
     @Override
@@ -201,7 +262,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field() instanceof FieldAttribute f
             && f.dataType() == AGGREGATE_METRIC_DOUBLE
-            && (f.field() instanceof MultiTypeEsField) == false) {
+            && (f.field() instanceof UnionTypeEsField) == false) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {
                 throw new IllegalArgumentException("Subfield Index was null");

@@ -73,14 +73,14 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, taskSettings);
 
         Function<EmbeddingsInput, OutboundRequest> requestCreator = inferenceInputs -> {
             var requestInputType = InputType.isSpecified(inferenceInputs.getInputType())
                 ? inferenceInputs.getInputType()
                 : overriddenModel.getTaskSettings().getInputType();
 
-            return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
+            return switch (overriddenModel.getServiceSettings().commonSettings().apiVersion()) {
                 case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
                 case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
             };
@@ -99,7 +99,7 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereRerankModel.of(model, taskSettings);
+        var overriddenModel = CohereRerankModel.createWithOverriddenTaskSettings(model, taskSettings);
 
         Function<QueryAndDocsInputs, OutboundRequest> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
             .apiVersion()) {

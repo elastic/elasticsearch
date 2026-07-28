@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -142,9 +143,9 @@ public final class Alias extends NamedExpression {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        child.nodeString(sb, format);
-        sb.append(" AS ").append(name()).append("#").append(id());
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        child.nodeString(sb, format, mapper);
+        sb.append(" AS ").append(mapper.column(name())).append('#').append(id());
     }
 
     /**

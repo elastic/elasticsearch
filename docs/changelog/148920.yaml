@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 148920
+summary: Add distinct storage class settings for S3
+type: enhancement

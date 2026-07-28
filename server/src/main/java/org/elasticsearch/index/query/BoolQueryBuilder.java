@@ -305,6 +305,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST, queryVisitor);
+        boolean prevTrack = context.isTrackTimeRangeFilterFrom();
         try {
             // disable tracking of the @timestamp range for must_not and should clauses
             context.setTrackTimeRangeFilterFrom(false);
@@ -312,7 +313,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             addDeduplicatedBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT, queryVisitor);
             addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD, queryVisitor);
         } finally {
-            context.setTrackTimeRangeFilterFrom(true);
+            context.setTrackTimeRangeFilterFrom(prevTrack);
         }
         // lucene deduplicates filter clauses.
         addDeduplicatedBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, queryVisitor);
@@ -353,7 +354,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             addBooleanClauses(context, booleanQueryBuilder, clauses, occurs, queryVisitor);
             return;
         }
-        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount(),
+            context.getCircuitBreaker()
+        );
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
@@ -406,20 +410,22 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
 
+        boolean prevTrack = queryRewriteContext.isTrackTimeRangeFilterFrom();
         try {
             // disable tracking of the @timestamp range for must_not clauses
             queryRewriteContext.setTrackTimeRangeFilterFrom(false);
             changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
         } finally {
-            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+            queryRewriteContext.setTrackTimeRangeFilterFrom(prevTrack);
         }
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
+        prevTrack = queryRewriteContext.isTrackTimeRangeFilterFrom();
         try {
             // disable tracking of the @timestamp range for should clauses
             queryRewriteContext.setTrackTimeRangeFilterFrom(false);
             changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
         } finally {
-            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+            queryRewriteContext.setTrackTimeRangeFilterFrom(prevTrack);
         }
 
         // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder

@@ -732,6 +732,24 @@ instance-2       | 2.2E-4     | 2.744054   | 0.001571..0.00160683   | 27.7057..2
 ;
 
 
+timeseriesAvgOverTimeWithInlineFilterGroupByAll
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: fix_group_by_all_aggregation_filters
+required_capability: metrics_group_by_all
+
+TS exp_histo_sample 
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS avg = avg_over_time(responseTime) WHERE instance == "instance-0"
+;
+ignoreOrder:true
+
+avg:double         | _timeseries:keyword
+0.166579..0.166583 | "{""instance"":""instance-0""}"
+null               | "{""instance"":""instance-1""}"
+null               | "{""instance"":""instance-2""}"
+;
+
+
 timeseriesAllMathOverTimeAggsUngrouped
 required_capability: exponential_histogram_tech_preview
 required_capability: ts_command_v0
@@ -1235,4 +1253,31 @@ TS exp_histo_sample
 cnt:long
 8841
 // end::countExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter
+required_capability: count_of_histogram_types
+required_capability: fix_histogram_blockloaders_isnull
+required_capability: count_of_histogram_types
+
+TS exp_histo_sample
+ | WHERE mostly_empty IS NOT NULL
+ | STATS cnt = COUNT(mostly_empty) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword          | cnt:long
+dummy-empty               | 0
+dummy-full                | 7
+dummy-negative_only       | 0
+dummy-no_zero_bucket      | 0
+dummy-positive_only       | 0
+dummy-zero_count_only     | 0
+dummy-zero_threshold_only | 0
+instance-0                | 0
+instance-1                | 0
+instance-2                | 0
 ;

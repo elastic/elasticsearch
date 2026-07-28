@@ -41,6 +41,11 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
     }
 
+    @Override
+    public String executorName() {
+        return delegate.executorName();
+    }
+
     /**
      * Notified when a {@link MeteringInputStream} is closed, providing information
      * about its consumption.

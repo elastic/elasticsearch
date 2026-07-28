@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -32,7 +31,7 @@ import java.util.Objects;
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
  */
-public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, SurrogateExpression {
+public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
@@ -44,13 +43,22 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeriesOverTime(AbsentOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
-        .description("Returns 1 if the range vector has no elements, otherwise returns an empty vector.")
+        .description("Returns `1` if the range vector has no elements, and `0` otherwise.")
         .example("absent_over_time(nonexistent_metric[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has no samples and "
+                + "`false` (PromQL `0`) otherwise. This differs from Prometheus in two ways: Prometheus returns an empty "
+                + "result when samples exist (rather than `0`), and it reports a fully missing series by synthesizing a "
+                + "single `1` from the selector labels. {{es}} evaluates only series that already exist in the data, so "
+                + "it cannot flag a metric that is entirely absent."
+        )
         .name("absent_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
+        briefSummary = "Calculates the absence of a field over a time range.",
         description = "Calculates the absence of a field in the output result over time range.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -132,11 +140,6 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

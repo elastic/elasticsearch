@@ -239,7 +239,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         for (String input : inputs) {
             InferenceString inferenceString;
             if (isTextInput) {
-                inferenceString = new InferenceString(DataType.TEXT, input);
+                inferenceString = InferenceString.ofText(input);
             } else {
                 inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, input);
             }

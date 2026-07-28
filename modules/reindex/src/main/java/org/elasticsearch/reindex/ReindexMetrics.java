@@ -34,6 +34,7 @@ public class ReindexMetrics {
     public static final String ATTRIBUTE_VALUE_SOURCE_REMOTE = "remote";
 
     public static final String ATTRIBUTE_NAME_SLICING_MODE = "es_reindex_slicing_mode";
+    public static final String ATTRIBUTE_NAME_RELOCATED = "es_reindex_relocated";
 
     private final LongHistogram reindexTimeSecsHistogram;
     private final LongCounter reindexCompletionCounter;
@@ -48,28 +49,28 @@ public class ReindexMetrics {
         );
         this.reindexRelocationCounter = meterRegistry.registerLongCounter(
             REINDEX_RELOCATION_COUNTER,
-            "Number of attempted reindex relocations",
+            "Number of initiated reindex relocation recorded on the destination node",
             "unit"
         );
     }
 
-    public long recordTookTime(long tookTime, boolean remote, SlicingMode slicingMode) {
-        Map<String, Object> attributes = getAttributes(remote, slicingMode);
+    public long recordTookTime(long tookTime, boolean remote, SlicingMode slicingMode, boolean relocated) {
+        Map<String, Object> attributes = getAttributes(remote, slicingMode, relocated);
 
         reindexTimeSecsHistogram.record(tookTime, attributes);
         return tookTime;
     }
 
-    public void recordSuccess(boolean remote, SlicingMode slicingMode) {
-        Map<String, Object> attributes = getAttributes(remote, slicingMode);
+    public void recordSuccess(boolean remote, SlicingMode slicingMode, boolean relocated) {
+        Map<String, Object> attributes = getAttributes(remote, slicingMode, relocated);
         // attribute ATTRIBUTE_ERROR_TYPE being absent indicates success
-        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) == null : "error.type attribute must not be present for successes";
+        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) == null : "error_type attribute must not be present for successes";
 
         reindexCompletionCounter.incrementBy(1, attributes);
     }
 
-    public void recordFailure(boolean remote, SlicingMode slicingMode, Throwable e) {
-        Map<String, Object> attributes = getAttributes(remote, slicingMode);
+    public void recordFailure(boolean remote, SlicingMode slicingMode, boolean relocated, Throwable e) {
+        Map<String, Object> attributes = getAttributes(remote, slicingMode, relocated);
         // best effort to extract useful error type if possible
         String errorType;
         if (e instanceof ElasticsearchStatusException ese) {
@@ -81,20 +82,14 @@ public class ReindexMetrics {
 
         // attribute ATTRIBUTE_ERROR_TYPE being present indicates failure
         // https://opentelemetry.io/docs/specs/semconv/general/recording-errors/#recording-errors-on-metrics
-        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) != null : "error.type attribute must be present for failures";
+        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) != null : "error_type attribute must be present for failures";
 
         reindexCompletionCounter.incrementBy(1, attributes);
     }
 
-    public void recordRelocationSuccess() {
-        // attribute ATTRIBUTE_ERROR_TYPE being absent indicates success
-        reindexRelocationCounter.incrementBy(1);
-    }
-
-    public void recordRelocationFailure(final Throwable e) {
-        // attribute ATTRIBUTE_ERROR_TYPE being present indicates failure
-        final Map<String, Object> attributes = Map.of(ATTRIBUTE_NAME_ERROR_TYPE, e.getClass().getTypeName());
-        reindexRelocationCounter.incrementBy(1, attributes);
+    /// Records a reindex relocation initiation at the **destination** node.
+    public void recordRelocation(boolean remote, SlicingMode slicingMode) {
+        reindexRelocationCounter.incrementBy(1, getAttributes(remote, slicingMode, true));
     }
 
     public enum SlicingMode {
@@ -124,11 +119,11 @@ public class ReindexMetrics {
         return SlicingMode.NONE;
     }
 
-    private Map<String, Object> getAttributes(boolean remote, SlicingMode slicingMode) {
+    private Map<String, Object> getAttributes(boolean remote, SlicingMode slicingMode, boolean relocated) {
         Map<String, Object> attributes = new HashMap<>();
         attributes.put(ATTRIBUTE_NAME_SOURCE, remote ? ATTRIBUTE_VALUE_SOURCE_REMOTE : ATTRIBUTE_VALUE_SOURCE_LOCAL);
         attributes.put(ATTRIBUTE_NAME_SLICING_MODE, slicingMode.name().toLowerCase(Locale.ROOT));
-
+        attributes.put(ATTRIBUTE_NAME_RELOCATED, relocated);
         return attributes;
     }
 }

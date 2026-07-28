@@ -58,24 +58,27 @@ public class StatelessFieldCapabilitiesIT extends AbstractStatelessPluginIntegTe
 
     public void testFieldCapsForHollowShards() throws Exception {
         startMasterOnlyNode();
-        var indexNodeSettings = Settings.builder()
+        final var indexNodeSettings = Settings.builder()
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .build();
-        var indexNodeA = startIndexNode(indexNodeSettings);
+        final var indexNodeA = startIndexNode(indexNodeSettings);
+        final var indexNodeB = startIndexNode(indexNodeSettings);
         startSearchNode();
-        ensureStableCluster(3);
+        ensureStableCluster(4);
 
-        var indexName = randomIdentifier();
+        var indexName = randomIndexName();
         int numberOfShards = randomIntBetween(1, 5);
-        assertAcked(prepareCreate(indexName).setMapping(mapping).setSettings(indexSettings(numberOfShards, 1)));
+        assertAcked(
+            prepareCreate(indexName).setMapping(mapping)
+                .setSettings(indexSettings(numberOfShards, 1).put("index.routing.allocation.exclude._name", indexNodeB))
+        );
         ensureGreen(indexName);
         insertDocs(indexName);
         flush(indexName);
 
         assertFieldCaps(indexName);
 
-        String indexNodeB = startIndexNode(indexNodeSettings);
         hollowShards(indexName, numberOfShards, indexNodeA, indexNodeB);
 
         assertFieldCaps(indexName);

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -154,7 +155,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         final BlobLocation blobLocation = fileToBlobLocations.get(file);
         assert blobLocation != null : "Blob location for file [" + file + "] not found in " + fileToBlobLocations;
         final BlobContainer blobContainer = blobContainerFunc.apply(shardId, blobLocation.primaryTerm());
-        return new BlobStoreFileReader(blobContainer, blobLocation, commitRefReleasable);
+        return new BlobStoreFileReader(blobContainer, blobLocation, commitRefReleasable, isShardRelocated);
     }
 
     private Releasable maybeWithSnapshotIndexCommitRef() {
@@ -170,15 +171,23 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         private final BlobLocation blobLocation;
         private final FileChecksum fileChecksum;
         private long nextPositionInBlobFile; // relative to the start of the entire blob
+        @Nullable // when snapshot runs on a different node from the primary
+        private final BooleanSupplier isShardRelocated;
         private long readPosition; // relative to the start of the file
         private InputStream currentStream; // closed when openInput is called to create a new InputStream and on close()
 
-        BlobStoreFileReader(BlobContainer blobContainer, BlobLocation blobLocation, Releasable commitRefReleasable) {
+        BlobStoreFileReader(
+            BlobContainer blobContainer,
+            BlobLocation blobLocation,
+            Releasable commitRefReleasable,
+            @Nullable BooleanSupplier isShardRelocated
+        ) {
             this.blobContainer = blobContainer;
             this.blobLocation = blobLocation;
             this.commitRefReleasable = commitRefReleasable;
             this.fileChecksum = new FileChecksum(blobLocation.fileLength());
             this.nextPositionInBlobFile = blobLocation.offset();
+            this.isShardRelocated = isShardRelocated;
             this.readPosition = 0;
         }
 
@@ -199,6 +208,15 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
             currentStream = new ResettableBlobStoreInputStream(readPosition, limit);
             return currentStream;
+        }
+
+        @Override
+        public void maybeReleaseCommitRef() {
+            // When the shard relocates, the new primary will retain the snapshot commit so that it stays available in the object store.
+            // This node has no need to retain the commit anymore. In fact, it should release it to allow the store to close.
+            if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
+                Releasables.close(commitRefReleasable);
+            }
         }
 
         private InputStream openInputStreamForBlob(long bytesFromStreamStart, long limit) throws IOException {

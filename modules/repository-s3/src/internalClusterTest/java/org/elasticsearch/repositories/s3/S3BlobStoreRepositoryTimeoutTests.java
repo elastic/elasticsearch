@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -57,11 +58,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private S3StallingHttpHandler s3StallingHttpHandler;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -217,6 +213,11 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
 
         void setStallLatchRef(CountDownLatch latch) {
             stallLatchRef.set(latch);
+        }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
         }
     }
 }

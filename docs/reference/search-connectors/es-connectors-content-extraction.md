@@ -5,7 +5,7 @@ mapped_pages:
 
 # Content extraction [es-connectors-content-extraction]
 
-Connectors use the [Elastic ingest attachment processor^](/reference/enrich-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
+Connectors use the [Elastic ingest attachment processor](/reference/ingest-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
 
 While intended primarily for PDF and Microsoft Office formats, you can use any of the [supported formats](#es-connectors-content-extraction-supported-file-types).
 
@@ -13,7 +13,7 @@ Search uses an [Elasticsearch ingest pipeline^](docs-content://manage-data/inges
 
 You can [view^](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#create-manage-ingest-pipelines) this pipeline in Kibana. Customizing your pipeline usage is also an option. See [Ingest pipelines for Search indices](docs-content://solutions/search/ingest-for-search.md).
 
-For advanced use cases, the [self-hosted extraction service](#es-connectors-content-extraction-local) can be used to extract content from files larger than 10MB.
+For advanced use cases, the [self-hosted extraction service](#es-connectors-content-extraction-local) can be used to extract content from files larger than 8MiB.
 
 
 ## Supported file types [es-connectors-content-extraction-supported-file-types]
@@ -57,7 +57,7 @@ Currently, content extraction from large files via the Extraction Service is ava
 ::::
 
 
-Standard content extraction is done via the Attachment Processor, through Elasticsearch Ingest Pipelines. The self-managed connector limits file sizes for pipeline extraction to 10MB per file (Elasticsearch also has a hard limit of 100MB per file).
+Standard content extraction is done via the Attachment Processor, through Elasticsearch Ingest Pipelines. The self-managed connector limits file sizes for pipeline extraction to 8MiB per file (Elasticsearch also has a hard limit of 100MB per file).
 
 For use cases that require extracting content from files larger than these limits, the **self-managed extraction service** can be used for self-managed connectors. Instead of sending the file as an `attachment` to Elasticsearch, the file’s content is extracted at the edge by the extraction service before ingestion. The extracted text is then included as the `body` field of a document when it is ingested.
 

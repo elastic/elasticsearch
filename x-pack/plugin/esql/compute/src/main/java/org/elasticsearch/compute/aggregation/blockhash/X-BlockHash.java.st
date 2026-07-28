@@ -36,6 +36,9 @@ import org.elasticsearch.core.ReleasableIterator;
 $if(BytesRef)$
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
+$if(long)$
+import org.elasticsearch.swisshash.LongSwissHash;
+$endif$
 import java.util.BitSet;
 // end generated imports
 
@@ -66,6 +69,12 @@ $if(BytesRef)$
             batchKeys[i] = new BytesRef();
         }
     }
+
+$endif$
+$if(long)$
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final int[] batchHashes = new int[PREFETCH_BATCH];
 $endif$
 
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
@@ -117,6 +126,11 @@ $if(BytesRef)$
         }
         BytesRef scratch = new BytesRef();
 $endif$
+$if(long)$
+        if (hash instanceof LongSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
+$endif$
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -154,6 +168,28 @@ $if(BytesRef)$
                 batchKeys[i].bytes = BytesRef.EMPTY_BYTES;
                 batchKeys[i].offset = 0;
                 batchKeys[i].length = 0;
+            }
+            prefetchBarrier.consume(dummy);
+            return builder.build();
+        }
+    }
+
+$endif$
+$if(long)$
+    private IntVector addWithPrefetch($Type$Vector vector, LongSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    batchHashes[i] = LongSwissHash.hash(vector.getLong(offset + i));
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(vector.getLong(offset + i), batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
             }
             prefetchBarrier.consume(dummy);
             return builder.build();
@@ -328,6 +364,9 @@ $endif$
     @Override
     public void close() {
 $if(BytesRef)$
+        prefetchBarrier.flush();
+$endif$
+$if(long)$
         prefetchBarrier.flush();
 $endif$
         hash.close();

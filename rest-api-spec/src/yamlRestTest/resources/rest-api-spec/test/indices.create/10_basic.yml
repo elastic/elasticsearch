@@ -271,7 +271,7 @@
   - match: { test_columnar.settings.index.mode: "columnar" }
 
 ---
-"Create columnar_logsdb index":
+"Create logsdb_columnar index":
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -281,18 +281,18 @@
       reason: "Support for columnar index modes required"
   - do:
       indices.create:
-        index: test_columnar_logsdb
+        index: test_logsdb_columnar
         body:
           settings:
-            index.mode: columnar_logsdb
+            index.mode: logsdb_columnar
 
   - match: { acknowledged: true }
 
   - do:
       indices.get_settings:
-        index: test_columnar_logsdb
+        index: test_logsdb_columnar
 
-  - match: { test_columnar_logsdb.settings.index.mode: "columnar_logsdb" }
+  - match: { test_logsdb_columnar.settings.index.mode: "logsdb_columnar" }
 
 ---
 "Create index with invalid field type":

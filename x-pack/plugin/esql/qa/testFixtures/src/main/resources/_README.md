@@ -242,3 +242,23 @@ similarityScore:double | topIds:long
 ;
 ```
 
+### Query pragmas
+
+Query pragmas can also be provided with the `pragma: pragma_name=value` directive.
+In the following example, we use the `runtime_lexical_search` pragma:
+
+```csv-spec
+matchOnTextWithRow
+required_capability: match_support_runtime_text
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE match(content, "dog")
+| SORT content
+;
+content:text
+This dog is really brown
+This is a brown dog
+;
+```

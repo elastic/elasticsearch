@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
@@ -30,7 +31,8 @@ public class TransportDeleteSynonymsAction extends HandledTransportAction<Delete
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(
             DeleteSynonymsAction.NAME,
@@ -40,7 +42,7 @@ public class TransportDeleteSynonymsAction extends HandledTransportAction<Delete
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService);
+        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService, featureService);
     }
 
     @Override

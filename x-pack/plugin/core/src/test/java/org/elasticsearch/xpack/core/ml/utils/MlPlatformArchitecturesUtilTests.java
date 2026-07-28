@@ -13,11 +13,14 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -135,6 +138,77 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(Set.of(architecturesStr), requiredArch, modelId)
         );
         assertEquals(exception.getMessage(), message);
+    }
+
+    public void testResolveModelPlatformVariant_AllX86() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_SingleArm() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-aarch64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_MixedArchitectures() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64", "linux-aarch64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_EmptyAndCloud() {
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1).build(),
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES)
+        );
+        assertEquals(
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_EmptyAndNotCloud() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
+        );
+    }
+
+    public void testResolveEffectiveArchitectures_SettingConfigured() throws InterruptedException {
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().putList(MachineLearningField.MODEL_PLATFORM_ARCHITECTURES.getKey(), "linux-aarch64").build(),
+            Set.of(MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
+        );
+
+        assertAsync(
+            listener -> MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(clusterSettings, null, null, listener),
+            Set.of("linux-aarch64"),
+            null,
+            null
+        );
+    }
+
+    public void testResolveEffectiveArchitectures_SettingConfiguredMultiple() throws InterruptedException {
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().putList(MachineLearningField.MODEL_PLATFORM_ARCHITECTURES.getKey(), "linux-x86_64", "linux-aarch64").build(),
+            Set.of(MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
+        );
+
+        assertAsync(
+            listener -> MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(clusterSettings, null, null, listener),
+            Set.of("linux-x86_64", "linux-aarch64"),
+            null,
+            null
+        );
     }
 
     private Set<String> nArchitectures(Integer n) {

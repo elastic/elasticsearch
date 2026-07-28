@@ -11,6 +11,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -18,9 +21,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Build-time generator: converts a {@link CsvFixtureParser}-compatible CSV fixture to TSV.
+ * <p>
+ * Single-file mode: {@code <source-csv> <output-tsv>}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes {@code <basename>_00.tsv},
+ * {@code <basename>_01.tsv}, … into the directory. Used by the shared {@code external-multifile*.csv-spec}
+ * tests which glob {@code multifile_split/*.tsv}.
  * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware parsing (same multi-value semantics as
  * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} with {@code multi_value_syntax: brackets}).
@@ -28,31 +38,60 @@ import java.util.List;
  */
 public final class TsvFixtureGenerator {
 
+    private static final Logger logger = LoggerFactory.getLogger(TsvFixtureGenerator.class);
     private static final char TAB = '\t';
 
     private TsvFixtureGenerator() {}
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
+        if (args.length == 2) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputPath = Path.of(args[1]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            byte[] tsv = generateFromCsv(sourcePath);
+            Files.createDirectories(outputPath.getParent());
+            Files.write(outputPath, tsv);
+            logger.info("Generated TSV fixture: {}", outputPath);
+        } else if (args.length == 3) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputDir);
+            CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = parsed.rows().size();
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            for (int part = 0; part < numParts; part++) {
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
+                    break;
+                }
+                String fileName = String.format(Locale.ROOT, "%s_%02d.tsv", baseName, part);
+                Path outputPath = outputDir.resolve(fileName);
+                byte[] tsv = generateFromRows(parsed, range.from(), range.to());
+                Files.write(outputPath, tsv);
+                logger.info("Generated TSV split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
+            }
+        } else {
             System.err.println("Usage: TsvFixtureGenerator <source-csv-path> <output-tsv-path>");
+            System.err.println("       TsvFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
             System.exit(1);
         }
-        Path sourcePath = Path.of(args[0]);
-        Path outputPath = Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        byte[] tsv = generateFromCsv(sourcePath);
-        Files.createDirectories(outputPath.getParent());
-        Files.write(outputPath, tsv);
-        System.out.println("Generated TSV fixture: " + outputPath);
     }
 
     static byte[] generateFromCsv(Path sourcePath) throws IOException {
         CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+        return generateFromRows(parsed, 0, parsed.rows().size());
+    }
+
+    private static byte[] generateFromRows(CsvFixtureResult parsed, int from, int to) {
         List<ColumnSpec> schema = parsed.schema();
-        List<Object[]> rows = parsed.rows();
+        List<Object[]> rows = parsed.rows().subList(from, Math.min(to, parsed.rows().size()));
 
         boolean[] isListColumn = new boolean[schema.size()];
         for (int c = 0; c < schema.size(); c++) {

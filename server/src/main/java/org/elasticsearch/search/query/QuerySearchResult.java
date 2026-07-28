@@ -465,7 +465,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            readShardSearchRequest(in);
             setRescoreDocIds(new RescoreDocIds(in));
             rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
             if (versionSupportsBatchedExecution(in.getTransportVersion())) {
@@ -474,6 +474,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
+            readDirectoryMetrics(in);
             success = true;
         } finally {
             if (success == false) {
@@ -533,7 +534,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        out.writeOptionalWriteable(getShardSearchRequest());
+        writeShardSearchRequest(out);
         getRescoreDocIds().writeTo(out);
         out.writeOptionalNamedWriteable(rankShardResult);
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
@@ -542,6 +543,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
         }
+        writeDirectoryMetrics(out);
     }
 
     @Nullable

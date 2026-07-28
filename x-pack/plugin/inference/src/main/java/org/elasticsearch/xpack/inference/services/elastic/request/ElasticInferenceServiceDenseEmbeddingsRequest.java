@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
@@ -30,7 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
 public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInferenceServiceRequest implements OutboundDenseEmbeddingRequest {
 
@@ -46,9 +47,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInfere
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
         InputType inputType,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, preferences, authApplier);
         this.inputs = inputs;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();

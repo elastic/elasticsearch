@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LATEST` function [esql-latest]
 
-:::{include} ../../_snippets/functions/layout/latest.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/latest.md
 :::

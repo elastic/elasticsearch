@@ -109,26 +109,37 @@ static inline void bf16_bulk_inner(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int stride = sizeof(__m128) / sizeof(bf16_t);  // 8 bf16 = 16 bytes
+    const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
     int c = 0;
 
+    const bf16_t* current_vecs[batches];
+    init_pointers<batches, TData, bf16_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
     for (; c + batches - 1 < count; c += batches) {
-        // Pointers to the current batch of input vectors, resolved via mapper.
-        // as[0] points to the vector for index 0, [1] for index 1, etc
-        const bf16_t* as[batches];
+        const bf16_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+            });
+            head_prefetch<batches, 1>(next_vecs);
+        }
+
         __m256 sums[batches] = {};
         apply_indexed<batches>([&](auto I) {
-            as[I] = mapper(a, c + I, offsets, pitch);
             sums[I] = _mm256_setzero_ps();
         });
 
         int i = 0;
-        // do <batches> vectors at a time, iterating through the dimensions in parallel
-        // Each __m128 holds 8 bfloats
-        constexpr int stride = sizeof(__m128) / sizeof(bf16_t);
         for (; i < (dims & ~(stride - 1)); i += stride) {
+            if (has_next) {
+                spread_prefetch_step<batches, 1, stride * sizeof(bf16_t)>(
+                    next_vecs, i * sizeof(bf16_t), lines_to_fetch);
+            }
             __m256 bi = load_q(b, i);
             apply_indexed<batches>([&](auto I) {
-                sums[I] = vector_op(load_bf16(as[I], i), bi, sums[I]);
+                sums[I] = vector_op(load_bf16(current_vecs[I], i), bi, sums[I]);
             });
         }
 
@@ -140,12 +151,16 @@ static inline void bf16_bulk_inner(
         // dimensions tail
         for (; i < dims; i++) {
             apply_indexed<batches>([&](auto I) {
-                res[I] += scalar_op(as[I][i], b[i]);
+                res[I] += scalar_op(current_vecs[I][i], b[i]);
             });
         }
 
         // this should be turned into direct value copies by the compiler
         std::copy_n(res, batches, results + c);
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors

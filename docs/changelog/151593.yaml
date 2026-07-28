@@ -1,0 +1,5 @@
+pr: 151593
+summary: Set OTel span status ERROR for HTTP 5xx responses
+area: Infra/Metrics
+type: enhancement
+issues: []

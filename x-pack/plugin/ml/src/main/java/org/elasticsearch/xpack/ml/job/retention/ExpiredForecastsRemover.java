@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -137,12 +137,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
                 try {
-                    if (bulkByScrollResponse.getDeleted() > 0) {
+                    if (bulkByPaginatedSearchResponse.getDeleted() > 0) {
                         LOGGER.info(
                             "Deleted [{}] documents corresponding to [{}] expired forecasts",
-                            bulkByScrollResponse.getDeleted(),
+                            bulkByPaginatedSearchResponse.getDeleted(),
                             forecastsToDelete.size()
                         );
                     }

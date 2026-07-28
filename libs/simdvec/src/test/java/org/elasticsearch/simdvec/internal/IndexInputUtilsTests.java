@@ -18,7 +18,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSlice(in, data);
             }
@@ -103,7 +103,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -113,7 +113,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new MMapDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -123,8 +123,8 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -135,7 +135,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput wrapped = new FilterIndexInput("plain-wrapper", rawIn) {};
-                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92Int7VectorsScorer(wrapped, 64, 16));
+                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92NativeInt7VectorsScorer(wrapped, 64, 16));
             }
         }
     }
@@ -158,7 +158,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSliceAddresses(in, data, 64);
             }

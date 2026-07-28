@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `RTRIM` function [esql-rtrim]
 
-:::{include} ../../_snippets/functions/layout/rtrim.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/rtrim.md
 :::

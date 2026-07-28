@@ -158,7 +158,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
 
     public void testWriteToThrowsForMultipleTextInputsOnOldTransportVersion() {
         InferenceStringGroup multipleInputs = new InferenceStringGroup(
-            List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
+            List.of(InferenceString.ofText("first"), InferenceString.ofText("second"))
         );
         GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
             randomIndices(),

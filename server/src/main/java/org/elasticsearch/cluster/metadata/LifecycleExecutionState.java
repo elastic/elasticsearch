@@ -359,7 +359,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = potentiallyTruncateLongJsonWithExplanation(stepInfo);
+            this.stepInfo = stepInfo;
             return this;
         }
 

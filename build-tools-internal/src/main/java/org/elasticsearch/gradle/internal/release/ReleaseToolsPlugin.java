@@ -72,7 +72,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setGroup("Documentation");
                 task.setDescription("Validate that the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
-                task.setJsonSchema(new File(project.getRootDir(), RESOURCES + "changelog-schema.json"));
+                task.setJsonSchema(projectLayout.getSettingsDirectory().file(RESOURCES + "changelog-schema.json").getAsFile());
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 

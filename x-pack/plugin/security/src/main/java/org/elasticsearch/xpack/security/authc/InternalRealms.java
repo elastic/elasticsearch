@@ -158,6 +158,7 @@ public final class InternalRealms {
             SingleSpSamlRealmSettings.TYPE,
             config -> SamlRealm.create(
                 config,
+                threadPool,
                 sslService,
                 resourceWatcherService,
                 userRoleMapper,

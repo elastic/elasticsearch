@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 // begin generated imports
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 // end generated imports
@@ -23,42 +26,84 @@ import java.util.Arrays;
  * This class is generated. Edit {@code X-RoundTo.java.st} instead.
  */
 class RoundToInt {
-    static final RoundTo.Build BUILD = (source, field, points) -> {
-        int[] f = points.stream().mapToInt(p -> p.intValue()).toArray();
-        return switch (f.length) {
-            // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
-            case 1 -> new RoundToInt1Evaluator.Factory(source, field, f[0]);
-            /*
-             * These hand-unrolled implementations are even faster than the linear scan implementations.
-             */
-            case 2 -> new RoundToInt2Evaluator.Factory(source, field, f[0], f[1]);
-            case 3 -> new RoundToInt3Evaluator.Factory(source, field, f[0], f[1], f[2]);
-            case 4 -> new RoundToInt4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
-            case 5 -> new RoundToInt5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
-            case 6 -> new RoundToInt6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
-            case 7 -> new RoundToInt7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
-            case 8 -> new RoundToInt8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
-            case 9 -> new RoundToInt9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
-            case 10 -> new RoundToInt10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
-            /*
-             * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
-             * on 2025-05-22.
-             */
-            default -> {
-                int interval = extractFixedInterval(f);
-                if (interval > 0) {
-                    yield new RoundToIntFixedIntervalEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
-                } else {
+    interface Build {
+        ExpressionEvaluator.Factory build(
+            Source source,
+            ExpressionEvaluator.Factory field,
+            int[] points,
+            Rounding.RoundingConvention convention
+        );
+    }
+
+    static final Build BUILD = (source, field, f, roundingConvention) -> {
+        if (Rounding.RoundingConvention.DOWN.equals(roundingConvention)) {
+            return switch (f.length) {
+                // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
+                case 1 -> new RoundToInt1Evaluator.Factory(source, field, f[0]);
+                /*
+                 * These hand-unrolled implementations are even faster than the linear scan implementations.
+                 */
+                case 2 -> new RoundToInt2Evaluator.Factory(source, field, f[0], f[1]);
+                case 3 -> new RoundToInt3Evaluator.Factory(source, field, f[0], f[1], f[2]);
+                case 4 -> new RoundToInt4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+                case 5 -> new RoundToInt5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+                case 6 -> new RoundToInt6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+                case 7 -> new RoundToInt7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+                case 8 -> new RoundToInt8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+                case 9 -> new RoundToInt9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+                case 10 -> new RoundToInt10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
+                /*
+                 * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
+                 * on 2025-05-22.
+                 */
+                default -> {
+                    int interval = extractFixedInterval(f);
+                    if (interval > 0) {
+                        yield new RoundToIntFixedIntervalEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
+                    }
                     yield new RoundToIntBinarySearchEvaluator.Factory(source, field, f);
                 }
-            }
-        };
+            };
+        } else if (Rounding.RoundingConvention.UP.equals(roundingConvention)) {
+            return switch (f.length) {
+                // N=1: both conventions return the single point
+                case 1 -> new RoundToInt1Evaluator.Factory(source, field, f[0]);
+                case 2 -> new RoundToInt2UpEvaluator.Factory(source, field, f[0], f[1]);
+                case 3 -> new RoundToInt3UpEvaluator.Factory(source, field, f[0], f[1], f[2]);
+                case 4 -> new RoundToInt4UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+                case 5 -> new RoundToInt5UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+                case 6 -> new RoundToInt6UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+                case 7 -> new RoundToInt7UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+                case 8 -> new RoundToInt8UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+                case 9 -> new RoundToInt9UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+                case 10 -> new RoundToInt10UpEvaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
+                default -> {
+                    int interval = extractFixedInterval(f);
+                    if (interval > 0) {
+                        yield new RoundToIntFixedIntervalUpEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
+                    }
+                    yield new RoundToIntBinarySearchUpEvaluator.Factory(source, field, f);
+                }
+            };
+        } else {
+            throw new IllegalArgumentException("Unknown rounding convention: [ " + roundingConvention + " ]");
+        }
     };
 
     @Evaluator(extraName = "BinarySearch")
     static int process(int field, @Fixed(includeInToString = false) int[] points) {
         int idx = Arrays.binarySearch(points, field);
         return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
+    }
+
+    @Evaluator(extraName = "BinarySearchUp")
+    static int processUp(int field, @Fixed(includeInToString = false) int[] points) {
+        int idx = Arrays.binarySearch(points, field);
+        if (idx >= 0) {
+            return points[idx];
+        }
+        int insertionPoint = -idx - 1;
+        return points[Math.min(insertionPoint, points.length - 1)];
     }
 
     private static int extractFixedInterval(int[] points) {
@@ -80,6 +125,18 @@ class RoundToInt {
             return last; // almost never true in practice; predictor skips this
         }
         return field - (field - first) % interval;
+    }
+
+    @Evaluator(extraName = "FixedIntervalUp")
+    static int processFixedUp(int field, @Fixed int first, @Fixed int last, @Fixed int interval) {
+        if (field <= first) {
+            return first;
+        }
+        if (field > last) {
+            return last;
+        }
+        int rem = (field - first) % interval;
+        return rem == 0 ? field : field + (interval - rem);
     }
 
     @Evaluator(extraName = "1")
@@ -332,6 +389,142 @@ class RoundToInt {
         if (field < p9) {
             return p8;
         }
+        return p9;
+    }
+
+    // -------------------------------------------------------------------------
+    // ROUND UP
+    // -------------------------------------------------------------------------
+
+    @Evaluator(extraName = "2Up")
+    static int processUp(int field, @Fixed int p0, @Fixed int p1) {
+        if (field <= p0) return p0;
+        return p1;
+    }
+
+    @Evaluator(extraName = "3Up")
+    static int processUp(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        return p2;
+    }
+
+    @Evaluator(extraName = "4Up")
+    static int processUp(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        return p3;
+    }
+
+    @Evaluator(extraName = "5Up")
+    static int processUp(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        return p4;
+    }
+
+    @Evaluator(extraName = "6Up")
+    static int processUp(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4, @Fixed int p5) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        if (field <= p4) return p4;
+        return p5;
+    }
+
+    @Evaluator(extraName = "7Up")
+    static int processUp(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6
+    ) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        if (field <= p4) return p4;
+        if (field <= p5) return p5;
+        return p6;
+    }
+
+    @Evaluator(extraName = "8Up")
+    static int processUp(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7
+    ) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        if (field <= p4) return p4;
+        if (field <= p5) return p5;
+        if (field <= p6) return p6;
+        return p7;
+    }
+
+    @Evaluator(extraName = "9Up")
+    static int processUp(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7,
+        @Fixed int p8
+    ) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        if (field <= p4) return p4;
+        if (field <= p5) return p5;
+        if (field <= p6) return p6;
+        if (field <= p7) return p7;
+        return p8;
+    }
+
+    @Evaluator(extraName = "10Up")
+    static int processUp(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7,
+        @Fixed int p8,
+        @Fixed int p9
+    ) {
+        if (field <= p0) return p0;
+        if (field <= p1) return p1;
+        if (field <= p2) return p2;
+        if (field <= p3) return p3;
+        if (field <= p4) return p4;
+        if (field <= p5) return p5;
+        if (field <= p6) return p6;
+        if (field <= p7) return p7;
+        if (field <= p8) return p8;
         return p9;
     }
 }

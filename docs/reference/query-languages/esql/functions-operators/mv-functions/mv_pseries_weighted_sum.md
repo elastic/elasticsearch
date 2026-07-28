@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_PSERIES_WEIGHTED_SUM` function [esql-mv_pseries_weighted_sum]
 
-:::{include} ../../_snippets/functions/layout/mv_pseries_weighted_sum.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_pseries_weighted_sum.md
 :::

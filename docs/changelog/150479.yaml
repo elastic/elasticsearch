@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146350
+pr: 150479
+summary: Add Arrow output support for `date_nanos` and `date_range` data types
+type: enhancement

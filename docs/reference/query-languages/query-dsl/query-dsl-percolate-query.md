@@ -540,7 +540,7 @@ The slightly different response:
 
 ## Named queries within percolator queries [_named_queries_within_percolator_queries]
 
-If a stored percolator query is a complex query, and you want to track which its sub-queries matched a percolated document, then you can use the `\_name` parameter for its sub-queries. In this case, in a response, each hit together with a `_percolator_document_slot` field contains `_percolator_document_slot_<slotNumber>_matched_queries` fields that show which sub-queries matched each percolated document.
+If a stored percolator query is a complex query, and you want to track which its sub-queries matched a percolated document, then you can use the `_name` parameter for its sub-queries. In this case, in a response, each hit together with a `_percolator_document_slot` field contains `_percolator_document_slot_<slotNumber>_matched_queries` fields that show which sub-queries matched each percolated document.
 
 For example:
 

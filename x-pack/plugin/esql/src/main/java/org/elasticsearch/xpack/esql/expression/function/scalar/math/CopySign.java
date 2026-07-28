@@ -63,6 +63,7 @@ public class CopySign extends EsqlScalarFunction {
     private DataType dataType;
 
     @FunctionInfo(
+        briefSummary = "Combines the magnitude of one number with the sign of another.",
         description = """
             Returns a value with the magnitude of the first argument and the sign of the second argument.
             This function is similar to Java's Math.copySign(double magnitude, double sign) which is

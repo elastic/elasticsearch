@@ -31,13 +31,11 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 /**
  * Benchmark comparing BFloat16 implementations
@@ -55,11 +53,11 @@ public class VectorScorerBFloat16OperationBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfByte LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_BYTE;
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT32 = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    short[] bFloatsA;
-    short[] bFloatsB;
+    byte[] bFloatsA;
+    byte[] bFloatsB;
     float[] floatsB;
     float[] scratchA;
     float[] scratchB;
@@ -78,21 +76,22 @@ public class VectorScorerBFloat16OperationBenchmark {
     public VectorSimilarityFunctions.BFloat16QueryType queryType;
 
     private LuceneFunction<float[]> luceneImpl;
-    private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
     public void init() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        bFloatsA = new short[size];
-        bFloatsB = new short[size];
+        bFloatsA = new byte[size * 2];
+        bFloatsB = new byte[size * 2];
         floatsB = new float[size];
         scratchA = new float[size];
         scratchB = new float[size];
+        ShortBuffer bfloatsAShorts = ByteBuffer.wrap(bFloatsA).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        ShortBuffer bfloatsBShorts = ByteBuffer.wrap(bFloatsB).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
         for (int i = 0; i < size; ++i) {
-            bFloatsA[i] = BFloat16.floatToBFloat16(random.nextFloat());
+            bfloatsAShorts.put(BFloat16.floatToBFloat16(random.nextFloat()));
             floatsB[i] = random.nextFloat();
-            bFloatsB[i] = BFloat16.floatToBFloat16(floatsB[i]);
+            bfloatsBShorts.put(BFloat16.floatToBFloat16(floatsB[i]));
         }
         heapSegA = MemorySegment.ofArray(bFloatsA);
         heapSegB = switch (queryType) {
@@ -101,11 +100,11 @@ public class VectorScorerBFloat16OperationBenchmark {
         };
 
         arena = Arena.ofConfined();
-        nativeSegA = arena.allocate((long) bFloatsA.length * BFloat16.BYTES);
+        nativeSegA = arena.allocate(bFloatsA.length);
         MemorySegment.copy(bFloatsA, 0, nativeSegA, LAYOUT_LE_BFLOAT16, 0L, bFloatsA.length);
         switch (queryType) {
             case BFLOAT16 -> {
-                nativeSegB = arena.allocate((long) bFloatsB.length * BFloat16.BYTES);
+                nativeSegB = arena.allocate(bFloatsB.length);
                 MemorySegment.copy(bFloatsB, 0, nativeSegB, LAYOUT_LE_BFLOAT16, 0L, bFloatsB.length);
             }
             case FLOAT32 -> {
@@ -119,11 +118,6 @@ public class VectorScorerBFloat16OperationBenchmark {
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
-        nativeImpl = vectorSimilarityFunctions.getBFloat16Handle(switch (function) {
-            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
-            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
-            default -> throw new IllegalArgumentException(function.toString());
-        }, queryType, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -134,10 +128,10 @@ public class VectorScorerBFloat16OperationBenchmark {
     @Benchmark
     public float lucene() {
         // copy and convert the bfloats to floats as part of the test
-        BFloat16.bFloat16ToFloat(ShortBuffer.wrap(bFloatsA), scratchA);
+        BFloat16.bFloat16ToFloat(bFloatsA, scratchA);
         return switch (queryType) {
             case BFLOAT16 -> {
-                BFloat16.bFloat16ToFloat(ShortBuffer.wrap(bFloatsB), scratchB);
+                BFloat16.bFloat16ToFloat(bFloatsB, scratchB);
                 yield luceneImpl.run(scratchA, scratchB);
             }
             case FLOAT32 -> luceneImpl.run(scratchA, floatsB);
@@ -146,20 +140,32 @@ public class VectorScorerBFloat16OperationBenchmark {
 
     @Benchmark
     public float nativeWithNativeSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> switch (queryType) {
+                case FLOAT32 -> vectorSimilarityFunctions.dotProductDBF16QF32(nativeSegA, nativeSegB, size);
+                case BFLOAT16 -> vectorSimilarityFunctions.dotProductDBF16QBF16(nativeSegA, nativeSegB, size);
+            };
+            case EUCLIDEAN -> switch (queryType) {
+                case FLOAT32 -> vectorSimilarityFunctions.squareDistanceDBF16QF32(nativeSegA, nativeSegB, size);
+                case BFLOAT16 -> vectorSimilarityFunctions.squareDistanceDBF16QBF16(nativeSegA, nativeSegB, size);
+            };
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
     public float nativeWithHeapSeg() {
-        try {
-            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> switch (queryType) {
+                case FLOAT32 -> vectorSimilarityFunctions.dotProductDBF16QF32(heapSegA, heapSegB, size);
+                case BFLOAT16 -> vectorSimilarityFunctions.dotProductDBF16QBF16(heapSegA, heapSegB, size);
+            };
+            case EUCLIDEAN -> switch (queryType) {
+                case FLOAT32 -> vectorSimilarityFunctions.squareDistanceDBF16QF32(heapSegA, heapSegB, size);
+                case BFLOAT16 -> vectorSimilarityFunctions.squareDistanceDBF16QBF16(heapSegA, heapSegB, size);
+            };
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();

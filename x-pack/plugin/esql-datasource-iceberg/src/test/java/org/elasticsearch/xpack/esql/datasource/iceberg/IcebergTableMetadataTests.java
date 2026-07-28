@@ -11,6 +11,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -279,6 +280,47 @@ public class IcebergTableMetadataTests extends ESTestCase {
         IcebergTableMetadata metadata2 = new IcebergTableMetadata("s3://bucket/table", schema, null, "parquet");
 
         assertNotEquals(metadata1, metadata2);
+    }
+
+    /**
+     * Regression: attribute nullability must reflect Iceberg's {@link Types.NestedField#isOptional()} marker.
+     * {@code required} columns are non-nullable, {@code optional} columns are nullable. A wrong default would let
+     * downstream planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting,
+     * {@code FoldNull}) drop legitimate null rows for optional Iceberg columns. Top-level nullability also applies
+     * to {@code LIST} columns; element-level nullability is independent and not asserted here.
+     */
+    public void testAttributeNullabilityReflectsIcebergRequiredOptional() {
+        Schema schema = new Schema(
+            Types.NestedField.required(1, "req_id", Types.LongType.get()),
+            Types.NestedField.optional(2, "opt_name", Types.StringType.get()),
+            Types.NestedField.required(3, "req_score", Types.DoubleType.get()),
+            Types.NestedField.optional(4, "opt_active", Types.BooleanType.get()),
+            // List columns: top-level required/optional drives attribute nullability regardless of element nullability.
+            Types.NestedField.required(5, "req_tags", Types.ListType.ofOptional(6, Types.IntegerType.get())),
+            Types.NestedField.optional(7, "opt_tags", Types.ListType.ofRequired(8, Types.IntegerType.get()))
+        );
+        IcebergTableMetadata metadata = new IcebergTableMetadata("s3://bucket/table", schema, null, "iceberg");
+
+        List<Attribute> attributes = metadata.attributes();
+        assertEquals(6, attributes.size());
+
+        assertEquals("req_id", attributes.get(0).name());
+        assertEquals(Nullability.FALSE, attributes.get(0).nullable());
+
+        assertEquals("opt_name", attributes.get(1).name());
+        assertEquals(Nullability.TRUE, attributes.get(1).nullable());
+
+        assertEquals("req_score", attributes.get(2).name());
+        assertEquals(Nullability.FALSE, attributes.get(2).nullable());
+
+        assertEquals("opt_active", attributes.get(3).name());
+        assertEquals(Nullability.TRUE, attributes.get(3).nullable());
+
+        assertEquals("req_tags", attributes.get(4).name());
+        assertEquals(Nullability.FALSE, attributes.get(4).nullable());
+
+        assertEquals("opt_tags", attributes.get(5).name());
+        assertEquals(Nullability.TRUE, attributes.get(5).nullable());
     }
 
     public void testToString() {

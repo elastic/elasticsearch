@@ -26,6 +26,11 @@ public class Warnings {
         }
 
         @Override
+        public void registerException(Class<? extends Exception> exceptionClass, String message) {
+            // this space intentionally left blank
+        }
+
+        @Override
         public void registerWarning(String message) {
             // this space intentionally left blank
         }

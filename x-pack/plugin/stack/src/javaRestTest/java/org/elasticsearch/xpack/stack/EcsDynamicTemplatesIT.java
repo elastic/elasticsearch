@@ -480,6 +480,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                     fieldName,
                     actualMappings,
                     expectedMappings,
+                    false,
                     fieldToWrongMappingType,
                     wronglyIndexedFields,
                     wronglyDocValuedFields
@@ -501,6 +502,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                     fieldName,
                     actualMappings,
                     expectedMultiFieldMappings,
+                    true,
                     fieldToWrongMappingType,
                     wronglyIndexedFields,
                     wronglyDocValuedFields
@@ -545,7 +547,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         });
         nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));
         wronglyIndexedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"index: false\"", fieldName));
-        wronglyDocValuedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"doc_values: false\"", fieldName));
+        wronglyDocValuedFields.forEach(fieldName -> logger.error("ECS field '{}' has an unexpected \"doc_values\" mapping", fieldName));
 
         assertTrue("ECS is not fully covered by the current ECS dynamic templates, see details above", shallowFieldMapCopy.isEmpty());
         assertTrue(
@@ -562,16 +564,34 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             wronglyIndexedFields.isEmpty()
         );
         assertTrue(
-            "At least one field was not mapped with \"doc_values: false\" as it should according to its ECS definitions, see "
-                + "details above",
+            "At least one field's \"doc_values\" mapping does not match its ECS definitions and the columnar reconstructability rules, "
+                + "see details above",
             wronglyDocValuedFields.isEmpty()
         );
     }
 
+    /**
+     * Compares the mapping a dynamic template produced for a field against its ECS definition.
+     * <p>
+     * The {@code doc_values} dimension cannot be matched verbatim. ECS derives {@code doc_values: false} from {@code index: false}, but
+     * columnar index modes ({@code columnar}, {@code logsdb_columnar}) rebuild {@code _source} purely from doc-value columns: a root
+     * field with {@code doc_values: false} is rejected (its {@code _source} is not reconstructable), and {@code store: true} is also
+     * rejected outright in those modes, so a stored fallback is not an option either. The only mapping that keeps such a field usable
+     * across all index modes is one that retains doc values. The {@code ecs@mappings} templates therefore deliberately deviate from ECS
+     * for these fields, and the expectation depends on whether the field is a multi-field:
+     * <ul>
+     *   <li>ECS does not disable doc values, or the field is a multi-field (multi-fields never appear in {@code _source} and are exempt
+     *       from the columnar contract, so they can honor {@code doc_values: false}): the mapping must match the ECS {@code doc_values}
+     *       value exactly.</li>
+     *   <li>ECS disables doc values on a root field: the mapping must keep doc values enabled, deviating from ECS so the field stays
+     *       reconstructable in columnar index modes.</li>
+     * </ul>
+     */
     private static void compareExpectedToActualMappings(
         String fieldName,
         Map<String, Object> actualMappings,
         Map<String, Object> expectedMappings,
+        boolean isMultiField,
         Map<String, String> fieldToWrongMappingType,
         List<String> wronglyIndexedFields,
         List<String> wronglyDocValuedFields
@@ -584,7 +604,15 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         if (expectedMappings.get("index") != actualMappings.get("index")) {
             wronglyIndexedFields.add(fieldName);
         }
-        if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
+
+        // A null actual value means the mapping omits the parameter, i.e. the field uses the type default (doc values enabled).
+        Object actualDocValues = actualMappings.get("doc_values");
+        boolean ecsDisablesDocValues = Boolean.FALSE.equals(expectedMappings.get("doc_values"));
+        if (ecsDisablesDocValues == false || isMultiField) {
+            if (expectedMappings.get("doc_values") != actualDocValues) {
+                wronglyDocValuedFields.add(fieldName);
+            }
+        } else if (Boolean.FALSE.equals(actualDocValues)) {
             wronglyDocValuedFields.add(fieldName);
         }
     }

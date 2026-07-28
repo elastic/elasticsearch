@@ -55,6 +55,7 @@ import java.lang.management.ThreadInfo;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -81,6 +82,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MonitoringIT extends ESSingleNodeTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("[xpack.monitoring.collection.interval] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.type] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.enabled] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.cluster_alerts.management.enabled] setting was deprecated");
+        return warnings;
+    }
 
     @Override
     protected Settings nodeSettings() {

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_INTEGER` function [esql-to_integer]
 
-:::{include} ../../_snippets/functions/layout/to_integer.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_integer.md
 :::

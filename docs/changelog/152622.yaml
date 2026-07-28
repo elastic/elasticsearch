@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 152622
+summary: "[otel-data] Add HTTP body size, severity aliases"
+type: enhancement

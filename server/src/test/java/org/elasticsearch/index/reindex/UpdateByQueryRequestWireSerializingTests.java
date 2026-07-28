@@ -22,18 +22,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.fillRandomBulkFields;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.updateByQueryRequestsEqual;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.fillRandomBulkFields;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.mutateAbstractBulkByPaginatedSearchRequest;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomResumeInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.updateByQueryRequestsEqual;
 
 public class UpdateByQueryRequestWireSerializingTests extends AbstractWireSerializingTestCase<
     UpdateByQueryRequestWireSerializingTests.Wrapper> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByScrollWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByPaginatedSearchWireSerializingTestUtils.bulkPaginatedSearchRequestNamedWriteableRegistry();
     }
 
     @Override
@@ -64,7 +64,7 @@ public class UpdateByQueryRequestWireSerializingTests extends AbstractWireSerial
         UpdateByQueryRequest originalRequest = instance.request;
         UpdateByQueryRequest mutatedRequest = copyInstance(instance).request;
         switch (between(0, 2)) {
-            case 0 -> mutateAbstractBulkByScrollRequest(originalRequest, mutatedRequest);
+            case 0 -> mutateAbstractBulkByPaginatedSearchRequest(originalRequest, mutatedRequest);
             case 1 -> mutatedRequest.setScript(
                 randomValueOtherThan(
                     originalRequest.getScript(),

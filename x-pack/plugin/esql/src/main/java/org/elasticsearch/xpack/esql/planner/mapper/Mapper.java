@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -168,7 +169,11 @@ public class Mapper {
 
         if (unary instanceof TopNBy topNBy) {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (mappedChild instanceof ExchangeExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
         }
 
         // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
@@ -203,7 +208,7 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join.isRemote()) {
+            if (join.executesOn() == ExecuteLocation.REMOTE) {
                 // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
                 // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
                 // but they are okay to perform on the data nodes because they only serve to reduce the number of rows processed and
@@ -215,7 +220,12 @@ public class Mapper {
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
-                return new FragmentExec(bp);
+                if (join.executesOn() == ExecuteLocation.COORDINATOR) {
+                    // Transfer left-side data here via exchange in order to execute join against coordinator lookup index
+                    left = new ExchangeExec(left.source(), left);
+                } else {
+                    return new FragmentExec(bp);
+                }
             }
 
             PhysicalPlan right = mapInner(bp.right());
@@ -275,6 +285,18 @@ public class Mapper {
         }
 
         return new MergeExec(fork.source(), newChildren, fork.output());
+    }
+
+    /**
+     * Wraps a bare {@link FragmentExec} in an {@link ExchangeExec} so that ComputeService routes it to data nodes.
+     * Subplans(from IN subquery) that contain only streaming operators (no pipeline breakers like Limit/Aggregate)
+     * map to a bare FragmentExec and need this wrapping before execution.
+     */
+    public static PhysicalPlan ensureExchangeForSubPlan(PhysicalPlan plan) {
+        if (plan instanceof FragmentExec) {
+            return new ExchangeExec(plan.source(), plan);
+        }
+        return plan;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

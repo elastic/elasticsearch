@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
@@ -208,7 +210,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             onClientReady();
         } catch (Exception e) {
             // If starting the driver fails, reply immediately with failure
-            logger.error(
+            logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
                 "[LookupJoinServer] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
                 serverToClientId,
                 e.getMessage()
@@ -280,7 +285,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 close();
             } catch (Exception e) {
-                logger.error("[LookupJoinServer] Exception during close after successful driver completion", e);
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
+                    "[LookupJoinServer] Exception during close after successful driver completion",
+                    e
+                );
                 closeException = e;
             }
             // Release driver ref - success if close() succeeded, failure if close() threw
@@ -302,7 +313,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 close();
             } catch (Exception e) {
-                logger.error("[LookupJoinServer] Exception during close after driver failure", e);
+                logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinServer] Exception during close after driver failure", e);
             }
             // Release driver ref with failure - the response coordinator's FailureCollector
             // will pick the best error across driver and sink channels
@@ -326,16 +337,25 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 serverToClientId
             );
             try {
-                BatchExchangeStatusResponse response = failure == null
-                    ? new BatchExchangeStatusResponse()
-                    : new BatchExchangeStatusResponse(failure);
+                BatchExchangeStatusResponse response;
+                if (failure == null) {
+                    long bytesRead = batchDriver != null
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L).bytesRead()
+                        : 0L;
+                    response = new BatchExchangeStatusResponse(bytesRead);
+                } else {
+                    response = new BatchExchangeStatusResponse(failure);
+                }
                 listener.onResponse(response);
                 // Clear the listener after sending response to prevent duplicate replies
                 batchExchangeStatusListener = null;
             } catch (Exception e) {
                 // If sending response fails (e.g., channel closed, node closed), log as error but don't propagate
                 // The client waits for the response, so this indicates an unexpected failure
-                logger.error(
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
                     "[LookupJoinServer] Failed to send batch exchange status response for exchangeId={}: {}",
                     serverToClientId,
                     e.getMessage()
@@ -385,11 +405,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         try (EsqlRefCountingListener responseCoordinator = new EsqlRefCountingListener(ActionListener.wrap(v -> {
             sendBatchExchangeStatusResponse(null);
         }, e -> {
-            logger.error("[LookupJoinServer] Server failed, propagating failure to exchange sink handler", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinServer] Server failed, propagating failure to exchange sink handler", e);
             try {
                 serverToClientSinkHandler.onFailure(e);
             } catch (Exception ex) {
-                logger.error("[LookupJoinServer] Exception propagating failure to sink handler", ex);
+                logExchangeFailure(logger, Level.ERROR, ex, "[LookupJoinServer] Exception propagating failure to sink handler", ex);
             }
             sendBatchExchangeStatusResponse(e);
         }))) {
@@ -494,7 +514,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 try {
                     close();
                 } catch (Exception e) {
-                    logger.error("[LookupJoinServer] Exception during timeout cleanup for exchangeId={}: {}", serverToClientId, e);
+                    logExchangeFailure(
+                        logger,
+                        Level.ERROR,
+                        e,
+                        "[LookupJoinServer] Exception during timeout cleanup for exchangeId={}",
+                        serverToClientId,
+                        e
+                    );
                 }
             }
         }, CLIENT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -543,7 +570,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 releasable.close();
                 logger.debug("[LookupJoinServer] Releasable resources closed successfully");
             } catch (Exception e) {
-                logger.warn("[LookupJoinServer] Exception closing releasable", e);
+                logExchangeFailure(logger, Level.WARN, e, "[LookupJoinServer] Exception closing releasable", e);
             }
         } else {
             logger.warn("[LookupJoinServer] No releasable to close (releasableRef was null)");

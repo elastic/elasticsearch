@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of double values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -98,9 +98,10 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
-    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
-        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendDouble(values[pos]);
             }
             return builder.build();

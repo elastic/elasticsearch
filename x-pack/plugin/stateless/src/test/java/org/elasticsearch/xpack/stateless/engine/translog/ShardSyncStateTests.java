@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,9 +20,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -40,7 +42,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -71,12 +73,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                1,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(1, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -84,12 +81,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                2,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 3, 2)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(2, "", Map.of(shardId, 2L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -100,12 +92,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(directory.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 2 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                4,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(4, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -118,12 +105,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(directory2.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 3, 1 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                5,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(5, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -146,7 +128,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -179,7 +161,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -207,7 +189,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -226,18 +208,18 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(0, 20);
         long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, longsRefConsumer(seqNos::add));
         TranslogMetadata.Directory directory = shardSyncState.createDirectory(generation, 0);
         ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(
             primaryTerm,
             new Translog.Location(0, 30, 40),
-            List.of(0L, 1L, 2L)
+            longArrayListOf(0L, 1L, 2L)
         );
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 4, 4)),
+            Map.of(shardId, 4L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -260,17 +242,17 @@ public class ShardSyncStateTests extends ESTestCase {
         long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
         AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, seqNos::add);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, longsRefConsumer(seqNos::add));
         ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(
             primaryTerm,
             new Translog.Location(0, 30, 0),
-            List.of(0L, 1L, 2L)
+            longArrayListOf(0L, 1L, 2L)
         );
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 3, 3)),
+            Map.of(shardId, 3L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -292,7 +274,7 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(0, 20);
         long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, longsRefConsumer(seqNos::add));
 
         Translog.Location manualSync = new Translog.Location(0, 10, 0);
         shardSyncState.updateProcessedLocation(manualSync);
@@ -308,13 +290,13 @@ public class ShardSyncStateTests extends ESTestCase {
             }
         });
 
-        ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(primaryTerm, manualSync, List.of(0L));
+        ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(primaryTerm, manualSync, longArrayListOf(0L));
         assertThat(syncMarker.location(), equalTo(manualSync));
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 3, 3)),
+            Map.of(shardId, 3L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -334,23 +316,42 @@ public class ShardSyncStateTests extends ESTestCase {
         return getShardSyncState(shardId, primaryTerm, seqNo -> {});
     }
 
-    private static ShardSyncState getShardSyncState(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
-        return getShardSyncState(shardId, primaryTerm, () -> primaryTerm, persistedSeqNoConsumer);
+    private static ShardSyncState getShardSyncState(ShardId shardId, long primaryTerm, Consumer<LongsRef> persistedSeqNosConsumer) {
+        return getShardSyncState(shardId, primaryTerm, () -> primaryTerm, persistedSeqNosConsumer);
     }
 
     private static ShardSyncState getShardSyncState(
         ShardId shardId,
         long primaryTerm,
         LongSupplier primaryTermSupplier,
-        LongConsumer persistedSeqNoConsumer
+        Consumer<LongsRef> persistedSeqNosConsumer
     ) {
         ShardSyncState shardSyncState = new ShardSyncState(
             shardId,
             primaryTerm,
             primaryTermSupplier,
-            persistedSeqNoConsumer,
+            persistedSeqNosConsumer,
             new ThreadContext(Settings.EMPTY)
         );
         return shardSyncState;
+    }
+
+    /**
+     * Wraps a {@link LongConsumer} (convenient for tests) in some ceremony that allows it to be used as
+     * a {@link Consumer} for {@link LongsRef}. The wrapped consumer will be invoked once for each long
+     * referenced by the LongsRef.
+     */
+    private static Consumer<LongsRef> longsRefConsumer(LongConsumer consumer) {
+        return longsRef -> {
+            for (int i = longsRef.offset; i < longsRef.offset + longsRef.length; i++) {
+                consumer.accept(longsRef.longs[i]);
+            }
+        };
+    }
+
+    private static LongArrayList longArrayListOf(long... longs) {
+        var result = new LongArrayList();
+        result.add(longs);
+        return result;
     }
 }

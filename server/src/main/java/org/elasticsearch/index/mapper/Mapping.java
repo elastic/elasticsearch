@@ -31,9 +31,7 @@ import java.util.stream.Stream;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false, false)
-        ),
+        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.root(false, false)),
         new MetadataFieldMapper[0],
         null
     );
@@ -165,8 +163,12 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
+        return syntheticFieldLoader(filter, false);
+    }
+
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter, boolean columnarStored) {
         var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).toList();
-        return root.syntheticFieldLoader(filter, mappers, false);
+        return root.syntheticFieldLoader(filter, mappers, false, columnarStored);
     }
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {

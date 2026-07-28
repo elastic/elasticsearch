@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149567
+pr: 149660
+summary: Anchor CSV row errors in fused fast path too
+type: bug

@@ -462,42 +462,42 @@ $endif$
             try (var valuesBuilder = blockFactory.new$v1_Type$BlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        $v1_TailArray$ tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            $if(v1_BytesRef)$
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                            $elseif(v1_boolean)$
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                            $else$
-                            valuesBuilder.append$v1_Type$(firstValues.get(group));
-                            $endif$
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            $if(v1_BytesRef)$
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                            $elseif(v1_boolean)$
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                            $else$
-                            valuesBuilder.append$v1_Type$(firstValues.get(group));
-                            $endif$
-                            for (int i = 0; i < tailCount; ++i) {
-                                $if(v1_BytesRef)$
-                                BytesRef bytesScratch = new BytesRef();
-                                tail.get(i, bytesScratch);
-                                valuesBuilder.appendBytesRef(bytesScratch);
-                                $elseif(v1_boolean)$
-                                valuesBuilder.appendBoolean(tail.get(i) == 1);
-                                $else$
-                                valuesBuilder.append$v1_Type$(tail.get(i));
-                                $endif$
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    $v1_TailArray$ tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        $if(v1_BytesRef)$
+                        valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                        $elseif(v1_boolean)$
+                        valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                        $else$
+                        valuesBuilder.append$v1_Type$(firstValues.get(group));
+                        $endif$
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    $if(v1_BytesRef)$
+                    valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                    $elseif(v1_boolean)$
+                    valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                    $else$
+                    valuesBuilder.append$v1_Type$(firstValues.get(group));
+                    $endif$
+                    for (int i = 0; i < tailCount; ++i) {
+                        $if(v1_BytesRef)$
+                        BytesRef bytesScratch = new BytesRef();
+                        tail.get(i, bytesScratch);
+                        valuesBuilder.appendBytesRef(bytesScratch);
+                        $elseif(v1_boolean)$
+                        valuesBuilder.appendBoolean(tail.get(i) == 1);
+                        $else$
+                        valuesBuilder.append$v1_Type$(tail.get(i));
+                        $endif$
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

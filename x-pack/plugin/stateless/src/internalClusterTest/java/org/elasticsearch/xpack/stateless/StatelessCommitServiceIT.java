@@ -16,6 +16,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -213,9 +214,11 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             "--> Index shard's tracked search nodes: {}",
             StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard(indexNodeCommitService, shardId)
         );
-        // There is still a little race with blob store file deletion after cycling the StatelessCommitService machinery above.
+        // searchNodeA's release of the old commit is asynchronous and may lag the single cycle above, so re-poll the search nodes on each
+        // retry. kickConsistencyService alone never re-fetches search-node commit usage, so the full cycle must run inside the loop for the
+        // stale commit to ever be marked deletable and removed from the blob store.
         assertBusy(() -> {
-            kickConsistencyService(indexNode);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
             Set<PrimaryTermAndGeneration> shardCommitBlobs = listBlobsTermAndGenerations(shardId);
             for (PrimaryTermAndGeneration generation : commitsBeforeForceMerge) {
@@ -308,13 +311,16 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             indexSettings(1, 1)
                 // Start with the search shard replica on searchNodeHoldingShard.
                 .put("index.routing.allocation.exclude._name", otherSearchNode)
+                // disable background refresh, so we can accurately predict commit notifications
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
         ensureGreen(indexName);
 
         // Set up some data to be read.
         final int numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(indexName, numDocsToIndex);
+        indexDocs(indexName, numDocsToIndex);
+        refresh(indexName);
 
         logger.info("--> Created an index with search shards on node {} and indexed some data", otherSearchNode);
 
@@ -387,6 +393,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         MockTransportService.getInstance(searchNodeHoldingShard)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 assertThat(request, instanceOf(NewCommitNotificationRequest.class));
+                logger.info("--> Received a NewCommitNotificationAction request from the index shard: {}", request);
                 newCommitCounter.incrementAndGet();
                 handler.messageReceived(request, channel, task);
             });
@@ -415,8 +422,16 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
 
         logger.info("--> Writing some new data to create a new commit and send out notifications");
 
+        MockTransportService.getInstance(miniTestHarness.indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (request instanceof NewCommitNotificationRequest) {
+                logger.info("--> Sending NewCommitNotificationAction request: {}", request);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
         var numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(miniTestHarness.indexName, numDocsToIndex);
+        indexDocs(miniTestHarness.indexName, numDocsToIndex);
+        refresh(miniTestHarness.indexName);
 
         logger.info("--> Finished writing data, commit notifications should have been sent");
 

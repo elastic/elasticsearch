@@ -1,0 +1,6 @@
+SET unmapped_fields="load"; FROM all_types, all_types_short_as_long, all_types_no_short
+| KEEP short
+| FORK (WHERE true)
+       (WHERE true)
+| KEEP _fork, short
+| SORT _fork

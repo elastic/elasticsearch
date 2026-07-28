@@ -1,0 +1,5 @@
+area: Downsampling
+issues: []
+pr: 148220
+summary: Assign downsampling to least loaded candidate node
+type: enhancement

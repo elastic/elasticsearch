@@ -45,31 +45,28 @@ total_fields.ignore_dynamic_beyond_limit defaults:
       indices.put_index_template:
         name: template-foo
         body:
-          index_patterns: ["ds-foo*"]
+          index_patterns: ["logs-foo-*"]
           data_stream: {}
-          priority: 700
-          template:
-            settings:
-              index.mode: logsdb
+          priority: 1000
 
   - do:
       indices.create_data_stream:
-        name: ds-foo
+        name: logs-foo-default
 
   - do:
       indices.get_data_stream:
-        name: ds-foo
+        name: logs-foo-default
   - set: { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
       indices.get_settings:
-        index: ds-foo
+        index: logs-foo-default
         include_defaults: true
   - match: { .$backing_index.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }
 
   - do:
       indices.get_settings:
-        index: ds-foo
+        index: logs-foo-default
         name: index.mapping.total_fields.ignore_dynamic_beyond_limit
         include_defaults: true
   - match: { .$backing_index.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }

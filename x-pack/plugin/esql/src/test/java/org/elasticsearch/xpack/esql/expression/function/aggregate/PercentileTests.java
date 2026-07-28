@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PercentileTests extends AbstractAggregationTestCase {
@@ -56,7 +59,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100, true)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList(),
@@ -96,20 +99,25 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
             var percentile = ((Number) percentileTypedData.data()).doubleValue();
 
-            Double expected = switch (fieldTypedData.type()) {
-                case EXPONENTIAL_HISTOGRAM -> getExpectedPercentileForExponentialHistograms(
+            Matcher<?> resultMatcher;
+            if (fieldTypedData.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                resultMatcher = getExpectedPercentileForExponentialHistograms(
                     Types.forciblyCast(fieldTypedData.multiRowData()),
                     percentile
                 );
-                case TDIGEST -> getExpectedPercentileForTDigests(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
-                default -> getExpectedPercentileForNumbers(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
-            };
+            } else {
+                Double expected = switch (fieldTypedData.type()) {
+                    case TDIGEST -> getExpectedPercentileForTDigests(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
+                    default -> getExpectedPercentileForNumbers(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
+                };
+                resultMatcher = expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10));
+            }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, percentileTypedData),
                 standardAggregatorName("Percentile", fieldSupplier.type()),
                 DataType.DOUBLE,
-                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
+                resultMatcher
             );
         });
     }
@@ -123,14 +131,27 @@ public class PercentileTests extends AbstractAggregationTestCase {
         }
     }
 
-    public static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
+    public static Matcher<?> getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
         ExponentialHistogram merged = ExponentialHistogram.merge(
             ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS,
             ExponentialHistogramCircuitBreaker.noop(),
             values.stream().filter(Objects::nonNull).toList().iterator()
         );
         double result = ExponentialHistogramQuantile.getQuantile(merged, percentile / 100.0);
-        return Double.isNaN(result) ? null : result;
+
+        if (Double.isNaN(result)) {
+            return nullValue();
+        } else {
+            if (Math.abs(result) < 10 * merged.zeroBucket().zeroThreshold() && merged.zeroBucket().count() > 0) {
+                // Due to the intermediate representation being always double based in our block implementation
+                // the zero threshold may grow further than in our reference computation
+                // therefore, if the expected percentile is close to the zero threshold, we are more lenient here if 0.0 is returned
+                return anyOf(equalTo(0.0), closeTo(result, Math.abs(result * 1e-10)));
+            } else {
+                return closeTo(result, Math.abs(result * 1e-10));
+            }
+
+        }
     }
 
     public static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {

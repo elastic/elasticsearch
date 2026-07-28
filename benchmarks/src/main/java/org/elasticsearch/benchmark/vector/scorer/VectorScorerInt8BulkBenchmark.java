@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -28,6 +29,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.byteVecto
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByteVectorData;
 
@@ -181,6 +184,12 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
                 scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
                     queryScorer = luceneScorer(values, function.function(), ((VectorData) vectorData).queryVector);
+                }
+                break;
+            case PANAMA:
+                scorer = panamaScoreSupplier(values, function.function()).scorer();
+                if (supportsHeapSegments()) {
+                    queryScorer = panamaScorer(values, function.function(), ((VectorData) vectorData).queryVector);
                 }
                 break;
             case NATIVE:

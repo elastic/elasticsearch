@@ -53,14 +53,17 @@ public class ColumnInfoImpl implements ColumnInfo {
             return true;
         }
         if ((o instanceof ColumnInfoImpl that)) {
-            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(originalTypes, that.originalTypes);
+            return Objects.equals(name, that.name)
+                && Objects.equals(type, that.type)
+                && Objects.equals(originalTypes, that.originalTypes)
+                && Objects.equals(meta, that.meta);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, originalTypes);
+        return Objects.hash(name, type, originalTypes, meta);
     }
 
     public static ColumnInfo fromXContent(XContentParser parser) {
@@ -86,6 +89,10 @@ public class ColumnInfoImpl implements ColumnInfo {
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
         this(name, DataType.fromEs(type), originalTypes, null);
+    }
+
+    public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
+        this(name, DataType.fromEs(type), originalTypes, meta);
     }
 
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
@@ -175,7 +182,12 @@ public class ColumnInfoImpl implements ColumnInfo {
         return originalTypes;
     }
 
+    @Nullable
+    public Map<String, Object> meta() {
+        return meta;
+    }
+
     public String toString() {
-        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + '}';
+        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + ", meta=" + meta + '}';
     }
 }

@@ -1503,14 +1503,59 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testNestedDoesNotSupportSubobjectsParameter() {
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
-            )
+    public void testNestedSubobjectsDefaultsToRootAndCanBeOverridden() throws IOException {
+        // Default: a nested field inherits the root's subobjects (true here), so a sub-object stays hierarchical.
+        MapperService inherited = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    {
+                        b.startObject("properties");
+                        b.startObject("bar").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(inherited.mappingLookup().objectMappers().get("nested1.foo"), instanceOf(ObjectMapper.class));
+        assertEquals(ObjectMapper.Subobjects.ENABLED, inherited.mappingLookup().objectMappers().get("nested1").subobjects());
+        assertNotNull(inherited.fieldType("nested1.foo.bar"));
+
+        // Override: subobjects:false on the nested field keeps the dotted child flat (no intermediate object), and a
+        // declared sub-object is auto-flattened to dotted leaves there just like at the root.
+        MapperService overridden = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("foo.bar").field("type", "keyword").endObject();
+                b.startObject("meta");
+                {
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNull(overridden.mappingLookup().objectMappers().get("nested1.foo"));
+        assertNull(
+            "a sub-object inside a subobjects:false nested is flattened away",
+            overridden.mappingLookup().objectMappers().get("nested1.meta")
         );
-        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+        assertNotNull(overridden.fieldType("nested1.foo.bar"));
+        assertNotNull(overridden.fieldType("nested1.meta.host"));
+        ObjectMapper nested1 = overridden.mappingLookup().objectMappers().get("nested1");
+        assertEquals(ObjectMapper.Subobjects.DISABLED, nested1.subobjects());
     }
 
     public void testIndexTemplatesMergeIncludes() throws IOException {

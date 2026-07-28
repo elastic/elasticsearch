@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -55,9 +56,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     private AllocationService strategy;
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createAllocationStrategy() throws Exception {
         strategy = new AllocationService(
             new AllocationDeciders(Collections.singleton(new ResizeAllocationDecider())),
             new TestGatewayAllocator(),

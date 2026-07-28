@@ -24,7 +24,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,35 +38,50 @@ final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
+    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
+    final boolean arrayOrderInlineNull;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, boolean arrayOrderInlineNull) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
+        this.arrayOrderInlineNull = arrayOrderInlineNull;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. This query is reached via rewrite() so it gets its own weight and
+        // must establish the breaker itself.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-
                 if (values == null) {
                     return null;
                 }
 
+                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
+                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+
                 String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final DocIdSetIterator iterator;
-                if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
+                if ((countsSkipper == null || countsSkipper.maxValue() == 1) && values instanceof BlockLoader.OptionalLengthReader direct) {
+                    // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
+                    // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
                     iterator = direct.tryLengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                    iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost());
+                    if (arrayOrderInlineNull) {
+                        iterator = AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
+                    } else if (countsSkipper != null) {
+                        iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
+                    } else {
+                        iterator = AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
+                    }
                 }
 
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());

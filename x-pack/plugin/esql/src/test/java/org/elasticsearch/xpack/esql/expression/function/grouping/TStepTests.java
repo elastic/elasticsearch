@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -44,6 +46,11 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     private static final DataType[] TIME_RANGE_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };
     private static final DataType[] TIMESTAMP_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS };
     private static final DataType[] COUNT_STEP_TYPES = { DataType.INTEGER, DataType.LONG };
+
+    /** Builds a Configuration with the given {@code now} and {@link QuerySettings#TIME_ZONE} override. */
+    private static Configuration tStepConfig(Instant now, ZoneId zoneId) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).now(now).setting(QuerySettings.TIME_ZONE, zoneId).build();
+    }
 
     public TStepTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -162,20 +169,17 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
             args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
-            return new TestCaseSupplier.TestCase(
-                args,
-                timestampType == DataType.DATE_NANOS
-                    ? Matchers.startsWith("AddDateNanosEvaluator[")
-                    : Matchers.startsWith("AddDatetimesEvaluator["),
-                timestampType,
-                matcher(args, step.toMillis(), now)
-            ).withConfiguration(
-                TEST_SOURCE,
-                randomConfigurationBuilder().query(TEST_SOURCE.text())
-                    .now(now)
-                    .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
-                    .build()
-            );
+            return new TestCaseSupplier.TestCase(args, Matchers.startsWith("DateTrunc"), timestampType, matcher(args, step.toMillis(), now))
+                .withConfiguration(
+                    TEST_SOURCE,
+                    randomConfigurationBuilder().query(TEST_SOURCE.text())
+                        .now(now)
+                        .setting(
+                            QuerySettings.TIME_ZONE,
+                            timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5)
+                        )
+                        .build()
+                );
         }));
     }
 
@@ -203,15 +207,10 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     );
                     return new TestCaseSupplier.TestCase(
                         args,
-                        timestampType == DataType.DATE_NANOS
-                            ? Matchers.startsWith("AddDateNanosEvaluator[")
-                            : Matchers.startsWith("AddDatetimesEvaluator["),
+                        Matchers.startsWith("DateTrunc"),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
-                    ).withConfiguration(
-                        TEST_SOURCE,
-                        randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
-                    );
+                    ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
                 }));
             }
         }
@@ -239,15 +238,10 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
                         return new TestCaseSupplier.TestCase(
                             args,
-                            timestampType == DataType.DATE_NANOS
-                                ? Matchers.startsWith("AddDateNanosEvaluator[")
-                                : Matchers.startsWith("AddDatetimesEvaluator["),
+                            Matchers.startsWith("DateTrunc"),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
-                        ).withConfiguration(
-                            TEST_SOURCE,
-                            randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
-                        );
+                        ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
                     }));
                 }
             }
@@ -304,6 +298,17 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         return params.subList(0, tsIndex);
     }
 
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
+    }
+
     public void testAnchorsGridAtRangeStart() {
         for (DataType timestampType : TIMESTAMP_TYPES) {
             Duration step = Duration.ofMinutes(5);
@@ -344,7 +349,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             null,
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
-            0L
+            0L,
+            Rounding.RoundingConvention.DOWN
         );
         long tbucketBucket = tbucket.getDateRounding(FoldContext.small(), null, null).round(timestamp.toEpochMilli());
 
@@ -484,7 +490,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         DataType timestampType,
         ZoneId zoneId
     ) {
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
+        Configuration configuration = tStepConfig(end, zoneId);
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
         TStep tStep = (TStep) new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration)
             .withTimestampBounds(timestampLiteral(start, timestampType), timestampLiteral(end, timestampType));
@@ -499,7 +505,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         DataType timestampType,
         ZoneId zoneId
     ) {
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
+        Configuration configuration = tStepConfig(end, zoneId);
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
         TStep tStep = new TStep(
             Source.EMPTY,

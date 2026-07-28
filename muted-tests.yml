@@ -763,3 +763,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:ip.cidrMatchFieldArg}
   issue: https://github.com/elastic/elasticsearch/issues/155281
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/155284

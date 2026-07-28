@@ -53,7 +53,8 @@ public abstract class IgnoreMalformedStoredValues {
 
     /**
      * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
-     * Use {@link FallbackStorageRouter#write(DocumentParserContext, String, FallbackStorageRouter.Reason, org.elasticsearch.xcontent.XContentBuilder)}
+     * Use {@link FallbackStorageRouter#write(DocumentParserContext, String, FallbackStorageRouter.Reason,
+     * org.elasticsearch.xcontent.XContentBuilder)}
      * from outside this package.
      */
     static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)

@@ -605,6 +605,11 @@ public abstract class DocumentParserContext {
         pendingIgnoredFieldValues.remove(fieldPath);
     }
 
+    /** Returns {@code true} if a pending pre-capture entry exists for {@code fieldPath}. */
+    final boolean hasPendingPreCapture(String fieldPath) {
+        return pendingIgnoredFieldValues.containsKey(fieldPath);
+    }
+
     /**
      * Wraps {@link XContentDataHelper#encodeToken}, disabling dot expansion from {@link DotExpandingXContentParser}.
      * This helps avoid producing duplicate names in the same scope, due to expanding dots to objects.

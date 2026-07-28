@@ -41,13 +41,15 @@ public final class FallbackStorageRouter {
     public enum Reason {
         /** Value failed to parse with {@code ignore_malformed: true}. Routes to {@link Destination#IGNORE_MALFORMED}. */
         MALFORMED,
-        /** {@code multi_value: false} field received a duplicate with {@code on_failure: ignore}. Routes to {@link Destination#ON_FAILURE}. */
+        /** {@code multi_value: false} field received a duplicate with {@code on_failure: ignore}.
+         * Routes to {@link Destination#ON_FAILURE}. */
         MULTI_VALUE_VIOLATION,
         /** Field uses {@link FieldMapper.SyntheticSourceMode#FALLBACK}. Routes to {@link Destination#IGNORED_SOURCE}. */
         SYNTHETIC_FALLBACK,
         /** Field or object has {@code source_keep: all}. Routes to {@link Destination#IGNORED_SOURCE}. */
         SOURCE_KEEP_ALL,
-        /** Field is in an array with {@code source_keep: arrays} and the mapper doesn't handle arrays natively. Routes to {@link Destination#IGNORED_SOURCE}. */
+        /** Field is in an array with {@code source_keep: arrays} and the mapper doesn't handle arrays natively.
+         *  Routes to {@link Destination#IGNORED_SOURCE}. */
         SOURCE_KEEP_ARRAYS_IN_ARRAY,
         /** Field is a {@code copy_to} destination (not within a copy-to traversal). Routes to {@link Destination#IGNORED_SOURCE}. */
         COPY_TO_DESTINATION,
@@ -71,7 +73,8 @@ public final class FallbackStorageRouter {
         boolean canAddIgnoredField,
         /** True when the mapper reconstructs arrays from its own doc values (sidecar offsets or ordered BDV). */
         boolean storesArraysNatively,
-        /** True when the mapper uses {@link FieldMapper.SyntheticSourceMode#FALLBACK}, or when an object's {@code source_keep} forces pre-capture of array elements. */
+        /** True when the mapper uses {@link FieldMapper.SyntheticSourceMode#FALLBACK},
+         * or when an object's {@code source_keep} forces pre-capture of array elements. */
         boolean syntheticFallback,
         Mapper.SourceKeepMode sourceKeepMode,
         /** True when the mapper handles arrays natively in its parse method ({@link FieldMapper#parsesArrayValue()}). */
@@ -167,45 +170,44 @@ public final class FallbackStorageRouter {
     }
 
     /**
-     * Pre-captures to {@code _ignored_source} if needed, delegates to the mapper, then commits or discards.
-     * {@link FieldMapper.SyntheticSourceMode#FALLBACK} fields commit even on malformed, since they
-     * reconstruct synthetic source from {@code _ignored_source}.
+     * Sets up pre-capture in {@code _ignored_source} if needed and returns the context to pass to {@link FieldMapper#parse}.
+     * Must be followed by {@link #postParse} after the parse call.
      */
-    public static ParseResult parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
+    public static DocumentParserContext preCaptureIfNeeded(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         FieldContext fc = FieldContext.forField(context, fieldMapper);
-        String fieldPath = fieldMapper.fullPath();
-
-        boolean precaptured = false;
-        DocumentParserContext parseCtx = context;
         if (resolvePrecaptureReason(fc).isPresent()) {
-            parseCtx = context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null));
-            precaptured = true;
+            return context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
         }
+        return context;
+    }
 
-        ParseResult result = fieldMapper.parse(parseCtx);
-        return switch (result) {
+    /**
+     * Commits or discards the pending pre-capture based on {@code result}, and routes
+     * {@link ParseResult.MultiValueViolation} to {@code ._on_failure}. Call after {@link FieldMapper#parse}.
+     */
+    public static void postParse(DocumentParserContext context, ParseResult result, FieldMapper fieldMapper) throws IOException {
+        String fieldPath = fieldMapper.fullPath();
+        boolean precaptured = context.hasPendingPreCapture(fieldPath);
+        switch (result) {
             case ParseResult.MultiValueViolation mvv -> {
                 if (precaptured) context.discardPendingPreCapture(fieldPath);
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
                 }
-                yield result;
             }
             case ParseResult.Malformed() -> {
                 if (precaptured) {
-                    if (fc.syntheticFallback()) {
+                    if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                         context.commitPendingPreCapture(fieldPath);
                     } else {
                         context.discardPendingPreCapture(fieldPath);
                     }
                 }
-                yield result;
             }
             case ParseResult.Indexed ignored -> {
                 if (precaptured) context.commitPendingPreCapture(fieldPath);
-                yield result;
             }
-        };
+        }
     }
 
     /**

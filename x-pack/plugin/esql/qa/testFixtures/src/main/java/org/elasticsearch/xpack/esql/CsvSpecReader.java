@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -20,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -567,18 +570,54 @@ public final class CsvSpecReader {
     }
 
     /**
-     * Returns {@code true} when the query contains at least one {@link UnresolvedRelation} leaf —
-     * i.e., a {@code FROM} clause that reads from an external index. Pure {@code ROW}/{@code EVAL}
-     * pipelines produce deterministic output and never need a {@code SORT} for stable test results.
+     * Parses {@code query} into an ANTLR {@link EsqlBaseParser.QueryContext} without going through
+     * {@link EsqlParser} or the AST builder. Bypassing the AST builder avoids side effects such as
+     * {@link org.elasticsearch.common.logging.HeaderWarning#addWarning} calls that the builder
+     * emits for deprecated syntax (e.g. the old one-word {@code INLINESTATS} keyword).
+     *
+     * @return the top-level query context, or {@code null} if lexing or parsing fails
+     */
+    private static EsqlBaseParser.QueryContext antlrParse(String query) {
+        try {
+            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+            lexer.removeErrorListeners();
+            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+            EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
+            parser.removeErrorListeners();
+            return parser.singleStatement().query();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns {@code true} when the query's source command reads from an external index
+     * ({@code FROM}, {@code METRICS}/{@code TS}, {@code PROMQL}, or {@code EXTERNAL}).
+     * Pure {@code ROW}/{@code SHOW} pipelines produce deterministic output and never need a
+     * {@code SORT} for stable test results.
+     * <p>
+     * Uses the raw ANTLR parse tree rather than {@link EsqlParser} to avoid triggering
+     * {@link org.elasticsearch.common.logging.HeaderWarning} side effects that the AST builder
+     * may emit for deprecated syntax (e.g. the old one-word {@code INLINESTATS} keyword).
      * Returns {@code true} on parse failure so that a bad query is not double-reported here.
      */
     private static boolean hasFromSource(String query) {
-        if (SPEC_PARSER == null) {
-            return true;
-        }
         try {
-            LogicalPlan plan = SPEC_PARSER.parseQuery(query);
-            return plan.anyMatch(n -> n instanceof UnresolvedRelation);
+            EsqlBaseParser.QueryContext qCtx = antlrParse(query);
+            if (qCtx == null) {
+                return true;
+            }
+            while (qCtx instanceof EsqlBaseParser.CompositeQueryContext composite) {
+                qCtx = composite.query();
+            }
+            if (qCtx instanceof EsqlBaseParser.SingleCommandQueryContext single) {
+                EsqlBaseParser.SourceCommandContext src = single.sourceCommand();
+                return src.fromCommand() != null
+                    || src.timeSeriesCommand() != null
+                    || src.promqlCommand() != null
+                    || src.externalCommand() != null;
+            }
+            return false;
         } catch (Exception e) {
             return true;
         }
@@ -588,27 +627,55 @@ public final class CsvSpecReader {
      * Returns {@code true} when the query has a deterministic top-level sort. Returns {@code true}
      * on parse failure so that a bad query is not double-reported here and by the test runner.
      * <p>
-     * The check peels through {@link Limit} (truncating but order-preserving for the top-N rows) and
-     * any {@link SortPreserving} node ({@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL},
-     * {@code WHERE}, {@code ENRICH}, regex-extract commands, etc.) before looking for an
-     * {@link OrderBy}. This avoids false positives on queries like
-     * {@code FROM t | SORT x | EVAL y = f(x) | KEEP x, y | LIMIT 10} where the effective output
-     * order is fully determined by the inner {@code SORT}.
+     * The check peels through {@code LIMIT} (truncating but order-preserving for the top-N rows) and
+     * any sort-preserving processing command ({@code KEEP}, {@code DROP}, {@code RENAME},
+     * {@code EVAL}, {@code WHERE}, {@code ENRICH}, regex-extract commands, etc.) before looking for
+     * a {@code SORT}. Commands that disrupt the established sort order ({@code STATS},
+     * {@code MV_EXPAND}, etc.) stop the search and return {@code false}.
+     * <p>
+     * Uses the raw ANTLR parse tree rather than {@link EsqlParser} to avoid triggering
+     * {@link org.elasticsearch.common.logging.HeaderWarning} side effects.
      */
     private static boolean hasTopLevelSort(String query) {
-        if (SPEC_PARSER == null) {
-            return true;
-        }
         try {
-            LogicalPlan plan = SPEC_PARSER.parseQuery(query);
-            // Peel through nodes that do not disturb the established sort order.
-            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename) {
-                plan = ((UnaryPlan) plan).child();
+            EsqlBaseParser.QueryContext qCtx = antlrParse(query);
+            if (qCtx == null) {
+                return true;
             }
-            return plan instanceof OrderBy;
+            while (qCtx instanceof EsqlBaseParser.CompositeQueryContext composite) {
+                EsqlBaseParser.ProcessingCommandContext cmd = composite.processingCommand();
+                if (cmd.sortCommand() != null) {
+                    return true;
+                }
+                if (isSortDisruptingCommand(cmd)) {
+                    return false;
+                }
+                // Sort-preserving command: peel through to the inner query.
+                qCtx = composite.query();
+            }
+            return false;
         } catch (Exception e) {
             return true;
         }
+    }
+
+    /**
+     * Returns {@code true} when the processing command disrupts any sort order established by inner
+     * commands, meaning the search for a top-level {@code SORT} should stop here.
+     * Commands not listed here are treated as sort-preserving (the conservative assumption).
+     */
+    private static boolean isSortDisruptingCommand(EsqlBaseParser.ProcessingCommandContext cmd) {
+        return cmd.statsCommand() != null
+            || cmd.mvExpandCommand() != null
+            || cmd.forkCommand() != null
+            || cmd.sampleCommand() != null
+            || cmd.fuseCommand() != null
+            || cmd.dedupCommand() != null
+            || cmd.mmrCommand() != null
+            || cmd.tsCollapseCommand() != null
+            || cmd.highlightCommand() != null
+            || cmd.metricsInfoCommand() != null
+            || cmd.tsInfoCommand() != null;
     }
 
     /**
@@ -634,6 +701,11 @@ public final class CsvSpecReader {
             return;
         }
         if (hasFromSource(testCase.query) == false) {
+            return;
+        }
+        // Skip the full parse when there is no top-level sort: validateOrdering() already warned,
+        // and parsing here would trigger HeaderWarning side effects for deprecated syntax.
+        if (hasTopLevelSort(testCase.query) == false) {
             return;
         }
         try {

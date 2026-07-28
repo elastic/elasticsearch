@@ -2867,7 +2867,7 @@ c:long | _index:keyword
 forkBeforeInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -2892,7 +2892,7 @@ emp_no:integer | first_name:keyword
 forkBeforeNotInSubqueryWithGrokInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -2922,7 +2922,7 @@ emp_no:integer | first_name:keyword
 forkBeforeInSubqueryWithDissectInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -2949,7 +2949,7 @@ emp_no:integer | first_name:keyword
 forkBeforeInSubqueryWithLookupJoinInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 required_capability: join_lookup_v12
 
 FROM employees
@@ -2974,10 +2974,10 @@ emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
 
-forkBeforeInSubqueryWithOr
+forkBeforeDisjunctiveInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -2999,10 +2999,10 @@ emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
 
-forkBeforeInSubqueryWithOrWithGrokInsideSubquery
+forkBeforeDisjunctiveInSubqueryWithGrokInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -3025,10 +3025,10 @@ emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
 
-forkBeforeInSubqueryWithOrWithDissectInsideSubquery
+forkBeforeDisjunctiveInSubqueryWithDissectInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -3052,10 +3052,10 @@ emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
 
-forkBeforeNotInSubqueryWithOrWithLookupJoinInsideSubquery
+forkBeforeDisjunctiveNotInSubqueryWithLookupJoinInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 required_capability: join_lookup_v12
 
 FROM employees
@@ -3086,7 +3086,7 @@ emp_no:integer | first_name:keyword
 
 fromSubqueryBeforeInSubquery
 required_capability: where_in_subquery_without_view
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
@@ -3105,9 +3105,9 @@ emp_no:integer | first_name:keyword
 10007          | Tzvetan
 ;
 
-fromSubqueryBeforeInSubqueryWithOr
+fromSubqueryBeforeDisjunctiveInSubquery
 required_capability: where_in_subquery_without_view
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
@@ -3128,7 +3128,7 @@ emp_no:integer | first_name:keyword
 
 fromSubqueryBeforeNotInSubquery
 required_capability: where_in_subquery_without_view
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
@@ -3154,7 +3154,7 @@ emp_no:integer | first_name:keyword
 forkInMainWithForkInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -3182,7 +3182,7 @@ emp_no:integer | first_name:keyword
 forkInMainWithFromSubqueryInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -3208,7 +3208,7 @@ emp_no:integer | first_name:keyword
 fromSubqueryInMainWithForkInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
@@ -3232,7 +3232,7 @@ emp_no:integer | first_name:keyword
 
 fromSubqueryInMainWithFromSubqueryInSubquery
 required_capability: where_in_subquery_without_view
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
@@ -3255,7 +3255,7 @@ emp_no:integer | first_name:keyword
 forkInMainWithForkAndNestedInSubqueryInsideSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | FORK
@@ -3288,7 +3288,7 @@ emp_no:integer | first_name:keyword
 inSubqueryAfterLookupJoinWithoutKeep
 required_capability: where_in_subquery_without_view
 required_capability: join_lookup_v12
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 from employees
 | KEEP languages, first_name
@@ -3303,7 +3303,7 @@ language_code:integer | first_name:keyword | language_name:keyword
 inSubqueryWithRenameNoKeepMainQueryKeep
 required_capability: where_in_subquery_without_view
 required_capability: join_lookup_v12
-required_capability: where_in_subquery_fork_fix
+required_capability: where_in_subquery_fork_unknown_column_fix
 
 FROM employees
 | WHERE emp_no NOT IN ( FROM employees

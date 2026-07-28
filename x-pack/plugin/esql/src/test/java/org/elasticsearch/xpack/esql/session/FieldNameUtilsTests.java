@@ -3398,7 +3398,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSubqueryRenameDoesNotRemoveOuterQueryRef() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // Regression: the subquery renames 'salary' to 'first_name'. With a shared referencesBuilder the
         // alias-removal step would also strip 'first_name' from the outer query's field set, causing
         // "Unknown column [first_name]" during analysis. The fix uses a separate referencesBuilder for the
@@ -3471,9 +3470,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryInsideForkBranch() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        // Regression: AbstractSubqueryJoin inside a FORK branch sets breakEarly, causing the Fork handler to
-        // misinterpret it as a nested FORK and fire a spurious assertion.
         assertFieldNames("""
             FROM employees
             | FORK (WHERE emp_no IN (FROM employees | WHERE salary > 74000 | KEEP emp_no) | KEEP emp_no, salary)

@@ -332,6 +332,76 @@ POST /_query
 
 For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
 
+## Column metadata [esql-rest-column-metadata]
+
+For structured [response formats](#esql-rest-format), the `columns` array describes the columns in the response.
+Each column object includes the column `name` and {{esql}} `type`.
+Depending on the query and the source mappings, a column object can also include additional metadata:
+
+| Field | Description |
+| --- | --- |
+| `name` | The column name. |
+| `type` | The resolved {{esql}} type for the column. |
+| `original_types` | The original {{es}} mapping types for a column. This is returned when the column has an unsupported type or conflicting types across the queried indices. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `suggested_cast` | A type that {{esql}} can use to resolve the values from `original_types` to a supported type. This is returned only when {{esql}} can suggest a cast for the original types. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `_meta` | Additional column metadata produced by {{esql}}. |
+
+For example, a column with conflicting mapping types can include `original_types` and `suggested_cast`:
+
+```json
+{
+  "name": "client_ip",
+  "type": "unsupported",
+  "original_types": ["ip", "keyword"],
+  "suggested_cast": "keyword"
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Columns created with `BUCKET` can include bucket interval metadata:
+
+```json
+{
+  "name": "bucket",
+  "type": "date",
+  "_meta": {
+    "bucket": {
+      "interval": 1,
+      "unit": "day"
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Numeric bucket columns include only the `interval` value:
+
+```json
+{
+  "name": "bucket",
+  "type": "double",
+  "_meta": {
+    "bucket": {
+      "interval": 100.0
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.4, ga 9.5+` {applies_to}`serverless: ga` Approximation helper columns can include approximation metadata.
+The `approximation.type` value is `confidence_interval` or `certified`, and `approximation.column` identifies the source column:
+
+```json
+{
+  "name": "_approximation_confidence_interval(count)",
+  "type": "long",
+  "_meta": {
+    "approximation": {
+      "type": "confidence_interval",
+      "column": "count"
+    }
+  }
+}
+```
+
 ## Pass parameters to a query [esql-rest-params]
 
 Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.

@@ -646,7 +646,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {

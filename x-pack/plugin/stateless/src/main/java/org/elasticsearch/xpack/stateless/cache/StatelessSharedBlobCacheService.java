@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.CacheRegion;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,11 +21,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -38,9 +45,12 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
+
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
 
     // Overall setting to disable/enable the cache boost preference feature.
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
@@ -91,6 +101,33 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             Setting.Property.NodeScope
         );
 
+    /**
+     * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
+     * scan before the cache enters an eviction degradation period. When {@code rejectedCount / numRegions} exceeds
+     * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
+     */
+    public static final Setting<RatioValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = new Setting<>(
+        "stateless.cache_boost_preference.eviction_policy_degradation.threshold",
+        "95%",
+        RatioValue::parseRatioValue,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. A zero value disables it.
+     * Set to a non-zero duration together with a threshold below {@code 100%} to fully enable degradation mode.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
+     */
+    public static final Setting<TimeValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING = Setting.timeSetting(
+        "stateless.cache_boost_preference.eviction_policy_degradation.period",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /// Setting gating eviction of cache regions that belong to obsolete segments on search directories (see
     /// [org.elasticsearch.xpack.stateless.lucene.SearchDirectory#retainFiles]). This maintenance work was previously gated
     /// behind [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING]; it is now controlled independently so it can be rolled out
@@ -113,6 +150,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
+
+    private final int evictionDegradationThreshold;
+    private final long evictionDegradationPeriodMillis;
+    private volatile long evictionDegradationStartMillis = -1L;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -149,6 +190,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
+        this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
+            .getAsRatio());
+        this.evictionDegradationPeriodMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
     }
 
     // for tests
@@ -189,6 +233,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
+        this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
+            .getAsRatio());
+        this.evictionDegradationPeriodMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
     }
 
     /**
@@ -307,6 +354,46 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     @Override
     public long getRegionEnd(int region) {
         return super.getRegionEnd(region);
+    }
+
+    @Override
+    protected Predicate<CacheRegion<FileCacheKey>> createEvictionPredicate(
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        CacheRegion<FileCacheKey> incoming
+    ) {
+        if (evictionDegradationThreshold == numRegions || evictionDegradationPeriodMillis <= 0) {
+            // Degradation is disabled, just use the eviction policy's predicate directly.
+            return super.createEvictionPredicate(evictionPolicy, incoming);
+        }
+
+        final long startMillis = evictionDegradationStartMillis;
+        if (startMillis >= 0 && threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationPeriodMillis) {
+            // In degradation period, bypass the eviction policy
+            return Predicates.always();
+        }
+
+        final Predicate<CacheRegion<FileCacheKey>> policyPredicate = evictionPolicy.createPredicate(incoming);
+        return new Predicate<>() {
+            int rejectedCount = 0;
+
+            @Override
+            public boolean test(CacheRegion<FileCacheKey> region) {
+                if (policyPredicate.test(region)) {
+                    return true;
+                }
+                if (++rejectedCount > evictionDegradationThreshold) {
+                    evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
+                    logger.warn(
+                        "Eviction policy degraded: policy rejected over {}/{} regions; bypassing policy for {}",
+                        evictionDegradationThreshold,
+                        numRegions,
+                        TimeValue.timeValueMillis(evictionDegradationPeriodMillis)
+                    );
+                    return true;
+                }
+                return false;
+            }
+        };
     }
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {

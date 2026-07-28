@@ -88,7 +88,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         false,
         FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     public void testTermQuery() {
@@ -694,7 +695,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
             false
         );
     }
@@ -713,7 +720,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            ),
             false
         );
     }

@@ -214,6 +214,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {}
 
+    /**
+     * Whether to rebuild the {@link ServiceHolder} instances before every test method. Defaults to
+     * {@code false}, meaning the holders are built once per class and shared across all test methods
+     * (faster). Override to return {@code true} for tests that require fresh, isolated services per
+     * test method — at the cost of rebuilding on every test.
+     */
+    protected boolean rebuildServiceHolderForEachTest() {
+        return false;
+    }
+
     @BeforeClass
     public static void beforeClass() {
         nodeSettings = Settings.builder()
@@ -310,10 +320,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         serviceHolder.clientInvocationHandler.delegate = null;
         serviceHolderWithNoType.clientInvocationHandler.delegate = null;
         testThreadPool.shutdown();
+        if (rebuildServiceHolderForEachTest()) {
+            IOUtils.close(serviceHolder, serviceHolderWithNoType);
+            serviceHolder = null;
+            serviceHolderWithNoType = null;
+        }
     }
 
     /**

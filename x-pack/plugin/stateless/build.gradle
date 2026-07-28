@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.stateless'
+apply plugin: 'elasticsearch.foreign-api'
 
 
 esplugin {

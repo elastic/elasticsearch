@@ -1,0 +1,4 @@
+FROM employees, (FROM employees_incompatible | WHERE languages > 1)
+| EVAL emp_no = languages::long
+| WHERE emp_no > 1
+| SORT emp_no

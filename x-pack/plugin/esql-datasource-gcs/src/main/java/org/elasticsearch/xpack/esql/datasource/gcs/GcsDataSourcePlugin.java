@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.plugins.Plugin;
@@ -24,15 +23,12 @@ import java.util.concurrent.ExecutorService;
  * Data source plugin providing Google Cloud Storage support for ESQL.
  * Supports the gs:// URI scheme.
  * <p>
- * Usage in ESQL:
- * <pre>
- *   EXTERNAL "gs://my-bucket/data/sales.parquet"
- *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH {"credentials": "{ ... service account JSON ... }", "project_id": "my-project"}
- * </pre>
+ * Usage in ESQL: register a dataset over a {@code gs://} resource, optionally with the
+ * {@code credentials} (service account JSON) and {@code project_id} settings, then query it with
+ * {@code FROM <dataset>}.
  * <p>
  * GCS is not in the released ship set yet (S3 is the released cloud provider), so registration is
- * gated on the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} and the
- * component {@link #ESQL_EXTERNAL_GCS_FEATURE_FLAG}: available in snapshot/development builds, disabled
+ * gated on {@link #ESQL_EXTERNAL_GCS_FEATURE_FLAG}: available in snapshot/development builds, disabled
  * in release. When the gate is off the {@code gs} scheme is not registered, so a {@code gs://} source
  * resolves to the generic "Unsupported storage scheme" rejection.
  */
@@ -45,7 +41,7 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public static final FeatureFlag ESQL_EXTERNAL_GCS_FEATURE_FLAG = new FeatureFlag("esql_external_gcs");
 
     private static boolean enabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
     }
 
     @Override

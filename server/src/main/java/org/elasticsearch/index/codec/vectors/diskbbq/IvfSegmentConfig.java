@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
  * <ul>
@@ -26,22 +24,22 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFo
  * When the stored rescore is not finite (e.g. {@code NaN}), query and mapping rescore then apply in the usual order.
  */
 public record IvfSegmentConfig(
-    ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
-    ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+    CentroidIndexFormat centroidIndexFormat,
+    QuantEncoding quantEncoding,
     boolean usePrecondition,
     float rescoreOversample
 ) {
 
     public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
-        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        CentroidIndexFormat.FLAT,
+        QuantEncoding.ONE_BIT_4BIT_QUERY,
         false,
         Float.NaN
     );
 
     public static IvfSegmentConfig fromCodecDefaults(
-        ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
         boolean doPrecondition
     ) {
         return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN);

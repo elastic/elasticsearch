@@ -127,14 +127,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "match_only_text";
 
     private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        return new FieldMapper.DocValuesParameter.Values(
-            // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that
-            // mode.
-            indexMode.isStrictColumnar(),
-            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-            true,
-            true
-        );
+        // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that mode.
+        return indexMode.isStrictColumnar()
+            ? FieldMapper.DocValuesParameter.Values.ENABLED_HIGH_CARDINALITY
+            : FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
     }
 
     public static class Defaults {
@@ -384,7 +380,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 IndexVersion.current(),
                 true,
                 false,
-                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+                new FieldMapper.DocValuesParameter.Values(
+                    false,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    true,
+                    true,
+                    FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+                ),
                 false
             );
         }
@@ -805,7 +807,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {
@@ -1190,6 +1193,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

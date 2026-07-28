@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -87,17 +88,11 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
-    public void testDecompressDirectByteBufferValidation() {
-        try (var dst = nativeAccess.newConfinedBuffer(500)) {
-            var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, ByteBuffer.allocateDirect(1)));
-            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
-            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(dst, (ByteBuffer) null));
-            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
-
-            var heapBuf = ByteBuffer.allocate(100);
-            var iae = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, heapBuf));
-            assertThat(iae.getMessage(), equalTo("Source buffer must be direct"));
-        }
+    public void testDecompressMemorySegmentValidation() {
+        var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, MemorySegment.ofArray(new byte[1])));
+        assertThat(npe1.getMessage(), equalTo("Null dst segment"));
+        var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(MemorySegment.ofArray(new byte[1]), null));
+        assertThat(npe2.getMessage(), equalTo("Null src segment"));
     }
 
     /**
@@ -323,8 +318,8 @@ public class ZstdTests extends ESTestCase {
     }
 
     /**
-     * Compress with CloseableByteBuffer, then decompress using a direct ByteBuffer source
-     * to exercise the {@link Zstd#decompress(CloseableByteBuffer, ByteBuffer)} overload.
+     * Compress with CloseableByteBuffer, then decompress using a MemorySegment source
+     * to exercise the {@link Zstd#decompress(MemorySegment, MemorySegment)} overload.
      */
     private void doTestRoundtripWithDirectByteBuffer(byte[] data) {
         try (
@@ -335,12 +330,13 @@ public class ZstdTests extends ESTestCase {
             original.buffer().put(0, data);
             int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
 
-            ByteBuffer directSrc = ByteBuffer.allocateDirect(compressedLength);
+            byte[] compressedBytes = new byte[compressedLength];
             for (int i = 0; i < compressedLength; i++) {
-                directSrc.put(i, compressed.buffer().get(i));
+                compressedBytes[i] = compressed.buffer().get(i);
             }
 
-            int decompressedLength = zstd.decompress(restored, directSrc);
+            MemorySegment dstSegment = MemorySegment.ofBuffer(restored.buffer());
+            int decompressedLength = zstd.decompress(dstSegment, MemorySegment.ofArray(compressedBytes));
             assertThat(restored.buffer(), equalTo(original.buffer()));
             assertThat(decompressedLength, equalTo(data.length));
         }

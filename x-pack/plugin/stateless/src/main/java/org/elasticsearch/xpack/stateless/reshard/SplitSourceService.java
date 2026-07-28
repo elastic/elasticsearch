@@ -112,10 +112,20 @@ public class SplitSourceService {
     private final ConcurrentHashMap<IndexShard, SplitRequestState> activeTargetRequests = new ConcurrentHashMap<>();
     // Tracks source shard state machine that performs cleanup logic and moves source shard to DONE once all target shards are complete.
     private final ConcurrentHashMap<IndexShard, SourceShardStateMachine> activeSourceShards = new ConcurrentHashMap<>();
+    // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
+    private final Set<ShardId> shardsPreparingForHandoff = ConcurrentHashMap.newKeySet();
 
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
     private Runnable preHandoffHook;
+
+    /**
+     * Returns true if the given shard is about to enter handoff.
+     * Used by ShouldSkipMerges to abort merges during this window so they don't block indexing while they upload.
+     */
+    public boolean isPreparingForHandoff(ShardId shardId) {
+        return shardsPreparingForHandoff.contains(shardId);
+    }
 
     public SplitSourceService(
         Client client,
@@ -280,7 +290,7 @@ public class SplitSourceService {
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
             if (targetPrimaryTerm >= currentSplit.targetPrimaryTerm) {
                 // Cancel current split request as it is likely stale
-                taskManager.cancelTaskAndDescendants(task, "stale split request", false, ActionListener.noop());
+                taskManager.cancelTaskAndDescendants(currentSplit.task, "stale split request", false, ActionListener.noop());
             }
             String message = String.format(
                 Locale.ROOT,
@@ -312,6 +322,7 @@ public class SplitSourceService {
                     // and there will be no new commits.
                     // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
                 }
+                shardsPreparingForHandoff.remove(sourceShard.shardId());
                 activeTargetRequests.remove(sourceShard);
                 l.onFailure(e);
             }));
@@ -350,7 +361,9 @@ public class SplitSourceService {
             logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
             // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
-            engine.flush(/* force */ false, /* waitIfOngoing */ false, afterFirstFlush);
+            // Start cancelling completing merges at this point so that they don't delay flush during handoff.
+            shardsPreparingForHandoff.add(sourceShard.shardId());
+            engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
         }))
             .<Releasable>andThen(acquiredPermits -> stateMachine.split().withPermits(acquiredPermits))
@@ -365,6 +378,7 @@ public class SplitSourceService {
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                             stopCopyingNewCommits(targetShardId);
+                            shardsPreparingForHandoff.remove(sourceShard.shardId());
                             activeTargetRequests.remove(sourceShard);
                             afterSecondFlush.onResponse(permits);
                         }, e -> {
@@ -688,6 +702,7 @@ public class SplitSourceService {
     /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
         activeTargetRequests.remove(indexShard);
+        shardsPreparingForHandoff.remove(indexShard.shardId());
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();

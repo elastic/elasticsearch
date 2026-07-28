@@ -29,6 +29,7 @@ emp_no:integer | first_name:keyword | salary:integer
 
 multiFileAggregate
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_brackets
@@ -36,9 +37,9 @@ FROM employees_multifile_split_brackets
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 // ---- File-metadata projections under multi-file glob (relocated from external-multifile.csv-spec) ----

@@ -32,6 +32,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -102,7 +103,9 @@ public class RestReindexActionTests extends RestActionTestCase {
               }
             }
             """)));
-        assertEquals("request does not support [" + SliceIndexing.PARAM_NAME + "]", e.getMessage());
+        assertThat(e.getMessage(), containsString("failed to parse field"));
+        assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
     }
 
     public void testFilterSource() throws IOException {

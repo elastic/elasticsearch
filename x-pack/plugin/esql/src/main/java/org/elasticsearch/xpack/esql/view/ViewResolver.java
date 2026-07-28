@@ -12,6 +12,8 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -55,7 +58,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
@@ -89,8 +94,8 @@ public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
-    private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
+    protected final ClusterService clusterService;
+    protected final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
@@ -136,6 +141,19 @@ public class ViewResolver {
 
     ViewMetadata getMetadata() {
         return projectResolver.getProjectMetadata(clusterService.state()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+    }
+
+    /**
+     * Returns the current {@link ProjectMetadata}, or {@code null} when the resolver is in NOOP mode
+     * (i.e. the {@code projectResolver} was not injected). Subclasses may override this to supply
+     * project metadata from a different source (e.g. in-memory test infrastructure).
+     */
+    @Nullable
+    protected ProjectMetadata getCurrentProjectMetadata() {
+        if (projectResolver == null || clusterService == null) {
+            return null;
+        }
+        return projectResolver.getProjectMetadata(clusterService.state());
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -453,6 +471,18 @@ public class ViewResolver {
                         : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
                 );
                 return;
+            }
+
+            // Views are a stored subquery, and TS command already rejects explicit subqueries
+            // (see LogicalPlanBuilder#visitRelation) because time-series semantics (_tsid,
+            // bucketing, etc.) assume every row comes directly from a time-series index. A view's
+            // output never satisfies that, so reject it here too, once view resolution has told us
+            // whether the pattern actually matched a view - the parser can't know this up front.
+            if (unresolvedRelation.indexMode() == IndexMode.TIME_SERIES) {
+                throw new VerificationException(
+                    "Views are not supported in TS command, found view(s) [{}]",
+                    Arrays.stream(response.views()).map(View::name).collect(Collectors.joining(", "))
+                );
             }
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
@@ -787,7 +817,7 @@ public class ViewResolver {
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
         // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
-        mergeCompatibleUnresolvedRelations(plans);
+        mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
 
         if (plans.size() == 1) {
             return plans.values().iterator().next();
@@ -797,13 +827,39 @@ public class ViewResolver {
     }
 
     /**
+     * Builds a function that maps a local, non-wildcard index or alias name to the set of concrete
+     * index names it backs. Concrete indices map to a singleton containing themselves; aliases map to
+     * the set of their backing indices. Returns {@code null} when project metadata is unavailable
+     * (NOOP resolver mode), in which case alias-aware merge checking is skipped.
+     */
+    @Nullable
+    private Function<String, Set<String>> buildAliasResolver() {
+        ProjectMetadata projectMetadata = getCurrentProjectMetadata();
+        if (projectMetadata == null) {
+            return null;
+        }
+        Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
+        return name -> {
+            IndexAbstraction abstraction = indicesLookup.get(name);
+            if (abstraction == null || abstraction.getType() != IndexAbstraction.Type.ALIAS) {
+                return Set.of(name);
+            }
+            Set<String> backingIndices = abstraction.getIndices().stream().map(Index::getName).collect(Collectors.toSet());
+            return backingIndices.isEmpty() ? Set.of(name) : backingIndices;
+        };
+    }
+
+    /**
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
      * per-level merge that keeps the resolved tree small enough to pass {@link Fork#MAX_BRANCHES}
      * at post-analysis verification.
      */
-    private static void mergeCompatibleUnresolvedRelations(LinkedHashMap<String, LogicalPlan> plans) {
+    private static void mergeCompatibleUnresolvedRelations(
+        LinkedHashMap<String, LogicalPlan> plans,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
         List<String> urKeys = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : plans.entrySet()) {
             if (entry.getValue() instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.STANDARD) {
@@ -820,7 +876,7 @@ public class ViewResolver {
         for (int i = 1; i < urKeys.size(); i++) {
             String key = urKeys.get(i);
             UnresolvedRelation ur = (UnresolvedRelation) plans.get(key);
-            UnresolvedRelation result = mergeIfPossible(merged, ur);
+            UnresolvedRelation result = mergeIfPossible(merged, ur, aliasResolver);
             if (result != null) {
                 merged = result;
                 plans.remove(key);
@@ -832,8 +888,12 @@ public class ViewResolver {
         plans.put(firstKey, merged);
     }
 
-    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        return ViewCompaction.mergeIfPossible(main, other);
+    private static UnresolvedRelation mergeIfPossible(
+        UnresolvedRelation main,
+        UnresolvedRelation other,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
+        return ViewCompaction.mergeIfPossible(main, other, aliasResolver);
     }
 
     private static void assertNamesMatch(String message, String left, String right) {

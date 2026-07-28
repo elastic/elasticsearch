@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 152230
+summary: "[Inference API] Add reasoning fields to Elastic Service `TaskSettings`"
+type: enhancement

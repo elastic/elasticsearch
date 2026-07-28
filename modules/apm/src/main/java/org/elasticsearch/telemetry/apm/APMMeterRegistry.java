@@ -53,6 +53,10 @@ import java.util.function.Supplier;
  */
 public class APMMeterRegistry implements MeterRegistry {
     private static final Logger logger = LogManager.getLogger(APMMeterRegistry.class);
+
+    static final String INSTRUMENT_COLLECT_DURATION = "es.apm.metrics.instrument.collection_time.histogram";
+    static final String INSTRUMENT_ATTRIBUTE = "es_instrument_name";
+
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
@@ -66,8 +70,30 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private Meter meter;
 
+    private final DoubleHistogram instrumentCollectDuration;
+
+    /**
+     * Gates recording of the per-instrument collection-time histogram. Off by default because the {@link #INSTRUMENT_ATTRIBUTE}
+     * attribute adds one series per instrument; toggled at runtime through {@code telemetry.metrics.instrument_timing.enabled}.
+     * With delta temporality, not recording while disabled means no data points are exported for the metric.
+     */
+    private volatile boolean instrumentTimingEnabled = false;
+
     public APMMeterRegistry(Meter meter) {
         this.meter = meter;
+        this.instrumentCollectDuration = register(
+            doubleHistograms,
+            new DoubleHistogramAdapter(
+                meter,
+                INSTRUMENT_COLLECT_DURATION,
+                "Time an observable instrument's callback takes during a metric collection cycle",
+                "s"
+            )
+        );
+    }
+
+    public void setInstrumentTimingEnabled(boolean enabled) {
+        this.instrumentTimingEnabled = enabled;
     }
 
     private final List<Registrar<?>> registrars = List.of(
@@ -108,7 +134,14 @@ public class APMMeterRegistry implements MeterRegistry {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
                 doubleAsynchronousCounters,
-                new DoubleAsyncCounterAdapter(meter, name, description, unit, observer, deregisterFunc(doubleAsynchronousCounters))
+                new DoubleAsyncCounterAdapter(
+                    meter,
+                    name,
+                    description,
+                    unit,
+                    timed(name, observer),
+                    deregisterFunc(doubleAsynchronousCounters)
+                )
             );
         }
     }
@@ -138,7 +171,10 @@ public class APMMeterRegistry implements MeterRegistry {
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(doubleGauges, new DoubleGaugeAdapter(meter, name, description, unit, observer, deregisterFunc(doubleGauges)));
+            return register(
+                doubleGauges,
+                new DoubleGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(doubleGauges))
+            );
         }
     }
 
@@ -176,7 +212,7 @@ public class APMMeterRegistry implements MeterRegistry {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
                 longAsynchronousCounters,
-                new LongAsyncCounterAdapter(meter, name, description, unit, observer, deregisterFunc(longAsynchronousCounters))
+                new LongAsyncCounterAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longAsynchronousCounters))
             );
         }
     }
@@ -206,7 +242,10 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(longGauges, new LongGaugeAdapter(meter, name, description, unit, observer, deregisterFunc(longGauges)));
+            return register(
+                longGauges,
+                new LongGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longGauges))
+            );
         }
     }
 
@@ -249,6 +288,21 @@ public class APMMeterRegistry implements MeterRegistry {
                 registrar.setProvider(this.meter);
             }
         }
+    }
+
+    private <T> Supplier<T> timed(String name, Supplier<T> observer) {
+        Map<String, Object> attributes = Map.of(INSTRUMENT_ATTRIBUTE, name);
+        return () -> {
+            if (instrumentTimingEnabled == false) {
+                return observer.get();
+            }
+            long start = System.nanoTime();
+            try {
+                return observer.get();
+            } finally {
+                instrumentCollectDuration.record((System.nanoTime() - start) / 1_000_000_000d, attributes);
+            }
+        };
     }
 
     /**

@@ -88,7 +88,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
@@ -778,6 +779,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }
@@ -795,19 +801,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain unsigned_long mappers can be driven through parseCreateField by the bulk batch
-        // path. ignore_malformed and null_value are allowed. Dimensions, time-series metrics,
-        // copy_to, multi-fields, and scripts pull in behavior that the v1 batch path does not
-        // support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && dimension == false
-            && metricType == null;
     }
 
     @Override

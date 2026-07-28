@@ -16,18 +16,20 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32BulkSparse;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32BulkSparse;
-
 public abstract sealed class Float32VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
@@ -90,7 +92,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
             );
 
             return VectorUtil.normalizeToUnitInterval(dotProduct);
@@ -112,7 +114,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -140,7 +142,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> squareDistanceF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.squareDistanceF32(query, memorySegment, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
@@ -161,7 +163,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -189,7 +191,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
@@ -210,7 +212,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;

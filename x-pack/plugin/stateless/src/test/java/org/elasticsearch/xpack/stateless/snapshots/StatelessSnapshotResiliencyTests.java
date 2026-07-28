@@ -393,6 +393,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
             res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
             return Set.copyOf(res);
         }
 
@@ -969,7 +970,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             cacheService,
                             cacheBlobReaderService,
                             new AtomicMutableObjectStoreUploadTracker(),
-                            shardRouting.shardId()
+                            shardRouting.shardId(),
+                            randomBoolean()
                         );
                     } else {
                         return in;

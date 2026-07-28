@@ -1,4 +1,8 @@
 ### `IS NULL` [esql-is_null]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
 To learn how `NULL` affects comparisons, `WHERE`, boolean logic, and aggregation, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).

@@ -664,6 +664,8 @@ redirects:
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
 
+  'reference/query-languages/esql/esql-federated-data.md': 'reference/query-languages/esql/esql-data-federation.md'
+
   # Related to https://github.com/elastic/docs-content-internal/issues/595
   'reference/query-languages/esql/limitations.md':
     to: 'reference/query-languages/esql/limitations.md'

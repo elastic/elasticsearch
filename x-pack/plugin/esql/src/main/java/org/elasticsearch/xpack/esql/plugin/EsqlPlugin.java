@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -50,6 +51,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -65,6 +67,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
@@ -94,6 +97,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -155,6 +159,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -342,6 +347,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
+    private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -371,6 +377,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
+
+        // Force Federation to initialize now so the kill-switch property is validated (fail fast on an invalid value)
+        // and the disabled state is logged at startup, rather than lazily on the first federation operation.
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Federation.class);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Failed to initialize " + Federation.class.getName(), e);
+        }
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader
@@ -529,6 +543,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
+        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
+            for (var c : metricsCollectors) {
+                c.onQueryCompleted(metrics);
+            }
+        };
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -562,7 +582,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators, encryptionService),
-            new DatasetService(services.clusterService(), crudValidators)
+            new DatasetService(services.clusterService(), crudValidators),
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
 
@@ -624,36 +645,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> actions = new ArrayList<>(
-            List.of(
-                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
-                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
-                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
-                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
-            )
+        return List.of(
+            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
+            new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
+            new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+            new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
+            new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
+            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
-            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
-            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
-            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
-            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
-            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
-        }
-        return List.copyOf(actions);
     }
 
     @Override
@@ -676,7 +690,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        // Federation (external data sources) REST handlers are registered only when the feature is on. When
+        // suppressed the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
+        // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        if (Federation.isAvailable()) {
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
@@ -684,7 +701,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }
-        return List.copyOf(handlers);
+        return handlers;
     }
 
     @Override
@@ -713,6 +730,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
+        entries.add(RemoteFetchOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(MetricsInfoOperator.Status.ENTRY);
         entries.add(TsInfoOperator.Status.ENTRY);
@@ -791,12 +809,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        loadMetricsCollectors(loader);
+    }
+
+    protected void loadMetricsCollectors(ExtensionLoader loader) {
+        metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
     }
 
     @Override
     public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
         List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>(ExpressionWritables.getGenericNamedWriteables());
         entries.add(new SearchPlugin.GenericNamedWriteableSpec("LongRange", LongRangeBlockBuilder.LongRange::new));
+        entries.add(new SearchPlugin.GenericNamedWriteableSpec("DoubleRange", DoubleRangeBlockBuilder.DoubleRange::new));
         return entries;
     }
 }

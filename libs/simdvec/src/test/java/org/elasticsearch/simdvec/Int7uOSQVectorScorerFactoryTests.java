@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.Directory;
@@ -21,16 +20,15 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,6 +42,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
@@ -151,13 +150,13 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     public void testRandomMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
@@ -165,19 +164,19 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::maxInt7ByteVector);
         }
     }
 
     public void testRandomMin() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::minInt7ByteVector);
         }
     }
 
@@ -243,19 +242,19 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     public void testRandomScorerMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+            testRandomScorerImpl(dir, AbstractVectorTestCase::maxFloatArray);
         }
     }
 
@@ -263,7 +262,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
@@ -320,7 +319,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomSlice() throws IOException {
-        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomSliceImpl(30, 64, 1, AbstractVectorTestCase::randomInt7ByteVector);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
@@ -328,7 +327,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
                 final int size = randomIntBetween(2, 100);
-                final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+                final float[] centroid = randomFloatVector(dims);
                 final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
                 final byte[][] vectors = new byte[size][];
                 final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -381,7 +380,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
             final int size = 262144;
-            final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+            final float[] centroid = randomFloatVector(dims);
             final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
             final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
 
@@ -425,7 +424,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
             final int size = 128;
-            final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+            final float[] centroid = randomFloatVector(dims);
             final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
             final byte[][] vectors = new byte[size][];
             final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -474,7 +473,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] vectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -516,7 +515,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
         final int dims = 1024;
         final int size = 128;
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] vectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
@@ -562,7 +561,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     public void testBulkScoreWithZeroNodes() throws IOException {
         final int dims = 1024;
         final int size = randomIntBetween(2, 100);
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
 
         try (Directory dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
@@ -598,7 +597,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
         final long maxChunkSize = 32;
         final int dims = 34; // dimensions that are larger than the chunk size, to force fallback
-        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float[] centroid = randomFloatVector(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         byte[] vec1 = new byte[dims];
         byte[] vec2 = new byte[dims];
@@ -765,22 +764,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
     }
 
-    static void assertFloatArrayEquals(float[] expected, float[] actual, float delta) {
-        assertThat(actual.length, equalTo(expected.length));
-        for (int i = 0; i < expected.length; i++) {
-            assertEquals("differed at element [" + i + "]", expected[i], actual[i], Math.abs(expected[i]) * delta + delta);
-        }
-    }
-
-    static void assertFloatEquals(float expected, float actual, float delta) {
-        assertEquals(expected, actual, Math.abs(expected) * delta + delta);
-    }
-
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
-        throws IOException {
-        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
-    }
-
     // creates the vector based on the given ordinal, which is reproducible given the ord and dims
     static byte[] vector(int ord, int dims) {
         var random = new Random(Objects.hash(ord, dims));
@@ -790,24 +773,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
         return ba;
     }
-
-    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MIN_INT7_VALUE);
-        return ba;
-    };
 
     static final int TIMES = 100; // a loop iteration times
 

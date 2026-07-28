@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -68,7 +68,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EmptyTaskSettings.INSTANCE,
+                EnforcingEmptyTaskSettings.INSTANCE,
                 null,
                 endpointMetadata
             ),

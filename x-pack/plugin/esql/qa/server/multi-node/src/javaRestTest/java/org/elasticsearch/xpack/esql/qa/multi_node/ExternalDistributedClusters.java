@@ -28,12 +28,10 @@ public class ExternalDistributedClusters {
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
-            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
-            // This suite force-enables the umbrella feature so its external tests run even in release builds. Each
-            // storage backend / format is individually gated (snapshot-on, release-off) under the umbrella, so force
-            // them all on: file:// and http(s):// scheme registration depends on their sub-flags (otherwise those
-            // reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must be on to
-            // exercise every backend in release builds too.
+            // This suite force-enables every storage backend / format flag so its external tests run even in
+            // release builds: file:// and http(s):// scheme registration depends on their sub-flags (otherwise
+            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must
+            // be on to exercise every backend in release builds too.
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);

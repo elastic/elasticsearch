@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Immutable context for a single {@link FormatReader#read} or {@link FormatReader#readAsync} call.
@@ -79,6 +80,23 @@ import java.util.List;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
+ *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
+ *                         should fall back to emitting warnings directly via {@link
+ *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
+ *                         the read runs on the request/driver thread. Callers that dispatch reads to a
+ *                         background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set
+ *                         this to a sink — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning},
+ *                         preserving these warnings' pre-existing behavior of never flipping the response's
+ *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
+ *                         the one warning that does) — so the warning is relayed back and re-emitted on
+ *                         the correct thread instead of being silently dropped.
+ * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
+ *                         {@code null} for every read that owns the file's start, and for formats that do
+ *                         not name their columns in a header. Set only for a read that cannot see the
+ *                         header but still has to know what the columns are called — a chunk after the
+ *                         first of a header-bearing file whose declared schema binds by name. Binding such
+ *                         a chunk by position instead would shift every column silently.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -94,7 +112,9 @@ public record FormatReadContext(
     long statsBaseOffset,
     long statsStripeSize,
     boolean statsFileFinal,
-    StripeColumnScope statsColumnScope
+    StripeColumnScope statsColumnScope,
+    @Nullable Consumer<String> informationalWarningSink,
+    @Nullable List<String> fileHeaderColumns
 ) {
 
     public FormatReadContext {
@@ -138,7 +158,9 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -160,7 +182,9 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -182,7 +206,9 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink,
+            fileHeaderColumns
         );
     }
 
@@ -207,8 +233,12 @@ public record FormatReadContext(
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsBaseOffset = 0L;
         private long statsStripeSize = -1L;
+        @Nullable
+        private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private Consumer<String> informationalWarningSink = null;
 
         private Builder() {}
 
@@ -291,6 +321,28 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
+         * direct-to-HeaderWarning emission.
+         */
+        public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
+            this.informationalWarningSink = informationalWarningSink;
+            return this;
+        }
+
+        /**
+         * The file's own column names, in file order, read from its leading bytes.
+         * <p>
+         * Only set for a read that does NOT own the file's start but still needs to know what its columns
+         * are called — a chunk after the first of a header-bearing file whose declared schema binds by name.
+         * Such a chunk cannot see the header itself, and binding by position instead would silently shift
+         * every column. The component that cut the file into chunks reads the header once and states it here.
+         */
+        public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
+            this.fileHeaderColumns = fileHeaderColumns;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -309,7 +361,9 @@ public record FormatReadContext(
                 statsBaseOffset,
                 statsStripeSize,
                 statsFileFinal,
-                statsColumnScope
+                statsColumnScope,
+                informationalWarningSink,
+                fileHeaderColumns
             );
         }
     }

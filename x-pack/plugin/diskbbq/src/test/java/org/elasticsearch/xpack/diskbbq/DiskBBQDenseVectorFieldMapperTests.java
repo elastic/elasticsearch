@@ -68,7 +68,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             String expectedString = Build.current().isSnapshot()
                 ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)"
-                : "ES940DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
+                : "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
     }
@@ -122,7 +122,6 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             "foo",
             Settings.builder()
                 .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-
                 .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
                 .build()
         ).getSettings();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -27,7 +25,7 @@ import java.util.List;
  * the match operator in the function syntax.
  * Serialization is provided as a way to pass the corresponding tests - serialization must be done to a Match class.
  */
-public class MatchOperator extends Match implements ConfigurationAware {
+public class MatchOperator extends Match {
 
     @FunctionInfo(
         returnType = "boolean",
@@ -78,14 +76,13 @@ public class MatchOperator extends Match implements ConfigurationAware {
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
             description = "Value to find in the provided field or expression."
-        ) Expression matchQuery,
-        Configuration configuration
+        ) Expression matchQuery
     ) {
-        super(source, field, matchQuery, null, null, configuration);
+        super(source, field, matchQuery, null, null);
     }
 
-    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder, Configuration configuration) {
-        super(source, field, matchQuery, null, queryBuilder, configuration);
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, field, matchQuery, null, queryBuilder);
     }
 
     @Override
@@ -100,26 +97,16 @@ public class MatchOperator extends Match implements ConfigurationAware {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MatchOperator::new, field(), query(), configuration());
+        return NodeInfo.create(this, MatchOperator::new, field(), query());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder(), configuration());
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new MatchOperator(source(), field, query(), queryBuilder, configuration());
-    }
-
-    @Override
-    public Configuration configuration() {
-        return super.configuration();
-    }
-
-    @Override
-    public Expression withConfiguration(Configuration configuration) {
-        return new MatchOperator(source(), field, query(), queryBuilder(), configuration);
+        return new MatchOperator(source(), field, query(), queryBuilder);
     }
 }

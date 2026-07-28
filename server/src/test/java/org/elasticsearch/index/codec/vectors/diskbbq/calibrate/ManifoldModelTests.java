@@ -43,7 +43,7 @@ public class ManifoldModelTests extends ESTestCase {
         int[] ordinals = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         float d1 = topK.ithDistance(1);
         float d3 = topK.ithDistance(3);
@@ -66,7 +66,7 @@ public class ManifoldModelTests extends ESTestCase {
         Arrays.sort(expected);
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         for (int rank = 1; rank <= expected.length; rank++) {
             assertEquals(expected[rank - 1], topK.ithDistance(rank), 1e-5f);
@@ -86,7 +86,7 @@ public class ManifoldModelTests extends ESTestCase {
         Arrays.sort(expected);
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.DOT_PRODUCT, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, true);
 
         for (int rank = 1; rank <= expected.length; rank++) {
             assertEquals(expected[expected.length - rank], topK.ithDistance(rank), 1e-5f);
@@ -268,6 +268,110 @@ public class ManifoldModelTests extends ESTestCase {
         assertThat(d100, lessThan(d1));
     }
 
+    /**
+     * Guards {@link CalibrationUtils#MAX_QUERY_SAMPLE}: the manifold parameters (log-alpha and invDim) fitted
+     * with 256 queries must agree within 25% of those fitted with 1024 queries on the same corpus. invDim drives
+     * the error-std extrapolation from the 2 048-doc sample to the full corpus, so large divergence here would
+     * cause encoding-selection errors without any signal at the error-model level.
+     * <p>
+     * The corpus is sized to {@link ManifoldModel#SAMPLE_SIZES} max (16,384) so all 25 sweep points are used.
+     * Both query sets share an identical corpus; only the number of query vectors differs. Random normalized
+     * vectors are used rather than the periodic synthetic-cluster rows, which produce duplicates that cause
+     * {@code log(0)} degenerate inputs to the OLS fit.
+     */
+    public void testManifoldParametersStableAcrossQuerySampleSizes() throws IOException {
+        int dim = 1024;
+        int corpusSize = 16_384; // enough for all ManifoldModel.SAMPLE_SIZES entries
+        int largeQueryCount = 1024;
+        int smallQueryCount = CalibrationUtils.MAX_QUERY_SAMPLE; // 256
+
+        // layout: rows [0, largeQueryCount) = query pool; [largeQueryCount, ...) = corpus
+        int totalRows = largeQueryCount + corpusSize;
+        float[][] rows = randomNormalizedRows(totalRows, dim, 31L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+
+        int[] corpusOrdinals = new int[corpusSize];
+        for (int i = 0; i < corpusSize; i++) {
+            corpusOrdinals[i] = largeQueryCount + i;
+        }
+        int[] smallQueryOrdinals = new int[smallQueryCount];
+        for (int i = 0; i < smallQueryCount; i++) {
+            smallQueryOrdinals[i] = i;
+        }
+        int[] largeQueryOrdinals = new int[largeQueryCount];
+        for (int i = 0; i < largeQueryCount; i++) {
+            largeQueryOrdinals[i] = i;
+        }
+
+        CalibrationSource smallSource = new CalibrationSource(
+            VectorSimilarityFunction.EUCLIDEAN,
+            dim,
+            fvv,
+            smallQueryOrdinals,
+            dim,
+            false,
+            false,
+            null,
+            corpusOrdinals,
+            10
+        );
+        CalibrationSource largeSource = new CalibrationSource(
+            VectorSimilarityFunction.EUCLIDEAN,
+            dim,
+            fvv,
+            largeQueryOrdinals,
+            dim,
+            false,
+            false,
+            null,
+            corpusOrdinals,
+            10
+        );
+
+        double[] paramsSmall = ManifoldModel.estimateManifoldParameters(smallSource);
+        double[] paramsLarge = ManifoldModel.estimateManifoldParameters(largeSource);
+
+        double invDimSmall = paramsSmall[1];
+        double invDimLarge = paramsLarge[1];
+        double alphaSmall = paramsSmall[0];
+        double alphaLarge = paramsLarge[0];
+
+        assertTrue("invDim must be finite with 256 queries", Double.isFinite(invDimSmall));
+        assertTrue("invDim must be finite with 1024 queries", Double.isFinite(invDimLarge));
+        assertTrue("alpha must be finite with 256 queries", Double.isFinite(alphaSmall));
+        assertTrue("alpha must be finite with 1024 queries", Double.isFinite(alphaLarge));
+        assertThat("invDim must be positive with 256 queries", invDimSmall, greaterThan(0.0));
+        assertThat("invDim must be positive with 1024 queries", invDimLarge, greaterThan(0.0));
+
+        double invDimRelDiff = Math.abs(invDimSmall - invDimLarge) / Math.max(Math.abs(invDimSmall), Math.abs(invDimLarge));
+        assertThat(
+            "invDim must be stable across query sample sizes 256 vs 1024 (got " + invDimSmall + " vs " + invDimLarge + ")",
+            invDimRelDiff,
+            lessThan(0.01)
+        );
+
+        // alpha is log-scale and may be negative; compare deviation relative to the larger magnitude
+        double alphaDenom = Math.max(1e-6, Math.max(Math.abs(alphaSmall), Math.abs(alphaLarge)));
+        double alphaRelDiff = Math.abs(alphaSmall - alphaLarge) / alphaDenom;
+        assertThat(
+            "log-alpha must be stable across query sample sizes 256 vs 1024 (got " + alphaSmall + " vs " + alphaLarge + ")",
+            alphaRelDiff,
+            lessThan(0.01)
+        );
+    }
+
+    private static float[][] randomNormalizedRows(int count, int dim, long seed) {
+        java.util.Random rng = new java.util.Random(seed);
+        float[][] rows = new float[count][dim];
+        for (int i = 0; i < count; i++) {
+            for (int d = 0; d < dim; d++) {
+                rows[i][d] = (float) rng.nextGaussian();
+            }
+            l2normalize(rows[i]);
+        }
+        return rows;
+    }
+
     private static float[][] syntheticClusteredRows(int count, int dim, int numClusters) {
         float[][] centroids = new float[numClusters][dim];
         for (int c = 0; c < numClusters; c++) {
@@ -358,6 +462,28 @@ public class ManifoldModelTests extends ESTestCase {
         return vector;
     }
 
+    /**
+     * Feeds corpus slice {@code [startDoc, endDoc)} to a single query's heap, replicating the per-query scan that
+     * {@link ManifoldModel.ManifoldTopK} used to do internally (now inlined in
+     * {@link ManifoldModel#estimateManifoldParameters}). Uses the same sign convention: negated dot for dot-like
+     * metrics so the heap tracks the largest similarities.
+     */
+    private static void addTopKCorpusSlice(
+        ManifoldModel.ManifoldTopK topK,
+        float[] query,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int startDoc,
+        int endDoc,
+        boolean dotLike
+    ) throws IOException {
+        for (int d = startDoc; d < endDoc; d++) {
+            float[] doc = fvv.vectorValue(corpusOrdinals[d]);
+            float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
+            topK.considerCandidate(dist);
+        }
+    }
+
     private record SweepDistances(double[] x, double[] logY, int count) {}
 
     private static SweepDistances collectSweepDistances(
@@ -403,7 +529,15 @@ public class ManifoldModelTests extends ESTestCase {
                     queryScratch,
                     null
                 );
-                topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                addTopKCorpusSlice(
+                    topKs[qi],
+                    queryScratch,
+                    fvv,
+                    corpusOrdinals,
+                    sampleStart,
+                    sampleEnd,
+                    ManifoldModel.isDotLike(similarityFunction)
+                );
                 sum += topKs[qi].ithDistance(ranksForK[i]);
             }
             x[count] = Math.log(ranksForK[i]) - Math.log(sampleEnd);

@@ -91,7 +91,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     public static class Builder extends FieldMapper.Builder {
@@ -405,7 +406,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                true,
+                true,
+                hasDocValues(),
+                context,
+                indexType.hasPoints(),
+                indexType.hasTerms()
+            );
         }
 
         @Override
@@ -681,6 +692,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

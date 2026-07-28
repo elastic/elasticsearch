@@ -51,6 +51,7 @@ count:long
 
 aggregateByGenderScalar
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -58,9 +59,9 @@ FROM employees_no_mv
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 topNSortBySalaryDescScalar
@@ -76,4 +77,26 @@ emp_no:integer | first_name:keyword | salary:integer
 10029          | "Otmar"            | 74999
 10045          | "Moss"             | 74970
 10007          | "Tzvetan"          | 74572
+;
+
+// The file-level datetime_format compiles to an ES DateFormatter, so an ES named format is accepted and parses.
+// Before that convergence the option went through the raw JDK DateTimeFormatter, which rejected every named
+// format at dataset-creation time. Combined with a query-level time_zone: the reader decides the instant, the
+// query decides how it is extracted.
+datetimeFormatNamedFormatWithTimezone
+required_capability: dataset_in_from_command
+required_capability: external_csv_datetime_format_es_date_formatter
+required_capability: global_timezone_parameter_with_output
+dataset: employees_iso: "{{employees_no_mv}}" WITH {"datetime_format": "strict_date_optional_time"}
+
+set time_zone="+02:00"\;
+FROM employees_iso
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL hour = date_extract("hour_of_day", hire_date)
+| LIMIT 2;
+
+emp_no:integer | hire_date:date           | hour:long
+10001          | 1986-06-26T00:00:00.000Z | 2
+10002          | 1985-11-21T00:00:00.000Z | 2
 ;

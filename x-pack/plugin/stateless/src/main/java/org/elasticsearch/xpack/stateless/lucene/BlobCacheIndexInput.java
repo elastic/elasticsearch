@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -169,14 +170,19 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
-    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        return cacheFileReader.withByteBufferSlice(this.offset + offset, Math.toIntExact(length), action);
+    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+        return cacheFileReader.withMemorySegmentSlice(this.offset + offset, Math.toIntExact(length), action);
     }
 
     @Override
-    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-        throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return false;
         }
         long[] adjusted = offsets;
@@ -186,7 +192,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFileReader.withByteBufferSlices(adjusted, length, count, action);
+        return cacheFileReader.withSliceAddresses(adjusted, length, count, addressesScratch, action);
     }
 
     @Override

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,16 +28,27 @@ public final class SourceDestValidations {
 
     private SourceDestValidations() {}
 
-    private static final SourceDestValidation REMOTE_SOURCE_VALIDATION =
-        new SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation("transform");
+    static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation(
+        "transform"
+    );
 
-    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(
+    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS_FOR_CPS = List.of(DESTINATION_PIPELINE_MISSING_VALIDATION);
+
+    private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = List.of(
         SOURCE_MISSING_VALIDATION,
         REMOTE_SOURCE_VALIDATION,
         DESTINATION_PIPELINE_MISSING_VALIDATION
     );
 
-    private static final List<SourceDestValidation> ALL_VALIDATIONS = Arrays.asList(
+    // SOURCE_MISSING and REMOTE_SOURCE license check are deferred to the runtime search call.
+    // DESTINATION_IN_SOURCE is skipped because project_routing determines at search time
+    // whether dest is included in the cross-project source expression.
+    private static final List<SourceDestValidation> ALL_VALIDATIONS_FOR_CPS = List.of(
+        DESTINATION_SINGLE_INDEX_VALIDATION,
+        DESTINATION_PIPELINE_MISSING_VALIDATION
+    );
+
+    private static final List<SourceDestValidation> ALL_VALIDATIONS = List.of(
         SOURCE_MISSING_VALIDATION,
         REMOTE_SOURCE_VALIDATION,
         DESTINATION_IN_SOURCE_VALIDATION,
@@ -48,12 +60,31 @@ public final class SourceDestValidations {
         DESTINATION_SINGLE_INDEX_VALIDATION
     );
 
-    public static List<SourceDestValidation> getValidations(boolean isDeferValidation, List<SourceDestValidation> additionalValidations) {
-        return getValidations(isDeferValidation, ALL_VALIDATIONS, additionalValidations);
+    public static List<SourceDestValidation> getValidations(
+        boolean isDeferValidation,
+        CrossProjectModeDecider crossProjectModeDecider,
+        List<SourceDestValidation> additionalValidations
+    ) {
+        return getValidations(
+            isDeferValidation,
+            isCrossProjectSource(crossProjectModeDecider) ? ALL_VALIDATIONS_FOR_CPS : ALL_VALIDATIONS,
+            additionalValidations
+        );
     }
 
-    public static List<SourceDestValidation> getValidationsForPreview(List<SourceDestValidation> additionalValidations) {
-        return getValidations(false, PREVIEW_VALIDATIONS, additionalValidations);
+    public static List<SourceDestValidation> getValidationsForPreview(
+        CrossProjectModeDecider crossProjectModeDecider,
+        List<SourceDestValidation> additionalValidations
+    ) {
+        return getValidations(
+            false,
+            isCrossProjectSource(crossProjectModeDecider) ? PREVIEW_VALIDATIONS_FOR_CPS : PREVIEW_VALIDATIONS,
+            additionalValidations
+        );
+    }
+
+    private static boolean isCrossProjectSource(CrossProjectModeDecider crossProjectModeDecider) {
+        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
     }
 
     private static List<SourceDestValidation> getValidations(

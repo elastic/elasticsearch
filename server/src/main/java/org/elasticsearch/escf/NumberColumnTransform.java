@@ -17,6 +17,9 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 
+import java.util.function.DoubleToLongFunction;
+import java.util.function.LongUnaryOperator;
+
 /**
  * Converts a numeric {@link EscfColumn} (LONG or DOUBLE kind) into an {@link EscfColumnData} of
  * LONG kind whose values are the sortable-long doc-values encoding for a given
@@ -64,11 +67,7 @@ public final class NumberColumnTransform {
             // (float) l and (double) l match the row path: Jackson uses l2f/l2d directly.
             case FLOAT -> copyLong(source, l -> (long) NumericUtils.floatToSortableInt((float) l), recycler);
             case DOUBLE -> copyLong(source, l -> NumericUtils.doubleToSortableLong((double) l), recycler);
-            case HALF_FLOAT -> copyLong(source, l -> {
-                float f = (float) l;
-                validateHalfFloat(f);
-                return HalfFloatPoint.halfFloatToSortableShort(f);
-            }, recycler);
+            case HALF_FLOAT -> copyLong(source, l -> toValidatedHalfFloat((float) l), recycler);
         };
     }
 
@@ -82,21 +81,14 @@ public final class NumberColumnTransform {
         }
     }
 
-    @FunctionalInterface
-    private interface LongToLong {
-        long apply(long value);
-    }
-
-    private static EscfColumnData copyLong(EscfColumn source, LongToLong convert, Recycler<BytesRef> recycler) {
+    private static EscfColumnData copyLong(EscfColumn source, LongUnaryOperator convert, Recycler<BytesRef> recycler) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
         LongTupleCursor cursor = source.longCursor();
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            builder.setLong(doc, convert.apply(cursor.longValue()));
+            builder.setLong(doc, convert.applyAsLong(cursor.longValue()));
         }
         return builder.finish(source.docCount());
     }
-
-    // ---- DOUBLE source ----
 
     private static EscfColumnData fromDouble(
         EscfColumn source,
@@ -112,11 +104,7 @@ public final class NumberColumnTransform {
             case SHORT -> narrowDoubleToInteger(source, Short.MIN_VALUE, Short.MAX_VALUE, "a short", coerce, recycler);
             case INTEGER -> narrowDoubleToInteger(source, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer", coerce, recycler);
             case LONG -> narrowDoubleToInteger(source, Long.MIN_VALUE, Long.MAX_VALUE, "a long", coerce, recycler);
-            case HALF_FLOAT -> copyDouble(source, d -> {
-                float f = (float) d;
-                validateHalfFloat(f);
-                return HalfFloatPoint.halfFloatToSortableShort(f);
-            }, recycler);
+            case HALF_FLOAT -> copyDouble(source, d -> toValidatedHalfFloat((float) d), recycler);
         };
     }
 
@@ -129,17 +117,12 @@ public final class NumberColumnTransform {
         return builder.finish(source.docCount());
     }
 
-    @FunctionalInterface
-    private interface DoubleToLong {
-        long apply(double value);
-    }
-
-    private static EscfColumnData copyDouble(EscfColumn source, DoubleToLong convert, Recycler<BytesRef> recycler) {
+    private static EscfColumnData copyDouble(EscfColumn source, DoubleToLongFunction convert, Recycler<BytesRef> recycler) {
         EscfColumnBuilder builder = newLongBuilder(recycler);
         LongTupleCursor cursor = source.longCursor();
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             double d = Double.longBitsToDouble(cursor.longValue());
-            builder.setLong(doc, convert.apply(d));
+            builder.setLong(doc, convert.applyAsLong(d));
         }
         return builder.finish(source.docCount());
     }
@@ -179,10 +162,12 @@ public final class NumberColumnTransform {
         return builder.finish(source.docCount());
     }
 
-    private static void validateHalfFloat(float f) {
-        if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(f))) == false) {
+    private static short toValidatedHalfFloat(float f) {
+        short s = HalfFloatPoint.halfFloatToSortableShort(f);
+        if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(s)) == false) {
             throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + f + "]");
         }
+        return s;
     }
 
     private static EscfColumnBuilder newLongBuilder(Recycler<BytesRef> recycler) {

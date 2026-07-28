@@ -733,15 +733,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.centroidFromAirportsFilteredCountry}
   issue: https://github.com/elastic/elasticsearch/issues/155030
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testRemoteFailureSkipUnavailableTrue
+  issue: https://github.com/elastic/elasticsearch/issues/155120
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testCCSExecutionOnSearchesWithLimit0
+  issue: https://github.com/elastic/elasticsearch/issues/155121
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testExplainCCS
+  issue: https://github.com/elastic/elasticsearch/issues/155122
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/155123
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
 - class: org.elasticsearch.indices.ShardLimitValidatorTests
   method: testValidateShardLimitOpenIndices
   issue: https://github.com/elastic/elasticsearch/issues/154859
+- class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
+  method: testLookupDisconnect
+  issue: https://github.com/elastic/elasticsearch/issues/155185
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
   issue: https://github.com/elastic/elasticsearch/issues/153902
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecApproximationIT
+  method: test {csv-spec:approximation.Rename stats group key}
+  issue: https://github.com/elastic/elasticsearch/issues/155194
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782

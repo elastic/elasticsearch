@@ -605,10 +605,12 @@ public class SearchDirectoryTests extends ESTestCase {
                 return new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
+                    clusterSettings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
                     System::nanoTime,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};
             }
@@ -722,10 +724,12 @@ public class SearchDirectoryTests extends ESTestCase {
                 return new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
+                    clusterSettings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
                     System::nanoTime,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};
             }

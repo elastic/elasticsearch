@@ -1324,7 +1324,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates,
-                        useArrayOrderBinaryDocValues
+                        useArrayOrderBinaryDocValues,
+                        context.getCircuitBreaker()
                     );
                 } else {
                     if (context.getCircuitBreaker() != null) {

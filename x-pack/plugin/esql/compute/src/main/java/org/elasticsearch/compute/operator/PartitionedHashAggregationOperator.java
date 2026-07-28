@@ -845,6 +845,35 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return routingNanos == status.routingNanos
+                && conversionNanos == status.conversionNanos
+                && hashNanos == status.hashNanos
+                && aggregationNanos == status.aggregationNanos
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted
+                && partitionedMode == status.partitionedMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(
+                routingNanos,
+                conversionNanos,
+                hashNanos,
+                aggregationNanos,
+                pagesProcessed,
+                rowsReceived,
+                rowsEmitted,
+                partitionedMode
+            );
+        }
+
+        @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.minimumCompatible();
         }

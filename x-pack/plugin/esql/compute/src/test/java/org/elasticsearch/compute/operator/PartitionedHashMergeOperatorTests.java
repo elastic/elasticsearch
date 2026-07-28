@@ -75,13 +75,14 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> raw = rawInput(500, 20, oracle);
 
-        List<Page> intermediate = runDataNodeOp(raw, 8, 10_000 /* never crossed */);
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, 10_000 /* never crossed */);
         assertTrue(
             "expected only untagged pages when conversion threshold is never crossed",
             intermediate.stream().allMatch(p -> p.partitionId() == null)
         );
 
-        Map<Long, Long> actual = runMergeOp(intermediate, 8);
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
         assertThat(actual, equalTo(oracle));
     }
 
@@ -93,10 +94,11 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> raw = rawInput(4_000, 200, oracle);
 
-        List<Page> intermediate = runDataNodeOp(raw, 8, 50 /* crossed quickly */);
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 80) /* crossed quickly */);
         assertTrue("expected at least some tagged pages after conversion", intermediate.stream().anyMatch(p -> p.partitionId() != null));
 
-        Map<Long, Long> actual = runMergeOp(intermediate, 8);
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
         assertThat(actual, equalTo(oracle));
     }
 
@@ -108,20 +110,22 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     public void testMixedTaggedAndUntagged() {
         Map<Long, Long> oracle = new HashMap<>();
 
+        int partitionCount = between(2, 16);
+
         // Node A: converts
         List<Page> rawA = rawInput(3_000, 150, oracle);
-        List<Page> intermediateA = runDataNodeOp(rawA, 8, 30);
+        List<Page> intermediateA = runDataNodeOp(rawA, partitionCount, between(5, 50));
 
         // Node B: never converts
         List<Page> rawB = rawInput(500, 20, oracle);
-        List<Page> intermediateB = runDataNodeOp(rawB, 8, 10_000);
+        List<Page> intermediateB = runDataNodeOp(rawB, partitionCount, 10_000);
 
         // Interleave pages from both nodes as the coordinator would see them.
         List<Page> allIntermediate = new ArrayList<>();
         allIntermediate.addAll(intermediateA);
         allIntermediate.addAll(intermediateB);
 
-        Map<Long, Long> actual = runMergeOp(allIntermediate, 8);
+        Map<Long, Long> actual = runMergeOp(allIntermediate, partitionCount);
         assertThat(actual, equalTo(oracle));
     }
 
@@ -133,17 +137,18 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     public void testUntaggedArrivingAfterPromotion() {
         Map<Long, Long> oracle = new HashMap<>();
 
+        int partitionCount = between(2, 8);
         List<Page> rawConverting = rawInput(4_000, 200, oracle);
-        List<Page> tagged = runDataNodeOp(rawConverting, 4, 30);
+        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30);
 
         List<Page> rawUntagged = rawInput(800, 50, oracle);
-        List<Page> untagged = runDataNodeOp(rawUntagged, 4, 10_000);
+        List<Page> untagged = runDataNodeOp(rawUntagged, partitionCount, 10_000);
 
         // Feed tagged first so the operator promotes, then feed untagged.
         List<Page> ordered = new ArrayList<>(tagged);
         ordered.addAll(untagged);
 
-        Map<Long, Long> actual = runMergeOp(ordered, 4);
+        Map<Long, Long> actual = runMergeOp(ordered, partitionCount);
         assertThat(actual, equalTo(oracle));
     }
 
@@ -155,8 +160,9 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> raw = rawInputWithNulls(3_000, 100, oracle);
 
-        List<Page> intermediate = runDataNodeOp(raw, 8, 30);
-        Map<Long, Long> actual = runMergeOp(intermediate, 8);
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 50));
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
         assertThat(actual, equalTo(oracle));
     }
 

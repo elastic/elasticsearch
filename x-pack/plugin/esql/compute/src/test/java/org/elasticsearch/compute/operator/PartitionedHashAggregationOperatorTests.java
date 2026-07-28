@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,8 +65,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(1_000) // never crossed by 5 distinct keys
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(500, 2000)) // never crossed by 5 distinct keys
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -87,8 +89,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(50)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 80))
             .perPartitionEmitThreshold(Integer.MAX_VALUE) // no periodic early emit; only finish() emits
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
@@ -109,11 +111,11 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(4)
-            .partitionConversionThreshold(30)
-            .perPartitionEmitThreshold(20) // aggressive: force frequent per-partition resets
-            .maxPageSize(500)
-            .aggregationBatchSize(500);
+            .partitionCount(between(2, 8))
+            .partitionConversionThreshold(between(5, 50))
+            .perPartitionEmitThreshold(between(10, 50)) // aggressive: force frequent per-partition resets
+            .maxPageSize(between(100, 500))
+            .aggregationBatchSize(between(100, 500));
 
         List<TaggedPage> results = runOperator(builder, input);
         assertTrue("expected multiple emitted pages when early emit is aggressive", results.size() > 1);
@@ -128,8 +130,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 50))
             .perPartitionEmitThreshold(50)
             .maxPageSize(2_000)
             .aggregationBatchSize(2_000);
@@ -167,12 +169,13 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         input.add(new Page(keys, values));
         // More ordinary rows afterward, to confirm the operator keeps working post-fallback.
         input.addAll(randomInput(2_000, 200, oracle, false));
+        Collections.shuffle(input, random());
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
+            .partitionCount(between(2, 16))
             .partitionConversionThreshold(30)
             .perPartitionEmitThreshold(Integer.MAX_VALUE)
             .maxPageSize(10_000)
@@ -192,8 +195,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.INT))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 50))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -213,8 +216,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 50))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -235,8 +238,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactoryAt(2)))
-            .partitionCount(8)
-            .partitionConversionThreshold(50)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 80))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -258,8 +261,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF))
         )
             .aggregators(List.of(sumLongFactoryAt(2)))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 50))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -280,8 +283,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory(), maxLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 50))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -301,7 +304,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(countAllFactory()))
-            .partitionCount(8)
+            .partitionCount(between(2, 16))
             .partitionConversionThreshold(30)  // low threshold forces conversion to partitioned mode
             .perPartitionEmitThreshold(Integer.MAX_VALUE)
             .maxPageSize(10_000)
@@ -327,8 +330,8 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(50)
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(between(5, 80))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -755,6 +758,130 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             }
         }
         return pages;
+    }
+
+    public void testDoubleGroupingKey() {
+        Map<Double, Long> oracle = new HashMap<>();
+        List<Page> input = randomDoubleInput(4_000, 100, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(8)
+            .partitionConversionThreshold(30)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion to partitioned mode for 100 distinct double keys",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesDoubleOracle(results, oracle);
+    }
+
+    public void testBooleanGroupingKey() {
+        Map<Boolean, Long> oracle = new HashMap<>();
+        List<Page> input = randomBooleanInput(3_000, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(4)
+            .partitionConversionThreshold(2) // 2 distinct boolean keys; threshold must be ≤ 2 to trigger conversion
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertTrue(
+            "expected conversion to partitioned mode with 2 distinct boolean keys",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesBooleanOracle(results, oracle);
+    }
+
+    private List<Page> randomDoubleInput(int rows, int cardinality, Map<Double, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                DoubleBlock.Builder keyBuilder = blockFactory.newDoubleBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    double key = (double) between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendDouble(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomBooleanInput(int rows, Map<Boolean, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                BooleanBlock.Builder keyBuilder = blockFactory.newBooleanBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    boolean key = randomBoolean();
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendBoolean(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private void assertMatchesDoubleOracle(List<TaggedPage> results, Map<Double, Long> oracle) {
+        Map<Double, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
+            DoubleBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                actual.merge(keys.getDouble(i), sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
+    private void assertMatchesBooleanOracle(List<TaggedPage> results, Map<Boolean, Long> oracle) {
+        Map<Boolean, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
+            BooleanBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                actual.merge(keys.getBoolean(i), sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
     }
 
     /**

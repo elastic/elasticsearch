@@ -829,6 +829,23 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return reconcileNanos == status.reconcileNanos
+                && hashNanos == status.hashNanos
+                && aggregationNanos == status.aggregationNanos
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived;
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(reconcileNanos, hashNanos, aggregationNanos, pagesProcessed, rowsReceived);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("reconcile_nanos", reconcileNanos);

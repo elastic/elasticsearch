@@ -17,37 +17,24 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Phase 2 prototype for partitioned hash aggregation
- * (scratch/partitioned-hash-aggregation-design.md). Validates, outside the
- * full {@code BlockHash}/{@code GroupingAggregatorFunction} machinery, that:
+ * Validates, outside the full {@code BlockHash}/{@code GroupingAggregatorFunction} machinery,
+ * that the two row-routing algorithms used during single-to-partitioned conversion produce
+ * results identical to an unpartitioned baseline:
  *
  * <ul>
- *   <li>a single table can convert to N independent {@link LongSwissHash}
- *       sub-tables once a key-count threshold is crossed, without losing any
- *       previously accumulated state;</li>
- *   <li>per-row routing can reuse one precomputed {@link LongSwissHash#hash}
- *       for both partition selection and the destination table's insert, via
- *       {@link LongSwissHash#addWithHash};</li>
- *   <li>the result is identical to an unpartitioned baseline, for two
- *       different ways of bridging that routing into batched per-partition
- *       aggregation - a "v1" skip-scan over shared routing vectors, and a
- *       bucket-sort into contiguous per-partition slices;</li>
- *   <li>the bucket-sort variant's relative overhead against the baseline is
- *       smaller than the skip-scan variant's.</li>
+ *   <li>a single {@link LongSwissHash} table converts to N independent sub-tables once a
+ *       key-count threshold is crossed, without losing any previously accumulated state;</li>
+ *   <li>per-row routing reuses one precomputed {@link LongSwissHash#hash} for both partition
+ *       selection and the destination sub-table's insert via {@link LongSwissHash#addWithHash};</li>
+ *   <li>the "v1" skip-scan bridge (O(partitionCount × batch)) and the bucket-sort bridge
+ *       (O(batch)) both yield correct results across all input shapes.</li>
  * </ul>
- *
- * Per-partition early emit (draining a hot sub-table once it individually
- * grows past its own threshold) is deliberately out of scope for this
- * prototype; this only exercises the one-time single-to-partitioned
- * conversion and steady-state routing.
  */
-public class PartitionedHashAggPrototypeTests extends ESTestCase {
+public class PartitionedHashAggRoutingTests extends ESTestCase {
 
     public void testCorrectnessBelowConversionThreshold() {
         assertCorrectness(2_000, 200, 8, 10_000);
@@ -78,52 +65,6 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             expected.merge(key, value, Long::sum);
         }
         checkAgainstExpected(keys, values, 16, 5_000, expected);
-    }
-
-    public void testRoughPerfComparison() {
-        assumeTrue("Vector API module required for LongSwissHash", SwissHashFactory.getInstance() != null);
-        int totalRows = 2_000_000;
-        int cardinality = 500_000;
-        int partitionCount = 32;
-        int conversionThreshold = 50_000;
-        int batchSize = 4096;
-
-        Random random = new Random(42);
-        long[] keys = new long[totalRows];
-        long[] values = new long[totalRows];
-        for (int i = 0; i < totalRows; i++) {
-            keys[i] = random.nextInt(cardinality);
-            values[i] = random.nextInt(1000);
-        }
-
-        // warmup, then measure - single fork, so this is a rough sanity check, not a rigorous benchmark
-        runAgg(BaselineSumAgg::new, keys, values, batchSize);
-        runAgg(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize);
-        runAgg(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize);
-
-        long baselineNanos = timed(() -> runAgg(BaselineSumAgg::new, keys, values, batchSize));
-        long skipScanNanos = timed(
-            () -> runAgg(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
-        );
-        long bucketSortNanos = timed(
-            () -> runAgg(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
-        );
-
-        logger.info(
-            "rows={} cardinality={} partitions={} baseline={}ms skipScan={}ms ({}) bucketSort={}ms ({})",
-            totalRows,
-            cardinality,
-            partitionCount,
-            TimeUnit.NANOSECONDS.toMillis(baselineNanos),
-            TimeUnit.NANOSECONDS.toMillis(skipScanNanos),
-            ratio(skipScanNanos, baselineNanos),
-            TimeUnit.NANOSECONDS.toMillis(bucketSortNanos),
-            ratio(bucketSortNanos, baselineNanos)
-        );
-    }
-
-    private static String ratio(long nanos, long baselineNanos) {
-        return String.format(Locale.ROOT, "%.2fx", nanos / (double) baselineNanos);
     }
 
     private void assertCorrectness(int totalRows, int cardinality, int partitionCount, int conversionThreshold) {
@@ -182,13 +123,6 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
         }
     }
 
-    private static <T extends Releasable & BatchConsumer> void runAgg(AggFactory<T> factory, long[] keys, long[] values, int batchSize) {
-        RecyclerBreaker rb = new RecyclerBreaker(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoopCircuitBreaker("test"));
-        try (T agg = factory.create(rb)) {
-            feed(agg, keys, values, batchSize);
-        }
-    }
-
     private interface BatchConsumer {
         void add(long[] keys, long[] values, int length);
 
@@ -203,12 +137,6 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             long[] batchValues = Arrays.copyOfRange(values, offset, offset + length);
             agg.add(batchKeys, batchValues, length);
         }
-    }
-
-    private static long timed(Runnable r) {
-        long start = System.nanoTime();
-        r.run();
-        return System.nanoTime() - start;
     }
 
     private static long[] grow(long[] array, int index) {

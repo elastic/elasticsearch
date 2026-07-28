@@ -106,7 +106,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
         "indices.breaker.request.limit",
-        "75%",
+        "60%",
         Property.Dynamic,
         Property.NodeScope
     );

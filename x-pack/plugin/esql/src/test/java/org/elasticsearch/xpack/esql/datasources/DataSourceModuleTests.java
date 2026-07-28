@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
@@ -47,17 +49,21 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -440,6 +446,47 @@ public class DataSourceModuleTests extends ESTestCase {
         public void close() {}
     }
 
+    /**
+     * The catch-all file factory is registered LAST so plugin-provided factories win when both claim a path, and
+     * {@link ExternalSourceResolver} takes the FIRST factory whose {@code canHandle} claims. That priority is
+     * carried entirely by the map's iteration order, so it must survive publication.
+     * <p>
+     * The claims genuinely overlap: a table catalog claims an extensionless object (a table directory), and the
+     * file factory's config-aware {@code canHandle} claims the same object once an explicit {@code format} is
+     * configured. Publishing through {@code Map.copyOf} — whose iteration order the JDK documents as
+     * unspecified — silently dropped the ordering, so which factory won such a path was undefined. This pin
+     * fails if anyone reintroduces that.
+     */
+    public void testFileFallbackIsRegisteredAfterPluginFactories() {
+        DataSourcePlugin catalogPlugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("catalog-scheme");
+            }
+
+            @Override
+            public Set<String> supportedCatalogs() {
+                // Ordered on purpose: DataSourceModule iterates this set directly, and Set.of's own iteration
+                // order is salt-randomized, so a LinkedHashSet is what makes the expected sequence below stable.
+                return new LinkedHashSet<>(List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d"));
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(catalogPlugin);
+        try (DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory)) {
+            // Assert the FULL sequence, not relative positions: Map.copyOf's iteration order is salt-randomized
+            // per JVM launch, so a positional assertion passes by coincidence often enough to be no pin at all.
+            List<String> order = List.copyOf(module.sourceFactories().keySet());
+            assertEquals(
+                "the file fallback must be registered last so plugin factories claim first",
+                List.of("catalog-a", "catalog-b", "catalog-c", "catalog-d", "file"),
+                order
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
         return new DataSourceModule(
@@ -715,17 +762,80 @@ public class DataSourceModuleTests extends ESTestCase {
         for (String comp : compressedExtensions) {
             String objectName = "data.parq." + comp;
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
-            assertThat(
-                "Expected rejection for " + objectName,
-                ex.getMessage(),
-                org.hamcrest.Matchers.containsString("does not support whole-file compression")
-            );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+            assertThat("Expected rejection for " + objectName, ex.getMessage(), containsString("does not support whole-file compression"));
+            assertThat(ex.getMessage(), containsString("parq"));
         }
 
         // Sequential formats must still be wrappable
         assertNotNull(registry.byExtension("data.csv.gz"));
         assertNotNull(registry.byExtension("data.tsv.gz"));
+    }
+
+    /**
+     * A scheme nothing on this node reads must name what IS readable. The two forms this replaced named neither
+     * the registered schemes nor any action, and one spoke of an "SPI storage factory" -- the only message
+     * rewritten in this change that nothing else pins.
+     */
+    public void testUnsupportedSchemeNamesTheReadableSchemes() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> module.storageProviderRegistry().provider(StoragePath.of("nope://bucket/data.csv"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), containsString("Unsupported storage scheme [nope]"));
+        assertThat(ex.getMessage(), containsString("Supported schemes:"));
+        assertThat(ex.getMessage(), not(containsString("SPI storage factory")));
+    }
+
+    /**
+     * Naming a format the registry does not know is a client error. It is reachable without any typo: the dataset
+     * CRUD vocabulary is a startup snapshot of the declared format specs, so a dataset stored while a format's
+     * feature flag was on resolves, at query time, against a registry that plugin contributed nothing to. This is
+     * also the one message permitted to advise installing a plugin, because here a missing plugin really is a cause.
+     */
+    public void testUnknownFormatNameIsAClientErrorNamingTheRegisteredFormats() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byName("nope"));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ex));
+        assertThat(ex.getMessage(), containsString("No reader registered for format [nope]"));
+        assertThat(ex.getMessage(), containsString("Registered formats"));
+        assertThat(ex.getMessage(), containsString("may not be installed"));
+    }
+
+    /**
+     * A compound name whose INNER extension is unknown must report the object the caller actually named, and the
+     * compound extension that failed. The compound branch strips the codec suffix and recurses, so the failure is
+     * raised one frame down against a name that does not exist on disk: it reported "cannot read [data.log]:
+     * extension [.log]" for a file called {@code data.log.gz}, while the resolver path reported "[.log.gz]" for
+     * the very same file. Two answers for one condition is precisely what the shared builder exists to prevent,
+     * and no test covered this route -- every other case reaches the builder through the resolver.
+     */
+    public void testCompoundNameWithUnknownInnerExtensionReportsTheOriginalObject() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("data.log.gz"));
+
+        assertThat(ex.getMessage(), containsString("[data.log.gz]"));
+        assertThat(ex.getMessage(), containsString("extension [.log.gz]"));
+        // The stripped intermediate must never surface -- it names a file that does not exist.
+        assertThat(ex.getMessage(), not(containsString("[data.log]")));
+        assertThat(ex.getMessage(), not(containsString("extension [.log]")));
+
+        // Mixed case must report the same normalised extension. Every other fixture here is lowercase, so without
+        // this the normalisation could be dropped and the suite would stay green.
+        IllegalArgumentException mixed = expectThrows(IllegalArgumentException.class, () -> registry.byExtension("DATA.LOG.GZ"));
+        assertThat(mixed.getMessage(), containsString("[DATA.LOG.GZ]"));
+        assertThat(mixed.getMessage(), containsString("extension [.log.gz]"));
     }
 
     /**
@@ -760,9 +870,9 @@ public class DataSourceModuleTests extends ESTestCase {
             assertThat(
                 "Expected rejection for " + objectName,
                 ex.getMessage(),
-                org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd")
+                containsString("is not supported; supported: uncompressed, gzip, zstd")
             );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
+            assertThat(ex.getMessage(), containsString(entry.getValue()));
         }
 
         // The benchmarked codecs still resolve across the text formats.
@@ -965,8 +1075,8 @@ public class DataSourceModuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveReader(Map.of("format", "parq"), "data.parq.gz", registry)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("does not support whole-file compression"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+        assertThat(ex.getMessage(), containsString("does not support whole-file compression"));
+        assertThat(ex.getMessage(), containsString("parq"));
     }
 
     /**
@@ -985,7 +1095,7 @@ public class DataSourceModuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.bz2", registry)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd"));
+        assertThat(ex.getMessage(), containsString("is not supported; supported: uncompressed, gzip, zstd"));
 
         // The benchmarked codec still resolves and still composes with the explicit format.
         FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "data.csv.gz", registry);

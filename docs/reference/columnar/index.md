@@ -203,7 +203,7 @@ The `attributes` and `labels` object mappers are gone from `properties`; only th
 Columnar index modes don't store the original JSON `_source` on disk. Two `_source` modes are supported:
 
 **Synthetic columnar `_source`**
-:   Reconstructs a flattened representation of `_source` from doc values at query time. Requires an [appropriate license](https://www.elastic.co/subscriptions) for synthetic `_source`. For more information, refer to [Synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
+:   Reconstructs a flattened representation of `_source` from doc values at query time. Requires an [appropriate license](https://www.elastic.co/subscriptions) for synthetic columnar `_source`. For more information, refer to [Synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
 **Columnar stored `_source`**
 :   Materializes and stores the columnar `_source` representation on disk at index time as doc values. Used automatically when synthetic columnar `_source` is not licensed, and can also be configured explicitly to speed up `_source` retrieval. For more information, see [Columnar source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#columnar-stored).

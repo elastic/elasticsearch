@@ -895,6 +895,7 @@ public class KnnIndexTester {
                 "oversampling_factor",
                 "num_candidates",
                 "early_termination",
+                "post_filter",
                 "exact",
                 "exact_quantized"
             );
@@ -942,6 +943,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
                     Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter),
                     Boolean.toString(queryResult.exact),
                     Boolean.toString(queryResult.exactQuantized)
                 );
@@ -1042,6 +1044,7 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
         boolean exact;
         boolean exactQuantized;
         int numCandidates;
@@ -1185,6 +1188,7 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "post_filter",
         "exact",
         "exact_quantized",
         "filter_selectivity",
@@ -1299,6 +1303,7 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
                             Boolean.toString(sp.exact()),
                             Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),

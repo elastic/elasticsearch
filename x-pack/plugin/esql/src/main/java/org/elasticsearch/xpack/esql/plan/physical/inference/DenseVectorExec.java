@@ -14,6 +14,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -27,6 +29,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+/**
+ * Physical counterpart of {@link org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector}: embeds each input field
+ * into a generated {@code <field>_dense_vector} column. Carries a 1:1 aligned list of input {@link #fields} and generated
+ * {@link #generatedFields}; the planner turns each pair into a {@code TextEmbeddingOperator}.
+ */
 public class DenseVectorExec extends InferenceExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -35,26 +42,22 @@ public class DenseVectorExec extends InferenceExec {
         DenseVectorExec::new
     );
 
-    private final Expression input;
-    private final Attribute targetField;
+    private final List<NamedExpression> fields;
+    private final List<Attribute> generatedFields;
     private final TimeValue timeout;
     private List<Attribute> lazyOutput;
-
-    public DenseVectorExec(Source source, PhysicalPlan child, Expression inferenceId, Expression input, Attribute targetField) {
-        this(source, child, inferenceId, input, targetField, null);
-    }
 
     public DenseVectorExec(
         Source source,
         PhysicalPlan child,
         Expression inferenceId,
-        Expression input,
-        Attribute targetField,
+        List<NamedExpression> fields,
+        List<Attribute> generatedFields,
         TimeValue timeout
     ) {
         super(source, child, inferenceId);
-        this.input = input;
-        this.targetField = targetField;
+        this.fields = fields;
+        this.generatedFields = generatedFields;
         this.timeout = timeout;
     }
 
@@ -63,8 +66,8 @@ public class DenseVectorExec extends InferenceExec {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
@@ -77,19 +80,19 @@ public class DenseVectorExec extends InferenceExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteable(input);
-        out.writeNamedWriteable(targetField);
+        out.writeNamedWriteableCollection(fields);
+        out.writeNamedWriteableCollection(generatedFields);
         if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
             out.writeOptionalTimeValue(timeout);
         }
     }
 
-    public Expression input() {
-        return input;
+    public List<NamedExpression> fields() {
+        return fields;
     }
 
-    public Attribute targetField() {
-        return targetField;
+    public List<Attribute> generatedFields() {
+        return generatedFields;
     }
 
     public TimeValue timeout() {
@@ -98,26 +101,25 @@ public class DenseVectorExec extends InferenceExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, DenseVectorExec::new, child(), inferenceId(), input, targetField, timeout);
+        return NodeInfo.create(this, DenseVectorExec::new, child(), inferenceId(), fields, generatedFields, timeout);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new DenseVectorExec(source(), newChild, inferenceId(), input, targetField, timeout);
+        return new DenseVectorExec(source(), newChild, inferenceId(), fields, generatedFields, timeout);
     }
 
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(List.of(targetField), child().output());
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
         }
-
         return lazyOutput;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return input.references();
+        return Expressions.references(fields);
     }
 
     @Override
@@ -125,15 +127,14 @@ public class DenseVectorExec extends InferenceExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        DenseVectorExec embed = (DenseVectorExec) o;
-
-        return Objects.equals(input, embed.input)
-            && Objects.equals(targetField, embed.targetField)
-            && Objects.equals(timeout, embed.timeout);
+        DenseVectorExec other = (DenseVectorExec) o;
+        return Objects.equals(fields, other.fields)
+            && Objects.equals(generatedFields, other.generatedFields)
+            && Objects.equals(timeout, other.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, targetField, timeout);
+        return Objects.hash(super.hashCode(), fields, generatedFields, timeout);
     }
 }

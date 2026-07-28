@@ -1533,15 +1533,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
         Source source = source(ctx);
 
-        Expression input = expression(ctx.input);
-        Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, DenseVector.DEFAULT_OUTPUT_FIELD_NAME));
-        if (targetField.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
-        }
+        // Field-list input, shared with KEEP/DROP (wildcards supported). No expressions/renames — computed values go through EVAL first.
+        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {});
         // Reuse the completion row limit
         // TODO: Change to own limit
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
-        return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, input, targetField), ctx.commandNamedParameters());
+        return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
     }
 
     private DenseVector applyDenseVectorOptions(DenseVector embed, EsqlBaseParser.CommandNamedParametersContext ctx) {

@@ -1251,18 +1251,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
-            Attribute targetField = p.targetField();
-            Expression input = p.input();
-
-            if (targetField instanceof UnresolvedAttribute ua) {
-                targetField = new ReferenceAttribute(ua.source(), null, ua.name(), DENSE_VECTOR);
+            // Expand the field patterns exactly once. After the first pass generatedFields is populated (with stable ids),
+            // so re-running the rule (e.g. while the inference id is still being resolved) is a no-op and the plan converges.
+            if (p.generatedAttributes().isEmpty() == false) {
+                return p;
             }
 
-            if (input.resolved() == false) {
-                input = input.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            List<NamedExpression> resolvedFields = new ArrayList<>();
+            for (NamedExpression field : p.fields()) {
+                if (field instanceof UnresolvedStar) {
+                    // "*" -> every non-metadata field; keep only the text ones, skip the rest (wildcard semantics)
+                    for (Attribute a : excludeExternalMetadata(childrenOutput)) {
+                        if (DataType.isString(a.dataType())) {
+                            resolvedFields.add(a);
+                        }
+                    }
+                } else if (field instanceof UnresolvedNamePattern up) {
+                    // wildcard pattern -> keep text matches, skip non-text; a no-match surfaces "No matches found for pattern [..]"
+                    for (Attribute a : resolveAgainstList(up, childrenOutput)) {
+                        if (a.resolved() == false || DataType.isString(a.dataType())) {
+                            resolvedFields.add(a);
+                        }
+                    }
+                } else if (field instanceof UnresolvedAttribute ua) {
+                    // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
+                    resolvedFields.addAll(resolveAgainstList(ua, childrenOutput));
+                } else {
+                    resolvedFields.add(field);
+                }
             }
 
-            return new DenseVector(p.source(), p.child(), p.inferenceId(), p.rowLimit(), input, targetField);
+            if (resolvedFields.isEmpty()) {
+                // every pattern matched only non-text columns -> nothing embeddable
+                resolvedFields.add(new UnresolvedAttribute(p.source(), "*", "DENSE_VECTOR found no text fields to embed"));
+            }
+
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

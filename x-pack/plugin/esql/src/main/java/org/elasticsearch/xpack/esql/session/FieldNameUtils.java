@@ -261,8 +261,12 @@ public class FieldNameUtils {
                         currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
+                    } else if (p instanceof DenseVector) {
+                        // DENSE_VECTOR reads its input fields; the pattern is already added to references above, so
+                        // field-caps fetches the wildcard's matching fields for expansion during analysis. No KEEP/DROP
+                        // alias bookkeeping applies (DenseVector is in couldOverrideAliases, which disables alias removal).
                     } else {
-                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
+                        throw new IllegalStateException("Only KEEP, DROP and DENSE_VECTOR should allow wildcards");
                     }
                 });
                 if (p instanceof Keep) {

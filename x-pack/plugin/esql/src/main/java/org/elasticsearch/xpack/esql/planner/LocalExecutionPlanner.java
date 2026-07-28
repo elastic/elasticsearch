@@ -578,21 +578,32 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planDenseVector(DenseVectorExec embed, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(embed.child(), context);
-        String inferenceId = BytesRefs.toString(embed.inferenceId().fold(context.foldCtx()));
-        Layout outputLayout = source.layout.builder().append(embed.targetField()).build();
-        ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
-            context.foldCtx(),
-            embed.input(),
-            source.layout,
-            context.analysisRegistry()
-        );
+    private PhysicalOperation planDenseVector(DenseVectorExec denseVector, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(denseVector.child(), context);
+        String inferenceId = BytesRefs.toString(denseVector.inferenceId().fold(context.foldCtx()));
 
-        return source.with(
-            new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, embed.timeout()),
-            outputLayout
-        );
+        List<NamedExpression> fields = denseVector.fields();
+        List<Attribute> generatedFields = denseVector.generatedFields();
+
+        // One TextEmbeddingOperator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
+        // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        PhysicalOperation operation = source;
+        for (int i = 0; i < fields.size(); i++) {
+            ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                fields.get(i),
+                operation.layout,
+                context.analysisRegistry()
+            );
+            Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
+            operation = operation.with(
+                new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, denseVector.timeout()),
+                outputLayout
+            );
+        }
+
+        return operation;
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {

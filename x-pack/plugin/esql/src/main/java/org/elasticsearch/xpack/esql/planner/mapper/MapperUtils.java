@@ -148,8 +148,15 @@ public class MapperUtils {
             );
         }
 
-        if (p instanceof DenseVector embed) {
-            return new DenseVectorExec(embed.source(), child, embed.inferenceId(), embed.input(), embed.targetField(), embed.timeout());
+        if (p instanceof DenseVector denseVector) {
+            return new DenseVectorExec(
+                denseVector.source(),
+                child,
+                denseVector.inferenceId(),
+                denseVector.fields(),
+                denseVector.generatedAttributes(),
+                denseVector.timeout()
+            );
         }
 
         if (p instanceof Enrich enrich) {

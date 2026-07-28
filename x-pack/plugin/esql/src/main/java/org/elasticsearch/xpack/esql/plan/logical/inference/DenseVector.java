@@ -19,8 +19,12 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,17 +32,26 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETION_ROW_LIMIT_SETTING;
 
+/**
+ * The {@code DENSE_VECTOR} command generates a {@code dense_vector} embedding column per input field.
+ * <p>
+ * It takes a comma-separated list of field-name patterns (the {@code qualifiedNamePatterns} grammar shared with
+ * {@code KEEP}/{@code DROP}, so wildcards are supported) and, for each matched text field, appends a generated
+ * {@code <field>_dense_vector} column. Unlike {@code KEEP}, it adds columns rather than projecting them.
+ * </p>
+ */
 public class DenseVector extends InferencePlan<DenseVector> implements TelemetryAware, PostAnalysisVerificationAware {
 
-    public static final String DEFAULT_OUTPUT_FIELD_NAME = "embedding";
+    /** Suffix appended to each input field name to build the generated column name (e.g. {@code title} -> {@code title_dense_vector}). */
+    public static final String OUTPUT_SUFFIX = "_dense_vector";
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
@@ -50,13 +63,19 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
-    private final Expression input;
-    private final Attribute targetField;
+    /** Input fields to embed (name patterns before analysis, resolved and wildcard-expanded attributes after). */
+    private final List<NamedExpression> fields;
+
+    /**
+     * The generated {@code <field>_dense_vector} attributes, one per input field, appended to the child's output in the
+     * same order as {@link #fields}. Empty until the analyzer resolves/expands {@link #fields} and populates them.
+     */
+    private final List<Attribute> generatedFields;
 
     private List<Attribute> lazyOutput;
 
-    public DenseVector(Source source, LogicalPlan p, Expression rowLimit, Expression input, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, input, targetField, null);
+    public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
+        this(source, child, Literal.NULL, rowLimit, fields, List.of(), null);
     }
 
     public DenseVector(
@@ -64,24 +83,13 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         LogicalPlan child,
         Expression inferenceId,
         Expression rowLimit,
-        Expression input,
-        Attribute targetField
-    ) {
-        this(source, child, inferenceId, rowLimit, input, targetField, null);
-    }
-
-    public DenseVector(
-        Source source,
-        LogicalPlan child,
-        Expression inferenceId,
-        Expression rowLimit,
-        Expression input,
-        Attribute targetField,
+        List<NamedExpression> fields,
+        List<Attribute> generatedFields,
         TimeValue timeout
     ) {
         super(source, child, inferenceId, rowLimit, timeout);
-        this.input = input;
-        this.targetField = targetField;
+        this.fields = fields;
+        this.generatedFields = generatedFields;
     }
 
     public DenseVector(StreamInput in) throws IOException {
@@ -90,8 +98,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
@@ -99,8 +107,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteable(input);
-        out.writeNamedWriteable(targetField);
+        out.writeNamedWriteableCollection(fields);
+        out.writeNamedWriteableCollection(generatedFields);
         if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
             out.writeOptionalTimeValue(timeout());
         }
@@ -111,12 +119,28 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         return ENTRY.name;
     }
 
-    public Expression input() {
-        return input;
+    public List<NamedExpression> fields() {
+        return fields;
     }
 
-    public Attribute targetField() {
-        return targetField;
+    /**
+     * Builds nullable {@code <field>_dense_vector} attributes (one per input field), typed {@link DataType#DENSE_VECTOR}.
+     * A generated name that collides with an existing output shadows the earlier column.
+     */
+    public static List<Attribute> generatedAttributesFor(Source source, List<? extends NamedExpression> fields) {
+        return fields.stream()
+            .map(
+                f -> (Attribute) new ReferenceAttribute(
+                    source,
+                    null,
+                    f.name() + OUTPUT_SUFFIX,
+                    DataType.DENSE_VECTOR,
+                    Nullability.TRUE,
+                    null,
+                    false
+                )
+            )
+            .toList();
     }
 
     @Override
@@ -124,8 +148,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
-
-        return new DenseVector(source(), child(), newInferenceId, rowLimit(), input, targetField, timeout());
+        return new DenseVector(source(), child(), newInferenceId, rowLimit(), fields, generatedFields, timeout());
     }
 
     @Override
@@ -133,12 +156,20 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         if (Objects.equals(timeout(), newTimeout)) {
             return this;
         }
-        return new DenseVector(source(), child(), inferenceId(), rowLimit(), input, targetField, newTimeout);
+        return new DenseVector(source(), child(), inferenceId(), rowLimit(), fields, generatedFields, newTimeout);
     }
 
     @Override
     public DenseVector replaceChild(LogicalPlan newChild) {
-        return new DenseVector(source(), newChild, inferenceId(), rowLimit(), input, targetField, timeout());
+        return new DenseVector(source(), newChild, inferenceId(), rowLimit(), fields, generatedFields, timeout());
+    }
+
+    /**
+     * Returns a copy with resolved/wildcard-expanded input fields and the matching generated {@code <field>_dense_vector}
+     * attributes. Used by the analyzer once {@link #fields} are resolved against the child output.
+     */
+    public DenseVector withResolvedFields(List<NamedExpression> resolvedFields, List<Attribute> resolvedGeneratedFields) {
+        return new DenseVector(source(), child(), inferenceId(), rowLimit(), resolvedFields, resolvedGeneratedFields, timeout());
     }
 
     @Override
@@ -154,56 +185,72 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(List.of(targetField), child().output());
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
         }
-
         return lazyOutput;
     }
 
     @Override
     public List<Attribute> generatedAttributes() {
-        return List.of(targetField);
+        return generatedFields;
     }
 
     @Override
     public DenseVector withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new DenseVector(source(), child(), inferenceId(), rowLimit(), input, this.renameTargetField(newNames.get(0)), timeout());
-    }
-
-    private Attribute renameTargetField(String newName) {
-        if (newName.equals(targetField.name())) {
-            return targetField;
+        List<Attribute> renamed = new ArrayList<>(generatedFields.size());
+        for (int i = 0; i < generatedFields.size(); i++) {
+            Attribute attr = generatedFields.get(i);
+            String newName = newNames.get(i);
+            renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-
-        return targetField.withName(newName).withId(new NameId());
+        return new DenseVector(source(), child(), inferenceId(), rowLimit(), fields, renamed, timeout());
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return input.references();
+        // Only the input fields are references; the generated <field>_dense_vector columns are outputs.
+        return Expressions.references(fields);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && input.resolved() && targetField.resolved();
+        if (super.expressionsResolved() == false) {
+            return false;
+        }
+        for (NamedExpression field : fields) {
+            if (field.resolved() == false) {
+                return false;
+            }
+        }
+        // generatedFields is populated by the analyzer once the (wildcard) fields are expanded.
+        return generatedFields.isEmpty() == false;
     }
 
     @Override
     public boolean isFoldable() {
-        return input.foldable();
+        return fields.stream().allMatch(Expression::foldable);
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (input.resolved() && DataType.isString(input.dataType()) == false) {
-            failures.add(fail(input, "input must be of type [{}] but is [{}]", TEXT.typeName(), input.dataType().typeName()));
+        for (NamedExpression field : fields) {
+            if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "DENSE_VECTOR field [{}] must be [text] or [keyword], found [{}]",
+                        field.name(),
+                        field.dataType().typeName()
+                    )
+                );
+            }
         }
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, DenseVector::new, child(), inferenceId(), rowLimit(), input, targetField, timeout());
+        return NodeInfo.create(this, DenseVector::new, child(), inferenceId(), rowLimit(), fields, generatedFields, timeout());
     }
 
     @Override
@@ -211,13 +258,12 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        DenseVector embed = (DenseVector) o;
-
-        return Objects.equals(input, embed.input) && Objects.equals(targetField, embed.targetField);
+        DenseVector other = (DenseVector) o;
+        return Objects.equals(fields, other.fields) && Objects.equals(generatedFields, other.generatedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, targetField);
+        return Objects.hash(super.hashCode(), fields, generatedFields);
     }
 }

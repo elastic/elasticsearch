@@ -438,5 +438,5 @@ mmrQueryVectorParams
     ;
 
 denseVectorCommand
-    : DEV_DENSE_VECTOR (targetField=qualifiedName ASSIGN)? input=primaryExpression commandNamedParameters
+    : DEV_DENSE_VECTOR qualifiedNamePatterns commandNamedParameters
     ;

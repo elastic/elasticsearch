@@ -869,6 +869,10 @@ public class CCSDuelIT extends ESRestTestCase {
         // TODO: for this test there is a slight discrepancy between the shard failure reason exception format
         // TODO: between sync and async searches, so skip that check for now and revisit as to why that is happening
         boolean compareAsyncAndSyncResponses = false;
+        // Shard failures are deduplicated by (index, reason, causeType), so when multiple shards fail identically only
+        // one is reported - and which shard/node it belongs to is not deterministic. The minimize_round_trips and fanOut
+        // paths can therefore report a different shard/node for the same failure, so we skip those two fields.
+        Predicate<String> pathFilter = path -> (path.endsWith("/failures/*/node") || path.endsWith("/failures/*/shard")) == false;
         duelRequest(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
             assertThat(response.evaluate("hits.total.value"), greaterThan(0));
@@ -876,7 +880,7 @@ public class CCSDuelIT extends ESRestTestCase {
             assertNull(response.evaluate("suggest"));
             assertThat(response.evaluateArraySize("hits.hits"), greaterThan(0));
             assertThat(response.evaluate("_shards.failed"), greaterThanOrEqualTo(2));
-        }, compareAsyncAndSyncResponses, path -> true);
+        }, compareAsyncAndSyncResponses, pathFilter);
     }
 
     public void testTermSuggester() throws Exception {

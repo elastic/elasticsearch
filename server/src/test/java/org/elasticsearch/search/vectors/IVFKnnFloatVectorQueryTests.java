@@ -18,6 +18,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 
 import java.io.IOException;
 
@@ -48,6 +51,33 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
     @Override
     Field getKnnVectorField(String name, float[] vector) {
         return new KnnFloatVectorField(name, vector);
+    }
+
+    public void testEqualsDifferentResolver() {
+        float[] queryVector = new float[] { 0, 1 };
+        TestIvfQueryConfigResolver resolver1 = new TestIvfQueryConfigResolver(
+            CentroidIndexFormat.FLAT,
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            false,
+            1.0f
+        );
+        TestIvfQueryConfigResolver resolver2 = new TestIvfQueryConfigResolver(
+            CentroidIndexFormat.FLAT,
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            false,
+            2.0f
+        );
+        IVFKnnFloatVectorQuery q1 = new IVFKnnFloatVectorQuery("field", queryVector, 10, 10, null, 0.05f, resolver1);
+        IVFKnnFloatVectorQuery q2 = new IVFKnnFloatVectorQuery("field", queryVector, 10, 10, null, 0.05f, resolver2);
+        IVFKnnFloatVectorQuery q3 = new IVFKnnFloatVectorQuery("field", queryVector, 10, 10, null, 0.05f, resolver1);
+
+        // Queries with different resolvers must not be equal (prevents query cache collisions)
+        assertNotEquals(q1, q2);
+        assertNotEquals(q1.hashCode(), q2.hashCode());
+
+        // Queries with the same resolver config must still be equal
+        assertEquals(q1, q3);
+        assertEquals(q1.hashCode(), q3.hashCode());
     }
 
     public void testToString() throws IOException {

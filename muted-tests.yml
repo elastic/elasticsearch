@@ -385,15 +385,9 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/151732
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  method: testCleanUpAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/151819
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/151837
@@ -676,9 +670,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153638
-- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
-  method: testOpenAiEmbeddings {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/154172
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.renameDerivedGroupingPrune [ndjson.bz/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/154238
@@ -754,9 +745,39 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
-- class: org.elasticsearch.indices.ShardLimitValidatorTests
-  method: testValidateShardLimitOpenIndices
-  issue: https://github.com/elastic/elasticsearch/issues/154859
 - class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
   method: testLookupDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/155185
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/153902
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecApproximationIT
+  method: test {csv-spec:approximation.Rename stats group key}
+  issue: https://github.com/elastic/elasticsearch/issues/155194
+- class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
+  method: testContinuousEvents
+  issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testPopulateCacheWithSharedSourceInputStreamFactory
+  issue: https://github.com/elastic/elasticsearch/issues/154597
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:ip.cidrMatchFieldArg}
+  issue: https://github.com/elastic/elasticsearch/issues/155281
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/155284
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
+  issue: https://github.com/elastic/elasticsearch/issues/155113
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/153747
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecSpatialIT
+  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/155125
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
+  method: test {csv-spec:change_point.values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/155152
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:ip.cdirMatchMultipleArgs}
+  issue: https://github.com/elastic/elasticsearch/issues/155296

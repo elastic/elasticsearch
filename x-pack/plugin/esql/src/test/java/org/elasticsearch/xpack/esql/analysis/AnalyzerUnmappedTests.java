@@ -2001,6 +2001,39 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
     }
 
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
+                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
+            );
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
+                containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")
+            );
+    }
+
+    private static EsIndex partialIpIndex() {
+        return partialIndex(
+            Map.of("partial_ip", new EsField("partial_ip", DataType.IP, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+            Set.of("partial_ip")
+        );
+    }
+
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
         DataType.SHORT,
         DataType.BYTE,

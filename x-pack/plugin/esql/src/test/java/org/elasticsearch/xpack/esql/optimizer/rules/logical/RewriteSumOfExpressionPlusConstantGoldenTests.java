@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.EnumSet;
 
 public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCase {
+    private static final String ESQL_MV_SINGLE_VALUE_OR_NULL = "esql_mv_single_value_or_null";
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
@@ -32,10 +34,7 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
         builder("""
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
-            """).stages(STAGES)
-            .expectationChangesAt("esql_sum_long_overflow_fix")
-            .expectationChangesAt("esql_mv_single_value_or_null")
-            .run();
+            """).stages(STAGES).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(ESQL_MV_SINGLE_VALUE_OR_NULL).run();
     }
 
     public void testTwoSumsOfFieldPlusConstantWithGroupBy() {

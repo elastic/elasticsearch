@@ -20,6 +20,8 @@ import java.util.List;
  * Golden tests for query approximation.
  */
 public class ApproximationGoldenTests extends GoldenTestCase {
+    private static final String ESQL_APPROXIMATION_LOOKUP_JOIN = "esql_approximation_lookup_join";
+
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
@@ -109,7 +111,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
               | STATS MEDIAN(length)
-            """).stages(STAGES).expectationChangesAt("esql_approximation_lookup_join").run();
+            """).stages(STAGES).expectationChangesAt(ESQL_APPROXIMATION_LOOKUP_JOIN).run();
     }
 
     public void testFork() {

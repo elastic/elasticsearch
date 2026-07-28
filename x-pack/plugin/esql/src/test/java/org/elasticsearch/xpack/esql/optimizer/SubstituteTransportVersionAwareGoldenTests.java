@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
  * </p>
  */
 public class SubstituteTransportVersionAwareGoldenTests extends GoldenTestCase {
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
@@ -33,7 +35,7 @@ public class SubstituteTransportVersionAwareGoldenTests extends GoldenTestCase {
         builder("""
             FROM employees
             | STATS sum = SUM(languages.long)
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testSumGetsReplacedWithSafeLongAndMultipleAggsAndGroups() {

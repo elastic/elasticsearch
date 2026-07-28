@@ -609,7 +609,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT.getDefault(Settings.EMPTY),
             PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.getDefault(Settings.EMPTY),
-            PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.getDefault(Settings.EMPTY)
+            PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

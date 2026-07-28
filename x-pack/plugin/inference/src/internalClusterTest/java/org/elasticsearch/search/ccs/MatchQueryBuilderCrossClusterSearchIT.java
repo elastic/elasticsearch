@@ -9,11 +9,11 @@ package org.elasticsearch.search.ccs;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,7 +34,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
     private static final Map<String, Collection<TaskType>> taskTypes = Map.of(
         "semantic_text",
-        List.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING),
+        List.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING),
         "semantic",
         List.of(TaskType.EMBEDDING)
     );
@@ -242,8 +242,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             // Create fields with common inference ID across clusters
             String commonInferenceIdFieldName = commonInferenceIdFieldName(semanticFieldType);
             String commonInferenceId = semanticFieldType + "-common-inference-id";
-            localInferenceIds.put(commonInferenceId, getServiceSettings(semanticFieldType, true));
-            remoteInferenceIds.put(commonInferenceId, getServiceSettings(semanticFieldType, false));
+            localInferenceIds.put(commonInferenceId, getServiceSettings(semanticFieldType));
+            remoteInferenceIds.put(commonInferenceId, getServiceSettings(semanticFieldType));
             localMappings.put(commonInferenceIdFieldName, fieldMapping(semanticFieldType, commonInferenceId));
             remoteMappings.put(commonInferenceIdFieldName, fieldMapping(semanticFieldType, commonInferenceId));
             docs.put(getDocId(commonInferenceIdFieldName), Map.of(commonInferenceIdFieldName, getFieldValue(commonInferenceIdFieldName)));
@@ -252,8 +252,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             String variableInferenceIdFieldName = variableInferenceIdFieldName(semanticFieldType);
             String localInferenceId = localInferenceId(semanticFieldType);
             String remoteInferenceId = remoteInferenceId(semanticFieldType);
-            localInferenceIds.put(localInferenceId, getServiceSettings(semanticFieldType, true));
-            remoteInferenceIds.put(remoteInferenceId, getServiceSettings(semanticFieldType, false));
+            localInferenceIds.put(localInferenceId, getServiceSettings(semanticFieldType));
+            remoteInferenceIds.put(remoteInferenceId, getServiceSettings(semanticFieldType));
             localMappings.put(variableInferenceIdFieldName, fieldMapping(semanticFieldType, localInferenceId));
             remoteMappings.put(variableInferenceIdFieldName, fieldMapping(semanticFieldType, remoteInferenceId));
             docs.put(
@@ -264,7 +264,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
         // Create fields with mixed types across clusters
         String sharedInferenceId = "shared-inference-id";
-        MinimalServiceSettings sharedSettings = getServiceSettings("semantic", false);
+        MinimalServiceSettings sharedSettings = getServiceSettings("semantic");
         localInferenceIds.put(sharedInferenceId, sharedSettings);
         remoteInferenceIds.put(sharedInferenceId, sharedSettings);
         for (String localFieldType : allFieldTypes) {
@@ -292,8 +292,6 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(LOCAL_INDEX_NAME, localInferenceIds, localMappings, docs);
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(REMOTE_INDEX_NAME, remoteInferenceIds, remoteMappings, docs);
-        logger.log(Level.INFO, "local mappings: {}", localMappings);
-        logger.log(Level.INFO, "remote mappings: {}", remoteMappings);
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
     }
 
@@ -301,28 +299,9 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         return Map.of("type", semanticFieldType, "inference_id", inferenceId);
     }
 
-    private static MinimalServiceSettings getServiceSettings(String semanticFieldType, boolean isLocalCluster) {
+    private static MinimalServiceSettings getServiceSettings(String semanticFieldType) {
         TaskType taskType = randomFrom(taskTypes.get(semanticFieldType));
-        if (isLocalCluster == false && taskType == TaskType.SPARSE_EMBEDDING) {
-            // Use sparse embedding only for local index since the due to score calculation,
-            // the remote results are always ranked higher if the remote index field uses sparse embedding
-            // and the local index uses dense embedding.
-            taskType = TaskType.TEXT_EMBEDDING;
-        }
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> textEmbeddingServiceSettings(
-                randomIntBetween(8, 384),
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.FLOAT
-            );
-            case SPARSE_EMBEDDING -> sparseEmbeddingServiceSettings();
-            case EMBEDDING -> embeddingServiceSettings(
-                randomIntBetween(8, 384),
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.FLOAT
-            );
-            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
-        };
+        return new MinimalServiceSettings(TestModel.createRandomInstance(taskType, List.of(SimilarityMeasure.DOT_PRODUCT)));
     }
 
     private static String mixedTypeFieldName(String localFieldType, String remoteFieldType) {

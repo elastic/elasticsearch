@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.Before;
 
@@ -36,6 +38,15 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Golden tests for the analyzed plans produced by IN / NOT IN subquery scenarios.
  */
 public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public AnalyzerInSubqueryGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
@@ -503,33 +514,33 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-index union-typed field (across employees/employees_incompatible) resolved by an explicit cast --
     // The comma-separated FROM pattern resolves to a single relation whose emp_no field is union-typed (integer vs the incompatible
     // mapping), so casting it (emp_no::keyword) is required before it can be used as an IN/NOT IN join key. The cast resolves to a
-    // MultiTypeEsField whose representation (compact vs legacy) is transport-version gated, so pin a compact-supporting version to keep the
-    // snapshot deterministic.
+    // MultiTypeEsField whose representation (compact vs legacy) is transport-version gated, so lower-bound these tests at the compact
+    // representation.
 
     public void testUnionTypeLeftFieldWithCastInSubquery() {
-        runGoldenTest("""
+        builder("""
             FROM employees, employees_incompatible
             | EVAL id_kw = emp_no::keyword
             | WHERE id_kw IN (FROM employees | KEEP first_name)
             | KEEP id_kw
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """).stages(STAGES).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testUnionTypeRightFieldWithCastInSubquery() {
-        runGoldenTest("""
+        builder("""
             FROM employees
             | WHERE first_name IN (FROM employees, employees_incompatible | EVAL id_kw = emp_no::keyword | KEEP id_kw)
             | KEEP first_name
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """).stages(STAGES).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     public void testUnionTypeLeftFieldWithCastInAntiJoin() {
-        runGoldenTest("""
+        builder("""
             FROM employees, employees_incompatible
             | EVAL id_kw = emp_no::keyword
             | WHERE id_kw NOT IN (FROM employees | KEEP first_name)
             | KEEP id_kw
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """).stages(STAGES).since(CompactMultiTypeEsField.CompactMultiTypeEsField).run();
     }
 
     // -- IN subquery with views --
@@ -800,95 +811,94 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- tests with TS source inside IN subquery --
     //
     // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either DIMENSIONVALUES (when
-    // the negotiated cluster version supports `dimension_values`) or VALUES (when it does not). The default golden-test builder randomizes
-    // the minimum transport version, which would make the captured plan flap between the two forms; pin a version that supports
-    // `dimension_values` (or TransportVersion.current() for the version-gated SUM long-overflow mode) so the snapshot stays deterministic.
+    // the negotiated cluster version supports `dimension_values`) or VALUES (when it does not). These tests characterize the newer form, so
+    // their builder chains declare the corresponding lower bound (or the newer SUM long-overflow fix when the query contains SUM).
 
     public void testTsRateInsideInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testTsRateInsideNotInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testInSubqueryMainTimeSeriesSubqueryIndex() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (FROM employees | KEEP first_name)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testNotInSubqueryMainTimeSeriesSubqueryIndex() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM employees | KEEP first_name)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testInSubqueryMainIndexSubqueryTimeSeries() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             FROM employees
             | WHERE first_name IN (TS k8s
                                   | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
                                   | KEEP cluster)
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testNotInSubqueryMainIndexSubqueryTimeSeries() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             FROM employees
             | WHERE first_name NOT IN (TS k8s
                                       | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
                                       | KEEP cluster)
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testTsWithoutAndRateInsideInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testTsWithoutAndRateInsideNotInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (FROM
                                    (TS k8s
@@ -902,12 +912,12 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
         requireInSubqueryWithTSSupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM
                                        (TS k8s
@@ -921,7 +931,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                    )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
     }
 
     // -- IN / NOT IN (subquery) crossed with external datasets --

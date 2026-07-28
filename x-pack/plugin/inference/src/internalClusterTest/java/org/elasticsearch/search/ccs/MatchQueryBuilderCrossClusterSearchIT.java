@@ -7,7 +7,6 @@
 
 package org.elasticsearch.search.ccs;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;

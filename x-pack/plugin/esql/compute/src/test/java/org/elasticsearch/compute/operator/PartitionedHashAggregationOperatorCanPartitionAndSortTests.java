@@ -73,6 +73,46 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
         assertTrue(PartitionedHashAggregationOperator.canPartition(List.of()));
     }
 
+    public void testCanPartitionReturnsFalseForTopNSingleColumn() {
+        // TopN groups are bounded by limit — never crosses the conversion threshold.
+        BlockHash.TopNDef topN = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, true, false)), 10);
+        BlockHash.GroupSpec spec = new BlockHash.GroupSpec(0, ElementType.LONG, null, topN);
+        assertFalse(PartitionedHashAggregationOperator.canPartition(List.of(spec)));
+    }
+
+    public void testCanPartitionReturnsFalseForTopNMultiColumn() {
+        BlockHash.TopNDef topN = new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, true, false)), 10);
+        List<BlockHash.GroupSpec> specs = List.of(
+            new BlockHash.GroupSpec(0, ElementType.LONG, null, topN),
+            new BlockHash.GroupSpec(1, ElementType.INT)
+        );
+        assertFalse(PartitionedHashAggregationOperator.canPartition(specs));
+    }
+
+    public void testCanPartitionReturnsFalseForCategorizeSingleColumn() {
+        // Categorize uses semantic equality incompatible with key-space partitioning.
+        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef(
+            "standard",
+            BlockHash.CategorizeDef.OutputFormat.REGEX,
+            70
+        );
+        BlockHash.GroupSpec spec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorize);
+        assertFalse(PartitionedHashAggregationOperator.canPartition(List.of(spec)));
+    }
+
+    public void testCanPartitionReturnsFalseForCategorizeMultiColumn() {
+        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef(
+            "standard",
+            BlockHash.CategorizeDef.OutputFormat.REGEX,
+            70
+        );
+        List<BlockHash.GroupSpec> specs = List.of(
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorize),
+            new BlockHash.GroupSpec(1, ElementType.LONG)
+        );
+        assertFalse(PartitionedHashAggregationOperator.canPartition(specs));
+    }
+
     // ---- sortPositionsByPartition ----
 
     public void testSortPositionsByPartitionAllInOnePartition() {

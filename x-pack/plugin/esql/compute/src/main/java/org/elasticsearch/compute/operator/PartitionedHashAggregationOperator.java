@@ -85,6 +85,11 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
      * </p>
      */
     public static boolean canPartition(List<BlockHash.GroupSpec> groupSpecs) {
+        // TopN hashes accumulate at most `limit` groups — never enough to trigger conversion.
+        // Categorize hashes use semantic equality incompatible with key-space partitioning.
+        if (groupSpecs.stream().anyMatch(gs -> gs.topNDef() != null || gs.isCategorize())) {
+            return false;
+        }
         if (groupSpecs.size() <= 1) {
             return true;
         }

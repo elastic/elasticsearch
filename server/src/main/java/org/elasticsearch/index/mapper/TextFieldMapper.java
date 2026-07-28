@@ -1088,7 +1088,8 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {

@@ -153,7 +153,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public interface TaggedProjectCustom extends ProjectCustom {
 
         /** Returns a set of project tag names that are allowed for this {@link ProjectCustom}. */
-        Set<String> allowedTags();
+        Set<String> allowedTagsNames();
 
         String tagPrefix();
     }

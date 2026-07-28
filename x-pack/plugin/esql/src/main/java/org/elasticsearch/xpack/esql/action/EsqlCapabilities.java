@@ -2101,6 +2101,11 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE_V6,
 
         /**
+         * Support for the DOUBLE_RANGE field type.
+         */
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V1(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),

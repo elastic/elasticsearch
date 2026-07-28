@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 154413
 pr: 155020
 summary: Draft for CI
 type: feature

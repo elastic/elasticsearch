@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 
-public class ToTimeDuration extends FoldablesConvertFunction {
+public class ToTimeDuration extends FoldablesConvertFunction implements AnyNullIsNull {
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToTimeDuration.class)
         .unary(ToTimeDuration::new)

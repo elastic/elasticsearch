@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -57,7 +58,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * which supports all the relations in the ShapeField.QueryRelation enum.
  * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
  */
-public class SpatialContains extends SpatialRelatesFunction {
+public class SpatialContains extends SpatialRelatesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "SpatialContains",

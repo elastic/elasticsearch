@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -75,7 +76,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToS
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationAware {
+public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
         .unaryConfig(ToString::new)

@@ -20,11 +20,29 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
@@ -55,6 +73,43 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
+
+    /**
+     * Scalar expressions that deliberately don't propagate null through all of their arguments,
+     * and therefore don't implement {@link AnyNullIsNull}.
+     * <p>
+     * Every scalar function must either implement {@link AnyNullIsNull} or be registered here.
+     * This forces a conscious decision whenever a new scalar function is added.
+     */
+    private static final Set<Class<? extends Expression>> EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL = Set.of(
+        // Three-valued-logic expressions, that return non-null for some null inputs.
+        Case.class, // CASE(NULL, 1, 2) = 2
+        Coalesce.class, // COALESCE(NULL, 1) = 1
+        IsNotNull.class, // NULL IS NOT NULL = false
+        IsNull.class, // NULL IS NULL = true
+
+        // Multivalue functions that treat NULL is an empty set.
+        MvContains.class, // MV_CONTAINS([1, 2], NULL) = false
+        MvDifference.class, // MV_DIFFERENCE([1, 2], NULL) = [1, 2]
+        MvInRange.class, // MV_IN_RANGE(NULL, 1, 2) = false
+        MvIntersects.class, // MV_INTERSECTS([1, 2], NULL) = false
+        MvLike.class, // MV_LIKE(NULL, "a*") = false
+        MvRLike.class, // MV_RLIKE(NULL, "a.*") = false
+        MvUnion.class, // MV_UNION(NULL, [1]) = [1]
+        MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
+
+        // Special empty/null handling functions
+        Magnitude.class, // MAGNITUDE(<all-null>) = 0-length block, not null
+        MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
+
+        // Non-evaluatable grouping functions
+        Categorize.class,
+        TimeSeriesWithout.class,
+
+        // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
+        FilterUnsupportedTemporality.class
+    );
+
     /**
      * Converts a list of test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
@@ -119,6 +174,66 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             }
         }
         assertTestCaseResultAndWarnings(result);
+    }
+
+    /**
+     * Functions marked with {@link AnyNullIsNull} promise to return {@code null} whenever any of their
+     * (non-constant) arguments is {@code null}. This verifies that contract automatically for every such
+     * function.
+     * <p>
+     * This also tests that any scalar function is either marked with {@link AnyNullIsNull} or is on
+     * the list {@link #EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL}.
+     */
+    public final void testAnyNullIsNull() {
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("No warnings expected", testCase.getExpectedWarnings() == null);
+
+        Expression expression = buildFieldExpression(testCase);
+        assertThat(
+            expression.getClass().getName()
+                + " must implement "
+                + AnyNullIsNull.class.getSimpleName()
+                + " or be registered in EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL",
+            expression instanceof AnyNullIsNull || EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL.contains(expression.getClass()),
+            is(true)
+        );
+
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+        List<DataType> fieldTypes = data.stream().filter(d -> d.isForceLiteral() == false).map(TestCaseSupplier.TypedData::type).toList();
+
+        DriverContext context = driverContext();
+        BlockFactory blockFactory = context.blockFactory();
+        Page basePage = row(testCase.getDataValues());
+        try (ExpressionEvaluator eval = evaluator(expression).get(context)) {
+            for (int nullField = 0; nullField < fieldTypes.size(); nullField++) {
+                Block[] blocks = new Block[fieldTypes.size()];
+                for (int b = 0; b < fieldTypes.size(); b++) {
+                    ElementType elementType = PlannerUtils.toElementType(fieldTypes.get(b));
+                    try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+                        if (b == nullField) {
+                            builder.appendNull();
+                        } else {
+                            builder.copyFrom(basePage.getBlock(b), 0, 1);
+                        }
+                        blocks[b] = builder.build();
+                    }
+                }
+                Page page = new Page(1, blocks);
+                try (Block result = eval.eval(page)) {
+                    assertThat(
+                        "[" + expression.getClass().getSimpleName() + "] must return null when field argument " + nullField + " is null",
+                        result.isNull(0),
+                        is(true)
+                    );
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            basePage.releaseBlocks();
+        }
     }
 
     /**

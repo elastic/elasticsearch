@@ -182,8 +182,7 @@ public final class DefBootstrap {
                     (String) args[0],
                     receiver,
                     nameValue,
-                    // Optional trailing int flag (present only for a charging dynamic def-receiver bound reference under
-                    // allocation tracking); absent for ordinary references, which never charge.
+                    // optional trailing int charge flag; absent for ordinary references
                     args.length > 1 && ((int) args[1]) != 0
                 );
                 case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
@@ -546,9 +545,7 @@ public final class DefBootstrap {
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                // args[0] is the interface class; an optional args[1] int flag marks a charging dynamic def-receiver bound
-                // reference (allocation tracking). The flag is only ever passed programmatically (Def.lookupMethod), never on
-                // a real indy call site, so it does not affect emitted bytecode.
+                // args[0] is the interface class; an optional args[1] int flag marks a charging def-receiver bound reference.
                 if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }

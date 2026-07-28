@@ -2487,18 +2487,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
             if (targetType == null) {
                 valueType = String.class;
-                // Under allocation tracking, capture the script for an external def reference whose target has an @allocates
-                // method, so a runtime-resolved annotated overload can be charged per invocation (see
-                // Def.lookupReferenceInternal). needsInstance carries the capture through the def-call argument index math;
-                // the charge bootstrap drops it when the resolved target turns out unannotated. this:: references already
-                // capture the script for a real delegate argument; tracking off leaves the encoding unchanged.
+                // Under tracking, charge an external def reference to an @allocates target: pre-filter by name (arity is
+                // unknown here), capture the script via needsInstance, and flag the charge. this:: references are excluded.
                 boolean chargeCapture = isInstanceReference == false
                     && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                     && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(type, methodName);
                 if (chargeCapture) {
-                    // needsInstance=true captures the script; chargesAllocation=true is the explicit charge signal read by
-                    // Def.lookupReferenceInternal (which routes through the charging lambda bootstrap). Keeping them separate
-                    // avoids inferring the charge from needsInstance+symbol (which is also true for a non-charging this::ref).
                     semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                     semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, true, symbol, methodName, 0, true));
                 } else {
@@ -2554,20 +2548,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (targetType == null) {
                 EncodingDecoration encodingDecoration;
                 if (captured.type() == def.class) {
-                    // dynamic implementation. Under allocation tracking, charge a bound reference whose receiver is def
-                    // (`def s = obj; s::method`). The receiver type is unknown at compile time, so there is no pre-filter:
-                    // the script is over-captured (a trailing #scriptThis, numCaptures counts it) and the runtime REFERENCE
-                    // bootstrap resolves the estimator by the actual receiver type, charging only when the resolved target is
-                    // annotated. Encoded with chargesAllocation=true (a trailing 'c'); the IR pushes [receiver, #scriptThis].
+                    // dynamic implementation. Under tracking, charge a def-receiver bound ref (`def s = obj; s::method`). The
+                    // receiver type is unknown, so there is no pre-filter: over-capture the script (trailing #scriptThis,
+                    // counted in numCaptures) and let the runtime resolve and charge by receiver type. Flagged chargesAllocation.
                     if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
                         encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 2, true);
                     } else {
                         encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 1);
                     }
                 } else {
-                    // typed implementation. Under allocation tracking, capture the script (needsInstance=true) for a bound
-                    // reference to an annotated target so it charges per invocation, prepended ahead of the receiver
-                    // capture (see Def.lookupReferenceInternal / LambdaBootstrap); the charge bootstrap drops it.
+                    // typed implementation. Under tracking, charge a bound ref to an annotated target: capture the script
+                    // (needsInstance) prepended ahead of the receiver; the charge bootstrap drops it.
                     boolean chargeCapture = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                         && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(captured.type(), methodName);
                     if (chargeCapture) {

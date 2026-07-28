@@ -1516,8 +1516,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         TargetType targetType = scriptScope.getDecoration(userFunctionRefNode, TargetType.class);
         CapturesDecoration capturesDecoration = scriptScope.getDecoration(userFunctionRefNode, CapturesDecoration.class);
-        // Set when a reference-charging path builds its own capture-name decoration (script + receiver), consulted below so
-        // the plain single-receiver list does not overwrite it.
+        // True when a charging path built its own capture names (script + receiver); consulted below so the plain
+        // single-receiver list does not overwrite it.
         boolean typedChargeAllocation = false;
         boolean dynamicChargeAllocation = false;
 
@@ -1528,12 +1528,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
                 defInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
             }
-            // Dynamic def-receiver bound charging ref (PR 8.6: `def s = obj; s::method`): the script is captured after the
-            // receiver, so push [receiver, #scriptThis]. This is NOT IRCInstanceCapture (which prepends the script) — the
-            // REFERENCE bootstrap dispatches on captures[0]=receiver, and the charging lambda bootstrap drops the trailing
-            // script capture before delegating. Identified by isStatic==false (a dynamically-resolved reference) with a
-            // receiver capture: external charging refs have no receiver capture, and typed-receiver charging bound refs are
-            // isStatic==true and instead prepend the script via needsInstance/IRCInstanceCapture above.
+            // Charging def-receiver bound ref (`def s = obj; s::method`): the REFERENCE bootstrap dispatches on the receiver,
+            // so capture [receiver, #scriptThis] rather than IRCInstanceCapture (which prepends the script). Identified by
+            // isStatic==false with a receiver capture (external charging refs have none; typed-receiver ones are isStatic==true).
             if (encoding.isStatic == false && encoding.chargesAllocation && capturesDecoration != null) {
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
@@ -1543,11 +1540,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.captures().get(0).type() == def.class) {
-            // A def-receiver bound reference used where the target functional-interface type IS known (e.g.
-            // `Optional.empty().orElseGet(s::method)` with `def s`). Same idea as the dynamic def-receiver ref above, but the
-            // target type is fixed at compile time so it emits a real REFERENCE invokedynamic. Under tracking, charge it: the
-            // receiver type is still unknown, so the script is over-captured after the receiver ([receiver, #scriptThis]) and
-            // the runtime-resolved target is charged only when annotated. No pre-filter is possible (receiver type unknown).
+            // Def-receiver bound ref with a known target type (e.g. `Optional.empty().orElseGet(s::method)`, `def s`): like
+            // the def-receiver ref above but emits a real REFERENCE invokedynamic. Under tracking, over-capture and charge it
+            // the same way (receiver type still unknown, so no pre-filter).
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
             typedCaptureReferenceNode.attachDecoration(new IRDName(userFunctionRefNode.getMethodName()));
             if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
@@ -1585,8 +1580,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     typedInterfaceReferenceNode.attachCondition(IRCCaptureBox.class);
                 }
             }
-            // Not charging (tracking off, or an ineligible reference form): reference.chargesAllocation stays false, so the
-            // resolved estimator (if any) is never read and the reference emits unchanged.
+            // Not charging: reference.chargesAllocation stays false, so any resolved estimator is unread and it emits unchanged.
             typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
             if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
                 typedInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);

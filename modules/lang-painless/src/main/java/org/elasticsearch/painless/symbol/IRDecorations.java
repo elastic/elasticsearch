@@ -347,11 +347,7 @@ public class IRDecorations {
         }
     }
 
-    /**
-     * marks a typed-capture reference ({@code def s = obj; s::method} used where the functional-interface type is known) that
-     * should charge its runtime-resolved target's allocation. When set, the code generator pushes the script after the
-     * receiver capture and passes the charge flag on the REFERENCE call site (see {@code visitTypedCaptureReference}).
-     */
+    /** marks a typed-capture reference ({@code def s = obj; s::method}, known target type) whose target should be charged */
     public static class IRCChargeAllocation implements IRCondition {
 
         private IRCChargeAllocation() {

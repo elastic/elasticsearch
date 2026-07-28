@@ -340,17 +340,14 @@ public class FunctionRef {
     /** whether the delegate is a {@code @script_aware} augmentation (script captured as a leading factory parameter) */
     public final boolean isScriptAware;
     /**
-     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. {@code create} resolves it for every
-     * annotated target. It is <em>not</em> the charge signal — {@link #chargesAllocation} is; a non-charging reference may
-     * still carry a resolved estimator (it is simply never read). When charging, this supplies the estimator emitted into the
-     * charge call site (see {@link MethodWriter#invokeLambdaCall} and {@link Def#lookupReferenceInternal}).
+     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. Not the charge signal (that is
+     * {@link #chargesAllocation}); a non-charging reference may carry an unread estimator. Supplies the estimator emitted into
+     * the charge call site when charging.
      */
     public final java.lang.reflect.Method allocationEstimator;
     /**
-     * The explicit signal that this reference is charged per invocation against the captured script. Set by
-     * {@link #withAllocationCharge} when the compiler decides to charge an annotated target (tracking on, eligible form);
-     * false otherwise. Mirrors {@code Def.Encoding#chargesAllocation} on the dynamic path so both paths express the charge
-     * decision the same way rather than inferring it from {@link #allocationEstimator} being non-null.
+     * Whether this reference is charged per invocation. Set by {@link #withAllocationCharge}. The typed-path counterpart of
+     * {@code Def.Encoding#chargesAllocation}, so neither path infers the charge from {@link #allocationEstimator} being set.
      */
     public final boolean chargesAllocation;
 
@@ -423,10 +420,8 @@ public class FunctionRef {
     }
 
     /**
-     * Returns a copy set up to charge this reference's allocation per invocation: the script instance is prepended as a
-     * leading factory capture (so {@code LambdaBootstrap} captures it) and {@link #chargesAllocation} is set. Used by the
-     * compiler for an annotated {@code @allocates} target it decides to charge (tracking on, eligible reference form). The
-     * script capture is dropped by the charging bootstrap before the delegate runs.
+     * Returns a copy that charges this reference per invocation: prepends the script as a leading factory capture and sets
+     * {@link #chargesAllocation}. The charging bootstrap drops the script capture before the delegate runs.
      */
     public FunctionRef withAllocationCharge(Class<?> scriptClass) {
         return new FunctionRef(

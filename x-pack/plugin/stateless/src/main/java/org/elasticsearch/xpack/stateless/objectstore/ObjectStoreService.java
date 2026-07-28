@@ -854,7 +854,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewBlobStoreCacheDirectoryForWarming();
+        var dir = directory.createNewBlobStoreCacheDirectoryForMetadataRead();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -1303,18 +1303,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     // only used for asserts
                     Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
                     while (commitsIterator.hasNext()) {
-                        var referencedCompoundCommit = commitsIterator.next();
+                        // iterator returns all the CCs in the blob, not just the referenced ones, but we filter them later
+                        var compoundCommit = commitsIterator.next();
                         assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
-                        var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
+                        var commitInternalFiles = Sets.intersection(compoundCommit.internalFiles(), referencedFiles);
                         if (commitInternalFiles.isEmpty() == false) {
                             referencedCCsConsumer.accept(
                                 new StatelessCompoundCommitReferenceWithInternalFiles(
-                                    new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
+                                    new StatelessCompoundCommitReference(compoundCommit, referencedBlob, offsetInBlob),
                                     commitInternalFiles
                                 )
                             );
                         }
-                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes());
+                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
                         if (Assertions.ENABLED) {
                             assert Sets.intersection(referencedInternalFiles, commitInternalFiles).isEmpty()
                                 : "some commits contain the same internal file names between them";

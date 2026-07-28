@@ -196,6 +196,30 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         assertThat(pressure.getWaiterCount(), equalTo(0));
     }
 
+    public void testReclaimedBytesFromRejectedGrantFundWaiterThatDidNotFitInitially() {
+        var pressure = pressureWithLimit(100);
+        List<Releasable> granted = new ArrayList<>();
+        pressure.acquire(100, INLINE_GRANTS, collectTo(granted));
+
+        // both waiters are queued; on release only the head fits, so the second is granted solely by the
+        // bytes reclaimed when the head's executor rejects the grant
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        pressure.acquire(80, r -> { throw new EsRejectedExecutionException("simulated rejection", true); }, ActionListener.wrap(r -> {
+            fail("must not be granted, the executor rejected the grant");
+        }, failure::set));
+        List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
+        pressure.acquire(80, INLINE_GRANTS, collectTo(queuedGrants));
+        assertThat(pressure.getWaiterCount(), equalTo(2));
+
+        granted.get(0).close();
+        assertThat(failure.get(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(queuedGrants, hasSize(1));
+        assertThat(pressure.getCurrentBytes(), equalTo(80L));
+        assertThat(pressure.getWaiterCount(), equalTo(0));
+        queuedGrants.forEach(Releasable::close);
+        assertThat(pressure.getCurrentBytes(), equalTo(0L));
+    }
+
     public void testThrowingOnFailureDoesNotStrandSubsequentWaiters() {
         var pressure = pressureWithLimit(100);
         List<Releasable> granted = new ArrayList<>();

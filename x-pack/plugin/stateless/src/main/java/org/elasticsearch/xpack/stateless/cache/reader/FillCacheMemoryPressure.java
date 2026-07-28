@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache.reader;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -18,6 +16,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,6 +145,36 @@ public class FillCacheMemoryPressure {
     }
 
     private void release(long bytes) {
+        final List<Exception> listenerFailures = new ArrayList<>();
+        // Iterative rather than recursive: each pass returns budget and admits newly-fitting waiters; a grant whose
+        // executor rejects it (node shutting down) has its bytes reclaimed on the next pass. Grants are delivered
+        // off-mutex and forked, so a synchronously-failing read cannot re-enter this method on the same stack.
+        long bytesToReturn = bytes;
+        while (bytesToReturn > 0) {
+            long reclaimed = 0;
+            for (Waiter waiter : returnBudgetAndGrantWaiters(bytesToReturn)) {
+                try {
+                    waiter.executor().execute(() -> deliverGrant(waiter));
+                } catch (Exception e) {
+                    // executor rejected (node shutting down): reclaim budget, fail waiter — but collect (do not
+                    // propagate) any exception from onFailure so subsequent granted waiters are still notified.
+                    // Mirrors ActionListener.onFailure(Iterable, Exception) at server/action/ActionListener.java:319.
+                    reclaimed += waiter.bytes();
+                    try {
+                        waiter.listener().onFailure(e);
+                    } catch (Exception listenerException) {
+                        listenerFailures.add(listenerException);
+                    }
+                }
+            }
+            bytesToReturn = reclaimed;
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerFailures);
+    }
+
+    // returns {@code bytes} to the budget and grants waiters, FIFO, while the head fits; the caller must complete
+    // the returned waiters' listeners without holding the mutex
+    private List<Waiter> returnBudgetAndGrantWaiters(long bytes) {
         final List<Waiter> granted = new ArrayList<>();
         synchronized (mutex) {
             currentBytes -= bytes;
@@ -159,24 +189,7 @@ public class FillCacheMemoryPressure {
                 granted.add(head);
             }
         }
-        // off-mutex + forked: a synchronously-failing read would otherwise recurse into release
-        final List<Exception> listenerFailures = new ArrayList<>();
-        for (Waiter waiter : granted) {
-            try {
-                waiter.executor().execute(() -> deliverGrant(waiter));
-            } catch (Exception e) {
-                // executor rejected (node shutting down): return budget, fail waiter — but collect (do not propagate)
-                // any exception from onFailure so subsequent granted waiters are still notified.
-                // Mirrors ActionListener.onFailure(Iterable, Exception) at server/action/ActionListener.java:319.
-                release(waiter.bytes());
-                try {
-                    waiter.listener().onFailure(e);
-                } catch (Exception listenerException) {
-                    listenerFailures.add(listenerException);
-                }
-            }
-        }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerFailures);
+        return granted;
     }
 
     // runs on the waiter's executor; hands the Releasable to the listener and releases the budget if the listener throws

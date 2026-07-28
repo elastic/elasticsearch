@@ -36,15 +36,17 @@ import static org.hamcrest.Matchers.hasSize;
  * The happy path verifies that a role holding only the Kibana {@code feature_dashboards.read}
  * application privilege on {@code space:marketing} (with <b>no</b> explicit index privileges)
  * can read the {@code ai-index-idx-sml-data} index, and that the implicit document-level-security
- * filter restricts results using composite {@code dls_tokens} that bind space and privilege together:
+ * filter restricts results using composite tokens stored in {@code permissions.kibana.privileges.name}
+ * that bind space and privilege together:
  * <ul>
  *   <li>Documents requiring a token for a different space are hidden even if the privilege matches.</li>
  *   <li>Documents requiring a token for a privilege the user does not hold are hidden even if the
  *       space matches.</li>
  *   <li>Documents requiring <em>multiple</em> composite tokens where the user lacks one are hidden
  *       (AND semantics enforced by {@code terms_set} with
- *       {@code minimum_should_match_field: dls_tokens_count}).</li>
- *   <li>Documents with no {@code dls_tokens} field are always visible (public documents).</li>
+ *       {@code minimum_should_match_field: permissions_count}).</li>
+ *   <li>Documents with no {@code permissions.kibana.privileges.name} field are always visible
+ *       (public documents).</li>
  * </ul>
  */
 public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
@@ -147,17 +149,13 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createSmlIndexWithDocs() throws Exception {
-        // dls_tokens must be keyword so the implicit terms_set DLS query matches;
-        // dls_tokens_count must be integer so the minimum_should_match_field works correctly.
-        // spaces, permissions.kibana.privileges.name are kept as keywords for backward compat
-        // with the rest of the document schema, but DLS is now driven by dls_tokens.
+        // permissions.kibana.privileges.name must be keyword so the implicit terms_set DLS query matches;
+        // permissions_count must be integer so the minimum_should_match_field works correctly.
         final Request create = new Request("PUT", "/" + SML_INDEX);
         create.setJsonEntity("""
             {
               "mappings": {
                 "properties": {
-                  "dls_tokens": { "type": "keyword" },
-                  "dls_tokens_count": { "type": "integer" },
                   "spaces": { "type": "keyword" },
                   "permissions": {
                     "properties": {
@@ -172,6 +170,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
                       }
                     }
                   },
+                  "permissions_count": { "type": "integer" },
                   "title": { "type": "keyword" }
                 }
               }
@@ -182,14 +181,13 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         // Should be visible: user holds marketing|saved_object:dashboard/get.
         indexSmlDoc("marketing-dashboard", """
             {
-              "dls_tokens": ["marketing|saved_object:dashboard/get"],
-              "dls_tokens_count": 1,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "saved_object:dashboard/get"}]
+                  "privileges": [{"name": "marketing|saved_object:dashboard/get"}]
                 }
               },
+              "permissions_count": 1,
               "title": "marketing dashboard"
             }
             """);
@@ -197,14 +195,13 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         // Should NOT be visible: user does not hold finance|saved_object:dashboard/get (wrong space in token).
         indexSmlDoc("finance-dashboard", """
             {
-              "dls_tokens": ["finance|saved_object:dashboard/get"],
-              "dls_tokens_count": 1,
               "spaces": ["finance"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "saved_object:dashboard/get"}]
+                  "privileges": [{"name": "finance|saved_object:dashboard/get"}]
                 }
               },
+              "permissions_count": 1,
               "title": "finance dashboard"
             }
             """);
@@ -212,23 +209,22 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         // Should NOT be visible: user doesn't hold marketing|saved_object:lens/get (privilege not in grant).
         indexSmlDoc("marketing-lens", """
             {
-              "dls_tokens": ["marketing|saved_object:lens/get"],
-              "dls_tokens_count": 1,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "saved_object:lens/get"}]
+                  "privileges": [{"name": "marketing|saved_object:lens/get"}]
                 }
               },
+              "permissions_count": 1,
               "title": "marketing lens"
             }
             """);
 
-        // Should be visible: no dls_tokens field → public document.
+        // Should be visible: no permissions field → public document.
         indexSmlDoc("global-no-perms", """
             {
-              "dls_tokens_count": 0,
               "spaces": ["*"],
+              "permissions_count": 0,
               "title": "global no perms"
             }
             """);
@@ -237,17 +233,16 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         // user only holds marketing|saved_object:dashboard/get, not marketing|saved_object:lens/get.
         indexSmlDoc("multi-perm", """
             {
-              "dls_tokens": ["marketing|saved_object:dashboard/get", "marketing|saved_object:lens/get"],
-              "dls_tokens_count": 2,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": [
-                    {"name": "saved_object:dashboard/get"},
-                    {"name": "saved_object:lens/get"}
+                    {"name": "marketing|saved_object:dashboard/get"},
+                    {"name": "marketing|saved_object:lens/get"}
                   ]
                 }
               },
+              "permissions_count": 2,
               "title": "multi perm"
             }
             """);
@@ -282,8 +277,8 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");
-        assertThat(query, containsString("dls_tokens"));
-        assertThat(query, containsString("dls_tokens_count"));
+        assertThat(query, containsString("permissions.kibana.privileges.name"));
+        assertThat(query, containsString("permissions_count"));
         assertThat(query, containsString("marketing|saved_object:dashboard/get"));
         assertThat(query, containsString("terms_set"));
     }

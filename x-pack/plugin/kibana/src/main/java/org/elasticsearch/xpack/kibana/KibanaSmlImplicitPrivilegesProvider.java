@@ -31,24 +31,26 @@ import java.util.Set;
  * ({@code ai-index-idx-sml-data}) for users whose roles include a Kibana application privilege
  * granting {@code login:}.
  * <p>
- * SML documents carry composite {@code dls_tokens} that bind a space and a privilege action
- * together (e.g. {@code "marketing|saved_object:dashboard/get"}). The number of tokens a document
- * requires is pre-computed and stored in {@code dls_tokens_count}. A document with no
- * {@code dls_tokens} field is a public document visible to all users who pass the login check.
+ * SML documents carry composite tokens in {@code permissions.kibana.privileges.name} that bind a
+ * space and a privilege action together (e.g. {@code "marketing|saved_object:dashboard/get"}). The
+ * number of tokens a document requires is pre-computed and stored in {@code permissions_count}. A
+ * document with no {@code permissions.kibana.privileges.name} field is a public document visible to
+ * all users who pass the login check.
  * <p>
  * The provider builds the user's token set from the cross-product of their space IDs and action
  * strings across all matching grants. For each space the user belongs to and each action they hold
  * in that space, one composite token {@code "<spaceId>|<action>"} is emitted. The DLS query then
  * uses a {@code terms_set} query requiring that every token listed on the document is present in
- * the user's held set ({@code minimum_should_match_field: dls_tokens_count}).
+ * the user's held set ({@code minimum_should_match_field: permissions_count}).
  * <p>
  * When the user holds the wildcard resource ({@code *}), full read access is granted with no DLS
  * restriction. Otherwise, the provider builds a DLS query that:
  * <ul>
- *   <li>Allows documents that have no {@code dls_tokens} field (public documents).</li>
- *   <li>Allows documents whose entire {@code dls_tokens} set is a subset of the user's held
- *       composite tokens (enforced via {@code terms_set} with
- *       {@code minimum_should_match_field: dls_tokens_count}).</li>
+ *   <li>Allows documents that have no {@code permissions.kibana.privileges.name} field (public
+ *       documents).</li>
+ *   <li>Allows documents whose entire {@code permissions.kibana.privileges.name} set is a subset of
+ *       the user's held composite tokens (enforced via {@code terms_set} with
+ *       {@code minimum_should_match_field: permissions_count}).</li>
  * </ul>
  */
 public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
@@ -60,8 +62,8 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
     static final String RESOURCE_PREFIX = "space:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
-    static final String DLS_TOKENS_FIELD = "dls_tokens";
-    static final String DLS_TOKENS_COUNT_FIELD = "dls_tokens_count";
+    static final String PERMISSIONS_FIELD = "permissions.kibana.privileges.name";
+    static final String PERMISSIONS_COUNT_FIELD = "permissions_count";
     static final String TOKEN_SEPARATOR = "|";
 
     @Override
@@ -162,15 +164,17 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
     }
 
     /**
-     * Builds the DLS query that gates SML document visibility by composite {@code dls_tokens}.
+     * Builds the DLS query that gates SML document visibility by composite tokens stored in
+     * {@code permissions.kibana.privileges.name}.
      * <p>
      * The query structure is a top-level {@code bool/should} with two branches:
      * <ol>
-     *   <li>Public-document branch: {@code bool/must_not exists dls_tokens} — matches documents
-     *       that carry no token requirements (publicly visible to any login: user).</li>
-     *   <li>Token-match branch: {@code terms_set} on {@code dls_tokens} requiring the document's
-     *       full token set to be a subset of the user's held tokens, enforced via
-     *       {@code minimum_should_match_field: dls_tokens_count}.</li>
+     *   <li>Public-document branch: {@code bool/must_not exists permissions.kibana.privileges.name}
+     *       — matches documents that carry no token requirements (publicly visible to any login:
+     *       user).</li>
+     *   <li>Token-match branch: {@code terms_set} on {@code permissions.kibana.privileges.name}
+     *       requiring the document's full token set to be a subset of the user's held tokens,
+     *       enforced via {@code minimum_should_match_field: permissions_count}.</li>
      * </ol>
      * <p>
      * Hand-rolled via {@link XContentBuilder} rather than {@code QueryBuilders} to keep the
@@ -183,12 +187,12 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
             builder.startObject("bool");
             builder.startArray("should");
 
-            // Branch A: document has no dls_tokens (public document)
+            // Branch A: document has no permissions.kibana.privileges.name (public document)
             builder.startObject();
             builder.startObject("bool");
             builder.startObject("must_not");
             builder.startObject("exists");
-            builder.field("field", DLS_TOKENS_FIELD);
+            builder.field("field", PERMISSIONS_FIELD);
             builder.endObject(); // exists
             builder.endObject(); // must_not
             builder.endObject(); // bool
@@ -197,10 +201,10 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
             // Branch B: user holds ALL of the document's required tokens
             builder.startObject();
             builder.startObject("terms_set");
-            builder.startObject(DLS_TOKENS_FIELD);
+            builder.startObject(PERMISSIONS_FIELD);
             builder.array("terms", tokens.toArray(new String[0]));
-            builder.field("minimum_should_match_field", DLS_TOKENS_COUNT_FIELD);
-            builder.endObject(); // DLS_TOKENS_FIELD
+            builder.field("minimum_should_match_field", PERMISSIONS_COUNT_FIELD);
+            builder.endObject(); // PERMISSIONS_FIELD
             builder.endObject(); // terms_set
             builder.endObject(); // outer object
 

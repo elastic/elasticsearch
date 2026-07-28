@@ -73,21 +73,17 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testKeepWildcard() {
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*")));
         assertKept(pattern, "first_name_suffix");
-        // Mapped fields (including "first_name" itself) are excluded even though they match the wildcard.
         assertNotKept(pattern, excl());
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
     public void testKeepExactName() {
-        // KEEP of a mapped field ("salary") keeps no unmapped source field.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP salary")));
         assertNotKept(pattern, excl());
         assertNotKept(pattern, "unmapped_extra", "salary_bonus");
     }
 
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
-        // One KEEP lists alternatives (OR): "first_name_suffix" matches "first_name*"; "salary" is mapped and
-        // contributes nothing to unmapped-field selection.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary")));
         assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, excl());
@@ -95,7 +91,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testKeepSingleCommandOrAcrossWildcardTerms() {
-        // One KEEP: alternatives within the projection list (OR). Both unmapped wildcard families survive.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary_bonus*")));
         assertKept(pattern, "first_name_suffix", "salary_bonus");
         assertNotKept(pattern, excl());
@@ -103,8 +98,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testChainedKeepCombinesOrGroupsWithAnd() {
-        // Chained KEEPs intersect OR groups: only fields matching every group survive. "first_name_suffix"
-        // matches both "first*" and "first_name*"; "first_grade" matches only the first group.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary_bonus* | KEEP first_name*"))
         );
@@ -119,8 +112,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("salary"));
     }
 
+    public void testDropWildcardDoesNotRemoveSyntheticColumn() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP *unmapped_fields")));
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, "source_unmapped_fields");
+        assertNotKept(pattern, excl());
+    }
+
     public void testRename() {
-        // The RENAME target "x" shadows any unmapped source field of the same name.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x")));
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("x"));
@@ -148,8 +147,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testKeepWildcardThenEvalShadow() {
-        // EVAL introduces first_name, the same name as a mapped field; it is excluded even though it
-        // matches the KEEP wildcard "first*". Other first* source fields are still kept.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | KEEP first* | EVAL first_name = to_upper(first_name)"))
         );
@@ -159,8 +156,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testKeepWildcardThenDropWildcard() {
-        // KEEP narrows includes to "first*"; DROP then subtracts the "first_name*" sub-family. Both commands
-        // contribute: "first_grade" (first* but not first_name*) survives, "first_name_suffix" does not.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary | DROP first_name*"))
         );
@@ -182,8 +177,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testEvalShadowThenKeepWildcard() {
-        // The EVAL output "first_name_x" matches the later KEEP wildcard "first_name*" but is shadowed by the
-        // EVAL, so it is not kept; other "first_name*" source fields still are.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | EVAL first_name_x = 1 | KEEP first_name*"))
         );
@@ -193,15 +186,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testRenameThenEval() {
-        // The RENAME target ("x") and the EVAL output ("y") each shadow a same-named unmapped source field.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x | EVAL y = 2")));
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("x", "y"));
     }
 
     public void testKeepWildcardThenRename() {
-        // RENAME after KEEP: the rename target "first_name_x" matches the KEEP wildcard "first_name*" but is
-        // shadowed by the rename, so it is not kept; other "first_name*" source fields still are.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | KEEP first_name* | RENAME first_name AS first_name_x"))
         );
@@ -211,8 +201,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testChainedKeepWildcardsIntersect() {
-        // Chained KEEP wildcards apply AND semantics: only source fields matching BOTH "first*" and
-        // "first_name*" survive. "first_name_suffix" matches both; "first_grade" matches only "first*".
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP first* | KEEP first_name*")));
         assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, "first_grade", "unmapped_extra");
@@ -220,8 +208,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testChainedDropsAccumulateExcludes() {
-        // Chained DROPs accumulate excludes. DROP salary removes only the exact name "salary", so the unmapped
-        // "salary_bonus" survives; DROP first_name* removes the entire "first_name*" family.
         UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP salary | DROP first_name*")));
         assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
         assertNotKept(pattern, "first_name_suffix");
@@ -229,9 +215,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testKeepThenDropThenEval() {
-        // Three commands, each observable: KEEP first*, salary narrows includes to "first*"; DROP first_name*
-        // excludes that sub-family; EVAL first_grade = 1 shadows the exact name "first_grade". So
-        // "first_grade_bonus" (first*, not first_name*, not the exact eval name) survives, but "first_grade" does not.
         UnmappedFieldsPattern pattern = patternOf(
             test().statement(setUnmappedLoadAll("FROM test | KEEP first*, salary | DROP first_name* | EVAL first_grade = 1"))
         );
@@ -241,7 +224,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testLoadAllUnmappedFieldsColumnNotDirectlyReferenceable() {
-        // _unmapped_fields is a synthetic column; it must not be explicitly referenceable by name.
         test().statementError(
             setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"),
             containsString("Unknown column [_unmapped_fields]")
@@ -249,12 +231,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testDropUnmappedFieldsColumn() {
-        // _unmapped_fields is a synthetic column; explicitly DROPping it by name must be rejected.
         test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("Unknown column [_unmapped_fields]"));
     }
 
     public void testRenameUnmappedFieldsColumn() {
-        // _unmapped_fields is a synthetic column; explicitly RENAMEing it must be rejected.
         test().statementError(
             setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"),
             containsString("Unknown column [_unmapped_fields]")
@@ -262,8 +242,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testScalarFunctionOnUnmappedFieldsColumn() {
-        // _unmapped_fields is a synthetic column; using it as a scalar-function argument must be
-        // rejected — the column can only appear in the output implicitly.
         test().statementError(
             setUnmappedLoadAll("FROM test | EVAL len = LENGTH(_unmapped_fields)"),
             containsString("Unknown column [_unmapped_fields]")
@@ -286,7 +264,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    /** Returns the unmapped-fields pattern from the plan's {@link EsRelation}. */
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {
         EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
         return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();

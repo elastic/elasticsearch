@@ -150,7 +150,13 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         String query = "FROM test | KEEP first_name*";
         Configuration configuration = randomConfiguration(query, randomTables());
-        PhysicalPlan dataNodePlan = dataNodePlan(parse(query, UnmappedResolution.LOAD_ALL), configuration);
+        Versioned<LogicalPlan> logicalPlan = parse(query, UnmappedResolution.LOAD_ALL);
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, logicalPlan.minimumVersion()));
+        PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(logicalPlan));
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
         UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
         assertTrue(before.pattern().matches("first_name_suffix"));
         assertFalse(before.pattern().matches("first_name"));
@@ -172,12 +178,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         DataNodeRequest copy = copyInstance(request, TransportVersion.current());
         UnmappedFieldsAttribute after = unmappedFieldsAttribute(copy.plan());
         assertThat(after, equalTo(before));
-    }
-
-    private static PhysicalPlan dataNodePlan(Versioned<LogicalPlan> logicalPlan, Configuration configuration) {
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, logicalPlan.minimumVersion()));
-        PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(logicalPlan));
-        return PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, physicalPlan), configuration).v2();
     }
 
     private static UnmappedFieldsAttribute unmappedFieldsAttribute(PhysicalPlan plan) {

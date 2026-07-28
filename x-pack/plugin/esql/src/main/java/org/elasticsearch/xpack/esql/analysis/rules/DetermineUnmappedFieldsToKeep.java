@@ -41,17 +41,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
             return plan;
-        } else {
-            UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
-            return plan.transformUp(EsRelation.class, esr -> {
-                if (esr.indexMode() == IndexMode.LOOKUP) {
-                    return esr;
-                }
-                List<String> outputNames = esr.output().stream().map(Attribute::name).toList();
-                UnmappedFieldsPattern refined = pattern.withAdditionalExcludes(outputNames);
-                return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, refined));
-            });
         }
+        UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
+        return plan.transformUp(EsRelation.class, esr -> {
+            if (esr.indexMode() == IndexMode.LOOKUP) {
+                return esr;
+            }
+            List<String> outputNames = esr.output().stream().map(Attribute::name).toList();
+            UnmappedFieldsPattern refined = pattern.withAdditionalExcludes(outputNames);
+            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, refined));
+        });
     }
 
     /**

@@ -39,8 +39,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     public void testFiltersOutMappedFieldsKeepingUnmappedSourceKeys() throws IOException {
-        // Mirrors production: includes "*" with the mapped field names added to the excludes, so only the
-        // unmapped source keys survive into _unmapped_fields.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.excludes(List.of("emp_no", "first_name")),
             Map.of("emp_no", 1, "first_name", "John", "first_pet", "Rex", "hobby", "chess")
@@ -57,7 +55,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testIncludeWildcardWithExcludeRemovesMatchingKey() throws IOException {
-        // A surviving key must match its include group and no exclude: "first_name" matches "first*" but is excluded.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first*")).withAdditionalExcludes(List.of("first_name")),
             Map.of("first_name", "John", "first_pet", "Rex", "first_toy", "ball", "last_name", "Doe")
@@ -66,7 +63,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testSingleIncludeGroupUsesOrSemantics() throws IOException {
-        // One OR group: a key survives if it matches any alternative in the group.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first_name*", "salary_bonus*")),
             Map.of("first_name_suffix", "Jr", "salary_bonus", 100, "first_pet", "Rex", "last_name", "Doe")
@@ -75,8 +71,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testMultipleIncludeGroupsRequireEachGroupToMatch() throws IOException {
-        // Chained KEEP semantics: each OR group must match (AND across groups). "first_name_suffix" matches
-        // both "first*" and "first_name*"; "first_pet" and "first_grade" match only "first*", so they drop.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.includes(List.of("first*")).intersect(UnmappedFieldsPattern.includes(List.of("first_name*"))),
             Map.of("first_name_suffix", "Jr", "first_pet", "Rex", "first_grade", "A", "last_name", "Doe")
@@ -85,8 +79,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testExcludePatternRemovesMatchingSourceKeys() throws IOException {
-        // excludes(...) starts from an include of "*" and then drops keys matching any exclude, so every key
-        // outside the "secret*" family survives.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.excludes(List.of("secret*")),
             Map.of("secret_key", "abc", "secret_token", "xyz", "public_note", "hello")
@@ -95,7 +87,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testNestedSourceValuesArePreserved() throws IOException {
-        // Object- and array-valued keys pass through unchanged for surviving keys.
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.excludes(List.of("first_name")),
             Map.of("address", Map.of("city", "Berlin", "zip", "10115"), "tags", List.of("a", "b"), "first_name", "John")
@@ -123,7 +114,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testNullSourceValueIsKeptNotDropped() throws IOException {
-        // _source may carry null values; the loader must keep the matching key with a null value rather than fail.
         Map<String, Object> source = new HashMap<>();
         source.put("first_pet", null);
         source.put("hobby", "chess");
@@ -168,10 +158,6 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * Drive {@link UnmappedFieldsBlockLoader} under a cranky breaker many times. Whether or not the breaker trips on a given attempt,
-     * once the returned reader is closed the breaker must always be back to zero.
-     */
     public void testReaderUnderCrankyBreakerDoesNotLeak() throws IOException {
         UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
         Source source = Source.fromMap(Map.of("a", "b", "c", "d"), XContentType.JSON);

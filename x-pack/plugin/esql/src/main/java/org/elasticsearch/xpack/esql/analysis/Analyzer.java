@@ -2320,9 +2320,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list.
          *
-         * <p>Unlike {@link #patternForKeep}, this does not consult {@code childOutput}: a DROP pattern
-         * always excludes matching names from the unmapped-field set, whether or not those names are
-         * already mapped columns in the child output.
+         * <p>Unlike {@link #patternForKeep}, this does not consult {@code childOutput}: planning cannot
+         * know which unmapped source fields will be loaded, so DROP patterns must always be retained to
+         * exclude matching names from the unmapped-field set, whether or not those names are already
+         * mapped columns in the child output.
          */
         private static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
             return UnmappedFieldsPattern.excludes(

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -17,8 +17,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -28,8 +26,6 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.session.Result;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -162,17 +158,26 @@ class ExpandUnmappedFieldsPostProcessor {
         int retainedBlockCount = originalColumnCount - 1;
         BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[blockCount - retainedBlockCount];
         BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
-        try {
+        try (var ignored = Releasables.wrap(builders)) {
             Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
+            var bytesRefBuilder = new BytesRefBuilder();
             for (int row = 0; row < page.getPositionCount(); row++) {
                 var rowMap = unmappedBlock.isNull(row) ? Map.of() : parseJson(getBytesRef(unmappedBlock, row, scratch));
                 int builderIndex = 0;
                 for (String fieldName : fieldNames) {
-                    appendJsonValue(builders[builderIndex++], rowMap.get(fieldName));
+                    var builder = builders[builderIndex++];
+                    Object val = rowMap.get(fieldName);
+                    if (val == null) {
+                        builder.appendNull();
+                    } else {
+                        bytesRefBuilder.copyChars(String.valueOf(val));
+                        builder.appendBytesRef(bytesRefBuilder.get());
+                    }
                 }
             }
             for (int i = 0; i < builders.length; i++) {
                 allBlocks[retainedBlockCount + i] = builders[i].build();
+                builders[i] = null;
             }
             var result = new Page(allBlocks);
             // Release _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
@@ -180,77 +185,9 @@ class ExpandUnmappedFieldsPostProcessor {
             success = true;
             return result;
         } finally {
-            Releasables.closeExpectNoException(builders);
             if (success == false) {
                 Releasables.closeExpectNoException(allBlocks);
             }
-        }
-    }
-
-    /**
-     * Emits a parsed JSON value to {@code builder}. Scalars become a single keyword; JSON arrays become a multi-value
-     * position with one keyword per element (nested arrays flattened, null elements skipped, embedded objects as
-     * canonical JSON text); top-level JSON objects become canonical JSON text in a single keyword position.
-     */
-    private static void appendJsonValue(BytesRefBlock.Builder builder, Object value) {
-        if (value == null) {
-            builder.appendNull();
-            return;
-        }
-        if (value instanceof Map<?, ?> map) {
-            builder.appendBytesRef(canonicalJsonBytesRef(map));
-            return;
-        }
-        if (value instanceof List<?> list) {
-            appendArrayAsMultiValue(builder, list);
-            return;
-        }
-        builder.appendBytesRef(new BytesRef(String.valueOf(value)));
-    }
-
-    private static void appendArrayAsMultiValue(BytesRefBlock.Builder builder, List<?> list) {
-        List<BytesRef> elements = new ArrayList<>();
-        collectKeywordValues(list, elements);
-        if (elements.isEmpty()) {
-            builder.appendNull();
-            return;
-        }
-        if (elements.size() == 1) {
-            builder.appendBytesRef(elements.get(0));
-            return;
-        }
-        builder.beginPositionEntry();
-        for (BytesRef element : elements) {
-            builder.appendBytesRef(element);
-        }
-        builder.endPositionEntry();
-    }
-
-    /**
-     * Appends every array element in document order. Recurses into nested arrays (flattening scalar leaves),
-     * serializes embedded objects to canonical JSON keyword elements, and skips JSON nulls.
-     */
-    private static void collectKeywordValues(List<?> list, List<BytesRef> elements) {
-        for (Object element : list) {
-            if (element == null) {
-                continue;
-            }
-            if (element instanceof List<?> nested) {
-                collectKeywordValues(nested, elements);
-            } else if (element instanceof Map<?, ?> map) {
-                elements.add(canonicalJsonBytesRef(map));
-            } else {
-                elements.add(new BytesRef(String.valueOf(element)));
-            }
-        }
-    }
-
-    private static BytesRef canonicalJsonBytesRef(Object value) {
-        try (XContentBuilder json = XContentFactory.jsonBuilder()) {
-            json.value(value);
-            return BytesReference.bytes(json).toBytesRef();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

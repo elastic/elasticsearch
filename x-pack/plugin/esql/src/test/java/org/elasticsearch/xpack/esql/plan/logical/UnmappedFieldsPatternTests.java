@@ -7,40 +7,46 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.util.List;
 
-public class UnmappedFieldsPatternTests extends ESTestCase {
+public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<UnmappedFieldsPattern> {
 
-    public void testSingleIncludeGroupUsesOrSemantics() {
-        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(List.of("first_name*", "salary_bonus*"));
-        assertTrue(pattern.matches("first_name_suffix"));
-        assertTrue(pattern.matches("salary_bonus"));
-        assertFalse(pattern.matches("first_grade"));
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(List.of(UnmappedFieldsPattern.ENTRY));
     }
 
-    public void testIntersectCombinesOrGroupsWithAnd() {
-        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(List.of("first*", "salary_bonus*"))
-            .intersect(UnmappedFieldsPattern.includes(List.of("first_name*")));
-        assertTrue(pattern.matches("first_name_suffix"));
-        assertFalse(pattern.matches("salary_bonus"));
-        assertFalse(pattern.matches("first_grade"));
+    @Override
+    protected Class<UnmappedFieldsPattern> categoryClass() {
+        return UnmappedFieldsPattern.class;
     }
 
-    public void testExcludesApplyAfterIncludes() {
-        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(List.of("first*")).withAdditionalExcludes(List.of("first_name"));
-        assertTrue(pattern.matches("first_pet"));
-        assertFalse(pattern.matches("first_name"));
+    @Override
+    protected UnmappedFieldsPattern createTestInstance() {
+        return switch (between(0, 3)) {
+            case 0 -> UnmappedFieldsPattern.ALL;
+            case 1 -> UnmappedFieldsPattern.NONE;
+            case 2 -> UnmappedFieldsPattern.includes(List.of("first*", "given*"))
+                .intersect(UnmappedFieldsPattern.includes(List.of("last*", "family*")))
+                .withAdditionalExcludes(List.of("secret*", "emp_no"));
+            case 3 -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*"));
+            default -> throw new AssertionError("unreachable");
+        };
     }
 
-    public void testAllMatchesAnyNameUnlessExcluded() {
-        assertTrue(UnmappedFieldsPattern.ALL.matches("anything"));
-        assertTrue(UnmappedFieldsPattern.excludes(List.of("secret*")).matches("public"));
-        assertFalse(UnmappedFieldsPattern.excludes(List.of("secret*")).matches("secret_key"));
-    }
-
-    public void testNoneMatchesNothing() {
-        assertFalse(UnmappedFieldsPattern.NONE.matches("anything"));
+    @Override
+    protected UnmappedFieldsPattern mutateInstance(UnmappedFieldsPattern instance) {
+        if (instance.isNone()) {
+            return UnmappedFieldsPattern.ALL;
+        }
+        if (instance.equals(UnmappedFieldsPattern.ALL)) {
+            return UnmappedFieldsPattern.NONE;
+        }
+        return randomBoolean()
+            ? instance.intersect(UnmappedFieldsPattern.includes(List.of("mutation_" + randomAlphaOfLength(4) + "*")))
+            : instance.withAdditionalExcludes(List.of("mutation_" + randomAlphaOfLength(4)));
     }
 }

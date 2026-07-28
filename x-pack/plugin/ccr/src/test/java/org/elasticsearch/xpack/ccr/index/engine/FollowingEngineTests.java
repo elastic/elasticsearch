@@ -39,7 +39,6 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
-import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -103,14 +102,11 @@ public class FollowingEngineTests extends ESTestCase {
 
     @Before
     public void initEngineTestResources() throws Exception {
-        Settings settings = Settings.builder()
-            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
-            .build();
-        threadPool = new TestThreadPool("following-engine-tests", settings);
-        nodeEnvironment = newNodeEnvironment(settings);
+        threadPool = new TestThreadPool("following-engine-tests", Settings.EMPTY);
+        nodeEnvironment = newNodeEnvironment(Settings.EMPTY);
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            ClusterSettings.createBuiltInClusterSettings(settings),
+            ClusterSettings.createBuiltInClusterSettings(),
             nodeEnvironment
         );
         index = new Index("index", "uuid");

@@ -44,13 +44,13 @@ From this tab you can search your data sources, connect a new one, and edit or d
 Click **Connect data source** to open a flyout where you define the connection:
 
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
-- **Name**: a unique name for the data source.
+- **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description.
-- **Region**: the storage region.
+- **Region**: the cloud region where your storage is located, such as `us-east-1`.
 - **Endpoint**: an optional Amazon S3 endpoint override.
-- **Authentication**: a **Preferred method** and its credentials. For example, **Access and Secret Keys** takes an **Access key** and **Secret key**.
+- **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
-For the full set of authentication methods, refer to [authentication models](#authentication).
+For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
 
 :::{dropdown} Show the Connect data source flyout
 :::{image} images/data-federation/connect-data-source-static-credentials.png
@@ -127,6 +127,10 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 :::
 
 ::::
+
+:::{tip}
+For step-by-step guides on setting up each authentication model in AWS, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
+:::
 
 ### Get a data source
 

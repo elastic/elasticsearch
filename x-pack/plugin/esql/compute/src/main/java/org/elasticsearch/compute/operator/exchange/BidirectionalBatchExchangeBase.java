@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
@@ -37,11 +38,12 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
     protected final Settings settings;
 
     /**
-     * Logs an exchange failure at {@code nonCancellationLevel}, unless it is a cancellation. Cancellations are
-     * expected teardown (for example the query reached its LIMIT and the exchange was closed early via a
-     * synthesized "client stopped" error, or the task was cancelled), so they are logged at DEBUG to keep
-     * genuine failures visible. Shared by the client, the server, and the operator driving them, so the caller
-     * supplies its own logger.
+     * Logs an exchange failure at {@code nonCancellationLevel}, unless it is a cancellation or a circuit breaker
+     * trip. Cancellations are expected teardown (for example the query reached its LIMIT and the exchange was
+     * closed early via a synthesized "client stopped" error, or the task was cancelled), so they are logged at
+     * DEBUG to keep genuine failures visible. Circuit breaker trips are logged at WARN because they are an
+     * expected backpressure signal (the client receives a 429) rather than a bug. Shared by the client, the
+     * server, and the operator driving them, so the caller supplies its own logger.
      *
      * @param logger               the logger to log to (the caller's own logger)
      * @param nonCancellationLevel the level to log at when the failure is not a cancellation
@@ -53,6 +55,8 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
     public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
         if (failure != null && ExceptionsHelper.isTaskCancelledException(failure)) {
             logger.debug(message, params);
+        } else if (failure != null && ExceptionsHelper.unwrapCause(failure) instanceof CircuitBreakingException) {
+            logger.warn(message, params);
         } else {
             logger.log(nonCancellationLevel, message, params);
         }

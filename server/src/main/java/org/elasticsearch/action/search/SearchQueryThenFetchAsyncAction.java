@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -714,7 +715,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
-                        e -> logger.error("failed to merge on data node", e)
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                                logger.warn("failed to merge on data node", e);
+                            } else {
+                                logger.error("failed to merge on data node", e);
+                            }
+                        }
                     ),
                     request,
                     cancellableTask,

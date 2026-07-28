@@ -389,12 +389,22 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * for: ERROR by default, or WARN for the warn-level sites.
      */
     public void testGenuineFailuresAreLoggedAtRequestedLevel() {
-        for (Exception failure : List.of(
-            new IllegalStateException("boom"),
-            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT)
-        )) {
+        for (Exception failure : List.of(new IllegalStateException("boom"))) {
             assertExchangeFailureLoggedAt(Level.ERROR, failure);
             assertExchangeFailureLoggedAt(Level.WARN, failure);
+        }
+    }
+
+    /**
+     * Circuit breaker trips are backpressure, not bugs. They are logged at WARN even when the caller requests
+     * ERROR so that quality gates and on-call alerts are not tripped by expected heap pressure.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtWarn() {
+        for (Exception failure : List.of(
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
+        )) {
+            assertCircuitBreakingFailureLoggedAtWarn(failure);
         }
     }
 
@@ -414,6 +424,17 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             BidirectionalBatchExchangeClient.class,
             new MockLog.SeenEventExpectation("logged at " + expectedLevel, loggerName, expectedLevel, "failure: msg"),
             new MockLog.UnseenEventExpectation("not logged at " + unexpectedLevel, loggerName, unexpectedLevel, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtWarn(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at WARN", loggerName, Level.WARN, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
         );
     }
 

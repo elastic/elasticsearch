@@ -29,8 +29,6 @@ import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.time.Instant;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -44,7 +42,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
- * A purpose-built Log4j {@link AbstractAppender} that bridges log events to the OTel logs API,
+ * Log4j {@link AbstractAppender} that bridges log events to the OTel logs API,
  * used for querylog and audit log delivery via OTLP.
  *
  * <p>Improvements over the upstream {@code OpenTelemetryAppender}:
@@ -53,18 +51,11 @@ import java.util.stream.IntStream;
  *   <li>Typed attribute values: Long/Integer → longKey, Double/Float → doubleKey,
  *       Boolean → booleanKey, List → typed array attribute, Map → valueKey with {@link Value}.</li>
  * </ul>
- *
- * <p>Features intentionally omitted (irrelevant for querylog/audit):
- * captureCodeAttributes, captureExperimentalAttributes, captureMarkerAttribute,
- * captureContextDataAttributes, captureEventName, and the {@code @Plugin} annotation
- * (this appender is constructed programmatically, not discovered via log4j XML config).
  */
 public class ElasticsearchOtelAppender extends AbstractAppender {
 
     private static final String MESSAGE_KEY = "message";
     private static final String TRACE_ID_KEY = "trace.id";
-
-    private static final Logger logger = LogManager.getLogger(ElasticsearchOtelAppender.class);
 
     private volatile OpenTelemetry openTelemetry;
 

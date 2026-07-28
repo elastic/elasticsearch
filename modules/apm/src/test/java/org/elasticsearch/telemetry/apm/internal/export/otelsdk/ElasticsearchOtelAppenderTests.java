@@ -305,7 +305,6 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
 
     // --- exception ---
     public void testThrowable() {
-        exporter.reset();
         ESLogMessage msg = new ESLogMessage().field("test", "test");
         appender.append(
             Log4jLogEvent.newBuilder()

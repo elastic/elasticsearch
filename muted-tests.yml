@@ -391,18 +391,6 @@ tests:
 - class: org.elasticsearch.exponentialhistogram.ExponentialHistogramMergerTests
   method: testDifferenceForCumulativeHistos
   issue: https://github.com/elastic/elasticsearch/issues/153665
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorRejectsUnwrappedFilterIndexInput
-  issue: https://github.com/elastic/elasticsearch/issues/153738
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsMMapInput
-  issue: https://github.com/elastic/elasticsearch/issues/153739
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsDirectAccessInput
-  issue: https://github.com/elastic/elasticsearch/issues/153740
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsPlainInput
-  issue: https://github.com/elastic/elasticsearch/issues/153741
 - class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
   method: testMixedSingleDoubleParams
   issue: https://github.com/elastic/elasticsearch/issues/153746
@@ -415,9 +403,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/153848
-- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
-  method: testConcurrentForceMergeIsNotAborted
-  issue: https://github.com/elastic/elasticsearch/issues/153854
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/153888
@@ -493,9 +478,6 @@ tests:
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testTokensStayInvalidatedInUpgradedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154627
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithRelocationOrObjectStoreFailures
-  issue: https://github.com/elastic/elasticsearch/issues/154655
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/10_basic/Create index with write aliases}
   issue: https://github.com/elastic/elasticsearch/issues/154659
@@ -589,9 +571,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
   method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
   issue: https://github.com/elastic/elasticsearch/issues/153700
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/155150
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/153434
@@ -607,3 +586,12 @@ tests:
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/155213
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/155155
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsFirstLastIT
+  method: test {csv-spec:stats_first_last.Test retrieval of last long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155302
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/155305

@@ -97,7 +97,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -155,6 +155,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
+            for the match query.
+            All <<match-field-params,match query parameters>> are supported.
+
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
             {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
             `MATCH` can also search expressions that are not backed by an index, such as
             computed columns produced by `EVAL`, `STATS`, or other commands.
@@ -164,14 +174,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             (match query options) are not supported.
             Additionally, `MATCH` on an expression does not contribute to the relevance score
             when using `METADATA _score`.
-
-            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
-            for the match query.
-            All <<match-field-params,match query parameters>> are supported.
-
-            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
-
-            `MATCH` returns true if the provided query matches the row.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -466,14 +468,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         if (isRuntimeSearch() == false) {
             return;
         }
-        if (options() != null) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "Options are not supported for [MATCH] function call on non-index-mapped field [" + field.sourceText() + "]"
-                )
-            );
-        }
+
         // The query value can only be converted to the field's runtime type once it has been folded down to a
         // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
         // postOptimizationPlanVerification runs.
@@ -488,6 +483,53 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         query().sourceText(),
                         field.dataType().typeName(),
                         field.sourceText()
+                    )
+                );
+            }
+        }
+
+        if (options() != null && field().dataType() == TEXT) {
+            verifyRuntimeOptions(function, field, failures);
+        } else if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the options for a runtime-search {@code match} on a {@code text} field. Checks that the
+     * {@code analyzer} option is absent (not supported for runtime fields), that options are only used with
+     * {@code text} fields, and that the options produce a valid {@code MatchQueryBuilder}.
+     */
+    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+        Map<String, Object> opts = matchQueryOptions();
+        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
+        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
+        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            failures.add(
+                Failure.fail(
+                    function,
+                    "The analyzer option is not supported for [MATCH] function call on non-index-mapped field [{}]",
+                    field.sourceText()
+                )
+            );
+            return;
+        }
+        if (query() instanceof Literal) {
+            // Validate that the options produce a valid MatchQueryBuilder at plan-verification time rather than at execution time.
+            try {
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts).toQueryBuilder();
+            } catch (IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        function,
+                        "[MATCH] function failed to build query for non-index-mapped field [{}]: {}",
+                        field.sourceText(),
+                        e.getMessage()
                     )
                 );
             }
@@ -514,8 +556,13 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
-        if (field.dataType() == TEXT) {
+        if (field.dataType() == TEXT && options() == null) {
             return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
+        }
+        // When options are used, we build a Lucene query
+        if (field.dataType() == TEXT && options() != null) {
+            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
+            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchQuery);
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));

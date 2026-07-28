@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.DLS_TOKENS_COUNT_FIELD;
+import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.DLS_TOKENS_FIELD;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.KIBANA_APPLICATION;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.LOGIN_ACTION;
-import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.PERMISSIONS_COUNT_FIELD;
-import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.PERMISSIONS_FIELD;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.SML_INDICES;
-import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.SPACES_FIELD;
+import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.TOKEN_SEPARATOR;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,7 +38,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
 
     private final KibanaSmlImplicitPrivilegesProvider contributor = new KibanaSmlImplicitPrivilegesProvider();
 
-    /** User holds login: + a saved_object action on a single space → DLS query with space and privilege clauses. */
+    /** User holds login: + a saved_object action on a single space → DLS query with composite token. */
     public void testSingleSpaceGrantsDlsQuery() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(
@@ -61,14 +61,14 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(privilege.getQuery(), is(notNullValue()));
 
         String query = privilege.getQuery().utf8ToString();
-        assertTrue(query.contains("\"" + SPACES_FIELD + "\""));
-        assertTrue(query.contains("marketing"));
+        assertTrue(query.contains("\"" + DLS_TOKENS_FIELD + "\""));
+        assertTrue(query.contains("marketing" + TOKEN_SEPARATOR + "saved_object:dashboard/get"));
         assertTrue(query.contains("terms_set"));
-        assertTrue(query.contains(PERMISSIONS_FIELD));
+        assertTrue(query.contains(DLS_TOKENS_COUNT_FIELD));
     }
 
-    /** User holds grants on multiple spaces → all space IDs are merged into a single DLS query. */
-    public void testMultipleSpacesAreMerged() {
+    /** User holds grants on multiple spaces → composite tokens for all space × action combinations in the DLS query. */
+    public void testMultipleSpacesProduceCompositeTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
         );
@@ -80,9 +80,9 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         String query = result.iterator().next().getQuery().utf8ToString();
-        assertTrue(query.contains("\"" + SPACES_FIELD + "\""));
-        assertTrue(query.contains("foo"));
-        assertTrue(query.contains("bar"));
+        assertTrue(query.contains("\"" + DLS_TOKENS_FIELD + "\""));
+        assertTrue(query.contains("foo" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        assertTrue(query.contains("bar" + TOKEN_SEPARATOR + LOGIN_ACTION));
     }
 
     /** User holds the wildcard resource * → full access, no DLS. */
@@ -184,8 +184,8 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue(result.iterator().next().getQuery().utf8ToString().contains("default"));
     }
 
-    /** DLS query must contain a terms_set clause referencing permissions_count and the privilege actions. */
-    public void testDlsQueryIncludesPrivilegeActions() {
+    /** DLS query must contain a terms_set clause referencing dls_tokens_count and composite tokens. */
+    public void testDlsQueryIncludesCompositeTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml", Set.of(LOGIN_ACTION, "saved_object:lens/get"), Map.of())
         );
@@ -198,13 +198,16 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
 
         String query = result.iterator().next().getQuery().utf8ToString();
         assertTrue("expected terms_set in query", query.contains("terms_set"));
-        assertTrue("expected permissions field in query", query.contains(PERMISSIONS_FIELD));
-        assertTrue("expected permissions_count field in query", query.contains(PERMISSIONS_COUNT_FIELD));
-        assertTrue("expected privilege action saved_object:lens/get in query", query.contains("saved_object:lens/get"));
+        assertTrue("expected dls_tokens field in query", query.contains(DLS_TOKENS_FIELD));
+        assertTrue("expected dls_tokens_count field in query", query.contains(DLS_TOKENS_COUNT_FIELD));
+        assertTrue(
+            "expected composite token default|saved_object:lens/get in query",
+            query.contains("default" + TOKEN_SEPARATOR + "saved_object:lens/get")
+        );
     }
 
-    /** DLS query must include a must_not exists clause so documents with no permissions are visible. */
-    public void testDlsQueryAllowsDocsWithNoPermissions() {
+    /** DLS query must include a must_not exists clause so documents with no dls_tokens are visible. */
+    public void testDlsQueryAllowsDocsWithNoDlsTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
         );
@@ -218,11 +221,14 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         String query = result.iterator().next().getQuery().utf8ToString();
         assertTrue("expected must_not in query", query.contains("must_not"));
         assertTrue("expected exists in query", query.contains("exists"));
-        assertTrue("expected permissions field in exists clause", query.contains(PERMISSIONS_FIELD));
+        assertTrue("expected dls_tokens field in exists clause", query.contains(DLS_TOKENS_FIELD));
     }
 
-    /** When two grants with different action sets both match login:, all actions are unioned in the terms_set. */
-    public void testMultiplePrivilegeActionsAreUnioned() {
+    /**
+     * Two grants with different action sets on different spaces produce the correct cross-product
+     * of composite tokens — one token per space × action combination.
+     */
+    public void testMultiplePrivilegesAndSpacesProduceCrossProductTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(
                 KIBANA_APPLICATION,
@@ -232,7 +238,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
             ),
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_lens", Set.of(LOGIN_ACTION, "saved_object:lens/get"), Map.of())
         );
-        // Two separate grants, each on a different space, each contributing different actions.
+        // Two separate grants: sml_dashboard on space:foo, sml_lens on space:bar.
         RoleDescriptor roleDescriptor = new RoleDescriptor(
             "test_role",
             null,
@@ -246,7 +252,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application(KIBANA_APPLICATION)
                     .privileges("sml_lens")
-                    .resources("space:foo")
+                    .resources("space:bar")
                     .build() },
             null,
             null,
@@ -260,37 +266,84 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         String query = result.iterator().next().getQuery().utf8ToString();
-        assertTrue("expected saved_object:dashboard/get in query", query.contains("saved_object:dashboard/get"));
-        assertTrue("expected saved_object:lens/get in query", query.contains("saved_object:lens/get"));
+        // foo space tokens from sml_dashboard
+        assertTrue(
+            "expected foo|saved_object:dashboard/get in query",
+            query.contains("foo" + TOKEN_SEPARATOR + "saved_object:dashboard/get")
+        );
+        assertTrue("expected foo|login: in query", query.contains("foo" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        // bar space tokens from sml_lens
+        assertTrue("expected bar|saved_object:lens/get in query", query.contains("bar" + TOKEN_SEPARATOR + "saved_object:lens/get"));
+        assertTrue("expected bar|login: in query", query.contains("bar" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        // foo tokens from sml_dashboard should NOT appear for bar and vice versa
+        assertFalse(
+            "foo|saved_object:lens/get should NOT be in query (wrong space)",
+            query.contains("foo" + TOKEN_SEPARATOR + "saved_object:lens/get")
+        );
+        assertFalse(
+            "bar|saved_object:dashboard/get should NOT be in query (wrong space)",
+            query.contains("bar" + TOKEN_SEPARATOR + "saved_object:dashboard/get")
+        );
     }
 
-    /** Static helper produces valid JSON with the required structural elements. */
+    /** Static helper: buildDlsQuery produces valid JSON with the required structural elements. */
     public void testBuildDlsQueryFormat() {
         String query = KibanaSmlImplicitPrivilegesProvider.buildDlsQuery(
-            Set.of("marketing", "finance"),
-            Set.of(LOGIN_ACTION, "saved_object:dashboard/get")
+            Set.of("marketing" + TOKEN_SEPARATOR + LOGIN_ACTION, "marketing" + TOKEN_SEPARATOR + "saved_object:dashboard/get")
         );
 
-        // Top-level bool/must structure
+        // Top-level bool/should structure
         assertTrue("expected bool in query", query.contains("bool"));
-        assertTrue("expected must in query", query.contains("must"));
+        assertTrue("expected should in query", query.contains("should"));
 
-        // Space filter
-        assertTrue("expected spaces field in query", query.contains("\"" + SPACES_FIELD + "\""));
-        assertTrue("expected marketing in query", query.contains("marketing"));
-        assertTrue("expected finance in query", query.contains("finance"));
-        // Global wildcard term for "spaces: *" documents
-        assertTrue("expected global wildcard * in space clause", query.contains("\"*\""));
+        // No must at top level (old structure removed)
+        assertFalse("unexpected top-level must in new query", query.contains("\"must\""));
 
-        // Privilege filter
-        assertTrue("expected terms_set in query", query.contains("terms_set"));
-        assertTrue("expected permissions field in query", query.contains(PERMISSIONS_FIELD));
-        assertTrue("expected permissions_count field in query", query.contains(PERMISSIONS_COUNT_FIELD));
-        assertTrue("expected must_not/exists in query", query.contains("must_not"));
+        // Public-document branch
+        assertTrue("expected must_not in query", query.contains("must_not"));
         assertTrue("expected exists in query", query.contains("exists"));
+        assertTrue("expected dls_tokens field in exists clause", query.contains(DLS_TOKENS_FIELD));
+
+        // Token-match branch
+        assertTrue("expected terms_set in query", query.contains("terms_set"));
+        assertTrue("expected dls_tokens_count field in query", query.contains(DLS_TOKENS_COUNT_FIELD));
+        assertTrue("expected composite token marketing|login: in query", query.contains("marketing" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        assertTrue(
+            "expected composite token marketing|saved_object:dashboard/get in query",
+            query.contains("marketing" + TOKEN_SEPARATOR + "saved_object:dashboard/get")
+        );
 
         // No boost noise from QueryBuilders
         assertFalse("unexpected boost field in hand-rolled query", query.contains("boost"));
+
+        // No old-style spaces or permissions fields
+        assertFalse("unexpected old spaces field", query.contains("\"spaces\""));
+        assertFalse("unexpected old permissions field", query.contains("permissions.kibana.privileges.name"));
+        assertFalse("unexpected old permissions_count field", query.contains("\"permissions_count\""));
+    }
+
+    /** buildCompositeTokens correctly crosses space IDs with action strings. */
+    public void testBuildCompositeTokens() {
+        Map<String, Set<String>> resourcesAndActions = Map.of(
+            "space:marketing",
+            Set.of(LOGIN_ACTION, "saved_object:dashboard/get"),
+            "space:finance",
+            Set.of(LOGIN_ACTION),
+            "no-prefix-resource",
+            Set.of(LOGIN_ACTION)
+        );
+
+        Set<String> tokens = KibanaSmlImplicitPrivilegesProvider.buildCompositeTokens(resourcesAndActions);
+
+        assertTrue("expected marketing|login:", tokens.contains("marketing" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        assertTrue(
+            "expected marketing|saved_object:dashboard/get",
+            tokens.contains("marketing" + TOKEN_SEPARATOR + "saved_object:dashboard/get")
+        );
+        assertTrue("expected finance|login:", tokens.contains("finance" + TOKEN_SEPARATOR + LOGIN_ACTION));
+        // Resources without "space:" prefix must be excluded
+        assertFalse("no-prefix-resource should not produce tokens", tokens.stream().anyMatch(t -> t.startsWith("no-prefix-resource")));
+        assertThat(tokens, hasSize(3));
     }
 
     // -------------------------------------------------------------------------------------

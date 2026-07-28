@@ -36,16 +36,15 @@ import static org.hamcrest.Matchers.hasSize;
  * The happy path verifies that a role holding only the Kibana {@code feature_dashboards.read}
  * application privilege on {@code space:marketing} (with <b>no</b> explicit index privileges)
  * can read the {@code ai-index-idx-sml-data} index, and that the implicit document-level-security
- * filter restricts results using both the space dimension <em>and</em> the privilege dimension:
+ * filter restricts results using composite {@code dls_tokens} that bind space and privilege together:
  * <ul>
- *   <li>Documents in a different space are hidden even if privileges match.</li>
- *   <li>Documents requiring a privilege the user does not hold are hidden even if the space
- *       matches.</li>
- *   <li>Documents requiring <em>multiple</em> privileges where the user lacks one are hidden
+ *   <li>Documents requiring a token for a different space are hidden even if the privilege matches.</li>
+ *   <li>Documents requiring a token for a privilege the user does not hold are hidden even if the
+ *       space matches.</li>
+ *   <li>Documents requiring <em>multiple</em> composite tokens where the user lacks one are hidden
  *       (AND semantics enforced by {@code terms_set} with
- *       {@code minimum_should_match_field: permissions_count}).</li>
- *   <li>Global documents ({@code spaces: ["*"]}) with no required privileges are always
- *       visible.</li>
+ *       {@code minimum_should_match_field: dls_tokens_count}).</li>
+ *   <li>Documents with no {@code dls_tokens} field are always visible (public documents).</li>
  * </ul>
  */
 public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
@@ -94,10 +93,10 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         // 3. A user that holds the role.
         putUser(SML_USER, SML_USER_PASSWORD, "sml_marketing_reader");
 
-        // 4. As admin, create the SML index with explicit keyword mappings so DLS term/terms queries match.
+        // 4. As admin, create the SML index with explicit mappings so DLS term/terms queries match.
         createSmlIndexWithDocs();
 
-        // 5. The implicit grant surfaces through the get-role API, carrying the space+privilege DLS query.
+        // 5. The implicit grant surfaces through the get-role API, carrying the composite dls_tokens DLS query.
         assertImplicitGrantSurfaced("sml_marketing_reader");
 
         // 6. The user can read the SML index without any explicit index privilege, and DLS restricts the visible
@@ -148,14 +147,17 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createSmlIndexWithDocs() throws Exception {
-        // spaces, permissions.kibana.privileges.name, and title must be keywords so the implicit
-        // term/terms DLS queries match; dynamic mapping would make them text fields.
-        // permissions_count must be integer so the terms_set minimum_should_match_field works correctly.
+        // dls_tokens must be keyword so the implicit terms_set DLS query matches;
+        // dls_tokens_count must be integer so the minimum_should_match_field works correctly.
+        // spaces, permissions.kibana.privileges.name are kept as keywords for backward compat
+        // with the rest of the document schema, but DLS is now driven by dls_tokens.
         final Request create = new Request("PUT", "/" + SML_INDEX);
         create.setJsonEntity("""
             {
               "mappings": {
                 "properties": {
+                  "dls_tokens": { "type": "keyword" },
+                  "dls_tokens_count": { "type": "integer" },
                   "spaces": { "type": "keyword" },
                   "permissions": {
                     "properties": {
@@ -170,7 +172,6 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
                       }
                     }
                   },
-                  "permissions_count": { "type": "integer" },
                   "title": { "type": "keyword" }
                 }
               }
@@ -178,61 +179,66 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(create));
 
-        // Should be visible: user is in marketing AND holds saved_object:dashboard/get.
+        // Should be visible: user holds marketing|saved_object:dashboard/get.
         indexSmlDoc("marketing-dashboard", """
             {
+              "dls_tokens": ["marketing|saved_object:dashboard/get"],
+              "dls_tokens_count": 1,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": [{"name": "saved_object:dashboard/get"}]
                 }
               },
-              "permissions_count": 1,
               "title": "marketing dashboard"
             }
             """);
 
-        // Should NOT be visible: wrong space (finance, not marketing).
+        // Should NOT be visible: user does not hold finance|saved_object:dashboard/get (wrong space in token).
         indexSmlDoc("finance-dashboard", """
             {
+              "dls_tokens": ["finance|saved_object:dashboard/get"],
+              "dls_tokens_count": 1,
               "spaces": ["finance"],
               "permissions": {
                 "kibana": {
                   "privileges": [{"name": "saved_object:dashboard/get"}]
                 }
               },
-              "permissions_count": 1,
               "title": "finance dashboard"
             }
             """);
 
-        // Should NOT be visible: user doesn't hold saved_object:lens/get.
+        // Should NOT be visible: user doesn't hold marketing|saved_object:lens/get (privilege not in grant).
         indexSmlDoc("marketing-lens", """
             {
+              "dls_tokens": ["marketing|saved_object:lens/get"],
+              "dls_tokens_count": 1,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": [{"name": "saved_object:lens/get"}]
                 }
               },
-              "permissions_count": 1,
               "title": "marketing lens"
             }
             """);
 
-        // Should be visible: global doc ("*"), no privilege requirement.
+        // Should be visible: no dls_tokens field → public document.
         indexSmlDoc("global-no-perms", """
             {
+              "dls_tokens_count": 0,
               "spaces": ["*"],
-              "permissions_count": 0,
               "title": "global no perms"
             }
             """);
 
-        // Should NOT be visible: requires both dashboard/get AND lens/get — AND semantics via terms_set;
-        // user only holds dashboard/get so the full set is not satisfied.
+        // Should NOT be visible: requires both tokens — AND semantics via terms_set;
+        // user only holds marketing|saved_object:dashboard/get, not marketing|saved_object:lens/get.
         indexSmlDoc("multi-perm", """
             {
+              "dls_tokens": ["marketing|saved_object:dashboard/get", "marketing|saved_object:lens/get"],
+              "dls_tokens_count": 2,
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
@@ -242,7 +248,6 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
                   ]
                 }
               },
-              "permissions_count": 2,
               "title": "multi perm"
             }
             """);
@@ -277,10 +282,10 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");
-        assertThat(query, containsString("spaces"));
-        assertThat(query, containsString("marketing"));
+        assertThat(query, containsString("dls_tokens"));
+        assertThat(query, containsString("dls_tokens_count"));
+        assertThat(query, containsString("marketing|saved_object:dashboard/get"));
         assertThat(query, containsString("terms_set"));
-        assertThat(query, containsString("permissions.kibana.privileges.name"));
     }
 
     @SuppressWarnings("unchecked")

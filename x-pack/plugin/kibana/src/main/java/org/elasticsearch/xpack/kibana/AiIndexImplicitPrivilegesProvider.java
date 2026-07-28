@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -106,7 +107,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
         Map<String, Set<String>> resourcesToActions = new HashMap<>();
         for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
             final ApplicationPrivilege privilege = resolved.privilege();
-            if (KIBANA_APPLICATION.equals(privilege.getApplication())) {
+            if (applicationMatchesKibana(privilege.getApplication())) {
                 Set<String> patterns = new HashSet<>(Arrays.asList(privilege.getPatterns()));
                 for (String resource : resolved.resources()) {
                     resourcesToActions.computeIfAbsent(resource, k -> new HashSet<>()).addAll(patterns);
@@ -114,6 +115,12 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
             }
         }
         return resourcesToActions;
+    }
+
+    private static boolean applicationMatchesKibana(String application) {
+        return application.contains("*")
+            ? Automatons.predicate(application).test(KIBANA_APPLICATION)
+            : KIBANA_APPLICATION.equals(application);
     }
 
     /**
@@ -164,7 +171,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(PERMISSIONS_FIELD)))
                 .should(
-                    new TermsSetQueryBuilder(PERMISSIONS_FIELD, List.copyOf(scopedPrivileges)).setMinimumShouldMatchField(
+                    new TermsSetQueryBuilder(PERMISSIONS_FIELD, scopedPrivileges.stream().sorted().toList()).setMinimumShouldMatchField(
                         PERMISSIONS_COUNT_FIELD
                     )
                 )

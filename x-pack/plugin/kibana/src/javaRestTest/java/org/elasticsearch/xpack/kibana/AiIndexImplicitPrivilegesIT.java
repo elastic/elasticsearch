@@ -150,32 +150,9 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createAiIndexWithDocs() throws Exception {
-        // permissions.kibana.privileges.name must be keyword so the implicit terms_set DLS query matches;
-        // permissions.kibana.privileges.count must be long so the minimum_should_match_field works correctly.
+        // No explicit mappings — the ai-index-idx template covers ai-index-idx-*
+        // and provides the permissions.kibana.privileges.{name,count} mappings.
         final Request create = new Request("PUT", "/" + AI_INDEX);
-        create.setJsonEntity("""
-            {
-              "mappings": {
-                "properties": {
-                  "permissions": {
-                    "properties": {
-                      "kibana": {
-                        "properties": {
-                          "privileges": {
-                            "properties": {
-                              "name": { "type": "keyword" },
-                              "count": { "type": "long" }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "title": { "type": "keyword" }
-                }
-              }
-            }
-            """);
         assertOK(client().performRequest(create));
 
         // Should be visible: user holds marketing|saved_object:dashboard/get.

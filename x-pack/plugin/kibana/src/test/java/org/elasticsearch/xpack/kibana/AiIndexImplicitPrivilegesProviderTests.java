@@ -157,6 +157,15 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, is(empty()));
     }
 
+    /** A role with application "kibana-*" resolves to a residual privilege whose getApplication() is still "kibana-*". */
+    public void testWildcardApplicationNameMatchesKibana() {
+        // A role with application "kibana-*" resolves to a residual privilege
+        // whose getApplication() is still "kibana-*". The provider must match it.
+        RoleDescriptor roleDescriptor = roleWithApplication("kibana-*", "saved_object:dashboard/get", "space:default");
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
+        assertThat(result, hasSize(1));
+    }
+
     /** Privilege without login: still triggers the provider — any kibana-.kibana application privilege is sufficient. */
     public void testNonLoginActionStillTriggersProvider() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(

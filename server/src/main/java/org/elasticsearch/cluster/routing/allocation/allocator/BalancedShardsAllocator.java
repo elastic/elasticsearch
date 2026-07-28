@@ -930,9 +930,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             AtomicBoolean shardMoved,
             BestShardMovementsTracker bestNonPreferredShardMovementsTracker
         ) {
-            // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
-            // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
-            // offloading the shards.
+            // Iterate over the started shards interleaving between nodes, and check if they can remain. The goal of this iteration order is
+            // to achieve a fairer movement of shards from the nodes that are offloading the shards.
 
             // Execute the first pass, only moving shards where canRemain: NO and canAllocate: YES
             final var nodeIdsWithDeferredMoves = executeMovesThatMatchPredicate(

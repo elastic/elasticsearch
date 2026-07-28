@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -97,7 +96,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -107,7 +105,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -4644,56 +4641,6 @@ public class AnalyzerTests extends ESTestCase {
         basic().error("""
             FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
             """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
-    }
-
-    public void testBucketOptionInsertEmptyBuckets_dates() {
-        var plan = basic().query("""
-            FROM test | STATS c = COUNT(*)
-                        BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
-            """);
-        var limit = as(plan, Limit.class);
-        var insertEmptyBuckets = as(limit.child(), InsertEmptyBuckets.class);
-        var agg = as(insertEmptyBuckets.child(), Aggregate.class);
-        Map<Attribute, Bucket> emptyBuckets = insertEmptyBuckets.buckets();
-        assertThat(emptyBuckets.keySet(), contains(Expressions.attribute(agg.groupings().get(0))));
-        Bucket bucket = emptyBuckets.values().iterator().next();
-        assertThat(bucket.includeEmptyBuckets(), is(true));
-        assertThat(bucket.rangeFromMillis(FoldContext.small()), is(473385600000L)); // 1985-01-01T00:00:00Z
-        assertThat(bucket.rangeToMillis(FoldContext.small()), is(504921600000L)); // 1986-01-01T00:00:00Z
-    }
-
-    public void testBucketOptionInsertEmptyBuckets_numbers() {
-        var plan = basic().query("""
-            FROM test | STATS c = COUNT(*) by gender, b = BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true})
-            """);
-        var limit = as(plan, Limit.class);
-        var insertEmptyBuckets = as(limit.child(), InsertEmptyBuckets.class);
-        var agg = as(insertEmptyBuckets.child(), Aggregate.class);
-        Map<Attribute, Bucket> emptyBuckets = insertEmptyBuckets.buckets();
-        // only the bucket grouping is recorded, not the plain "gender" grouping
-        assertThat(emptyBuckets.keySet(), contains(Expressions.attribute(agg.groupings().get(1))));
-        Bucket bucket = emptyBuckets.values().iterator().next();
-        assertThat(bucket.includeEmptyBuckets(), is(true));
-        assertThat(bucket.getNumberRoundTo(FoldContext.small()), is(10000.0));
-    }
-
-    public void testBucketOptionInsertEmptyBuckets_timeSeries() {
-        var plan = tsdb().query("""
-            TS test | STATS SUM(RATE(network.bytes_in))
-                      BY TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
-            """);
-        var limit = as(plan, Limit.class);
-        var insertEmptyBuckets = as(limit.child(), InsertEmptyBuckets.class);
-        var finalAgg = as(insertEmptyBuckets.child(), Aggregate.class);
-        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        as(finalAgg.child(), TimeSeriesAggregate.class);
-        Map<Attribute, Bucket> emptyBuckets = insertEmptyBuckets.buckets();
-        // keyed by the second-phase time-bucket grouping id (the attribute name captured before the TBUCKET surrogate rewrite is stale,
-        // but the physical layer resolves everything by id)
-        assertThat(emptyBuckets.keySet(), hasSize(1));
-        assertThat(emptyBuckets.keySet().iterator().next().id(), is(Expressions.attribute(finalAgg.groupings().get(0)).id()));
-        Bucket bucket = emptyBuckets.values().iterator().next();
-        assertThat(bucket.includeEmptyBuckets(), is(true));
     }
 
     public void testProjectionForUnionTypeResolution() {

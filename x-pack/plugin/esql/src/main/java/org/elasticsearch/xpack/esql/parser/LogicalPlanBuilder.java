@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -1043,7 +1044,56 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // exact same index syntax; the resulting string is forwarded verbatim to the EQL search request.
         String index = visitIndexPattern(ctx.indexPattern());
         String query = BytesRefs.toString(visitString(ctx.eqlQuery).fold(FoldContext.small()));
-        return new EqlQuery(source, index, query);
+        EqlQueryOptions options = visitEqlQueryOptions(ctx.commandNamedParameters());
+        return new EqlQuery(source, index, query, options);
+    }
+
+    /**
+     * Parses the optional trailing {@code WITH { ... }} map of the {@code EQL} command into an {@link EqlQueryOptions}.
+     * Only the three EQL search knobs are accepted ({@code tiebreaker_field}, {@code timestamp_field},
+     * {@code event_category_field}); every value must be a literal string field name. Unknown keys, non-string values
+     * and null values are rejected with a {@link ParsingException} pointing at the offending entry.
+     */
+    private EqlQueryOptions visitEqlQueryOptions(EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
+        if (optionsExpression == null) {
+            return EqlQueryOptions.DEFAULTS;
+        }
+        String tiebreakerField = null;
+        String timestampField = null;
+        String eventCategoryField = null;
+        for (Map.Entry<String, Expression> entry : optionsExpression.keyFoldedMap().entrySet()) {
+            String key = entry.getKey();
+            String value = eqlOptionStringValue(key, entry.getValue());
+            switch (key) {
+                case EqlQueryOptions.TIEBREAKER_FIELD_OPTION -> tiebreakerField = value;
+                case EqlQueryOptions.TIMESTAMP_FIELD_OPTION -> timestampField = value;
+                case EqlQueryOptions.EVENT_CATEGORY_FIELD_OPTION -> eventCategoryField = value;
+                default -> throw new ParsingException(
+                    entry.getValue().source(),
+                    "Invalid option [{}] in EQL, expected one of {}",
+                    key,
+                    EqlQueryOptions.VALID_OPTION_NAMES
+                );
+            }
+        }
+        return new EqlQueryOptions(tiebreakerField, timestampField, eventCategoryField);
+    }
+
+    private static String eqlOptionStringValue(String key, Expression value) {
+        if (value instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
+            String fieldName = BytesRefs.toString(bytesRef);
+            if (fieldName.isBlank()) {
+                throw new ParsingException(value.source(), "EQL option [{}] cannot be an empty string", key);
+            }
+            return fieldName;
+        }
+        throw new ParsingException(
+            value.source(),
+            "EQL option [{}] must be a non-empty string field name, found [{}]",
+            key,
+            value.sourceText()
+        );
     }
 
     /**

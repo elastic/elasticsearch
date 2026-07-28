@@ -93,7 +93,14 @@ public class MapperUtils {
         }
 
         if (p instanceof EqlQuery eqlQuery) {
-            return new EqlQueryExec(eqlQuery.source(), eqlQuery.index(), eqlQuery.query(), eqlQuery.output(), eqlQuery.limit());
+            return new EqlQueryExec(
+                eqlQuery.source(),
+                eqlQuery.index(),
+                eqlQuery.query(),
+                eqlQuery.options(),
+                eqlQuery.output(),
+                eqlQuery.limit()
+            );
         }
 
         return unsupported(p);

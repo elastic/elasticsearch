@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
@@ -35,19 +36,23 @@ import static org.mockito.Mockito.when;
 public class EqlQueryServiceTests extends ESTestCase {
 
     private EqlSearchRequest captureRequest(Integer size, CancellableTask parentTask) {
-        EqlSearchRequest request = captureRequestFor("idx", size, parentTask);
+        EqlSearchRequest request = captureRequestFor("idx", EqlQueryOptions.DEFAULTS, size, parentTask);
         assertThat(request.indices(), equalTo(new String[] { "idx" }));
         assertThat(request.query(), equalTo("any where true"));
         return request;
     }
 
     private EqlSearchRequest captureRequestFor(String index, Integer size, CancellableTask parentTask) {
+        return captureRequestFor(index, EqlQueryOptions.DEFAULTS, size, parentTask);
+    }
+
+    private EqlSearchRequest captureRequestFor(String index, EqlQueryOptions options, Integer size, CancellableTask parentTask) {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("local-node"));
 
         EqlQueryService service = new EqlQueryService(client, clusterService);
-        service.query(index, "any where true", size, parentTask, ActionListener.noop());
+        service.query(index, "any where true", options, size, parentTask, ActionListener.noop());
 
         ArgumentCaptor<EqlSearchRequest> captor = ArgumentCaptor.forClass(EqlSearchRequest.class);
         verify(client).execute(eq(EqlSearchAction.INSTANCE), captor.capture(), any());
@@ -77,5 +82,30 @@ public class EqlQueryServiceTests extends ESTestCase {
     public void testSingleIndexPatternIsForwardedVerbatim() {
         EqlSearchRequest request = captureRequestFor("cluster_a:logs-*", null, null);
         assertThat(request.indices(), equalTo(new String[] { "cluster_a:logs-*" }));
+    }
+
+    public void testDefaultOptionsLeaveEqlServerDefaults() {
+        EqlSearchRequest request = captureRequestFor("idx", EqlQueryOptions.DEFAULTS, null, null);
+        // No WITH overrides -> the EQL request keeps its own defaults.
+        assertThat(request.timestampField(), equalTo("@timestamp"));
+        assertThat(request.eventCategoryField(), equalTo("event.category"));
+        assertThat(request.tiebreakerField(), is((String) null));
+    }
+
+    public void testOptionsAreForwarded() {
+        EqlQueryOptions options = new EqlQueryOptions("serial_event_id", "event_time", "category");
+        EqlSearchRequest request = captureRequestFor("idx", options, null, null);
+        assertThat(request.tiebreakerField(), equalTo("serial_event_id"));
+        assertThat(request.timestampField(), equalTo("event_time"));
+        assertThat(request.eventCategoryField(), equalTo("category"));
+    }
+
+    public void testPartialOptionsOnlyOverrideProvidedFields() {
+        // Only a tiebreaker supplied: timestamp and category keep the EQL defaults.
+        EqlQueryOptions options = new EqlQueryOptions("serial_event_id", null, null);
+        EqlSearchRequest request = captureRequestFor("idx", options, null, null);
+        assertThat(request.tiebreakerField(), equalTo("serial_event_id"));
+        assertThat(request.timestampField(), equalTo("@timestamp"));
+        assertThat(request.eventCategoryField(), equalTo("event.category"));
     }
 }

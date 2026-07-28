@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 /**
  * Thin adapter that lets the ES|QL {@code EQL} source command delegate to the EQL search transport action.
@@ -38,6 +39,8 @@ public class EqlQueryService {
     /**
      * Runs the EQL search and delivers the raw response.
      *
+     * @param options    optional EQL search overrides (tiebreaker / timestamp / event-category field) from the command's
+     *                   {@code WITH} map; each {@code null} field leaves the corresponding EQL default in place.
      * @param size       optional row limit pushed down from a following ES|QL {@code LIMIT}, forwarded as the EQL request
      *                   {@code size} (number of events / sequences); {@code null} leaves the EQL default in place.
      * @param parentTask the running ES|QL task; set as the EQL request's parent so cancelling the ES|QL query cancels the
@@ -46,6 +49,7 @@ public class EqlQueryService {
     public void query(
         String index,
         String query,
+        EqlQueryOptions options,
         @Nullable Integer size,
         CancellableTask parentTask,
         ActionListener<EqlSearchResponse> listener
@@ -55,6 +59,15 @@ public class EqlQueryService {
         // same way RestEqlSearchAction does, so a multi-index pattern reaches the EQL endpoint as distinct indices.
         request.indices(Strings.splitStringByCommaToArray(index));
         request.query(query);
+        if (options.tiebreakerField() != null) {
+            request.tiebreakerField(options.tiebreakerField());
+        }
+        if (options.timestampField() != null) {
+            request.timestampField(options.timestampField());
+        }
+        if (options.eventCategoryField() != null) {
+            request.eventCategoryField(options.eventCategoryField());
+        }
         if (size != null) {
             request.size(size);
         }

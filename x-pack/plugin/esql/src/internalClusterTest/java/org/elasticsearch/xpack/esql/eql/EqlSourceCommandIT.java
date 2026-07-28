@@ -130,6 +130,38 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testTiebreakerMakesHeadDeterministic() {
+        // All events share a single @timestamp, so their relative order is decided purely by the tiebreaker. With
+        // WITH {"tiebreaker_field": "value"} EQL sorts ties by value ascending; `head 3` then returns the three
+        // smallest values deterministically and the ES|QL pipeline preserves that order (no SORT).
+        String index = "eql_tiebreaker";
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping("@timestamp", "type=date", "value", "type=long"));
+        List<IndexRequestBuilder> docs = List.of(
+            prepareIndex(index).setId("a").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 5),
+            prepareIndex(index).setId("b").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 4),
+            prepareIndex(index).setId("c").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 3),
+            prepareIndex(index).setId("d").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 2),
+            prepareIndex(index).setId("e").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 1)
+        );
+        indexRandom(true, docs);
+        String query = "EQL " + index + " | \"any where true | head 3\" WITH {\"tiebreaker_field\": \"value\"} | KEEP _id";
+        try (EsqlQueryResponse resp = run(query)) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo("e"));
+            assertThat(rows.get(1).get(0), equalTo("d"));
+            assertThat(rows.get(2).get(0), equalTo("c"));
+        }
+    }
+
+    public void testUnknownOptionIsRejected() {
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run("EQL \"" + INDEX + "\" | \"any where true\" WITH {\"bogus\": \"x\"}").close()
+        );
+        assertThat(e.getMessage(), containsString("Invalid option [bogus] in EQL"));
+    }
+
     public void testEmptyResultKeepsSchema() {
         try (EsqlQueryResponse resp = run("EQL \"" + INDEX + "\" | \"any where value == 999\"")) {
             assertThat(columnNames(resp), equalTo(List.of("_sequence", "_index", "_id", "_source")));

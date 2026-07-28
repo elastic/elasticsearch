@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -102,6 +103,7 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
             public void query(
                 String index,
                 String query,
+                EqlQueryOptions options,
                 @Nullable Integer size,
                 CancellableTask parentTask,
                 ActionListener<EqlSearchResponse> listener
@@ -109,7 +111,15 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
                 listener.onFailure(new IllegalStateException("boom"));
             }
         };
-        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(blockFactory, service, "idx", "any where true", null, null);
+        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(
+            blockFactory,
+            service,
+            "idx",
+            "any where true",
+            EqlQueryOptions.DEFAULTS,
+            null,
+            null
+        );
         assertThat(operator.isBlocked().listener().isDone(), is(true));
         // A pending failure keeps the operator "not finished" so the driver polls getOutput() and sees the exception.
         assertThat(operator.isFinished(), is(false));
@@ -126,6 +136,7 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
             public void query(
                 String index,
                 String query,
+                EqlQueryOptions options,
                 @Nullable Integer size,
                 CancellableTask parentTask,
                 ActionListener<EqlSearchResponse> listener
@@ -138,7 +149,15 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
                 }
             }
         };
-        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(blockFactory, service, "idx", "any where true", 7, null);
+        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(
+            blockFactory,
+            service,
+            "idx",
+            "any where true",
+            EqlQueryOptions.DEFAULTS,
+            7,
+            null
+        );
         assertThat(operator.isBlocked().listener().isDone(), is(true));
         operator.getOutput().releaseBlocks();
         operator.close();
@@ -153,6 +172,7 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
             public void query(
                 String index,
                 String query,
+                EqlQueryOptions options,
                 @Nullable Integer size,
                 CancellableTask parentTask,
                 ActionListener<EqlSearchResponse> listener
@@ -165,7 +185,15 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
                 }
             }
         };
-        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(blockFactory, service, "idx", "any where true", null, null);
+        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(
+            blockFactory,
+            service,
+            "idx",
+            "any where true",
+            EqlQueryOptions.DEFAULTS,
+            null,
+            null
+        );
         assertThat(operator.isBlocked().listener().isDone(), is(true));
         operator.getOutput().releaseBlocks();
         operator.close();
@@ -178,6 +206,7 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
             public void query(
                 String index,
                 String query,
+                EqlQueryOptions options,
                 @Nullable Integer size,
                 CancellableTask parentTask,
                 ActionListener<EqlSearchResponse> listener
@@ -190,7 +219,15 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
                 }
             }
         };
-        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(blockFactory, service, "idx", "any where true", null, null);
+        EqlQuerySourceOperator operator = new EqlQuerySourceOperator(
+            blockFactory,
+            service,
+            "idx",
+            "any where true",
+            EqlQueryOptions.DEFAULTS,
+            null,
+            null
+        );
         // Firing the (synchronous) request happens on the first isBlocked() poll; the listener completes immediately.
         assertThat(operator.isBlocked().listener().isDone(), is(true));
         Page page = operator.getOutput();

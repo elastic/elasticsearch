@@ -37,8 +37,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * The output schema is <b>fixed</b> and does not depend on the fields matched by the EQL query, so
  * that it is known at analysis/planning time (a hard requirement for the ES|QL planner):
  * <ul>
- *   <li>{@code _sequence} ({@code long}) &mdash; 0-based ordinal of the matched sequence; {@code null}
- *       for plain event queries.</li>
+ *   <li>{@code _sequence} ({@code long}) &mdash; 0-based ordinal of the matched sequence or sample (both are
+ *       returned as sequences by the EQL response); {@code null} for plain event queries.</li>
  *   <li>{@code _index} ({@code keyword}) &mdash; the source index of the event.</li>
  *   <li>{@code _id} ({@code keyword}) &mdash; the {@code _id} of the event.</li>
  *   <li>{@code _source} ({@code keyword}) &mdash; the raw {@code _source} JSON of the event.</li>
@@ -60,18 +60,24 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
 
     private final String index;
     private final String query;
+    private final EqlQueryOptions options;
     private final List<Attribute> output;
     @Nullable
     private final Integer limit;
 
     public EqlQuery(Source source, String index, String query) {
-        this(source, index, query, defaultOutput(source), null);
+        this(source, index, query, EqlQueryOptions.DEFAULTS);
     }
 
-    public EqlQuery(Source source, String index, String query, List<Attribute> output, @Nullable Integer limit) {
+    public EqlQuery(Source source, String index, String query, EqlQueryOptions options) {
+        this(source, index, query, options, defaultOutput(source), null);
+    }
+
+    public EqlQuery(Source source, String index, String query, EqlQueryOptions options, List<Attribute> output, @Nullable Integer limit) {
         super(source);
         this.index = index;
         this.query = query;
+        this.options = options;
         this.output = output;
         this.limit = limit;
     }
@@ -98,6 +104,10 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
         return query;
     }
 
+    public EqlQueryOptions options() {
+        return options;
+    }
+
     /**
      * The row limit pushed down from a directly-following ES|QL {@code LIMIT}, forwarded to the EQL request as
      * {@code size}; {@code null} when no limit was pushed (EQL then applies its own default size).
@@ -108,7 +118,7 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
     }
 
     public EqlQuery withLimit(int limit) {
-        return new EqlQuery(source(), index, query, output, limit);
+        return new EqlQuery(source(), index, query, options, output, limit);
     }
 
     @Override
@@ -139,12 +149,12 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, EqlQuery::new, index, query, output, limit);
+        return NodeInfo.create(this, EqlQuery::new, index, query, options, output, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, output, limit);
+        return Objects.hash(index, query, options, output, limit);
     }
 
     @Override
@@ -158,6 +168,7 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
         EqlQuery other = (EqlQuery) obj;
         return Objects.equals(index, other.index)
             && Objects.equals(query, other.query)
+            && Objects.equals(options, other.options)
             && Objects.equals(output, other.output)
             && Objects.equals(limit, other.limit);
     }

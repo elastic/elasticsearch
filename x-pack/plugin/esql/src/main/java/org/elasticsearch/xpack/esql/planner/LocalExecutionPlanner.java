@@ -2041,6 +2041,7 @@ public class LocalExecutionPlanner {
                 eqlQueryService,
                 eqlQueryExec.index(),
                 eqlQueryExec.query(),
+                eqlQueryExec.options(),
                 eqlQueryExec.limit(),
                 parentTask
             ),

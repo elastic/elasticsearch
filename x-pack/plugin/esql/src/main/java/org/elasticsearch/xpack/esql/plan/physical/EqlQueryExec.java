@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,14 +40,23 @@ public class EqlQueryExec extends LeafExec {
 
     private final String index;
     private final String query;
+    private final EqlQueryOptions options;
     private final List<Attribute> output;
     @Nullable
     private final Integer limit;
 
-    public EqlQueryExec(Source source, String index, String query, List<Attribute> output, @Nullable Integer limit) {
+    public EqlQueryExec(
+        Source source,
+        String index,
+        String query,
+        EqlQueryOptions options,
+        List<Attribute> output,
+        @Nullable Integer limit
+    ) {
         super(source);
         this.index = index;
         this.query = query;
+        this.options = options;
         this.output = output;
         this.limit = limit;
     }
@@ -56,6 +66,7 @@ public class EqlQueryExec extends LeafExec {
             Source.readFrom((PlanStreamInput) in),
             in.readString(),
             in.readString(),
+            new EqlQueryOptions(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalInt()
         );
@@ -67,6 +78,7 @@ public class EqlQueryExec extends LeafExec {
         Source.EMPTY.writeTo(out);
         out.writeString(index);
         out.writeString(query);
+        options.writeTo(out);
         out.writeNamedWriteableCollection(output);
         out.writeOptionalInt(limit);
     }
@@ -84,6 +96,10 @@ public class EqlQueryExec extends LeafExec {
         return query;
     }
 
+    public EqlQueryOptions options() {
+        return options;
+    }
+
     @Nullable
     public Integer limit() {
         return limit;
@@ -96,12 +112,12 @@ public class EqlQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EqlQueryExec::new, index, query, output, limit);
+        return NodeInfo.create(this, EqlQueryExec::new, index, query, options, output, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, output, limit);
+        return Objects.hash(index, query, options, output, limit);
     }
 
     @Override
@@ -115,6 +131,7 @@ public class EqlQueryExec extends LeafExec {
         EqlQueryExec other = (EqlQueryExec) obj;
         return Objects.equals(index, other.index)
             && Objects.equals(query, other.query)
+            && Objects.equals(options, other.options)
             && Objects.equals(output, other.output)
             && Objects.equals(limit, other.limit);
     }

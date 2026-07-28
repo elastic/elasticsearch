@@ -23,6 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,22 +32,27 @@ import java.util.List;
  * Source operator that materializes the result of an EQL search into a single {@link Page}.
  * <p>
  * On the first poll it fires the async EQL request through {@link EqlQueryService} and reports itself blocked; when the
- * response arrives the events (or sequences) are flattened into rows on the transport thread and the operator unblocks.
- * The driver then builds the columnar page. Because EQL results are bounded and assembled on the coordinator, a single
- * page is sufficient. Columns, in output order: {@code _sequence} (long, null for event queries), {@code _index},
- * {@code _id}, {@code _source} (all keyword).
+ * response arrives the events (or sequences/samples) are flattened into rows on the transport thread and the operator
+ * unblocks. The driver then builds the columnar page. Because EQL results are bounded and assembled on the coordinator,
+ * a single page is sufficient. Columns, in output order: {@code _sequence} (long, the 0-based sequence/sample ordinal,
+ * null for event queries), {@code _index}, {@code _id}, {@code _source} (all keyword).
  */
 public class EqlQuerySourceOperator extends SourceOperator {
 
     /** Flattened event row extracted off the transport thread so the {@link EqlSearchResponse} can be released early. */
     private record Row(Long sequence, BytesRef index, BytesRef id, BytesRef source) {}
 
-    public record Factory(EqlQueryService service, String index, String query, @Nullable Integer size, CancellableTask parentTask)
-        implements
-            SourceOperatorFactory {
+    public record Factory(
+        EqlQueryService service,
+        String index,
+        String query,
+        EqlQueryOptions options,
+        @Nullable Integer size,
+        CancellableTask parentTask
+    ) implements SourceOperatorFactory {
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlQuerySourceOperator(driverContext.blockFactory(), service, index, query, size, parentTask);
+            return new EqlQuerySourceOperator(driverContext.blockFactory(), service, index, query, options, size, parentTask);
         }
 
         @Override
@@ -59,6 +65,7 @@ public class EqlQuerySourceOperator extends SourceOperator {
     private final EqlQueryService service;
     private final String index;
     private final String query;
+    private final EqlQueryOptions options;
     @Nullable
     private final Integer size;
     private final CancellableTask parentTask;
@@ -75,6 +82,7 @@ public class EqlQuerySourceOperator extends SourceOperator {
         EqlQueryService service,
         String index,
         String query,
+        EqlQueryOptions options,
         @Nullable Integer size,
         CancellableTask parentTask
     ) {
@@ -82,6 +90,7 @@ public class EqlQuerySourceOperator extends SourceOperator {
         this.service = service;
         this.index = index;
         this.query = query;
+        this.options = options;
         this.size = size;
         this.parentTask = parentTask;
     }
@@ -92,7 +101,7 @@ public class EqlQuerySourceOperator extends SourceOperator {
             requestSent = true;
             SubscribableListener<Void> listener = new SubscribableListener<>();
             blocked = new IsBlockedResult(listener, "waiting for EQL response");
-            service.query(index, query, size, parentTask, ActionListener.wrap(response -> {
+            service.query(index, query, options, size, parentTask, ActionListener.wrap(response -> {
                 // The row data is copied into owned BytesRefs (see toRow), so we must finish reading the response
                 // synchronously here: the transport layer owns the ref-counted response and releases it once this
                 // listener returns, so the operator must NOT decRef it itself.

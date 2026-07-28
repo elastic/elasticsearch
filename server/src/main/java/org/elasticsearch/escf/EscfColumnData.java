@@ -36,7 +36,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  *       {@link EscfBatch}.</li>
  * </ul>
  */
-record EscfColumnData(
+public record EscfColumnData(
     byte kind,
     int docCount,
     FixedBitSet validity,

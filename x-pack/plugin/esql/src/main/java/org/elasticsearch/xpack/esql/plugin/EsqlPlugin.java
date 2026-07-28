@@ -51,6 +51,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -66,6 +67,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
@@ -345,6 +347,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
+    private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -540,6 +543,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
+        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
+            for (var c : metricsCollectors) {
+                c.onQueryCompleted(metrics);
+            }
+        };
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -573,7 +582,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators, encryptionService),
-            new DatasetService(services.clusterService(), crudValidators)
+            new DatasetService(services.clusterService(), crudValidators),
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
 
@@ -798,6 +808,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        loadMetricsCollectors(loader);
+    }
+
+    protected void loadMetricsCollectors(ExtensionLoader loader) {
+        metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
     }
 
     @Override

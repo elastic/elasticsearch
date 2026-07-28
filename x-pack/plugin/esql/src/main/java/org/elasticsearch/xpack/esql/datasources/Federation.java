@@ -14,7 +14,12 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
+import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -29,6 +34,12 @@ import java.util.function.Function;
  *       registered feature. It defaults to {@code false}, so federation is off until it is turned
  *       on in {@code elasticsearch.yml}.</li>
  * </ul>
+ *
+ * <p>The two levers are not symmetric. An unregistered feature has no settings at all: {@link #settings()}
+ * returns nothing, so neither {@link #FEDERATION_ENABLED} nor any external data source knob is registered and a
+ * node whose {@code elasticsearch.yml} carries one of those keys fails to start with the framework's standard
+ * {@code unknown setting} error. Configuring a feature an operator removed is a misconfiguration, not something
+ * to tolerate, and the resulting error is the same one a misspelled key gives.
  *
  * <p>Both levers are deliberately coarse and static rather than dynamic: the property is read once at
  * class initialization and the setting is read from the node's settings, so changing either requires
@@ -79,8 +90,8 @@ public final class Federation {
      * Enables the ES|QL federation feature (external data sources and datasets) on this node. Defaults
      * to {@code false}: federation is opt-in. The value is read from the node's settings rather than
      * from cluster state and gates REST handler registration, so a change takes effect only after a
-     * restart. It has no effect when an operator has unregistered the feature with
-     * {@value #REGISTER_PROPERTY}.
+     * restart. It is registered only when the feature is registered, so on a node where an operator set
+     * {@value #REGISTER_PROPERTY} to {@code false} this key is unknown and rejected at startup.
      */
     public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
         "esql.federation.enabled",
@@ -91,6 +102,39 @@ public final class Federation {
     private static final boolean REGISTERED = readRegistered(System::getProperty);
 
     private Federation() {}
+
+    /**
+     * Whether the feature is registered on this node, i.e. whether an operator left {@value #REGISTER_PROPERTY}
+     * alone. Callers that only need to know if federation can be used should use {@link #isAvailable(Settings)};
+     * this is for the registration-time decisions that cannot consult a setting, because the settings themselves
+     * are what is being registered.
+     */
+    public static boolean isRegistered() {
+        return REGISTERED;
+    }
+
+    /**
+     * The node settings that exist only while the feature is registered: the {@link #FEDERATION_ENABLED} gate, every
+     * external data source and dataset knob, and the ceilings on how many data sources and datasets a project may
+     * hold. A plugin must add these to its own {@code Plugin#getSettings()} rather than registering the groups
+     * directly, so that unregistering the feature takes its whole configuration surface with it.
+     */
+    public static List<Setting<?>> settings() {
+        return settings(REGISTERED);
+    }
+
+    static List<Setting<?>> settings(boolean registered) {
+        if (registered == false) {
+            return List.of();
+        }
+        List<Setting<?>> settings = new ArrayList<>();
+        settings.add(FEDERATION_ENABLED);
+        settings.addAll(ExternalSourceSettings.settings());
+        settings.addAll(ExternalSourceCacheSettings.settings());
+        settings.add(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING);
+        settings.add(DatasetService.MAX_DATASETS_COUNT_SETTING);
+        return List.copyOf(settings);
+    }
 
     /**
      * Parses the registered state from the given property source. Defaults to registered when the
@@ -127,10 +171,10 @@ public final class Federation {
 
     /**
      * Surfaces the effective state in the node log at startup so an operator can confirm both levers after a
-     * bounce, and warns when the setting is configured on a node where the feature is not registered and
-     * therefore cannot honor it. Only a state an operator asked for reaches {@code INFO}: federation being off
-     * is the default on every node, so that one is logged at {@code DEBUG} and confirming it takes raising the
-     * level for this class.
+     * bounce. Only a state an operator asked for reaches {@code INFO}: federation being off is the default on
+     * every node, so that one is logged at {@code DEBUG} and confirming it takes raising the level for this
+     * class. An unregistered node cannot also have the setting on, because it does not accept the setting at
+     * all, so there is no combination to warn about.
      */
     public static void logEffectiveState(Settings settings) {
         logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));
@@ -138,16 +182,7 @@ public final class Federation {
 
     static void logEffectiveState(boolean registered, boolean enabled) {
         if (registered == false) {
-            if (enabled) {
-                logger.warn(
-                    "[{}]=[true] is ignored because the ES|QL federation feature is not registered on this node "
-                        + "([{}]=[false]); set the system property to [true] to make the setting effective",
-                    FEDERATION_ENABLED.getKey(),
-                    REGISTER_PROPERTY
-                );
-            } else {
-                logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
-            }
+            logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
         } else if (enabled) {
             logger.info("ES|QL federation (external data sources) is enabled ([{}]=[true])", FEDERATION_ENABLED.getKey());
         } else {

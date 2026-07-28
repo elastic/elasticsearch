@@ -9,22 +9,36 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
+import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Unit tests for {@link Federation}, the availability gate for external data sources and datasets. The registered state
  * comes from a system property read into a {@code static final} at class load and cannot be flipped in-JVM, so property
- * parsing, the enforcement branch, and the startup logging are exercised through the package-private
- * {@link Federation#readRegistered}, {@link Federation#ensureEnabled(boolean)} and
- * {@link Federation#logEffectiveState(boolean, boolean)} seams, which take their inputs as parameters. The end-to-end
- * behavior of both levers at the REST and transport surface is covered by the federation REST ITs.
+ * parsing, the enforcement branch, the set of registered settings, and the startup logging are exercised through the
+ * package-private {@link Federation#readRegistered}, {@link Federation#ensureEnabled(boolean)},
+ * {@link Federation#settings(boolean)} and {@link Federation#logEffectiveState(boolean, boolean)} seams, which take
+ * their inputs as parameters. The end-to-end behavior of both levers at the REST and transport surface is covered by the
+ * federation REST ITs.
  */
 public class FederationTests extends ESTestCase {
 
@@ -93,17 +107,61 @@ public class FederationTests extends ESTestCase {
         assertEquals("external data sources are not available", e.getMessage());
     }
 
-    public void testLogsWarningWhenSettingCannotTakeEffect() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "ineffective setting warning naming both levers",
-                Federation.class.getCanonicalName(),
-                Level.WARN,
-                "*" + Federation.FEDERATION_ENABLED.getKey() + "*" + Federation.REGISTER_PROPERTY + "*"
-            )
-        );
+    public void testNoSettingsWhenNotRegistered() {
+        assertThat(Federation.settings(false), empty());
+    }
+
+    /**
+     * The whole configuration surface of the feature travels with the registration lever, not just the gate: an
+     * operator who unregistered the feature must not be able to configure any part of it.
+     */
+    public void testSettingsCoverTheGateAndEveryExternalSourceKnob() {
+        List<String> keys = Federation.settings(true).stream().map(Setting::getKey).toList();
+        assertThat(keys, hasItem(Federation.FEDERATION_ENABLED.getKey()));
+        for (Setting<?> setting : ExternalSourceSettings.settings()) {
+            assertThat(keys, hasItem(setting.getKey()));
+        }
+        for (Setting<?> setting : ExternalSourceCacheSettings.settings()) {
+            assertThat(keys, hasItem(setting.getKey()));
+        }
+        assertThat(keys, hasItem(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey()));
+        assertThat(keys, hasItem(DatasetService.MAX_DATASETS_COUNT_SETTING.getKey()));
+        assertThat(keys, hasSize(3 + ExternalSourceSettings.settings().size() + ExternalSourceCacheSettings.settings().size()));
+    }
+
+    /**
+     * Registration follows the operator property alone, never {@link Federation#FEDERATION_ENABLED}: with the feature
+     * registered but not enabled, the rest of the settings are still registered and still updatable, so a deployment can
+     * ship its federation configuration before opting in, or without ever opting in. Exercised against a real
+     * {@link ClusterSettings}, which is what the cluster settings API validates an update against, so this covers the
+     * dynamic keys reaching their consumers as well as the update being accepted at all.
+     */
+    public void testSettingsStayUpdatableWhileFederationIsNotEnabled() {
+        Settings nodeSettings = enabled(false);
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.copyOf(Federation.settings(true)));
+
+        AtomicBoolean federatedIdentity = new AtomicBoolean();
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentity::set);
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        AtomicBoolean cacheEnabled = new AtomicBoolean(true);
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheEnabled::set);
+        AtomicInteger maxDataSources = new AtomicInteger();
+        clusterSettings.addSettingsUpdateConsumer(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING, maxDataSources::set);
+
+        Settings update = Settings.builder()
+            .put(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.getKey(), true)
+            .put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 42)
+            .put(ExternalSourceCacheSettings.CACHE_ENABLED.getKey(), false)
+            .put(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey(), 7)
+            .build();
+        clusterSettings.validate(update, true);
+        clusterSettings.applySettings(update);
+
+        assertTrue("federated identity must be settable while federation is off", federatedIdentity.get());
+        assertEquals(42, maxDiscoveredFiles.get());
+        assertFalse(cacheEnabled.get());
+        assertEquals(7, maxDataSources.get());
     }
 
     public void testLogsNotRegisteredAtInfo() {

@@ -402,24 +402,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
+        // The external source settings are registered only while the federation feature is registered (see
+        // Federation#settings), so an unregistered node has neither a configured value to start from nor an update
+        // consumer to attach: ClusterSettings rejects a consumer for a setting it does not know. The credential gates
+        // below are therefore off outright rather than resolved from settings, which states the invariant here instead
+        // of resting on startup validation having already rejected the keys.
+        boolean federationRegistered = Federation.isRegistered();
+
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
         // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
         // setting's raw value resolves the fallback.
         AtomicBoolean managedIdentityEnabled = new AtomicBoolean(
-            isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
+            federationRegistered && isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
         );
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
-                v -> managedIdentityEnabled.set(isStateless == false && v)
-            );
-
-        // Disabled by default; an operator can enable it dynamically;
-        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        // Disabled by default; while the feature is registered an operator can enable it dynamically.
+        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(
+            federationRegistered && ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings)
+        );
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                    v -> managedIdentityEnabled.set(isStateless == false && v)
+                );
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        }
 
         // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
         LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
@@ -463,9 +473,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        }
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -620,10 +632,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
-                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
-                GROK_WATCHDOG_MAX_EXECUTION_TIME,
-                Federation.FEDERATION_ENABLED
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -631,11 +640,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
 
-        // External source rate limiting settings
-        settings.addAll(ExternalSourceSettings.settings());
-
-        // External source cache settings
-        settings.addAll(ExternalSourceCacheSettings.settings());
+        // The federation gate, every external source knob below it, and the data source / dataset count ceilings,
+        // registered only while an operator leaves the feature registered. On a node where the feature is
+        // unregistered these keys are unknown, so carrying one in elasticsearch.yml fails startup instead of
+        // configuring a feature that is not there.
+        settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
     }

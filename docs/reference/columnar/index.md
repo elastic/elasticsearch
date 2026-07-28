@@ -7,7 +7,8 @@ applies_to:
 
 # Columnar index mode [columnar-index-mode]
 
-With columnar mode enabled, Elasticsearch becomes a full **analytical and search columnar store**. Setting `index.mode` to `columnar` or `logsdb_columnar` activates a set of changes that collectively align Elasticsearch's storage model with dedicated columnar stores:
+When you turn on columnar mode, {{es}} becomes a full **analytical and search columnar store**.
+You activate a set of changes that collectively align the {{es}} storage model with dedicated columnar stores:
 
 - Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields remain indexed by default to support full-text search.
 - For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, min and max values) to avoid scanning large blocks of data when executing a query.
@@ -98,7 +99,7 @@ PUT my-index
 }
 ```
 
-If query latency is more important than storage efficiency, then sorting by just `@timestamp` will likely improve query response times:
+If query latency is more important than storage efficiency, sorting by just `@timestamp` might improve query response times:
 
 ```console
 PUT my-logs-index
@@ -121,7 +122,7 @@ With the columnar modes, fields that are not referenced in static mappings get d
 
 Dynamically mapped fields are configured with doc values turned on and indexes turned off by default, in line with the columnar premise of storing each field once using doc values.
 
-Dynamic mapping behavior is controlled through configuration param `dynamic` that can be set to:
+Dynamic mapping behavior is controlled by the [`dynamic`](/reference/elasticsearch/mapping-reference/dynamic.md) configuration parameter, which can be set to:
 - `true` (default): Turns on the dynamic mapping behavior as described in the preceding paragraphs.
 - `false`: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - `strict`: Documents containing unmapped fields don't get indexed, raising indexing errors instead.

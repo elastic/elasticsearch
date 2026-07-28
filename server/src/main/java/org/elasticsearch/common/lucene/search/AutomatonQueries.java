@@ -152,7 +152,7 @@ public class AutomatonQueries {
         try {
             return new ByteRunAutomaton(dfa);
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, "regexp");
+            circuitBreaker.addWithoutBreaking(-reservation);
         }
     }
 
@@ -177,7 +177,7 @@ public class AutomatonQueries {
         try {
             return re.toAutomaton();
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, "regexp");
+            circuitBreaker.addWithoutBreaking(-reservation);
         }
     }
 

@@ -155,6 +155,8 @@ public class Clusters {
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
         }
+        // Applied to whichever version this cluster runs, so a caller may only pass settings that every BWC version
+        // in the matrix knows; anything newer has to go behind a version check like the block above.
         if (additionalSettings != null && additionalSettings.isEmpty() == false) {
             for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
                 cluster.setting(entry.getKey(), entry.getValue());

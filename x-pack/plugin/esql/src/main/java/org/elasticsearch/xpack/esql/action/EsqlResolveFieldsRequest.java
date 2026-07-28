@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -102,6 +103,16 @@ public class EsqlResolveFieldsRequest extends ActionRequest implements IndicesRe
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return fieldCapsRequest.allowsCrossProject();
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return fieldCapsRequest.getProjectRouting();
+    }
+
+    @Override
     public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
         fieldCapsRequest.setResolvedIndexExpressions(expressions);
     }
@@ -109,6 +120,16 @@ public class EsqlResolveFieldsRequest extends ActionRequest implements IndicesRe
     @Override
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return fieldCapsRequest.getResolvedIndexExpressions();
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        fieldCapsRequest.setResolvedTargetProjects(targetProjects);
+    }
+
+    @Override
+    public TargetProjects getResolvedTargetProjects() {
+        return fieldCapsRequest.getResolvedTargetProjects();
     }
 
     @Override

@@ -66,12 +66,15 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -105,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -2297,6 +2301,25 @@ public class EsqlSession {
             LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
+            if (requestFilter != null && unmappedResolution != UnmappedResolution.DEFAULT && resolvedUnmappedField(plan)) {
+                // The filter can hide a field mapped only in a pruned index, LOAD and NULLIFY don't raise a VerificationException
+                // to trigger a retry
+                LOGGER.debug("Analyzed plan ({}) resolved unmapped fields with a request filter present; retrying without it", description);
+                executionInfo.clusterInfo.clear();
+                resolveIndicesAndAnalyze(
+                    parsed,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    "second attempt, without filter",
+                    null,
+                    timestampBounds,
+                    preAnalysis,
+                    result,
+                    listener
+                );
+                return;
+            }
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
         } catch (VerificationException ve) {
@@ -2323,6 +2346,24 @@ public class EsqlSession {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Whether analysis resolved a referenced field as unmapped ({@link MissingEsField} / {@link PotentiallyUnmappedKeywordEsField}) in a
+     * non-LOOKUP {@link EsRelation}: such a field may actually be mapped in an index the request filter pruned.
+     */
+    private static boolean resolvedUnmappedField(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP && hasUnmappedFieldMarker(esr));
+    }
+
+    private static boolean hasUnmappedFieldMarker(EsRelation esr) {
+        for (Attribute attr : esr.output()) {
+            if (attr instanceof FieldAttribute fa
+                && (fa.field() instanceof MissingEsField || fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(

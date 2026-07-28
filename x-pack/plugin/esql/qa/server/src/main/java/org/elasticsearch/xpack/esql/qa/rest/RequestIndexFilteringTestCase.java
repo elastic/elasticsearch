@@ -162,6 +162,157 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * A field mapped only in the filter-pruned index still resolves to its real type, not {@code null}.
+     */
+    public void testFieldExistsFilterWithNullifyResolvesPrunedFieldType() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest1 = randomIntBetween(1, 5);
+        int docsTest2 = randomIntBetween(0, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+        indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(
+            "SET unmapped_fields=\"nullify\"; " + from("test*") + " METADATA _index | SORT id2 | KEEP _index, id1, id2"
+        );
+        Map<String, Object> result = runEsql(builder);
+        assertQueryResult(
+            result,
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
+        );
+        @SuppressWarnings("unchecked")
+        var values = (List<List<Object>>) result.get("values");
+        for (List<Object> row : values) {
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
+            assertThat(row.get(1), instanceOf(Integer.class));
+            assertThat(row.get(2), nullValue());
+        }
+    }
+
+    /**
+     * id2 resolves to its real ({@code integer}) mapping instead of being loaded from {@code _source} as {@code keyword}
+     */
+    public void testFieldExistsFilterWithLoadResolvesPrunedFieldType() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest1 = randomIntBetween(1, 5);
+        int docsTest2 = randomIntBetween(0, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+        indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(
+            "SET unmapped_fields=\"load\"; " + from("test*") + " METADATA _index | SORT id2 | KEEP _index, id1, id2"
+        );
+        Map<String, Object> result = runEsql(builder);
+        assertQueryResult(
+            result,
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
+        );
+        @SuppressWarnings("unchecked")
+        var values = (List<List<Object>>) result.get("values");
+        for (List<Object> row : values) {
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
+            assertThat(row.get(1), instanceOf(Integer.class));
+            assertThat(row.get(2), nullValue());
+        }
+    }
+
+    /**
+     * Type-conflicted field: {@code id} is mapped as {@code integer} in test1 and {@code keyword} in test2. A request filter that prunes
+     * test2 leaves {@code id} cleanly mapped as {@code integer} in the surviving index, so it resolves to that type under
+     * {@code unmapped_fields="nullify"|"load"}
+     */
+    public void testTypeConflictedFieldResolvesToSurvivingTypeWhenFilterPrunesConflictingIndex() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest1 = randomIntBetween(1, 5);
+        int docsTest2 = randomIntBetween(1, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id", "integer");
+        indexTimestampData(docsTest2, "test2", "2023-11-26", "id", "keyword");
+
+        for (String mode : List.of("nullify", "load")) {
+            RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2024-01-01").query(
+                "SET unmapped_fields=\"" + mode + "\"; " + from("test*") + " | KEEP @timestamp, id"
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertQueryResult(
+                result,
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "id").entry("type", "integer")),
+                allOf(instanceOf(List.class), hasSize(docsTest1))
+            );
+            @SuppressWarnings("unchecked")
+            var values = (List<List<Object>>) result.get("values");
+            for (List<Object> row : values) {
+                assertThat(row.get(1), instanceOf(Integer.class));
+            }
+        }
+    }
+
+    /**
+     * Type-conflicted field whose every mapping is pruned by the request filter: {@code id} is {@code integer} in test1 and {@code keyword}
+     * in test2, while the filter keeps only test3 (which does not map {@code id}). Under {@code unmapped_fields="nullify"|"load"} the field
+     * would otherwise be silently reported as {@code null} (nullify) or {@code keyword} (load)
+     */
+    public void testTypeConflictedFieldHiddenByFilterResolvesAsUnsupported() throws IOException {
+        assumeTrue(
+            "requires fix for resolution of filter-pruned fields under unmapped_fields",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_RESOLUTION_WITH_REQUEST_FILTER.capabilityName())
+            )
+        );
+        int docsTest3 = randomIntBetween(1, 5);
+        indexTimestampData(randomIntBetween(1, 5), "test1", "2024-11-26", "id", "integer");
+        indexTimestampData(randomIntBetween(1, 5), "test2", "2023-11-26", "id", "keyword");
+        indexTimestampData(docsTest3, "test3", "2022-11-26", "val3", "integer");
+
+        for (String mode : List.of("nullify", "load")) {
+            RestEsqlTestCase.RequestObjectBuilder builder = timestampRangeFilter("2022-01-01", "2023-01-01").query(
+                "SET unmapped_fields=\"" + mode + "\"; " + from("test*") + " | KEEP @timestamp, id"
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertQueryResult(
+                result,
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(
+                        matchesMap().entry("name", "id")
+                            .entry("type", "unsupported")
+                            .entry("original_types", List.of("integer", "keyword"))
+                            .extraOk()
+                    ),
+                allOf(instanceOf(List.class), hasSize(docsTest3))
+            );
+            @SuppressWarnings("unchecked")
+            var values = (List<List<Object>>) result.get("values");
+            for (List<Object> row : values) {
+                assertThat(row.get(1), nullValue());
+            }
+        }
+    }
+
     public void testFieldNameTypo() throws IOException {
         int docsTest1 = randomIntBetween(0, 5);
         int docsTest2 = randomIntBetween(0, 5);
@@ -286,6 +437,16 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         });
     }
 
+    protected static RestEsqlTestCase.RequestObjectBuilder timestampRangeFilter(String gte, String lt) throws IOException {
+        return requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", gte).field("lt", lt).endObject();
+            }
+            b.endObject();
+        });
+    }
+
     private static RestEsqlTestCase.RequestObjectBuilder existsFilter(String field) throws IOException {
         return requestObjectBuilder().filter(b -> b.startObject("exists").field("field", field).endObject());
     }
@@ -306,33 +467,61 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
-        indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
+        indexTimestampData(docs, indexName, date, differentiatorFieldName, "integer");
+    }
+
+    /**
+     * As {@link #indexTimestampData(int, String, String, String)} but with a caller-chosen type for the differentiator field, so two
+     * indices can map the same field name to conflicting types (e.g. {@code integer} vs {@code keyword}) to exercise union-type handling.
+     */
+    protected void indexTimestampData(
+        int docs,
+        String indexName,
+        String date,
+        String differentiatorFieldName,
+        String differentiatorFieldType
+    ) throws IOException {
+        indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName, differentiatorFieldType);
     }
 
     protected void indexTimestampDataForClient(RestClient client, int docs, String indexName, String date, String differentiatorFieldName)
         throws IOException {
+        indexTimestampDataForClient(client, docs, indexName, date, differentiatorFieldName, "integer");
+    }
+
+    protected void indexTimestampDataForClient(
+        RestClient client,
+        int docs,
+        String indexName,
+        String date,
+        String differentiatorFieldName,
+        String differentiatorFieldType
+    ) throws IOException {
         Request createIndex = new Request("PUT", indexName);
-        createIndex.setJsonEntity("""
-            {
-              "settings": {
-                "index": {
-                  "number_of_shards": 3
-                }
-              },
-              "mappings": {
-                "properties": {
-                  "@timestamp": {
-                    "type": "date"
+        createIndex.setJsonEntity(
+            """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": 3
+                    }
                   },
-                  "value": {
-                    "type": "long"
-                  },
-                  "%differentiator_field_name%": {
-                    "type": "integer"
+                  "mappings": {
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      },
+                      "value": {
+                        "type": "long"
+                      },
+                      "%differentiator_field_name%": {
+                        "type": "%differentiator_field_type%"
+                      }
+                    }
                   }
-                }
-              }
-            }""".replace("%differentiator_field_name%", differentiatorFieldName));
+                }""".replace("%differentiator_field_name%", differentiatorFieldName)
+                .replace("%differentiator_field_type%", differentiatorFieldType)
+        );
         Response response = client.performRequest(createIndex);
         assertThat(
             entityToMap(response.getEntity(), XContentType.JSON),
@@ -340,12 +529,15 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         );
 
         if (docs > 0) {
+            // Non-numeric differentiator types (e.g. keyword) must be JSON-quoted in the document source.
+            boolean numericDifferentiator = differentiatorFieldType.equals("integer") || differentiatorFieldType.equals("long");
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < docs; i++) {
+                String differentiatorValue = numericDifferentiator ? Integer.toString(i) : "\"" + i + "\"";
                 b.append(String.format(Locale.ROOT, """
                     {"create":{"_index":"%s"}}
-                    {"@timestamp":"%s","value":%d,"%s":%d}
-                    """, indexName, date, i, differentiatorFieldName, i));
+                    {"@timestamp":"%s","value":%d,"%s":%s}
+                    """, indexName, date, i, differentiatorFieldName, differentiatorValue));
             }
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");

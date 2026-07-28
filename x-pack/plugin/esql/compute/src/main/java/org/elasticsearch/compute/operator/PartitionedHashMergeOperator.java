@@ -271,6 +271,7 @@ public class PartitionedHashMergeOperator implements Operator {
     private final SubscribableListener<Void> allWorkersDone = new SubscribableListener<>();
     private final PendingTasks pendingTasks;
     private volatile boolean closed = false;
+    private final AtomicBoolean workerResourcesClosed = new AtomicBoolean();
     private boolean anyTaggedSeen = false;
     private boolean finishCalled = false;
     /** Set to {@code true} the first time {@link #getOutput()} calls {@link #buildOutput()}, so that
@@ -480,33 +481,23 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     @Override
-    public Operator tryPromote(DriverContext driverContext) {
-        // Worker tables are created eagerly; no lazy promotion needed.
-        return this;
-    }
-
-    @Override
     public void close() {
-        closed = true;
         if (workerBuffers != null) {
             for (ExchangeBuffer buf : workerBuffers) {
                 buf.finish(true);
             }
         }
+        // Close output BEFORE releasing worker block factories: operators inside output return
+        // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
+        Releasables.close(noneOp, probeHash, output);
+        noneOp = null;
+        output = null;
+        closed = true;
         if (finishCalled == false && pendingTasks != null) {
             pendingTasks.finishTask();
         }
         if (allWorkersDone.isDone()) {
-            // Close output BEFORE releasing worker block factories: operators inside output return
-            // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
-            Releasables.close(noneOp, probeHash, output);
-            noneOp = null;
-            output = null;
             closeWorkerResources();
-        } else {
-            // Workers still running; they (or the PendingTasks callback) will call
-            // closeWorkerResources() once they finish, by which point output is already gone.
-            Releasables.close(noneOp, probeHash, output);
         }
     }
 
@@ -801,6 +792,9 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     private void closeWorkerResources() {
+        if (workerResourcesClosed.compareAndSet(false, true) == false) {
+            return;
+        }
         if (workerOps != null) {
             Releasables.close(workerOps);
         }

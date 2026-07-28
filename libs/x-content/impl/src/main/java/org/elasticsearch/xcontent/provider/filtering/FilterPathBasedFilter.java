@@ -79,10 +79,7 @@ public class FilterPathBasedFilter extends TokenFilter {
      * @param matchFieldNamesWithDots whether dots in field names are treated as path separators
      * @return an exclusive filter with wildcard backtracking and empty-container preservation
      */
-    public static FilterPathBasedFilter createSourceFilterExclusiveWildcardFilter(
-        FilterPath[] filters,
-        boolean matchFieldNamesWithDots
-    ) {
+    public static FilterPathBasedFilter createSourceFilterExclusiveWildcardFilter(FilterPath[] filters, boolean matchFieldNamesWithDots) {
         return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, true, false, true, true);
     }
 

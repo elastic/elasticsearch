@@ -25,12 +25,16 @@ import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Differential correctness oracle for the ES|QL optimizer: runs the same csv-spec corpus as {@link CsvIT} but with
@@ -78,6 +82,13 @@ public class CsvOptimizerRuleDisabledIT extends CsvIT {
     public static final String PIN_RULE_PROPERTY = "tests.esql.disable_optimizer_rule";
 
     /**
+     * System property for list-mode: write the full {@code <stage-key>:<RuleName>} catalog (including rules marked
+     * {@link MandatoryRule}) to the given file path, one entry per line, then skip test execution. Used by the
+     * exhaustive-sweep driver to discover the pair list before launching per-rule runs.
+     */
+    public static final String LIST_RULES_PROPERTY = "tests.esql.list_optimizer_rules_file";
+
+    /**
      * Per-pragma-value launch counter; keyed by the full pragma string (e.g.
      * {@code "local_logical:InferIsNotNull"}) so the {@link #logOptimizerRuleDisabledSummary summary} can
      * break down how often each rule was exercised across the test JVM's lifetime.
@@ -108,10 +119,23 @@ public class CsvOptimizerRuleDisabledIT extends CsvIT {
      * <p>Runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass {@code @BeforeClass} runs first)
      * and replaces the identity strategy with one that adds a {@code disable_optimizer_rules} pragma to every
      * test.</p>
+     *
+     * <p>List-mode: if {@link #LIST_RULES_PROPERTY} is set, the full {@code (stage:rule)} catalog is written to the
+     * specified file (including {@link MandatoryRule}-marked rules) and test execution is skipped. This is used by
+     * the exhaustive-sweep driver to obtain the pair list before launching per-rule corpus runs.</p>
      */
     @BeforeClass
-    public static void installDisableOptimizerRuleStrategy() {
+    public static void installDisableOptimizerRuleStrategy() throws IOException {
         assumeTrue("disable_optimizer_rules pragma is a no-op on release builds; skipping variant", Build.current().isSnapshot());
+
+        String listFile = System.getProperty(LIST_RULES_PROPERTY);
+        if (listFile != null && listFile.isBlank() == false) {
+            List<String> catalog = buildAllRulesCatalog();
+            Files.writeString(Path.of(listFile.trim()), String.join("\n", catalog) + "\n");
+            logger.info("optimizer-rule-disabled: wrote {} rule entries to {}", catalog.size(), listFile.trim());
+            assumeTrue("list-mode: rule catalog written to " + listFile.trim() + "; skipping test execution", false);
+        }
+
         candidatePool = buildCandidatePool();
         assumeTrue(
             "No optional optimizer rules found — all rules implement MandatoryRule; skipping variant",
@@ -145,23 +169,46 @@ public class CsvOptimizerRuleDisabledIT extends CsvIT {
      */
     private static List<CandidateRule> buildCandidatePool() {
         List<CandidateRule> candidates = new ArrayList<>();
-        addRulesFromOptimizer(candidates, LogicalPlanOptimizer.class, OptimizerStage.GLOBAL_LOGICAL);
-        addRulesFromOptimizer(candidates, LocalLogicalPlanOptimizer.class, OptimizerStage.LOCAL_LOGICAL);
-        addRulesFromOptimizer(candidates, PhysicalPlanOptimizer.class, OptimizerStage.GLOBAL_PHYSICAL);
-        addRulesFromOptimizer(candidates, LocalPhysicalPlanOptimizer.class, OptimizerStage.LOCAL_PHYSICAL);
-        addRulesFromOptimizer(candidates, LookupLogicalOptimizer.class, OptimizerStage.LOOKUP_LOGICAL);
-        addRulesFromOptimizer(candidates, LookupPhysicalPlanOptimizer.class, OptimizerStage.LOOKUP_PHYSICAL);
+        addRulesFromOptimizer(candidates, LogicalPlanOptimizer.class, OptimizerStage.GLOBAL_LOGICAL, false);
+        addRulesFromOptimizer(candidates, LocalLogicalPlanOptimizer.class, OptimizerStage.LOCAL_LOGICAL, false);
+        addRulesFromOptimizer(candidates, PhysicalPlanOptimizer.class, OptimizerStage.GLOBAL_PHYSICAL, false);
+        addRulesFromOptimizer(candidates, LocalPhysicalPlanOptimizer.class, OptimizerStage.LOCAL_PHYSICAL, false);
+        addRulesFromOptimizer(candidates, LookupLogicalOptimizer.class, OptimizerStage.LOOKUP_LOGICAL, false);
+        addRulesFromOptimizer(candidates, LookupPhysicalPlanOptimizer.class, OptimizerStage.LOOKUP_PHYSICAL, false);
         return List.copyOf(candidates);
     }
 
     /**
+     * Enumerates every rule across all six optimizer stages, including those marked {@link MandatoryRule}, and
+     * returns a sorted, deduplicated list of {@code "<stage-key>:<RuleName>"} strings. Used by list-mode to produce
+     * the complete pair catalog for the exhaustive-sweep driver.
+     */
+    private static List<String> buildAllRulesCatalog() {
+        List<CandidateRule> all = new ArrayList<>();
+        addRulesFromOptimizer(all, LogicalPlanOptimizer.class, OptimizerStage.GLOBAL_LOGICAL, true);
+        addRulesFromOptimizer(all, LocalLogicalPlanOptimizer.class, OptimizerStage.LOCAL_LOGICAL, true);
+        addRulesFromOptimizer(all, PhysicalPlanOptimizer.class, OptimizerStage.GLOBAL_PHYSICAL, true);
+        addRulesFromOptimizer(all, LocalPhysicalPlanOptimizer.class, OptimizerStage.LOCAL_PHYSICAL, true);
+        addRulesFromOptimizer(all, LookupLogicalOptimizer.class, OptimizerStage.LOOKUP_LOGICAL, true);
+        addRulesFromOptimizer(all, LookupPhysicalPlanOptimizer.class, OptimizerStage.LOOKUP_PHYSICAL, true);
+        return all.stream().map(r -> r.stage().pragmaKey() + ":" + r.ruleName()).distinct().sorted().collect(Collectors.toList());
+    }
+
+    /**
      * Accesses the static {@code RULES} field of {@code optimizerClass} via reflection, iterates its batches, and
-     * adds any rule whose class does not implement {@link MandatoryRule} to {@code candidates}.
+     * adds each rule to {@code candidates}. When {@code includeMandatory} is {@code false}, rules whose class
+     * implements {@link MandatoryRule} are skipped (normal random-suite behaviour). When {@code true}, all rules are
+     * included (used by {@link #buildAllRulesCatalog()} for the exhaustive-sweep list-mode).
      *
      * <p>Uses raw types to avoid unchecked-cast noise; the casts are safe because we know the field type.</p>
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static void addRulesFromOptimizer(List<CandidateRule> candidates, Class<?> optimizerClass, OptimizerStage stage) {
+    private static void addRulesFromOptimizer(
+        List<CandidateRule> candidates,
+        Class<?> optimizerClass,
+        OptimizerStage stage,
+        boolean includeMandatory
+    ) {
         try {
             Field rulesField = optimizerClass.getDeclaredField("RULES");
             rulesField.setAccessible(true);
@@ -169,7 +216,7 @@ public class CsvOptimizerRuleDisabledIT extends CsvIT {
             for (Object batchObj : batches) {
                 RuleExecutor.Batch batch = (RuleExecutor.Batch) batchObj;
                 for (Object ruleObj : batch.rules()) {
-                    if (MandatoryRule.class.isAssignableFrom(ruleObj.getClass()) == false) {
+                    if (includeMandatory || MandatoryRule.class.isAssignableFrom(ruleObj.getClass()) == false) {
                         candidates.add(new CandidateRule(stage, ruleObj.getClass().getSimpleName()));
                     }
                 }

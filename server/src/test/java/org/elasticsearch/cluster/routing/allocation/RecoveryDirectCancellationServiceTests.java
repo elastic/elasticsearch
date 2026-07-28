@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -1115,6 +1116,97 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshot(snapshot.snapshot(), clusterState);
         assertThat(requests.entrySet(), hasSize(0));
+    }
+
+    public void testSnapshotAndDesiredBalanceCancellationsCacheSharing() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+        final var allocationId = AllocationId.newInitializing(randomIdentifier("alloc-"));
+
+        // The shard is INITIALIZING on node-1 as the target of a relocation from node-0.
+        // Both the desired-balance path and the snapshot path target this allocationId.
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(shardId, "node-1", true, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(allocationId)
+                    .withRelocatingNodeId("node-0")
+                    .build()
+            );
+        final var snapshot = snapshotWithShards(
+            Map.of(shardId, new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null))
+        );
+        final var compatVersions = new CompatibilityVersions(TransportVersion.current(), Map.of());
+        final var clusterState = ClusterState.builder(clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot))
+            .putCompatibilityVersions("node-0", compatVersions)
+            .putCompatibilityVersions("node-1", compatVersions)
+            .putCompatibilityVersions("node-2", compatVersions)
+            .build();
+
+        // Desired balance says shard should be on node-2, not node-1
+        final var desiredBalance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
+
+        final var taskQueue = new DeterministicTaskQueue();
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
+
+        final var capturedCancellations = new CopyOnWriteArrayList<ShardRecoveryCancellation>();
+        doAnswer(invocation -> {
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            capturedCancellations.addAll(req.cancellations());
+            handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return null;
+        }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
+
+        final var service = new RecoveryDirectCancellationService(
+            transportService,
+            createMockClusterService(clusterState, true),
+            mock(AllocationService.class),
+            mock(RerouteService.class)
+        );
+
+        // Snapshot path sends cancelIfStarted=false for the relocating shard
+        service.cancelRecoveriesBlockingSnapshot(snapshot.snapshot());
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(capturedCancellations, hasSize(1));
+        assertThat(capturedCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId, allocationId.getId(), false)));
+        assertThat(
+            service.sentCancellations.get(allocationId.getId()),
+            equalTo(new RecoveryDirectCancellationService.SentCancellation(clusterState.term(), false))
+        );
+        capturedCancellations.clear();
+
+        // Desired-balance path with cancelIfStarted=false, deduplicated
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState));
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(capturedCancellations, hasSize(0));
+
+        // Desired-balance path with canRemain=NO produces cancelIfStarted=true
+        service.cancelUndesiredRecoveries(
+            desiredBalance,
+            createRoutingAllocationFrom(clusterState, forbidRemainDecider(shardId, "node-1", true))
+        );
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(capturedCancellations, hasSize(1));
+        assertThat(capturedCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId, allocationId.getId(), true)));
+        assertThat(
+            service.sentCancellations.get(allocationId.getId()),
+            equalTo(new RecoveryDirectCancellationService.SentCancellation(clusterState.term(), true))
+        );
+        capturedCancellations.clear();
+
+        // Snapshot path again with cancelIfStarted=false, deduplicated
+        service.cancelRecoveriesBlockingSnapshot(snapshot.snapshot());
+        taskQueue.runAllRunnableTasks();
+        assertThat(capturedCancellations, hasSize(0));
+        assertThat(
+            service.sentCancellations.get(allocationId.getId()),
+            equalTo(new RecoveryDirectCancellationService.SentCancellation(clusterState.term(), true))
+        );
     }
 
     private SnapshotsInProgress.Entry snapshotWithShards(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {

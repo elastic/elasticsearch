@@ -258,15 +258,14 @@ public class RequestTaskTests extends ESTestCase {
     public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure() throws InterruptedException {
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
-        var calledOnFailureLatch = new CountDownLatch(1);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
-        var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
-
-        doAnswer(invocation -> {
-            calledOnFailureLatch.countDown();
-            return Void.TYPE;
-        }).when(listener).onFailure(any());
+        
+        var bytesReleasedLatch = new CountDownLatch(1);
+        var releaseBytes = Releasables.releaseOnce(() -> {
+            trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed);
+            bytesReleasedLatch.countDown();
+        });
 
         // Times out after 1 ms
         var requestTask = new RequestTask(
@@ -278,7 +277,7 @@ public class RequestTaskTests extends ESTestCase {
             releaseBytes
         );
 
-        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        bytesReleasedLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         verify(listener, times(1)).onFailure(any());
         assertTrue(requestTask.hasCompleted());
 

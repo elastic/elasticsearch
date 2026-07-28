@@ -30,7 +30,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -140,11 +139,12 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesOracle(results, oracle, 0L);
     }
 
-    public void testMultiValuedKeyTriggersFallbackAndStillReconciles() {
+    public void testMultiValuedKeyAfterConversionRoutesToOverflowAndStillReconciles() {
         Map<Long, Long> oracle = new HashMap<>();
+        // These pages arrive first and are enough to cross the conversion threshold (30 distinct keys).
         List<Page> input = new ArrayList<>(randomInput(6_000, 200, oracle, false));
 
-        // Append one page with a multi-valued grouping key, contributing further to the oracle.
+        // One page with a multi-valued grouping key, appended after conversion is certain to have happened.
         LongBlock keys;
         LongBlock values;
         try (
@@ -167,9 +167,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             values = valueBuilder.build();
         }
         input.add(new Page(keys, values));
-        // More ordinary rows afterward, to confirm the operator keeps working post-fallback.
+        // More ordinary rows after the MV page, to confirm partition routing still works.
         input.addAll(randomInput(2_000, 200, oracle, false));
-        Collections.shuffle(input, random());
+        // Do not shuffle: MV page must arrive post-conversion so the new overflow path is exercised.
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
@@ -182,8 +182,71 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        // After the fallback, everything (including the tail of ordinary rows) is legacy/untagged.
-        assertThat(results.get(results.size() - 1).partition, equalTo(PartitionedHashAggregationOperator.NONE_PARTITION));
+        // MV page was routed to the overflow legacyOp → at least one NONE_PARTITION result.
+        assertTrue(
+            "expected at least one NONE_PARTITION result for the MV overflow page",
+            results.stream().anyMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        // Non-MV pages after the MV page still route to partition ops → at least one real partition tag.
+        assertTrue(
+            "expected at least one real partition tag: partition ops must continue working after an MV page",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesOracle(results, oracle, 0L);
+    }
+
+    public void testMultiValuedKeyBeforeConversionAbsorbedIntoPartitions() {
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> input = new ArrayList<>();
+
+        // MV page first — arrives before any conversion threshold is crossed.
+        LongBlock mvKeys;
+        LongBlock mvValues;
+        try (
+            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(3);
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(3)
+        ) {
+            keyBuilder.beginPositionEntry();
+            keyBuilder.appendLong(1L);
+            keyBuilder.appendLong(2L);
+            keyBuilder.endPositionEntry();
+            valueBuilder.appendLong(1000L);
+            oracle.merge(1L, 1000L, Long::sum);
+            oracle.merge(2L, 1000L, Long::sum);
+
+            keyBuilder.appendLong(3L);
+            valueBuilder.appendLong(2000L);
+            oracle.merge(3L, 2000L, Long::sum);
+
+            mvKeys = keyBuilder.build();
+            mvValues = valueBuilder.build();
+        }
+        input.add(new Page(mvKeys, mvValues));
+        // Normal pages follow — enough distinct keys to cross the threshold and trigger conversion.
+        input.addAll(randomInput(6_000, 200, oracle, false));
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(30)
+            .perPartitionEmitThreshold(Integer.MAX_VALUE)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        // MV rows were ingested by the legacy op and absorbed into the partition ops during
+        // conversion (evaluateOp → distributeIntermediatePage): no overflow legacyOp is created,
+        // so all output carries real partition tags.
+        assertTrue(
+            "expected real partition tags: MV data was ingested pre-conversion and absorbed into partitions",
+            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertTrue(
+            "expected no NONE_PARTITION output: MV data was absorbed into partitions during conversion",
+            results.stream().noneMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
         assertMatchesOracle(results, oracle, 0L);
     }
 

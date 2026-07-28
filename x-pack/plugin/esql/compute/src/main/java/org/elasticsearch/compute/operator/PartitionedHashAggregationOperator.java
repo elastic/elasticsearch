@@ -59,9 +59,11 @@ import static java.util.stream.Collectors.joining;
  * </p>
  * <p>
  *     Multi-valued grouping keys break the one-row-one-partition assumption bucket-sort routing
- *     depends on. The first time one is observed, this operator permanently reverts to the legacy
- *     single-table behavior (draining every partition back into one table), rather than ever
- *     misrouting a row.
+ *     depends on. Before conversion, MV keys are handled natively by the single legacy table.
+ *     After conversion, any page that contains at least one MV key is routed in its entirety to a
+ *     lazily-created overflow table ({@code legacyOp}), tagged as {@link #NONE_PARTITION} on emit
+ *     so the coordinator's {@code noneOp} can reconcile it — non-MV pages continue to use the
+ *     partition tables as normal.
  * </p>
  */
 public class PartitionedHashAggregationOperator extends AbstractPartitionedHashAggregationOperator {
@@ -333,15 +335,17 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         try {
             checkState(needsInput(), "Operator is already finishing");
             requireNonNull(page, "page is null");
-            if (partitionOps != null && permanentlyUnpartitioned == false && hasMultiValuedKeys(page)) {
-                revertToLegacy();
-            }
             Page internal = toInternalLayout(page);
             if (partitionOps == null) {
                 legacyOp.processPage(internal);
                 if (permanentlyUnpartitioned == false && legacyOp.blockHash.numKeys() >= partitionConversionThreshold) {
                     convertToPartitioned();
                 }
+            } else if (hasMultiValuedKeys(page)) {
+                if (legacyOp == null) {
+                    legacyOp = newOp();
+                }
+                legacyOp.processPage(internal);
             } else {
                 addToPartitions(internal);
                 maybeEmitPartitions();
@@ -401,6 +405,9 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         sb.append(getClass().getSimpleName()).append("[");
         if (partitionOps != null) {
             sb.append("partitionCount=").append(partitionCount);
+            if (legacyOp != null) {
+                sb.append(", mvOverflow=").append(legacyOp.blockHash);
+            }
         } else if (legacyOp != null) {
             sb.append("legacy=").append(legacyOp.blockHash);
         } else if (permanentlyUnpartitioned) {
@@ -513,51 +520,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         return false;
     }
 
-    /**
-     * Permanently falls back to single-table behavior: drains every partition's contents back
-     * into one fresh legacy operator (the same evaluate-intermediate merge primitive as conversion,
-     * in reverse), since a multi-valued key showed up and bucket-sort routing can't handle it.
-     */
-    private void revertToLegacy() {
-        permanentlyUnpartitioned = true;
-        HashAggregationOperator newLegacy = newOp();
-        boolean success = false;
-        try {
-            for (HashAggregationOperator partition : partitionOps) {
-                if (partition.blockHash.numKeys() > 0) {
-                    drainOpInto(partition, newLegacy);
-                }
-            }
-            success = true;
-        } finally {
-            BlockHash ph = probeHash;
-            probeHash = null;
-            Releasables.close(ph);
-            for (HashAggregationOperator op : partitionOps) {
-                if (op != null) {
-                    saveOpTiming(op);
-                }
-            }
-            Releasables.close(partitionOps);
-            partitionOps = null;
-            if (success) {
-                legacyOp = newLegacy;
-            } else {
-                newLegacy.close();
-            }
-        }
-    }
-
-    private void drainOpInto(HashAggregationOperator source, HashAggregationOperator destination) {
-        try (ReleasableIterator<Page> pages = evaluateOp(source, Integer.MAX_VALUE)) {
-            while (pages.hasNext()) {
-                try (Page intermediatePage = pages.next()) {
-                    mergeIntermediateIntoTable(destination, intermediatePage);
-                }
-            }
-        }
-    }
-
     // ---- per-partition periodic early emit ----
 
     private void maybeEmitPartitions() {
@@ -626,7 +588,8 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             } else {
                 op.close();
             }
-        } else {
+        }
+        if (partitionOps != null) {
             for (int p = 0; p < partitionCount; p++) {
                 HashAggregationOperator op = partitionOps[p];
                 saveOpTiming(op);
@@ -715,7 +678,8 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
                     aggregationNanos += s.aggregationNanos();
                 }
             }
-        } else if (legacyOp != null) {
+        }
+        if (legacyOp != null) {
             HashAggregationOperator.Status s = (HashAggregationOperator.Status) legacyOp.status();
             hashNanos += s.hashNanos();
             aggregationNanos += s.aggregationNanos();

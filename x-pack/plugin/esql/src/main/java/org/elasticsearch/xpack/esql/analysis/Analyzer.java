@@ -1251,25 +1251,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
-            // Expand the field patterns exactly once. After the first pass generatedFields is populated (with stable ids),
-            // so re-running the rule (e.g. while the inference id is still being resolved) is a no-op and the plan converges.
-            if (p.generatedAttributes().isEmpty() == false) {
+            // Expand the field patterns once. Re-running is a no-op and the plan converges: after the first pass either
+            // generatedFields is populated (non-empty result) or the field list is empty (every pattern matched nothing ->
+            // a silent no-op, DECISION-014); either way we return the same instance, even while the inference id resolves.
+            if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
                 return p;
             }
 
             List<NamedExpression> resolvedFields = new ArrayList<>();
             for (NamedExpression field : p.fields()) {
                 if (field instanceof UnresolvedStar) {
-                    // "*" -> every non-metadata field; keep only the text ones, skip the rest (wildcard semantics)
+                    // "*" -> every non-metadata field; keep only the text ones, silently skip the rest (wildcard semantics)
                     for (Attribute a : excludeExternalMetadata(childrenOutput)) {
                         if (DataType.isString(a.dataType())) {
                             resolvedFields.add(a);
                         }
                     }
                 } else if (field instanceof UnresolvedNamePattern up) {
-                    // wildcard pattern -> keep text matches, skip non-text; a no-match surfaces "No matches found for pattern [..]"
+                    // wildcard pattern -> keep resolved text matches only; a no-match or a non-text match is silently
+                    // skipped for now (DECISION-014: wildcard-matches-nothing is silent, final behavior deferred)
                     for (Attribute a : resolveAgainstList(up, childrenOutput)) {
-                        if (a.resolved() == false || DataType.isString(a.dataType())) {
+                        if (a.resolved() && DataType.isString(a.dataType())) {
                             resolvedFields.add(a);
                         }
                     }
@@ -1279,11 +1281,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 } else {
                     resolvedFields.add(field);
                 }
-            }
-
-            if (resolvedFields.isEmpty()) {
-                // every pattern matched only non-text columns -> nothing embeddable
-                resolvedFields.add(new UnresolvedAttribute(p.source(), "*", "DENSE_VECTOR found no text fields to embed"));
             }
 
             return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));

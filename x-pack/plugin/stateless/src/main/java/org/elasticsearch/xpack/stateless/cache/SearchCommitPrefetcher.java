@@ -280,7 +280,7 @@ public class SearchCommitPrefetcher {
                     continue;
                 }
 
-                var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
+                var cacheKey = new FileCacheKey(shardId, blobFile);
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 
@@ -497,7 +497,7 @@ public class SearchCommitPrefetcher {
 
     /**
      * Resolves a representative data timestamp (epoch millis) for a Lucene file, keyed by file name, or
-     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} when unknown.
+     * a negative sentinel value when unknown (temporarily or inexistent).
      */
     @FunctionalInterface
     public interface FileTimestampResolver {

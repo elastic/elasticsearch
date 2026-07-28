@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 155317
+summary: "Revert \"[ML] Fix spurious 409s waiting for model allocation\""
+type: bug

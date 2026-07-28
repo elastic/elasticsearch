@@ -7,6 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -19,7 +23,10 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -261,6 +268,10 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
 
     /** Non-null until {@link #convertToPartitioned} (or a multi-valued key) replaces it. */
     private HashAggregationOperator legacyOp;
+
+    private long routingNanos;
+    private int pagesProcessed;
+    private long rowsReceived;
     /** Non-null once converted from the legacy table. */
     private HashAggregationOperator[] partitionOps;
     /** Set once a multi-valued key is observed; conversion is never attempted again after that. */
@@ -334,6 +345,8 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             }
         } finally {
             page.releaseBlocks();
+            pagesProcessed++;
+            rowsReceived += page.getPositionCount();
         }
     }
 
@@ -653,6 +666,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         BlockHash.Router router = probeHash.router();
         int[] partitionOf = new int[positions];
         int[] counts = new int[nPartitions];
+        long routingStart = System.nanoTime();
         router.fillPartitions(page, positions, keyCount, nPartitions, NULL_PARTITION, partitionOf, counts);
         int[] offsets = new int[nPartitions + 1];
         for (int p = 0; p < nPartitions; p++) {
@@ -663,6 +677,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         for (int i = 0; i < positions; i++) {
             sortedPositions[cursor[partitionOf[i]]++] = i;
         }
+        routingNanos += System.nanoTime() - routingStart;
         for (int p = 0; p < nPartitions; p++) {
             int start = offsets[p], end = offsets[p + 1];
             if (start == end) {
@@ -677,6 +692,119 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     @FunctionalInterface
     private interface PartitionAction {
         void accept(int partition, Page subPage);
+    }
+
+    @Override
+    public Operator.Status status() {
+        long hashNanos = 0, aggregationNanos = 0;
+        if (partitionOps != null) {
+            for (HashAggregationOperator op : partitionOps) {
+                if (op != null) {
+                    HashAggregationOperator.Status s = (HashAggregationOperator.Status) op.status();
+                    hashNanos += s.hashNanos();
+                    aggregationNanos += s.aggregationNanos();
+                }
+            }
+        } else if (legacyOp != null) {
+            HashAggregationOperator.Status s = (HashAggregationOperator.Status) legacyOp.status();
+            hashNanos += s.hashNanos();
+            aggregationNanos += s.aggregationNanos();
+        }
+        return new Status(routingNanos, hashNanos, aggregationNanos, pagesProcessed, rowsReceived);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "partitioned_hash_agg",
+            Status::new
+        );
+
+        private final long routingNanos;
+        private final long hashNanos;
+        private final long aggregationNanos;
+        private final int pagesProcessed;
+        private final long rowsReceived;
+
+        public Status(long routingNanos, long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived) {
+            this.routingNanos = routingNanos;
+            this.hashNanos = hashNanos;
+            this.aggregationNanos = aggregationNanos;
+            this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+        }
+
+        public Status(StreamInput in) throws IOException {
+            routingNanos = in.readVLong();
+            hashNanos = in.readVLong();
+            aggregationNanos = in.readVLong();
+            pagesProcessed = in.readVInt();
+            rowsReceived = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(routingNanos);
+            out.writeVLong(hashNanos);
+            out.writeVLong(aggregationNanos);
+            out.writeVInt(pagesProcessed);
+            out.writeVLong(rowsReceived);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        /** Nanoseconds spent in the bucket-sort routing pass (fillPartitions + prefix-sum + scatter). */
+        public long routingNanos() {
+            return routingNanos;
+        }
+
+        /** Nanoseconds inner partition operators spent hashing grouping keys, summed across all partitions. */
+        public long hashNanos() {
+            return hashNanos;
+        }
+
+        /** Nanoseconds inner partition operators spent running aggregations, summed across all partitions. */
+        public long aggregationNanos() {
+            return aggregationNanos;
+        }
+
+        /** Count of pages this operator has processed. */
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        /** Count of rows this operator has received. */
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("routing_nanos", routingNanos);
+            if (builder.humanReadable()) {
+                builder.field("routing_time", TimeValue.timeValueNanos(routingNanos));
+            }
+            builder.field("hash_nanos", hashNanos);
+            if (builder.humanReadable()) {
+                builder.field("hash_time", TimeValue.timeValueNanos(hashNanos));
+            }
+            builder.field("aggregation_nanos", aggregationNanos);
+            if (builder.humanReadable()) {
+                builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
+            }
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            return builder.endObject();
+        }
     }
 
     /** Fans a single group-id batch out to every prepared aggregator's {@code AddInput}. */

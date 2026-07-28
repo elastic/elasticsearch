@@ -21,10 +21,11 @@ public class Clusters {
 
     private static final String FEDERATION_ENABLED_SETTING = Federation.FEDERATION_ENABLED.getKey();
     /**
-     * The version {@link #FEDERATION_ENABLED_SETTING} exists as of, mirroring {@code Version.V_9_6_0}, which this class
-     * cannot name directly: node specs take a {@link Version}, and that class carries no version constants.
+     * The version {@link #FEDERATION_ENABLED_SETTING} exists as of. Node specs take a {@link Version}, which carries no
+     * release constants, so the boundary is converted from the server constant instead of being spelled out again. The
+     * qualified name disambiguates the two {@code Version} types this file needs.
      */
-    private static final Version FEDERATION_SETTING_VERSION = Version.fromString("9.6.0");
+    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_6_0.toString());
 
     public static ElasticsearchCluster mixedVersionCluster() {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);

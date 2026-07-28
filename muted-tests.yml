@@ -760,3 +760,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testPopulateCacheWithSharedSourceInputStreamFactory
   issue: https://github.com/elastic/elasticsearch/issues/154597
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:ip.cidrMatchFieldArg}
+  issue: https://github.com/elastic/elasticsearch/issues/155281

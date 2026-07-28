@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
@@ -29,12 +30,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -71,9 +73,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -2706,17 +2707,31 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+        // Distinct from the out-of-range cases: only the message separates unparseable from out-of-range now.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid integer value [abc]"));
     }
 
     public void testWithConfigNullOrEmptyReturnsThis() {
@@ -3029,16 +3044,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
     public void testSegmentSizeTooSmallIsRejected() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "1kb").build();
-        QlIllegalArgumentException ex = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> new NdJsonFormatReader(settings, blockFactory)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(settings, blockFactory));
         assertThat(ex.getMessage(), Matchers.containsString("segment_size"));
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        QlIllegalArgumentException ex2 = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("segment_size", "1kb"))
-        );
+        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("segment_size", "1kb")));
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }
 
@@ -3246,7 +3255,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             case DOUBLE -> DataType.DOUBLE;
             case NULL -> DataType.NULL;
             case BYTES_REF -> DataType.KEYWORD;
-            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE ->
                 throw new IllegalArgumentException("Unsupported block type: " + block.elementType());
         };
     }

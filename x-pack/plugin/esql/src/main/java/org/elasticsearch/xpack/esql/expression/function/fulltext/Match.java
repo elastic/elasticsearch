@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,11 +16,9 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +27,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -62,13 +57,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -104,7 +97,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -147,7 +140,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
-    private static final String CONTENT_FIELD = "content_field";
 
     @FunctionInfo(
         returnType = "boolean",
@@ -163,6 +155,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
+            for the match query.
+            All <<match-field-params,match query parameters>> are supported.
+
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
             {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
             `MATCH` can also search expressions that are not backed by an index, such as
             computed columns produced by `EVAL`, `STATS`, or other commands.
@@ -172,14 +174,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             (match query options) are not supported.
             Additionally, `MATCH` on an expression does not contribute to the relevance score
             when using `METADATA _score`.
-
-            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
-            for the match query.
-            All <<match-field-params,match query parameters>> are supported.
-
-            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
-
-            `MATCH` returns true if the provided query matches the row.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -317,7 +311,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Match(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -327,6 +325,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -413,11 +414,19 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Override
-    protected boolean isRuntimeSearch() {
-        if (fieldAsFieldAttribute() == null) {
+    public boolean isRuntimeSearch() {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
             // This *isn't* a field in the index OR a pushed block loader
             return true;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+
         if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
             // This is a pushed block loader.
             // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
@@ -428,9 +437,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
             return Translatable.NO;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
         return super.translatable(pushdownPredicates);
     }
 
@@ -440,14 +456,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         if (isRuntimeSearch() == false) {
             return;
         }
-        if (options() != null) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "Options are not supported for [MATCH] function call on non-index-mapped field [" + field.sourceText() + "]"
-                )
-            );
-        }
+
         // The query value can only be converted to the field's runtime type once it has been folded down to a
         // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
         // postOptimizationPlanVerification runs.
@@ -462,6 +471,53 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         query().sourceText(),
                         field.dataType().typeName(),
                         field.sourceText()
+                    )
+                );
+            }
+        }
+
+        if (options() != null && field().dataType() == TEXT) {
+            verifyRuntimeOptions(function, field, failures);
+        } else if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the options for a runtime-search {@code match} on a {@code text} field. Checks that the
+     * {@code analyzer} option is absent (not supported for runtime fields), that options are only used with
+     * {@code text} fields, and that the options produce a valid {@code MatchQueryBuilder}.
+     */
+    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+        Map<String, Object> opts = matchQueryOptions();
+        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
+        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
+        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            failures.add(
+                Failure.fail(
+                    function,
+                    "The analyzer option is not supported for [MATCH] function call on non-index-mapped field [{}]",
+                    field.sourceText()
+                )
+            );
+            return;
+        }
+        if (query() instanceof Literal) {
+            // Validate that the options produce a valid MatchQueryBuilder at plan-verification time rather than at execution time.
+            try {
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts).toQueryBuilder();
+            } catch (IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        function,
+                        "[MATCH] function failed to build query for non-index-mapped field [{}]: {}",
+                        field.sourceText(),
+                        e.getMessage()
                     )
                 );
             }
@@ -488,26 +544,18 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
-        if (field.dataType() == TEXT) {
-            // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
-            Analyzer analyzer = new StandardAnalyzer();
-            Set<BytesRef> queryTerms;
-            try {
-                queryTerms = queryTerms(analyzer);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
-            }
-            // TODO: use the `zero_terms_query` option, for now we use `none`.
-            if (queryTerms.isEmpty()) {
-                return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
-            }
-
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, analyzer, context -> new BytesRef());
+        if (field.dataType() == TEXT && options() == null) {
+            return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
+        }
+        // When options are used, we build a Lucene query
+        if (field.dataType() == TEXT && options() != null) {
+            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
+            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchQuery);
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new MatchBytesRefEvaluator.Factory(
+            case BYTES_REF -> new RuntimeSearchBytesRefEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field()),
                 (BytesRef) queryValue,
@@ -578,73 +626,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         };
     }
 
-    private Set<BytesRef> queryTerms(Analyzer analyzer) throws IOException {
-        Set<BytesRef> queryTerms = new HashSet<>();
-
-        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, queryAsObject().toString())) {
-            stream.reset();
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            while (stream.incrementToken()) {
-                queryTerms.add(BytesRef.deepCopyOf(term.getBytesRef()));
-            }
-            stream.end();
-        }
-        return queryTerms;
-    }
-
-    @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean processText(
-        @Position int position,
-        BytesRefBlock fieldBlock,
-        @Fixed Set<BytesRef> queryTerms,
-        @Fixed Analyzer analyzer,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
-    ) throws IOException {
-        if (fieldBlock == null) {
-            return false;
-        }
-
-        final var valueCount = fieldBlock.getValueCount(position);
-        final var startIndex = fieldBlock.getFirstValueIndex(position);
-
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            boolean foundMatch = false;
-            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            // Because we use the standard analyzer and options cannot be specified, we can look for matches in the analyzed token stream.
-            // Once we accept options, we might need to take a different execution path and use a Lucene MemoryIndex.
-            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
-                stream.reset();
-                TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-                // TODO: Use the operator specified in the query options. For now, we use OR, meaning we stop as soon as we find a match.
-                while (stream.incrementToken()) {
-                    if (queryTerms.contains(term.getBytesRef())) {
-                        foundMatch = true;
-                        break;
-                    }
-                }
-                stream.end();
-            }
-            if (foundMatch) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
-    static boolean processBytesRef(
-        @Position int position,
-        BytesRefBlock fieldBlock,
-        @Fixed BytesRef queryStringBytesRef,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
-    ) {
-        if (fieldBlock == null) {
-            return false;
-        }
-
-        return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
-    }
-
     @Evaluator(extraName = "Boolean", allNullsIsNull = false)
     static boolean processBoolean(@Position int position, BooleanBlock fieldBlock, @Fixed Boolean query) {
         if (fieldBlock == null) {
@@ -676,14 +657,5 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return false;
         }
         return fieldBlock.hasValue(position, query);
-    }
-
-    @Override
-    public boolean contributesToScore() {
-        if (isRuntimeSearch()) {
-            return false;
-        }
-
-        return super.contributesToScore();
     }
 }

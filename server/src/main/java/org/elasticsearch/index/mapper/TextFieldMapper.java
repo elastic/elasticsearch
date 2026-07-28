@@ -265,19 +265,13 @@ public final class TextFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                false,
-                DocValuesParameter.Values.Cardinality.HIGH,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
+            return DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
         }
 
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
     }
 
@@ -1095,7 +1089,8 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {
@@ -1851,6 +1846,11 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

@@ -44,7 +44,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final IndexInput input;
     protected final QuantizedByteVectorValues values;
     protected final int dims;
-    protected final int maxOrd;
     protected final int vectorPitch;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
@@ -55,7 +54,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.vectorPitch = dims + CORRECTIONS_BYTES;
         // Scratches are sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first dims bytes) and the corrections
@@ -78,18 +76,29 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     ) {}
 
     protected QueryContext createQueryContext(int ord) throws IOException {
-        var correctiveTerms = values.getCorrectiveTerms(ord);
-        return new QueryContext(
-            ord,
-            correctiveTerms.lowerInterval(),
-            correctiveTerms.upperInterval(),
-            correctiveTerms.additionalCorrection(),
-            correctiveTerms.quantizedComponentSum()
+        // Read the full per-vector record (vector + corrections) in a single slice, matching the read
+        // pattern in scoreFromOrds/bulkScoreFromOrds, instead of a separate getCorrectiveTerms(ord) I/O
+        // on the values' own channel. Only the corrections trailer is extracted here.
+        long offset = (long) ord * vectorPitch;
+        input.seek(offset);
+        // The corrections trailer starts at byte offset dims within the record; read the 3 floats + 1 int
+        // directly from the slice rather than materializing a short-lived sub-slice.
+        return IndexInputUtils.withSlice(
+            input,
+            vectorPitch,
+            firstScratch::getScratch,
+            seg -> new QueryContext(
+                ord,
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + Float.BYTES),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + 2L * Float.BYTES),
+                seg.get(ValueLayout.JAVA_INT_UNALIGNED, dims + 3L * Float.BYTES)
+            )
         );
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

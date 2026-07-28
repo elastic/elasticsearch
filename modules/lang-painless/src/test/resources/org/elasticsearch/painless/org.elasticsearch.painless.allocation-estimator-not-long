@@ -10,5 +10,5 @@
 # Bad allowlist: the named estimator does not return long; loading must fail.
 
 class org.elasticsearch.painless.AllocationEstimatorTestObject {
-  int negativeEstimated() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="notLongEstimate"]
+  int negativeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="notLongEstimate"]
 }

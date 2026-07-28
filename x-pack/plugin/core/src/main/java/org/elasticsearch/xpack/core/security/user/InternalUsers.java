@@ -190,7 +190,9 @@ public class InternalUsers {
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
                         ".fleet-fileds*",
                         // System data stream for kibana workflows
-                        ".workflows*"
+                        ".workflows*",
+                        // System data stream for kibana saved objects change history
+                        ".kibana_change_history*"
                     )
                     .privileges(
                         filterNonNull(

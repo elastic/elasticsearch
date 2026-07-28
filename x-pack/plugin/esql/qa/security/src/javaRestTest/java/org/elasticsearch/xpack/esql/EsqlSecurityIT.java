@@ -78,6 +78,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
         .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
         .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
@@ -1775,6 +1776,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testLookupJoinWithRequestFilterMatchingNoDocs() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        // Regression test: a request-level filter that matches no source documents used to cause the
+        // lookup index field-caps request to be sent with an empty index expression. With security
+        // enabled, IndicesAndAliasesResolver then expanded the empty expression to all authorised
+        // indices (lookup-user1 and lookup-user2 for metadata1_read2), making the lookup join fail
+        // with "Lookup Join requires a single lookup mode index; [...] resolves to multiple indices"
+        // instead of returning an empty result set.
+        // https://github.com/elastic/kibana/issues/277613
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity("""
+            {
+                "query": "FROM index-user2 | LOOKUP JOIN lookup-user2 ON value | KEEP value, org | LIMIT 10",
+                "filter": {"match_none": {}}
+            }
+            """);
+        request.setOptions(runAsUserOptions("metadata1_read2", null));
+        request.addParameter("error_trace", "true");
+        Response resp = client().performRequest(request);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("values"), equalTo(List.of()));
+    }
+
     public void testFromLookupIndexForbidden() throws Exception {
         var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
@@ -2150,6 +2178,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-* | STATS COUNT(*)")), oneResult);
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-* | STATS COUNT(*)")), oneResult);
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
+    }
+
+    public void testCountAcrossIndicesWithFlsDeniedField() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS c = COUNT(value)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 2 docs (10.0, 20.0); index-user1: value FLS-denied — contributes 0
+        assertThat(values.get(0).get(0), equalTo(2));
+    }
+
+    public void testSumAcrossIndicesWithFlsDeniedFieldAndCast() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS s = SUM(value::long)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 10.0+20.0 → 30L; index-user1: value FLS-denied — contributes null
+        assertThat(values.get(0).get(0), equalTo(30));
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {

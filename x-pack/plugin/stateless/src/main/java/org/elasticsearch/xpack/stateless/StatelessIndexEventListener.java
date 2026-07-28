@@ -23,6 +23,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -231,7 +234,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
     }
 
-    private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
+    private static void logBootstrappingFromObjectStore(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
         logger.info(
             "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
             indexShard.shardId(),
@@ -243,20 +246,22 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
     }
 
-    private static void logBootstrapping(
+    private static void logBootstrappingFromIndexingShard(
         IndexShard indexShard,
         StatelessCompoundCommit latestCommit,
         PrimaryTermAndGeneration latestUploaded
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary() == false;
         assert latestCommit != null;
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
         logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
             indexShard.shardId(),
             indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
             latestCommit.toShortDescription(),
+            uploaded ? "uploaded" : "pending upload",
             latestUploaded,
             describe(indexShard.recoveryState())
         );
@@ -328,7 +333,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             var store = indexShard.store();
             var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             var batchedCompoundCommit = indexingShardState.latestCommit();
-            logBootstrapping(indexShard, batchedCompoundCommit);
+            logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
 
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
@@ -441,7 +446,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                     assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                    logBootstrapping(indexShard, batchedCompoundCommit);
+                    logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
                     // If there is no batched compound commit found in the object store, then recover from an empty commit
                     if (batchedCompoundCommit == null) {
                         l.onResponse(null);
@@ -455,7 +460,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
                 } else {
                     compoundCommit = response.getCompoundCommit();
-                    logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                    logBootstrappingFromIndexingShard(indexShard, compoundCommit, lastUploaded);
                 }
 
                 assert batchedCompoundCommit == null
@@ -470,7 +475,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
-                        // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -497,7 +501,18 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 );
                                 targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
-                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
+                            l2.map(aVoid -> {
+                                var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
+                                for (var entry : targetsToWarm.entrySet()) {
+                                    timestampByCacheKey.put(
+                                        new FileCacheKey(searchDirectory.getShardId(), entry.getKey()),
+                                        entry.getValue().timestampMillis()
+                                    );
+                                }
+                                // This backfill also handles the initial BCC read in readSearchShardState.
+                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
+                            })
                         );
                     } else {
                         l2.onResponse(null);

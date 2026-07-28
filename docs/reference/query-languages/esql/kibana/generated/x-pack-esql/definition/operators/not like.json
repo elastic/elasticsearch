@@ -17,7 +17,10 @@
           "name" : "pattern",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Pattern."
+          "description" : "Pattern.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : true,
@@ -35,7 +38,10 @@
           "name" : "pattern",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Pattern."
+          "description" : "Pattern.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : true,

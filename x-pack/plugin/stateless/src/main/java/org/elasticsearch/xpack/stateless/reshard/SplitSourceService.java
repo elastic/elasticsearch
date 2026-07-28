@@ -112,10 +112,20 @@ public class SplitSourceService {
     private final ConcurrentHashMap<IndexShard, SplitRequestState> activeTargetRequests = new ConcurrentHashMap<>();
     // Tracks source shard state machine that performs cleanup logic and moves source shard to DONE once all target shards are complete.
     private final ConcurrentHashMap<IndexShard, SourceShardStateMachine> activeSourceShards = new ConcurrentHashMap<>();
+    // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
+    private final Set<ShardId> shardsPreparingForHandoff = ConcurrentHashMap.newKeySet();
 
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
     private Runnable preHandoffHook;
+
+    /**
+     * Returns true if the given shard is about to enter handoff.
+     * Used by ShouldSkipMerges to abort merges during this window so they don't block indexing while they upload.
+     */
+    public boolean isPreparingForHandoff(ShardId shardId) {
+        return shardsPreparingForHandoff.contains(shardId);
+    }
 
     public SplitSourceService(
         Client client,
@@ -302,6 +312,7 @@ public class SplitSourceService {
                 try (Releasable ignore = permit) {
                     objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
                 }
+                task.ensureNotCancelled();
                 prepareForHandoff(l, sourceShard, targetShardId);
             })
             .addListener(listener.delegateResponse((l, e) -> {
@@ -312,6 +323,7 @@ public class SplitSourceService {
                     // and there will be no new commits.
                     // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
                 }
+                shardsPreparingForHandoff.remove(sourceShard.shardId());
                 activeTargetRequests.remove(sourceShard);
                 l.onFailure(e);
             }));
@@ -350,7 +362,9 @@ public class SplitSourceService {
             logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
             // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
-            engine.flush(/* force */ false, /* waitIfOngoing */ false, afterFirstFlush);
+            // Start cancelling completing merges at this point so that they don't delay flush during handoff.
+            shardsPreparingForHandoff.add(sourceShard.shardId());
+            engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
         }))
             .<Releasable>andThen(acquiredPermits -> stateMachine.split().withPermits(acquiredPermits))
@@ -365,6 +379,7 @@ public class SplitSourceService {
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                             stopCopyingNewCommits(targetShardId);
+                            shardsPreparingForHandoff.remove(sourceShard.shardId());
                             activeTargetRequests.remove(sourceShard);
                             afterSecondFlush.onResponse(permits);
                         }, e -> {
@@ -688,6 +703,7 @@ public class SplitSourceService {
     /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
         activeTargetRequests.remove(indexShard);
+        shardsPreparingForHandoff.remove(indexShard.shardId());
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
@@ -712,6 +728,10 @@ public class SplitSourceService {
         // we can bump the refcount instead of waiting for them to be released and then reacquiring.
         // This speeds up handoff when multiple target shards enter handoff concurrently.
         final RefCountedAcquirer permitAcquirer;
+        // once we have begun acquiring, we should not cancel on relocation because it is difficult to reason about whether
+        // we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
+        // relocation begins.
+        final AtomicBoolean acquiring = new AtomicBoolean(false);
 
         Split(IndexShard sourceShard) {
             // XXX figure out what to do with the timeout on acquiring the permit. I would guess that we're blocking any new requests that
@@ -720,9 +740,12 @@ public class SplitSourceService {
             permitAcquirer = new RefCountedAcquirer(
                 releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE),
                 SplitSourceService.this.indicesService.clusterService().threadPool().relativeTimeInMillisSupplier(),
-                acquiredDuration -> SplitSourceService.this.reshardIndexService.getReshardMetrics()
-                    .indexingBlockedDurationHistogram()
-                    .record(acquiredDuration)
+                acquiredDuration -> {
+                    SplitSourceService.this.reshardIndexService.getReshardMetrics()
+                        .indexingBlockedDurationHistogram()
+                        .record(acquiredDuration);
+                    acquiring.set(false);
+                }
             );
         }
 
@@ -735,7 +758,18 @@ public class SplitSourceService {
          * @param listener a listener to call when permits have been acquired
          */
         public void withPermits(ActionListener<Releasable> listener) {
-            permitAcquirer.acquire(listener);
+            acquiring.set(true);
+            permitAcquirer.acquire(listener.delegateResponse((l, e) -> {
+                acquiring.set(false);
+                l.onFailure(e);
+            }));
+        }
+
+        /**
+         * @return true if the acquirer has started trying to acquire permits or is already holding them
+         */
+        public boolean isAcquiring() {
+            return acquiring.get();
         }
     }
 
@@ -904,6 +938,15 @@ public class SplitSourceService {
                         return true;
                     }
 
+                    // if the source shard has been marked for relocation, exit early so that the clone step releases its permit
+                    // and doesn't block relocation. But don't exit early once we've started acquiring permits, to avoid racing
+                    // with relocation while trying to enter handoff.
+                    if (indexShard.routingEntry().relocating() && split().isAcquiring() == false) {
+                        logger.info("cancelling split from {} because it is relocating", indexShard.shardId());
+                        cancel();
+                        return true;
+                    }
+
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
                         // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
@@ -930,6 +973,15 @@ public class SplitSourceService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
+                            final var currentSplit = activeTargetRequests.get(indexShard);
+                            if (currentSplit != null) {
+                                taskManager.cancelTaskAndDescendants(
+                                    currentSplit.task(),
+                                    "source relocating",
+                                    false,
+                                    ActionListener.noop()
+                                );
+                            }
                             return;
                         }
 

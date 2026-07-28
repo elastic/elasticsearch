@@ -41,6 +41,7 @@ public class FunctionDefinition {
     private final BiConsumer<Source, List<Expression>> validate;
     private final FunctionBuilder builder;
     private final List<String> subCapabilities;
+    private final List<String> snapshotSubCapabilities;
 
     private FunctionDefinition(
         String name,
@@ -48,7 +49,8 @@ public class FunctionDefinition {
         Class<? extends Function> clazz,
         BiConsumer<Source, List<Expression>> validate,
         FunctionBuilder builder,
-        List<String> subCapabilities
+        List<String> subCapabilities,
+        List<String> snapshotSubCapabilities
     ) {
         this.name = name;
         this.aliases = aliases;
@@ -56,6 +58,7 @@ public class FunctionDefinition {
         this.validate = validate;
         this.builder = builder;
         this.subCapabilities = subCapabilities;
+        this.snapshotSubCapabilities = snapshotSubCapabilities;
     }
 
     public String name() {
@@ -86,6 +89,10 @@ public class FunctionDefinition {
         return subCapabilities;
     }
 
+    public List<String> snapshotCapabilities() {
+        return snapshotSubCapabilities;
+    }
+
     @Override
     public String toString() {
         return format(null, "{}({})", name, aliases.isEmpty() ? "" : aliases.size() == 1 ? aliases.get(0) : aliases);
@@ -99,6 +106,7 @@ public class FunctionDefinition {
         private BiConsumer<Source, List<Expression>> validate;
         private FunctionDefinition.FunctionBuilder builder;
         private List<String> capabilities = List.of();
+        private List<String> snapshotCapabilities = List.of();
 
         Builder(Class<T> function) {
             this.function = function;
@@ -114,6 +122,11 @@ public class FunctionDefinition {
          *     .name("ip_prefix");
          * }
          * to make a capability that looks like {@code fn_ip_prefix_fix_dirty_scratch_leak}.
+         *
+         * <p>Use this when the capability is specific to one function or a small number of
+         * functions. If the capability applies across ES|QL generally, or touches many functions
+         * at once, add it to {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap}
+         * instead.
          */
         public Builder<T> capabilities(String... capabilities) {
             this.capabilities = List.of(capabilities);
@@ -121,10 +134,21 @@ public class FunctionDefinition {
         }
 
         /**
+         * Like {@link #capabilities}, but the resulting capability is only enabled in snapshot builds, even when
+         * the function itself is released. Use it for function features that are still under development: gate the
+         * new behavior on {@link org.elasticsearch.Build#isSnapshot()} and gate its tests on the capability. When
+         * the feature is released, move the name to {@link #capabilities} and remove the behavior gate.
+         */
+        public Builder<T> snapshotCapabilities(String... capabilities) {
+            this.snapshotCapabilities = List.of(capabilities);
+            return this;
+        }
+
+        /**
          * Build the {@link FunctionDefinition} with the given primary name and optional aliases.
          */
         public FunctionDefinition name(String name, String... aliases) {
-            return new FunctionDefinition(name, List.of(aliases), function, validate, builder, capabilities);
+            return new FunctionDefinition(name, List.of(aliases), function, validate, builder, capabilities, snapshotCapabilities);
         }
 
         /**

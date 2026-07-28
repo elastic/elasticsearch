@@ -1,6 +1,6 @@
-pr: 154925
-summary: Prevent AD job reopen from exhausting search scroll contexts during mass reassignment
 area: Machine Learning
+issues: []
+pr: 154925
+summary: Prevent AD job reopen from exhausting search scroll contexts during mass
+  reassignment
 type: bug
-issues:
- - 153260

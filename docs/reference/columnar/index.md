@@ -11,7 +11,7 @@ When you turn on columnar mode, {{es}} becomes a full **analytical and search co
 You activate a set of changes that collectively align the {{es}} storage model with dedicated columnar stores:
 
 - Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields remain indexed by default to support full-text search.
-- For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, min and max values) to avoid scanning large blocks of data when executing a query.
+- For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, minimum and maximum values) to avoid scanning large blocks of data when executing a query.
 - Mappings are always flat, and object and passthrough fields in mappings are always auto-flattened. Nested fields are not auto flattened.
 - The original source is no longer stored. If source is requested at query time, then a flattened or columnar representation of the source is generated on the fly and returned. Optionally, the columnar source can also be generated at index time and stored to disk as doc values.
 - New multi-value semantics: the original ordering of multiple values per field per document (for example, in arrays) is preserved by default. Optionally, fields in mappings can be configured to only allow one value per document.
@@ -129,9 +129,9 @@ Dynamic mapping behavior is controlled by the [`dynamic`](/reference/elasticsear
 
 Note that the `runtime` option is not supported in columnar mode.
 
-:::{note}
+:::{warning}
 
-If dynamic false has been configured, then only fields that are explicitly mapped in the mappings are stored.
+If you configure `"dynamic": false`, then only fields that are explicitly mapped in the mappings are stored.
 Fields that are not explicitly mapped in the mappings are not stored and therefore lost.
 :::
 

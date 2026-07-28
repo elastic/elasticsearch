@@ -371,6 +371,7 @@ public class SharedBlobCacheWarmingService {
     private final Executor fetchExecutor;
     private final Executor uploadPrewarmFetchExecutor;
     private final PrioritizedThrottledAsyncTaskRunner<AbstractWarmingTask> warmingTaskRunner;
+    private final AtomicLong warmingTaskNumber;
     private final Executor readCommitsForSearchWarmingExecutor;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
@@ -414,9 +415,10 @@ public class SharedBlobCacheWarmingService {
             1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
         );
+        this.warmingTaskNumber = new AtomicLong(0);
         this.readCommitsForSearchWarmingExecutor = runnable -> warmingTaskRunner.enqueueTask(
             // We know this is always used with SEARCH type.
-            new AbstractWarmingTask(Type.SEARCH, threadPool.relativeTimeInNanos()) {
+            new AbstractWarmingTask(Type.SEARCH, warmingTaskNumber.getAndIncrement()) {
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {
@@ -1691,7 +1693,7 @@ public class SharedBlobCacheWarmingService {
             private final ActionListener<Void> listener;
 
             WarmBlobLocationTask(Type type, BlobLocation blobLocation, ActionListener<Void> listener) {
-                super(type, threadPool.relativeTimeInNanos());
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.blobLocation = Objects.requireNonNull(blobLocation);
                 this.blobFile = blobLocation.blobFile();
                 this.listener = listener;
@@ -1749,7 +1751,7 @@ public class SharedBlobCacheWarmingService {
             private final BlobRegion blobRegion;
 
             WarmingTask(Type type, BlobRangesQueue queue) {
-                super(type, threadPool.relativeTimeInNanos());
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobRegion);
@@ -1897,7 +1899,7 @@ public class SharedBlobCacheWarmingService {
                 long timestampMillis,
                 ActionListener<Void> listener
             ) {
-                super(type, threadPool.relativeTimeInNanos());
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
                 this.timestampMillis = timestampMillis;
@@ -1963,41 +1965,45 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    // visible for tests
+    /// Base class for warming tasks that establishes priority of warming tasks.
+    /// All types have equal priority except [Type#INDEXING_MERGE] which has a lower priority.
+    /// Tasks of equal priority based on type are ordered by caller-defined `position`.
     abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
         protected final Type type;
-        protected final long submissionTimeRelativeNanos;
+        protected final long position;
 
-        AbstractWarmingTask(Type warmingType, long submissionTimeRelativeNanos) {
+        AbstractWarmingTask(Type warmingType, long position) {
             this.type = warmingType;
-            this.submissionTimeRelativeNanos = submissionTimeRelativeNanos;
+            this.position = position;
         }
 
         @Override
         public int compareTo(AbstractWarmingTask that) {
             // Merge warming has lower priority than other types (meaning it should compare bigger).
-            // Other types have equivalent priority but will be executed in FIFO order using submission time.
+            // Other types have equivalent priority but will be executed in FIFO order using provided task position.
+            // `position` can technically overflow but that would only result in a small amount of tasks having
+            // wrong priorities for a short time period.
+            // So we don't have any special logic for that.
             if (type == Type.INDEXING_MERGE) {
                 if (that.type == Type.INDEXING_MERGE) {
-                    return compareRelativeTimes(submissionTimeRelativeNanos, that.submissionTimeRelativeNanos);
+                    return Long.compare(position, that.position);
                 } else {
                     return 1;
                 }
             }
 
-            return that.type == Type.INDEXING_MERGE
-                ? -1
-                : compareRelativeTimes(submissionTimeRelativeNanos, that.submissionTimeRelativeNanos);
+            return that.type == Type.INDEXING_MERGE ? -1 : Long.compare(position, that.position);
         }
 
-        private int compareRelativeTimes(long left, long right) {
-            // We need to do this due to possible overflow.
-            long diff = left - right;
-            if (diff == 0) {
-                return 0;
-            } else {
-                return diff < 0 ? -1 : 1;
-            }
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof AbstractWarmingTask that)) return false;
+            return position == that.position && type == that.type;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, position);
         }
     }
 }

@@ -95,6 +95,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,6 +106,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -1056,7 +1058,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
                         // Wrap the task so that after its onResponse() returns (i.e. after fetchRange() has
                         // submitted the file's first page to the central queue) the latch counts down.
-                        super.scheduleWarmingTask(new AbstractWarmingTask(warmTask.type, warmTask.submissionTimeRelativeNanos) {
+                        super.scheduleWarmingTask(new AbstractWarmingTask(warmTask.type, warmTask.position) {
                             @Override
                             public void onResponse(Releasable releasable) {
                                 warmTask.onResponse(releasable);
@@ -2176,19 +2178,19 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
         var task1 = new MyTask(randomFrom(typesOtherThanMerge), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMerge), 2);
+        var task2 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMerge), 1000);
+        var task3 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
-        // This represents overflow in System.nanoTime().
-        var task4 = new MyTask(randomFrom(typesOtherThanMerge), Long.MAX_VALUE + 10);
+        var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
-        var task5 = new MyTask(Type.INDEXING_MERGE, -30);
+        var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
-        var task6 = new MyTask(Type.INDEXING_MERGE, -200);
+        // We don't explicitly handle overflow in position.
+        var task6 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
 
-        assertEquals(List.of(task2, task1, task3, task4, task5, task6), queue.stream().toList());
+        assertEquals(List.of(task6, task2, task1, task3, task5, task4), Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList());
     }
 
     public void testPrioritizationOfWarmingTasks() throws IOException {
@@ -2339,8 +2341,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     private class MyTask extends AbstractWarmingTask {
-        MyTask(Type type, long submissionTimeRelativeNanos) {
-            super(type, submissionTimeRelativeNanos);
+        MyTask(Type type, long position) {
+            super(type, position);
         }
 
         @Override
@@ -2355,7 +2357,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return type + ":" + submissionTimeRelativeNanos;
+            return type + ":" + position;
         }
     }
 }

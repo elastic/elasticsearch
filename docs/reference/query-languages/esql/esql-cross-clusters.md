@@ -35,6 +35,10 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
 ## Configure roles and users [esql-ccs-security-model-api-key]
 
+Configure a role with the required local and remote privileges, then assign the role to a user or API key.
+
+### Create a role [esql-ccs-create-role]
+
 {{esql}} {{ccs}} requires some additional permissions beyond a standard Query DSL search. The following example creates a role that can query remote indices using {{esql}}. The final `remote_cluster` privilege is required for remote enrich operations.
 
 ```console
@@ -75,6 +79,8 @@ POST /_security/role/remote1
 6. Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version **8.15.0**.
 
 
+### Assign the role to a user [esql-ccs-create-user]
+
 You then need a user or API key with the permissions you just created. The following example API call creates a user with the `remote1` role.
 
 ```console
@@ -87,6 +93,8 @@ POST /_security/user/remote_user
 
 For the full reference of cross-cluster role privileges across all deployment types, refer to [Configure privileges for {{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#_configure_privileges_for_ccs).
 
+### Understand API key privilege limits [esql-ccs-api-key-privilege-limits]
+
 ::::{note}
 All cross-cluster requests from the local cluster are bound by the cross-cluster API key's privileges, which are controlled by the remote cluster's administrator. Local roles can only further reduce these permissions; they cannot increase access beyond what the API key allows.
 
@@ -97,6 +105,8 @@ For example, if the remote cluster's administrator creates a cross-cluster API k
 
 In the examples that follow, `cluster_one`, `cluster_two`, and `cluster_three` represent remote clusters that you've already configured on the local cluster where the query runs. The cluster name in each `FROM` clause is the alias you assigned during remote cluster setup.
 
+### Query a single remote cluster [esql-ccs-query-single-remote]
+
 In the `FROM` command, specify data streams and indices on remote clusters using the format `<remote_cluster_name>:<target>`. For instance, the following {{esql}} request queries the `my-index-000001` index on a single remote cluster named `cluster_one`:
 
 ```esql
@@ -104,7 +114,9 @@ FROM cluster_one:my-index-000001
 | LIMIT 10
 ```
 
-Similarly, this {{esql}} request queries the `my-index-000001` index from three clusters:
+### Query local and remote clusters [esql-ccs-query-local-remote]
+
+This {{esql}} request queries the `my-index-000001` index from three clusters:
 
 * The local ("querying") cluster
 * Two remote clusters, `cluster_one` and `cluster_two`
@@ -114,15 +126,30 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ```
 
-Likewise, this {{esql}} request queries the `my-index-000001` index from all remote clusters (`cluster_one`, `cluster_two`, and `cluster_three`):
+### Query all remote clusters [esql-ccs-query-all-remotes]
+
+To query the `my-index-000001` index on all remote clusters (`cluster_one`, `cluster_two`, and `cluster_three`), use `*` as the remote cluster name:
 
 ```esql
 FROM *:my-index-000001
 | LIMIT 10
 ```
 
+#### Include the local cluster [esql-ccs-query-all-remotes-local]
+
+The `*:` prefix matches remote clusters only. It does not include the local cluster. To query the index on both the local cluster and all remote clusters, specify the local index separately:
+
+```esql
+FROM my-index-000001,*:my-index-000001
+| LIMIT 10
+```
+
 
 ## Cross-cluster metadata [ccq-cluster-details]
+
+Use cross-cluster metadata to understand which clusters participated in a query and whether each cluster completed successfully.
+
+### Include metadata in a response [esql-ccs-include-metadata]
 
 Using the `"include_ccs_metadata": true` option, you can request that ES|QL {{ccs}} responses include metadata about the search on each cluster (when the response format is JSON). Here we show an example using the async search endpoint. {{ccs-cap}} metadata is also present in the synchronous search endpoint response when requested. If the search returns partial results and there are partial shard or remote cluster failures, `_clusters` metadata containing the failures is included in the response regardless of the `include_ccs_metadata` parameter.
 
@@ -217,6 +244,8 @@ Which returns:
 7. The `is_partial` field is set to `true` if the search has partial results for any reason, for example due to partial shard failures,
 failures in remote clusters, or if the async query was stopped by calling the [async query stop API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-esql).
 
+### Identify skipped clusters [esql-ccs-identify-skipped-clusters]
+
 You can use the cross-cluster metadata to determine whether any data came back from a cluster. For instance, in the query below, the wildcard expression for `cluster_two` did not resolve to a concrete index (or indices). The cluster is, therefore, marked as *skipped* and the total number of shards searched is set to zero.
 
 ```console
@@ -290,6 +319,10 @@ For more on partial results and how cluster status is determined when failures o
 
 
 ## Enrich across clusters [ccq-enrich]
+
+Choose an enrich mode based on where the enrich policy is available and where you want the command to run.
+
+### Use the default enrich mode [esql-ccs-enrich-default]
 
 Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
 
@@ -382,12 +415,18 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 
 ## Excluding clusters or indices from {{esql}} query [ccq-exclude]
 
+Use exclusions in the `FROM` command to omit an entire remote cluster or specific indices from a query.
+
+### Exclude a cluster [esql-ccs-exclude-cluster]
+
 To exclude an entire cluster, prefix the cluster alias with a minus sign in the `FROM` command, for example: `-my_cluster:*`:
 
 ```esql
 FROM my-index-000001,cluster*:my-index-000001,-cluster_three:*
 | LIMIT 10
 ```
+
+### Exclude an index [esql-ccs-exclude-index]
 
 To exclude a specific remote index, prefix the index with a minus sign in the `FROM` command, such as `my_cluster:-my_index`:
 

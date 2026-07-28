@@ -1,0 +1,57 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text",
+          "fields": {
+            "semantic": {
+              "type": "semantic_text"
+            }
+          }
+        },
+        "description": {
+          "type": "text",
+          "fields": {
+            "semantic": {
+              "type": "semantic_text"
+            }
+          }
+        },
+        "content": {
+          "type": "text",
+          "fields": {
+            "semantic": {
+              "type": "semantic_text"
+            }
+          }
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "attributes": {
+          "type": "flattened"
+        },
+        "references": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Template mappings applied by default to AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

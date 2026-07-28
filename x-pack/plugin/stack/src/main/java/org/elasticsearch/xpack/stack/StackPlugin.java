@@ -23,7 +23,11 @@ public class StackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED, QueryLoggingTemplateRegistry.QUERY_LOGGING_REGISTRY_ENABLED);
+        return List.of(
+            StackTemplateRegistry.STACK_TEMPLATES_ENABLED,
+            QueryLoggingTemplateRegistry.QUERY_LOGGING_REGISTRY_ENABLED,
+            AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED
+        );
     }
 
     @Override
@@ -55,6 +59,15 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.featureService()
         );
         queryLoggingTemplateRegistry.initialize();
-        return List.of(legacyStackTemplateRegistry, stackTemplateRegistry, queryLoggingTemplateRegistry);
+        AiIndexTemplateRegistry aiIndexTemplateRegistry = new AiIndexTemplateRegistry(
+            settings,
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry(),
+            services.featureService()
+        );
+        aiIndexTemplateRegistry.initialize();
+        return List.of(legacyStackTemplateRegistry, stackTemplateRegistry, queryLoggingTemplateRegistry, aiIndexTemplateRegistry);
     }
 }

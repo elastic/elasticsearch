@@ -14,9 +14,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -36,24 +39,33 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
-/// Master-side service that proactively cancels shard recoveries that are no longer wanted according to the current
-/// [DesiredBalance].
+/// Master-side service that proactively cancels shard recoveries that are no longer wanted.
 ///
-/// When the desired balance changes and an initializing shard is no longer assigned to its current node, this service
-/// sends a [CancelRecoveriesAction] transport request to the data node so that the recovery is cancelled as soon as
-/// possible rather than waiting for it to complete before the next allocation round can move the shard.
+/// Two scenarios are currently supported:
 ///
-/// Every operation in this service is fire-and-forget. Errors are all handled by logging a warning or silently ignoring
-/// the result. In all failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed
-/// path.
+/// - Desired-balance cancellations ([cancelUndesiredRecoveries]): when the desired balance changes and an
+///   initializing shard is no longer assigned to its current node, a [CancelRecoveriesAction] request is sent to
+///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
+///   the next allocation round can move the shard.
+///
+/// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshot]): when a snapshot shard is in
+///   [SnapshotsInProgress.ShardState#WAITING] state because the primary is relocating, we attempt to cancel the
+///   recovery of the relocation target if it has not started yet, to let the snapshot proceed. Relocations driven by
+///   a node shutdown are left untouched.
+///
+/// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
+/// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
 public class RecoveryDirectCancellationService {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
@@ -85,6 +97,8 @@ public class RecoveryDirectCancellationService {
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
     /// have taken effect on the data nodes.
     final Cache<String, SentCancellation> sentCancellations;
+
+    record SentCancellation(long term, boolean cancelIfStarted) {}
 
     public RecoveryDirectCancellationService(
         TransportService transportService,
@@ -122,11 +136,11 @@ public class RecoveryDirectCancellationService {
     /// @param desiredBalance the desired balance used to determine which recoveries are no longer heading to a desired node
     /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
     /// which shards are currently initializing on an undesired node
-    public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+    public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
         genericExecutor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                final var requests = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
+                final var requests = computeUndesiredRecoveryCancellations(desiredBalance, routingAllocation);
                 if (requests.isEmpty()) {
                     return;
                 }
@@ -145,6 +159,130 @@ public class RecoveryDirectCancellationService {
                 );
             }
         });
+    }
+
+    /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
+    /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
+    /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
+    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
+    /// interrupted even after it has started work.
+    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
+        DesiredBalance desiredBalance,
+        RoutingAllocation allocation
+    ) {
+        final long term = allocation.getClusterState().term();
+        final long version = allocation.getClusterState().version();
+        final RoutingNodes routingNodes = allocation.routingNodes();
+        final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
+        for (RoutingNode routingNode : routingNodes) {
+            List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
+            for (ShardRouting shardRouting : routingNode) {
+                if (shardRouting.initializing() == false) {
+                    continue;
+                }
+
+                final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                if (assignment == null || assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                    continue;
+                }
+
+                boolean cancelIfRecoveryStarted = false;
+                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
+                    final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                    cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
+                }
+                nodeCancellations.add(
+                    new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfRecoveryStarted)
+                );
+            }
+            if (nodeCancellations.isEmpty() == false) {
+                cancellationRequests.put(routingNode.node(), new CancelRecoveriesAction.Request(term, version, nodeCancellations));
+            }
+        }
+        return cancellationRequests;
+    }
+
+    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+        assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
+        if (shardRouting.primary()) {
+            return shardRouting.relocatingNodeId() != null;
+        }
+        if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
+            return true;
+        }
+        return routingNodes.assignedShards(shardRouting.shardId())
+            .stream()
+            .filter(ShardRouting::started)
+            .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
+    }
+
+    /// Called when a new snapshot is started and has shard snapshots in [SnapshotsInProgress.ShardState#WAITING] state.
+    /// Asynchronously identifies queued relocation recoveries that are blocking those WAITING shards and cancels them
+    /// if they have not started yet. Recoveries whose source node is shutting down are left alone.
+    public void cancelRecoveriesBlockingSnapshot(Snapshot snapshot) {
+        genericExecutor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                final ClusterState currentState = clusterService.state();
+                final var requests = computeCancellationCandidatesForSnapshot(snapshot, currentState);
+                if (requests.isEmpty()) {
+                    return;
+                }
+                sendCancellations(requests);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> "failed to compute or send snapshot-blocking recovery cancellations for snapshot [" + snapshot + "]", e);
+            }
+        });
+    }
+
+    // visible for testing
+    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeCancellationCandidatesForSnapshot(
+        Snapshot snapshot,
+        ClusterState state
+    ) {
+        // The snapshot may have advanced or completed while this task was waiting to be scheduled. Bail out if so.
+        final SnapshotsInProgress.Entry inProgressSnapshot = SnapshotsInProgress.get(state).snapshot(snapshot);
+        if (inProgressSnapshot == null || inProgressSnapshot.hasShardsInWaitingState() == false) {
+            return Map.of();
+        }
+
+        final Set<ShardId> waitingSnapshotShards = new HashSet<>();
+        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : inProgressSnapshot.shards().entrySet()) {
+            if (shard.getValue().state() == SnapshotsInProgress.ShardState.WAITING) {
+                waitingSnapshotShards.add(shard.getKey());
+            }
+        }
+
+        final RoutingNodes routingNodes = state.getRoutingNodes();
+        final NodesShutdownMetadata nodesShutdownMetadata = state.metadata().nodeShutdowns();
+        final long term = state.term();
+        final long version = state.version();
+
+        final Map<DiscoveryNode, List<ShardRecoveryCancellation>> nodeToBlockingShards = new HashMap<>();
+        for (RoutingNode routingNode : routingNodes) {
+            for (ShardRouting shardRouting : routingNode) {
+                if (waitingSnapshotShards.contains(shardRouting.shardId()) == false) {
+                    continue;
+                }
+                if (shardRouting.initializing() == false || shardRouting.relocatingNodeId() == null) {
+                    continue;
+                }
+                if (nodesShutdownMetadata.contains(shardRouting.relocatingNodeId())) {
+                    continue;
+                }
+                nodeToBlockingShards.computeIfAbsent(routingNode.node(), n -> new ArrayList<>())
+                    .add(new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), false));
+            }
+        }
+
+        final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
+        nodeToBlockingShards.forEach(
+            (node, shards) -> cancellationRequests.put(node, new CancelRecoveriesAction.Request(term, version, shards))
+        );
+        return cancellationRequests;
     }
 
     /// Given the `requests` map of [CancelRecoveriesAction] request per node, sends each request to its target node.
@@ -258,61 +396,4 @@ public class RecoveryDirectCancellationService {
             );
         }
     }
-
-    /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
-    /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
-    /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
-    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
-    /// interrupted even after it has started work.
-    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeDirectCancellationCandidates(
-        DesiredBalance desiredBalance,
-        RoutingAllocation allocation
-    ) {
-        final long term = allocation.getClusterState().term();
-        final long version = allocation.getClusterState().version();
-        final RoutingNodes routingNodes = allocation.routingNodes();
-        final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
-        for (RoutingNode routingNode : routingNodes) {
-            List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
-            for (ShardRouting shardRouting : routingNode) {
-                if (shardRouting.initializing() == false) {
-                    continue;
-                }
-
-                final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-                if (assignment == null || assignment.nodeIds().contains(shardRouting.currentNodeId())) {
-                    continue;
-                }
-
-                boolean cancelIfRecoveryStarted = false;
-                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
-                    final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
-                }
-                nodeCancellations.add(
-                    new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfRecoveryStarted)
-                );
-            }
-            if (nodeCancellations.isEmpty() == false) {
-                cancellationRequests.put(routingNode.node(), new CancelRecoveriesAction.Request(term, version, nodeCancellations));
-            }
-        }
-        return cancellationRequests;
-    }
-
-    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
-        assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
-        if (shardRouting.primary()) {
-            return shardRouting.relocatingNodeId() != null;
-        }
-        if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
-            return true;
-        }
-        return routingNodes.assignedShards(shardRouting.shardId())
-            .stream()
-            .filter(ShardRouting::started)
-            .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
-    }
-
-    record SentCancellation(long term, boolean cancelIfStarted) {}
 }

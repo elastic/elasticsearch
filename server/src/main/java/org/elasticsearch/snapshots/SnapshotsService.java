@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -146,6 +147,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final RerouteService rerouteService;
 
+    private final RecoveryDirectCancellationService recoveryCancellationService;
+
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final RepositoriesService repositoriesService;
@@ -201,6 +204,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Settings settings,
         ClusterService clusterService,
         RerouteService rerouteService,
+        RecoveryDirectCancellationService recoveryCancellationService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RepositoriesService repositoriesService,
         TransportService transportService,
@@ -210,6 +214,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
+        this.recoveryCancellationService = recoveryCancellationService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
@@ -3040,6 +3045,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
                     endSnapshot(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
+                }
+                if (newEntry.hasShardsInWaitingState()) {
+                    recoveryCancellationService.cancelRecoveriesBlockingSnapshot(newEntry.snapshot());
                 }
             });
             return res;

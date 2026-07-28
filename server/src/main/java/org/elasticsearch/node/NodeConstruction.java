@@ -1231,10 +1231,19 @@ class NodeConstruction {
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
 
+        final RecoveryDirectCancellationService recoveryCancellationService = new RecoveryDirectCancellationService(
+            transportService,
+            clusterService,
+            clusterModule.getAllocationService(),
+            rerouteService
+        );
+        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::cancelUndesiredRecoveries);
+
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
             rerouteService,
+            recoveryCancellationService,
             clusterModule.getIndexNameExpressionResolver(),
             repositoriesService,
             transportService,
@@ -1415,14 +1424,6 @@ class NodeConstruction {
                     )
                 );
         });
-
-        final RecoveryDirectCancellationService recoveryCancellationService = new RecoveryDirectCancellationService(
-            transportService,
-            clusterService,
-            clusterModule.getAllocationService(),
-            rerouteService
-        );
-        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::computeAndSubmitCancellations);
 
         modules.add(loadPluginComponents(pluginComponents));
 

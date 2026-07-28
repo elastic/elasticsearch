@@ -1482,8 +1482,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Returns an iterator that interleaves shards across the given subset of nodes, visiting one shard per node
-     * in round-robin order.
+     * Returns an iterator that interleaves shards across a subset of the nodes, visiting one shard per node in round-robin order.
      *
      * @param nodePredicate A predicate which should return true for node IDs to include in the iteration, and false for node IDs to skip
      */

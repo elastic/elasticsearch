@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -643,47 +642,16 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
      */
     private void distributeIntermediatePageToBuffers(Page intermediatePage) {
         int positions = intermediatePage.getPositionCount();
-        int keyCount = internalGroupSpecs.size();
-        BlockHash.Router probeRouter = probeHash.router();
-        if (probeRouter == null) {
-            // Router unsupported for this grouping shape: route everything to partition 0.
-            int[] allPos = new int[positions];
-            for (int i = 0; i < positions; i++) {
-                allPos[i] = i;
-            }
-            Page subPage = intermediatePage.filter(false, allPos);
-            subPage.allowPassingToDifferentDriver();
-            workerBuffers[NULL_PARTITION].addPage(subPage);
-            return;
-        }
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        for (int i = 0; i < positions; i++) {
-            boolean anyNull = false;
-            for (int k = 0; k < keyCount; k++) {
-                if (intermediatePage.getBlock(k).isNull(i)) {
-                    anyNull = true;
-                    break;
-                }
-            }
-            partitionOf[i] = anyNull ? NULL_PARTITION : Math.floorMod(probeRouter.partitionHashOfRow(intermediatePage, i), partitionCount);
-            counts[partitionOf[i]]++;
-        }
-        int[] offsets = new int[partitionCount + 1];
+        fillPartitionAssignments(intermediatePage, partitionCount, partitionOf, counts);
+        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
         for (int p = 0; p < partitionCount; p++) {
-            offsets[p + 1] = offsets[p] + counts[p];
-        }
-        int[] cursor = offsets.clone();
-        int[] sortedPositions = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            sortedPositions[cursor[partitionOf[i]]++] = i;
-        }
-        for (int p = 0; p < partitionCount; p++) {
-            int start = offsets[p], end = offsets[p + 1];
+            int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
             if (start == end) {
                 continue;
             }
-            Page subPage = intermediatePage.filter(false, Arrays.copyOfRange(sortedPositions, start, end));
+            Page subPage = intermediatePage.filter(false, sorted.sortedPositions(), start, end - start);
             subPage.allowPassingToDifferentDriver();
             workerBuffers[p].addPage(subPage);
         }

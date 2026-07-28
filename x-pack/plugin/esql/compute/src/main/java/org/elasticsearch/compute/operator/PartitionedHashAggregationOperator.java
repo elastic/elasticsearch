@@ -646,28 +646,18 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
      */
     private void splitByPartitionAndDispatch(Page page, int nPartitions, PartitionAction action) {
         int positions = page.getPositionCount();
-        int keyCount = groupChannels.size();
-        BlockHash.Router router = probeHash.router();
         int[] partitionOf = new int[positions];
         int[] counts = new int[nPartitions];
         long routingStart = System.nanoTime();
-        router.fillPartitions(page, positions, keyCount, nPartitions, NULL_PARTITION, partitionOf, counts);
-        int[] offsets = new int[nPartitions + 1];
-        for (int p = 0; p < nPartitions; p++) {
-            offsets[p + 1] = offsets[p] + counts[p];
-        }
-        int[] cursor = offsets.clone();
-        int[] sortedPositions = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            sortedPositions[cursor[partitionOf[i]]++] = i;
-        }
+        fillPartitionAssignments(page, nPartitions, partitionOf, counts);
+        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, nPartitions);
         routingNanos += System.nanoTime() - routingStart;
         for (int p = 0; p < nPartitions; p++) {
-            int start = offsets[p], end = offsets[p + 1];
+            int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
             if (start == end) {
                 continue;
             }
-            try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
+            try (Page subPage = page.filter(false, sorted.sortedPositions(), start, end - start)) {
                 action.accept(p, subPage);
             }
         }

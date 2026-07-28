@@ -132,6 +132,50 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 
+    // ---- Shared routing helpers ----
+
+    /**
+     * Assigns each row in {@code page} to a partition, filling {@code partitionOf[i]} with the
+     * partition index for row {@code i} and incrementing {@code counts[partition]} for each row.
+     * Null grouping keys are routed to {@link #NULL_PARTITION}.
+     * When no {@link BlockHash.Router} is available for the current grouping shape, all rows are
+     * routed to {@link #NULL_PARTITION}.
+     */
+    protected final void fillPartitionAssignments(Page page, int nPartitions, int[] partitionOf, int[] counts) {
+        BlockHash.Router router = probeHash.router();
+        if (router == null) {
+            counts[NULL_PARTITION] = page.getPositionCount();
+            // partitionOf is already all zeros (NULL_PARTITION) — Java default
+            return;
+        }
+        router.fillPartitions(page, page.getPositionCount(), groupChannels.size(), nPartitions, NULL_PARTITION, partitionOf, counts);
+    }
+
+    /**
+     * Stable bucket-sort of row indices by partition. Given {@code partitionOf[i]} (the partition
+     * for each row) and {@code counts[p]} (number of rows in each partition), returns a
+     * {@link BucketSort} containing:
+     * <ul>
+     *   <li>{@code offsets[p]} — the start index in {@code sortedPositions} for partition {@code p}</li>
+     *   <li>{@code sortedPositions} — row indices grouped by partition, in original row order within each partition</li>
+     * </ul>
+     */
+    protected static BucketSort sortPositionsByPartition(int[] partitionOf, int[] counts, int nPartitions) {
+        int[] offsets = new int[nPartitions + 1];
+        for (int p = 0; p < nPartitions; p++) {
+            offsets[p + 1] = offsets[p] + counts[p];
+        }
+        int[] cursor = offsets.clone();
+        int[] sortedPositions = new int[partitionOf.length];
+        for (int i = 0; i < partitionOf.length; i++) {
+            sortedPositions[cursor[partitionOf[i]]++] = i;
+        }
+        return new BucketSort(offsets, sortedPositions);
+    }
+
+    /** Result of {@link #sortPositionsByPartition}: per-partition offsets and sorted row indices. */
+    protected record BucketSort(int[] offsets, int[] sortedPositions) {}
+
     // ---- Shared statics ----
 
     protected static void checkState(boolean condition, String msg) {

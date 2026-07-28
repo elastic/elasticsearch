@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-public final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
+/**
+ * Marks every node in the optimized plan as fully optimized. Mandatory: EsqlSession.physicalPlan()
+ * throws IllegalStateException if any node has optimized()==false, so this rule must always run.
+ */
+public final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> implements MandatoryRule {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

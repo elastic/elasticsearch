@@ -18,14 +18,19 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * This is to fix possible wrong orderings of Limit, Project and Order or LimitBy, Project and OrderBy.
  *
  * We should always end up with Limit on top of OrderBy so we can turn it into TopN
  * We should always end up with LimitBy on top of OrderBy so we can turn it into TopNBy
+ *
+ * <p>Mandatory: without this rule certain JOIN+rename patterns leave a bare {@link OrderBy} with no
+ * enclosing {@link Limit}, which the logical plan verifier rejects with
+ * {@code "Unbounded SORT not supported yet"}.
  */
-public final class ReorderLimitProjectAndOrderBy extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class ReorderLimitProjectAndOrderBy extends OptimizerRules.OptimizerRule<UnaryPlan> implements MandatoryRule {
     public ReorderLimitProjectAndOrderBy() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

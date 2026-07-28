@@ -281,6 +281,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:ints.CombineBinaryComparisonsEmp}
   issue: https://github.com/elastic/elasticsearch/issues/155259
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromLeftSideWhenNotKept}
+  issue: https://github.com/elastic/elasticsearch/issues/155278
 
 # Examples:
 #

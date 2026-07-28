@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -907,8 +908,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // localPlan() below can consume it: PushStatsToExternalSource answers an ungrouped COUNT/MIN/MAX from the split
         // stats the coordinator discovered and leaves a LocalSourceExec behind. Refusing on entry means a node without
         // federation serves no external data whatever the aggregate shape.
+        // The coordinator opened the exchange before sending this request, so a sink handler is already registered here;
+        // it has to be failed explicitly or the coordinator's exchange source only learns of the refusal through task
+        // cancellation and this node holds an unfinished sink until the inactive-sinks reaper runs.
         if (Federation.isAvailable(clusterService.getSettings()) == false) {
-            listener.onFailure(Federation.notAvailableException());
+            ElasticsearchStatusException notAvailable = Federation.notAvailableException();
+            exchangeService.finishSinkHandler(request.sessionId(), notAvailable);
+            listener.onFailure(notAvailable);
             return;
         }
         if (request.plan() instanceof ExchangeSinkExec == false) {

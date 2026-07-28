@@ -82,6 +82,12 @@ public final class UnifiedCompletionUtils {
     public static final String COMPLETION_TOKENS_DETAILS_FIELD = "completion_tokens_details";
     public static final String REASONING_TOKENS_FIELD = "reasoning_tokens";
 
+    public static final String CACHE_CONTROL_FIELD = "cache_control";
+    public static final String CACHE_CONTROL_TYPE_FIELD = "type";
+    public static final String CACHE_CONTROL_TTL_FIELD = "ttl";
+
+    public static final String SESSION_ID_FIELD = "session_id";
+
     public static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
 
     public static final TransportVersion MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED = TransportVersion.fromName(
@@ -94,6 +100,10 @@ public final class UnifiedCompletionUtils {
 
     public static final TransportVersion CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED = TransportVersion.fromName(
         "inference_api_chat_completion_reasoning_max_tokens_removed"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_cache_control_and_session_id_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

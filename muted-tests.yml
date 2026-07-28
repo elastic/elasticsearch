@@ -293,6 +293,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_first_last.Test retrieval of first long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155108
 
 # Examples:
 #

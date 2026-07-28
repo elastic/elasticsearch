@@ -17,6 +17,8 @@ import java.util.Map;
 
 /** Shared analysis setup and mode-specific builders for analyzer tests of unmapped field behavior. */
 abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
+    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
+
     AnalyzerUnmappedGoldenTestCase(String mode) {
         super(mode);
     }
@@ -43,7 +45,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
 
     @Override
     protected TestBuilder builder(String query) {
-        return super.builder(query).stages(EnumSet.of(Stage.ANALYSIS));
+        return super.builder(query).stages(STAGES);
     }
 
     @Override

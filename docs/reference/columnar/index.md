@@ -77,7 +77,7 @@ PUT my-logs-index
 
 ### Index sorting [index-sorting]
 
-An important configuration step when setting up columnar index mode is determining the index sort fields.
+When you set up columnar index mode, you must determine the index sort fields.
 Good index sorting fields facilitate more efficient data storage and improved query response times.
 Good index sorting fields are dependent on the use case and the data.
 
@@ -136,7 +136,7 @@ Fields that are not explicitly mapped in the mappings are not stored and therefo
 
 ## Auto flattening [auto-flattening]
 
-Mappings are always flattened. When defining mappings, object and passthrough field mappers are removed and leaf field mappings are created for each field path.
+If you use columnar mode, mappings are always flattened. When you define mappings, object and passthrough field mappers are removed and leaf field mappings are created for each field path.
 The same applies to dynamic mapping updates during indexing.
 
 During `object` flattening, the `enabled` and `dynamic` settings are preserved and separately tracked.

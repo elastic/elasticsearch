@@ -27,8 +27,6 @@ import java.util.List;
 
 public class NumberColumnTransformTests extends ESTestCase {
 
-    // ---- helpers ----
-
     private static EscfBatch encode(String... jsonDocs) throws IOException {
         List<BytesReference> sources = java.util.Arrays.stream(jsonDocs).map(s -> (BytesReference) new BytesArray(s)).toList();
         return EscfEncoder.encode(sources, XContentType.JSON);
@@ -58,8 +56,6 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
         return result;
     }
-
-    // ---- LONG source column ----
 
     public void testLongToLong_noop() throws IOException {
         try (EscfBatch batch = encode("{\"f\": 5}", "{\"f\": 100}", "{\"f\": -3}")) {
@@ -201,8 +197,6 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
-    // ---- DOUBLE source column ----
-
     public void testDoubleToDouble_conversion() throws IOException {
         try (EscfBatch batch = encode("{\"f\": 1.5}", "{\"f\": -2.25}")) {
             EscfColumn src = column(batch, "f");
@@ -333,8 +327,6 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
-    // ---- Oracle comparison: transform output must equal the row-path sortable encoding ----
-
     /**
      * For LONG-source columns, verifies that the transform's output long equals the production row-path
      * oracle {@code NumberType.toSortableLong(NumberType.parse(originalLong, false))} for each
@@ -416,8 +408,6 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
-    // ---- Zero-copy assertions: no-op paths must reuse the source buffer ----
-
     /**
      * LONG-to-long is a zero-copy no-op: the returned {@link EscfColumnData} must share the source
      * column's backing {@link org.elasticsearch.common.bytes.BytesReference}.
@@ -450,8 +440,6 @@ public class NumberColumnTransformTests extends ESTestCase {
         }
     }
 
-    // ---- DOUBLE→float overflow ----
-
     /** A double value beyond float range must throw when the field is mapped as float. */
     public void testDoubleToFloat_overflow_throws() throws IOException {
         try (EscfBatch batch = encode("{\"f\": 1.0E300}")) {
@@ -463,8 +451,6 @@ public class NumberColumnTransformTests extends ESTestCase {
             assertTrue("expected 'finite values' in message but got: " + ex.getMessage(), ex.getMessage().contains("finite values"));
         }
     }
-
-    // ---- sortableDoubleBits bit-op correctness with negative / sign-boundary values ----
 
     /**
      * For negative doubles, {@code sortableDoubleBits(rawBits)} must equal
@@ -488,8 +474,6 @@ public class NumberColumnTransformTests extends ESTestCase {
             }
         }
     }
-
-    // ---- HALF_FLOAT tests ----
 
     public void testLongToHalfFloat_conversion() throws IOException {
         // Values well within half-float range (max finite half-float is 65504)
@@ -552,8 +536,6 @@ public class NumberColumnTransformTests extends ESTestCase {
             assertTrue("expected 'finite values' in message but got: " + ex.getMessage(), ex.getMessage().contains("finite values"));
         }
     }
-
-    // ---- helpers for oracle comparison ----
 
     private static boolean isLongInRange(long l, NumberType type) {
         return switch (type) {

@@ -97,6 +97,10 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
   export ELASTIC_LITELLM_API_KEY
 
+  # Cursor API key — the fallback when litellm is not available.
+  CURSOR_ACCESS_TOKEN=$(vault_with_retry read -field=cursor_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export CURSOR_ACCESS_TOKEN
+
   # Read-only Buildkite token for the agent's bk_* tools. The bundled
   # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
   # (scoped to this step's environment).

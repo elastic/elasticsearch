@@ -781,3 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:ip.cdirMatchMultipleArgs}
   issue: https://github.com/elastic/elasticsearch/issues/155296
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/155167

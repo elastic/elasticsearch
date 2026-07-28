@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * these tests only snapshot the plan.
  */
 public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -91,7 +92,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /** {@code AVG} is surrogate-substituted to {@code SUM}/{@code COUNT}, so it pushes through the algebraic path. */
     public void testAvgPushedViaSumCount() {
-        heavyGoldenTest("FROM heavy_a, heavy_b | STATS a = AVG(salary) BY dept").expectationChangesAt("esql_sum_long_overflow_fix").run();
+        heavyGoldenTest("FROM heavy_a, heavy_b | STATS a = AVG(salary) BY dept").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     /** Mixed {@code STATS}: the algebraic {@code COUNT} and the intermediate-state {@code COUNT_DISTINCT} both push. */
@@ -101,7 +102,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /** Algebraic aggregates push even with a per-aggregate filter ({@code ToPartial} is not involved). */
     public void testFilteredAlgebraicPushed() {
-        heavyGoldenTest("FROM heavy_a, heavy_b | STATS s = SUM(salary) WHERE salary > 0").expectationChangesAt("esql_sum_long_overflow_fix")
+        heavyGoldenTest("FROM heavy_a, heavy_b | STATS s = SUM(salary) WHERE salary > 0").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
     }
 

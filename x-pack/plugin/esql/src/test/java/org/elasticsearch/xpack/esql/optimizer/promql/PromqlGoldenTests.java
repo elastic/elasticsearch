@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
  * Golden tests for PromQL to ESQL plan translation.
  */
 public class PromqlGoldenTests extends GoldenTestCase {
+    private static final String DIMENSION_VALUES = "dimension_values";
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -29,7 +31,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
 
     public void testSimpleInstantSelector() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
-        builder("PROMQL index=k8s step=1h network.bytes_in").expectationChangesAt("dimension_values").run();
+        builder("PROMQL index=k8s step=1h network.bytes_in").expectationChangesAt(DIMENSION_VALUES).run();
     }
 
     public void testAdditionScalarScalar() {
@@ -39,7 +41,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
 
     public void testMultiplicationMetricScalar() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
-        builder("PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)").expectationChangesAt("dimension_values").run();
+        builder("PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)").expectationChangesAt(DIMENSION_VALUES).run();
     }
 
     public void testMultiplicationAcrossSeriesScalar() {
@@ -53,8 +55,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
     public void testFirstOverTimeAllValueTypes() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=10m events=(sum by (pod) (first_over_time(events_received[10m])))").expectationChangesAt(
-            "dimension_values"
-        ).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            DIMENSION_VALUES
+        ).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testPromqlSourceWithGrok() {
@@ -65,27 +67,27 @@ public class PromqlGoldenTests extends GoldenTestCase {
             | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}"
             | URI_PARTS parts = _timeseries
             | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
-            | LIMIT 1""").expectationChangesAt("dimension_values").run();
+            | LIMIT 1""").expectationChangesAt(DIMENSION_VALUES).run();
     }
 
     public void testImplicitLastOverTimeOfLong() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
-        builder("PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))").expectationChangesAt("dimension_values")
-            .expectationChangesAt("esql_sum_long_overflow_fix")
+        builder("PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
     }
 
     public void testCaseInsensitivityAggregator() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
-        builder("PROMQL index=k8s step=1h bytes=(SUM by (pod) (network.bytes_in))").expectationChangesAt("dimension_values")
-            .expectationChangesAt("esql_sum_long_overflow_fix")
+        builder("PROMQL index=k8s step=1h bytes=(SUM by (pod) (network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
     }
 
     public void testBinaryWithDifferentSelectors() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1m result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[10m])))")
-            .expectationChangesAt("esql_sum_long_overflow_fix")
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
     }
 
@@ -98,21 +100,21 @@ public class PromqlGoldenTests extends GoldenTestCase {
     public void testTopk() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(topk(3, network.bytes_in))").expectationChangesAt("dimension_values").run();
+        builder("PROMQL index=k8s step=1h result=(topk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES).run();
     }
 
     public void testTopkByGrouping() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))").expectationChangesAt("dimension_values").run();
+        builder("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES).run();
     }
 
     public void testTopkOverSumBy() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         assumeTrue("requires fix for topk over aggregated vectors", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.bytes_in)))").expectationChangesAt("dimension_values")
-            .expectationChangesAt("esql_sum_long_overflow_fix")
+        builder("PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.bytes_in)))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
     }
 }

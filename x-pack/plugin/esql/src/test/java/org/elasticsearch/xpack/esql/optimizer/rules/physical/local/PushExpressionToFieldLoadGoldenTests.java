@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.EnumSet;
 
 public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
+    private static final String DIMENSION_VALUES = "dimension_values";
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.ANALYSIS,
         Stage.LOGICAL_OPTIMIZATION,
@@ -66,7 +69,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
         goldenTest("""
             FROM employees
             | STATS l = SUM(LENGTH(last_name))
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthInEvalAfterManyRenames() {
@@ -97,21 +100,21 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
                    a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthInStatsTwice() {
         goldenTest("""
             FROM employees
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthTwoFields() {
         goldenTest("""
             FROM employees
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     // ---- Vector function push tests ----
@@ -188,7 +191,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
         goldenTest("""
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
-            """).expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testAggregateMetricDoubleTSCommand() {
@@ -198,7 +201,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
                   c = count(count_over_time(network.eth0.tx)),
                   a = avg(avg_over_time(network.eth0.tx))
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
-            """).expectationChangesAt("dimension_values").expectationChangesAt("esql_sum_long_overflow_fix").run();
+            """).expectationChangesAt(DIMENSION_VALUES).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     // ---- Reduction plan tests ----

@@ -250,6 +250,69 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesOracle(results, oracle, 0L);
     }
 
+    public void testMultiValuedKeyOnConversionPagePreventsPartitioning() {
+        // Use an exact threshold so we can control which page triggers the conversion check.
+        int threshold = 30;
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> input = new ArrayList<>();
+
+        // Fill the legacy table to exactly (threshold - 1) distinct keys so the next page tips it over.
+        try (
+            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(threshold - 1);
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(threshold - 1)
+        ) {
+            for (long k = 0; k < threshold - 1; k++) {
+                keyBuilder.appendLong(k);
+                valueBuilder.appendLong(1L);
+                oracle.merge(k, 1L, Long::sum);
+            }
+            input.add(new Page(keyBuilder.build(), valueBuilder.build()));
+        }
+
+        // This page introduces a new key (threshold) AND has a multi-valued entry — it is the
+        // first page that would trigger conversion. The MV detection should prevent conversion.
+        try (
+            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(2);
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(2)
+        ) {
+            keyBuilder.appendLong((long) threshold); // new key, tips numKeys over threshold
+            valueBuilder.appendLong(10L);
+            oracle.merge((long) threshold, 10L, Long::sum);
+
+            keyBuilder.beginPositionEntry();          // MV entry: keys threshold+1 and threshold+2
+            keyBuilder.appendLong((long) threshold + 1);
+            keyBuilder.appendLong((long) threshold + 2);
+            keyBuilder.endPositionEntry();
+            valueBuilder.appendLong(20L);
+            oracle.merge((long) threshold + 1, 20L, Long::sum);
+            oracle.merge((long) threshold + 2, 20L, Long::sum);
+
+            input.add(new Page(keyBuilder.build(), valueBuilder.build()));
+        }
+
+        // More ordinary pages after — should all stay in legacy mode.
+        input.addAll(randomInput(2_000, 50, oracle, false));
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(between(2, 16))
+            .partitionConversionThreshold(threshold)
+            .perPartitionEmitThreshold(Integer.MAX_VALUE)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        // MV key on the conversion-triggering page must prevent partitioning entirely:
+        // all output is NONE_PARTITION (no partition ops were ever created).
+        assertTrue(
+            "expected all output to be NONE_PARTITION: MV key on conversion page prevented partitioning",
+            results.stream().allMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
+        );
+        assertMatchesOracle(results, oracle, 0L);
+    }
+
     public void testIntGroupingKey() {
         Map<Integer, Long> oracle = new HashMap<>();
         List<Page> input = randomIntInput(4_000, 100, oracle);

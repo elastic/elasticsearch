@@ -339,7 +339,11 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             if (partitionOps == null) {
                 legacyOp.processPage(internal);
                 if (permanentlyUnpartitioned == false && legacyOp.blockHash.numKeys() >= partitionConversionThreshold) {
-                    convertToPartitioned();
+                    if (hasMultiValuedKeys(page)) {
+                        permanentlyUnpartitioned = true;
+                    } else {
+                        convertToPartitioned();
+                    }
                 }
             } else if (hasMultiValuedKeys(page)) {
                 if (legacyOp == null) {

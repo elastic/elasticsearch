@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:folding.integer_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/155236
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:string.reverseMultiValue}
+  issue: https://github.com/elastic/elasticsearch/issues/155237
 
 # Examples:
 #

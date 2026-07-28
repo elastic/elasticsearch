@@ -172,9 +172,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecLookupJoinIT
-  method: test {csv-spec:lookup-join.floatEqualsDouble}
-  issue: https://github.com/elastic/elasticsearch/issues/149952
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesCountDistinctOverTimeIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/149961
@@ -439,9 +436,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/153891
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
-  method: test {csv-spec:unmapped-load.replaceUnmappedFieldFromEmptyMapping}
-  issue: https://github.com/elastic/elasticsearch/issues/153892
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
   issue: https://github.com/elastic/elasticsearch/issues/153902
@@ -457,18 +451,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/154062
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateInManyThreads {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/154070
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateInManyThreads {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/154071
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateInManyThreads {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/154072
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateInManyThreads {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/154073
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157

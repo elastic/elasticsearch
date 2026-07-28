@@ -58,6 +58,13 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
+    /**
+     * The maximum depth to which retrievers may be nested within one another when parsing a search request. This is a hardcoded
+     * limit that guards against {@link StackOverflowError}s that would otherwise be thrown while recursively parsing a deeply
+     * nested retriever tree.This is also bound by the max_rewrite_rounds available.
+     */
+    public static final int MAX_NESTED_DEPTH = MAX_REWRITE_ROUNDS;
+
     protected static void declareBaseParserFields(
         String name,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
@@ -84,13 +91,40 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
+            int nestedDepth;
+
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                return getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(RetrieverBuilder.class)) {
+                    nestedDepth++;
+                    if (nestedDepth > MAX_NESTED_DEPTH) {
+                        throw new RetrieverNestingDepthExceededException(
+                            "The nested depth of the [retriever] exceeds the maximum nested depth of ["
+                                + MAX_NESTED_DEPTH
+                                + "] for retrievers"
+                        );
+                    }
+                }
+                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(RetrieverBuilder.class)) {
+                    nestedDepth--;
+                }
+                return namedObject;
             }
         };
 
-        return parseInnerRetrieverBuilder(parser, context);
+        try {
+            return parseInnerRetrieverBuilder(parser, context);
+        } catch (RuntimeException e) {
+            // each nested retriever parser re-wraps failures in a ParsingException;
+            // if a depth-limit is present, surface it as a single, clean IllegalArgumentException at the top level
+            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                if (cause instanceof RetrieverNestingDepthExceededException depthError) {
+                    throw depthError;
+                }
+            }
+            throw e;
+        }
     }
 
     protected static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -247,6 +281,12 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         boolean allowPartialSearchResults
     ) {
         return validationException;
+    }
+
+    private static final class RetrieverNestingDepthExceededException extends IllegalArgumentException {
+        RetrieverNestingDepthExceededException(String message) {
+            super(message);
+        }
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -283,6 +284,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
      */
     private static final Set<DataType> SKIP_VALIDATION_AFTER_POPULATING_INDICES = Set.of(
         DATE_RANGE,
+        DOUBLE_RANGE,
         FLATTENED,
         DENSE_VECTOR,
         AGGREGATE_METRIC_DOUBLE,
@@ -293,10 +295,11 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
 
     /**
      * All types that get a column in both {@code main_index} and {@code sub_index}, including under-construction types
-     * ({@code DATE_RANGE}, {@code FLATTENED} as of writing): on snapshot builds these are reported as {@code supportedOn(...) == true}
-     * by {@link SupportedVersion#underConstruction}, so the analyzer surfaces them with their proper {@code DataType}. On release builds
-     * they surface as {@link DataType#UNSUPPORTED} instead, so the pairs that involve them are skipped at test time (see
-     * {@link #testableOnCurrentBuild}). Counter types are intentionally excluded — they live in {@link #TSDB_INDEX} instead.
+     * ({@code DATE_RANGE}, {@code DOUBLE_RANGE}, {@code FLATTENED} as of writing): on snapshot builds these are reported as
+     * {@code supportedOn(...) == true} by {@link SupportedVersion#underConstruction}, so the analyzer surfaces them with their proper
+     * {@code DataType}. On release builds they surface as {@link DataType#UNSUPPORTED} instead, so the pairs that involve them are skipped
+     * at test time (see {@link #testableOnCurrentBuild}). Counter types are intentionally excluded — they live in {@link #TSDB_INDEX}
+     * instead.
      */
     private static final List<DataType> ALL_TEST_TYPES;
     static {
@@ -576,6 +579,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     private static String sampleValueJsonFor(DataType type) {
         return switch (type) {
             case DATE_RANGE -> "{ \"gte\": \"2025-04-02T12:00:00.000Z\", \"lte\": \"2025-04-02T13:00:00.000Z\" }";
+            case DOUBLE_RANGE -> "{ \"gte\": 1.0, \"lte\": 2.0 }";
             case FLATTENED -> "{ \"k\": \"v\" }";
             case DENSE_VECTOR -> "[0.2672612, 0.5345224, 0.8017837]";
             case AGGREGATE_METRIC_DOUBLE -> "{ \"min\": 1, \"max\": 2, \"sum\": 3, \"value_count\": 1 }";

@@ -363,6 +363,7 @@ public class SearchEngine extends Engine {
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
                 searchDirectory::getTimestampMillis,
+                searchDirectory::resolveRegionTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -599,6 +600,7 @@ public class SearchEngine extends Engine {
                                 )
                             );
                             var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                            // Accumulate raw per-CC timestamps; resolution happens once below, before backfilling.
                             long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
                                 referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
                             );
@@ -609,6 +611,14 @@ public class SearchEngine extends Engine {
                             );
                         },
                         listenableFuture.map(aVoid -> {
+                            // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
+                            // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.
+                            long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                latestCommit.getTimestampFieldValueRange()
+                            );
+                            backfillTimestampsByCacheKey.replaceAll(
+                                (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(rawMillis, latestCommitTimestamp)
+                            );
                             searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
                             return newBlobFileRanges;
                         })

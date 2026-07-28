@@ -234,6 +234,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 captured,
                 hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
+            assertThat(
+                "time-based recovery must never stamp a region UNKNOWN",
+                captured,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+            );
 
             var live = cacheService.liveTimestamps(multiCcBlob.cacheKey());
             assertThat("backfill must leave the blob's regions live", live, not(empty()));
@@ -246,6 +251,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 "backfill must leave no region at the transient sentinel",
                 live,
                 not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+            );
+            assertThat(
+                "time-based backfill must leave no live region UNKNOWN",
+                live,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         });
     }
@@ -374,6 +384,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                     "a time-based index stamps metadata reads BACKFILL_IN_PROGRESS even when the CCs have no @timestamp",
                     captured,
                     hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
+                );
+                assertThat(
+                    "time-based recovery must never stamp a region UNKNOWN",
+                    captured,
+                    not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
                 );
 
                 var live = cacheService.liveTimestamps(cacheKey);
@@ -507,6 +522,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 captured,
                 hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
+            assertThat(
+                "time-based metadata reads and warming must never stamp a region UNKNOWN",
+                captured,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+            );
 
             var live = cacheService.liveTimestamps(cacheKey);
             assertThat("backfill must leave live cache regions for blob " + cacheKey, live, not(empty()));
@@ -520,6 +540,11 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 "backfill must leave no live region stamped BACKFILL_IN_PROGRESS_TIMESTAMP",
                 live,
                 not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+            );
+            assertThat(
+                "time-based backfill must leave no live region UNKNOWN",
+                live,
+                not(hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
             );
         }
     }

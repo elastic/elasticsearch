@@ -1627,6 +1627,26 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
+    public void testDoubleRangeUnsupportedOperations() {
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V1.isEnabled());
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | STATS count(*) BY height_range",
+                containsString("cannot group by on [double_range] type for grouping [height_range]")
+            );
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .addLookupIndex("heights_lookup", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | LOOKUP JOIN heights_lookup ON height_range",
+                containsString("JOIN with right field [height_range] of type [DOUBLE_RANGE] is not supported")
+            );
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);

@@ -115,13 +115,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                true,
-                DocValuesParameter.Values.Cardinality.LOW,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
+            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
@@ -335,7 +329,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }

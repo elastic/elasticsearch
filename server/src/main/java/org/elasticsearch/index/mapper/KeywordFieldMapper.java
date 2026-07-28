@@ -1150,7 +1150,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                         value,
                         syntaxFlags,
                         matchFlags,
-                        maxDeterminizedStates
+                        maxDeterminizedStates,
+                        context.getCircuitBreaker()
                     );
                 } else {
                     if (context.getCircuitBreaker() != null) {

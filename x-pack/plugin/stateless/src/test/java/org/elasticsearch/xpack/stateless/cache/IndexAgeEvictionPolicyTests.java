@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -149,7 +150,12 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         final ShardId newShard = new ShardId(newIndex.getIndex(), 0);
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), ProjectId.DEFAULT);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            taskQueue.getThreadPool(),
+            ProjectId.DEFAULT,
+            Settings.EMPTY,
+            Set.of(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING)
+        );
         final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
         ClusterServiceUtils.setState(
             clusterService,

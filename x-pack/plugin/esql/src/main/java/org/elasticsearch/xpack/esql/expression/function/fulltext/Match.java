@@ -155,6 +155,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
+            for the match query.
+            All <<match-field-params,match query parameters>> are supported.
+
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
             {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
             `MATCH` can also search expressions that are not backed by an index, such as
             computed columns produced by `EVAL`, `STATS`, or other commands.
@@ -164,14 +174,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             (match query options) are not supported.
             Additionally, `MATCH` on an expression does not contribute to the relevance score
             when using `METADATA _score`.
-
-            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
-            for the match query.
-            All <<match-field-params,match query parameters>> are supported.
-
-            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
-
-            `MATCH` returns true if the provided query matches the row.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

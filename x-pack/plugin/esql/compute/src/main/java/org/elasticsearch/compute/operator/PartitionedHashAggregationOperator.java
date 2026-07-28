@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -23,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -59,7 +57,7 @@ import static java.util.stream.Collectors.joining;
  *     misrouting a row.
  * </p>
  */
-public class PartitionedHashAggregationOperator implements Operator {
+public class PartitionedHashAggregationOperator extends AbstractPartitionedHashAggregationOperator {
 
     public static final int DEFAULT_PARTITION_COUNT = 8;
     public static final int DEFAULT_PARTITION_CONVERSION_THRESHOLD = 100_000;
@@ -88,16 +86,8 @@ public class PartitionedHashAggregationOperator implements Operator {
         });
     }
 
-    /** The fixed partition every null grouping key is routed to, rather than being hashed. */
-    private static final int NULL_PARTITION = 0;
-
     /** Partition value for pages emitted from the legacy (pre-conversion) table; no partition tag is applied. */
     public static final int NONE_PARTITION = -1;
-
-    private static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
-        selected.incRef();
-        return selected;
-    };
 
     /**
      * An aggregator plus the raw-input channel(s) it reads its value(s) from. Unlike
@@ -177,18 +167,9 @@ public class PartitionedHashAggregationOperator implements Operator {
         private final int aggregationBatchSize;
 
         private Factory(Builder builder) {
-            List<BlockHash.GroupSpec> externalSpecs = requireNonNull(builder.groupSpecs, "groupSpecs");
-            if (externalSpecs.isEmpty()) {
-                throw new IllegalArgumentException("groupSpecs must not be empty");
-            }
-            List<Integer> channels = new ArrayList<>(externalSpecs.size());
-            List<BlockHash.GroupSpec> internalSpecs = new ArrayList<>(externalSpecs.size());
-            for (int k = 0; k < externalSpecs.size(); k++) {
-                channels.add(externalSpecs.get(k).channel());
-                internalSpecs.add(new BlockHash.GroupSpec(k, externalSpecs.get(k).elementType()));
-            }
-            this.groupChannels = List.copyOf(channels);
-            this.internalGroupSpecs = List.copyOf(internalSpecs);
+            var mapping = AbstractPartitionedHashAggregationOperator.buildGroupChannelMapping(builder.groupSpecs);
+            this.groupChannels = mapping.groupChannels();
+            this.internalGroupSpecs = mapping.internalGroupSpecs();
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
@@ -272,38 +253,18 @@ public class PartitionedHashAggregationOperator implements Operator {
         }
     }
 
-    private final List<Integer> groupChannels;
-    private final List<BlockHash.GroupSpec> internalGroupSpecs;
     private final List<GroupingAggregator.Factory> aggregatorFactories;
-    private final List<List<Integer>> aggregatorRawChannels;
-    private final int[] combinedChannelStart;
-    private final int internalPageWidth;
-    private final int partitionCount;
     private final int partitionConversionThreshold;
     private final int perPartitionEmitThreshold;
     private final double perPartitionEmitUniquenessThreshold;
-    private final int maxPageSize;
     private final int aggregationBatchSize;
-    private final DriverContext driverContext;
 
     /** Non-null until {@link #convertToPartitioned} (or a multi-valued key) replaces it. */
     private HashAggregationOperator legacyOp;
     /** Non-null once converted from the legacy table. */
     private HashAggregationOperator[] partitionOps;
-    /**
-     * Routing-only hash, non-null once {@link #convertToPartitioned} succeeds. Used solely to
-     * compute partition IDs via {@link BlockHash.Router#partitionHashOfRow}; never used for
-     * aggregation. Built by trying {@link BlockHash#build} first (single-column hashes expose a
-     * router directly), falling back to {@link BlockHash#buildPackedValuesBlockHash} for
-     * multi-column fixed-width schemas. If neither yields a router, conversion is abandoned and
-     * {@link #permanentlyUnpartitioned} is set.
-     */
-    private BlockHash probeHash;
     /** Set once a multi-valued key is observed; conversion is never attempted again after that. */
     private boolean permanentlyUnpartitioned;
-
-    private boolean finished;
-    private ReleasableIterator<Page> output;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -321,25 +282,27 @@ public class PartitionedHashAggregationOperator implements Operator {
         int aggregationBatchSize,
         DriverContext driverContext
     ) {
+        super(
+            groupChannels,
+            internalGroupSpecs,
+            aggregatorRawChannels,
+            combinedChannelStart,
+            internalPageWidth,
+            partitionCount,
+            maxPageSize,
+            driverContext
+        );
         if (partitionCount <= 0) {
             throw new IllegalArgumentException("partitionCount must be greater than 0; got " + partitionCount);
         }
         if (partitionConversionThreshold <= 0) {
             throw new IllegalArgumentException("partitionConversionThreshold must be greater than 0; got " + partitionConversionThreshold);
         }
-        this.groupChannels = groupChannels;
-        this.internalGroupSpecs = internalGroupSpecs;
         this.aggregatorFactories = aggregatorFactories;
-        this.aggregatorRawChannels = aggregatorRawChannels;
-        this.combinedChannelStart = combinedChannelStart;
-        this.internalPageWidth = internalPageWidth;
-        this.partitionCount = partitionCount;
         this.partitionConversionThreshold = partitionConversionThreshold;
         this.perPartitionEmitThreshold = perPartitionEmitThreshold;
         this.perPartitionEmitUniquenessThreshold = perPartitionEmitUniquenessThreshold;
-        this.maxPageSize = maxPageSize;
         this.aggregationBatchSize = aggregationBatchSize;
-        this.driverContext = driverContext;
         boolean success = false;
         try {
             this.legacyOp = newOp();
@@ -349,11 +312,6 @@ public class PartitionedHashAggregationOperator implements Operator {
                 close();
             }
         }
-    }
-
-    @Override
-    public boolean needsInput() {
-        return output == null && finished == false;
     }
 
     @Override
@@ -379,41 +337,6 @@ public class PartitionedHashAggregationOperator implements Operator {
         }
     }
 
-    /**
-     * Rearranges {@code page} into this operator's internal channel convention: grouping keys at
-     * channels 0..keyCount-1, then each aggregator's raw value(s) at
-     * {@link #combinedChannelStart}[i]. Every table's aggregators are built with channels wide
-     * enough to also read their own intermediate state (grouping key channels excluded) at those
-     * same positions, so the exact same aggregator instances can be fed either raw pages (reading
-     * only the first {@code rawChannels.size()} of their channels) or this operator's own
-     * intermediate pages (reading all of them) - no separate "raw" vs. "intermediate" aggregator
-     * instances needed.
-     * <p>
-     *     Builds a new {@link Page} that references the original blocks directly (no value
-     *     copies); never {@link Page#close}/{@link Page#releaseBlocks} it - {@code page} itself
-     *     remains the sole owner and is released by {@link #addInput}'s caller.
-     * </p>
-     */
-    private Page toInternalLayout(Page page) {
-        Block[] blocks = new Block[internalPageWidth];
-        // Page's constructor asserts every block's position count, so slots beyond an
-        // aggregator's raw channel count (only meaningful for intermediate consumption, never
-        // read during raw processing) still need *some* valid block; the first key block is as
-        // good as any other already-at-hand, always-correct-position-count placeholder.
-        Arrays.fill(blocks, page.getBlock(groupChannels.get(0)));
-        for (int k = 0; k < groupChannels.size(); k++) {
-            blocks[k] = page.getBlock(groupChannels.get(k));
-        }
-        for (int a = 0; a < aggregatorRawChannels.size(); a++) {
-            List<Integer> rawChannels = aggregatorRawChannels.get(a);
-            int base = combinedChannelStart[a];
-            for (int j = 0; j < rawChannels.size(); j++) {
-                blocks[base + j] = page.getBlock(rawChannels.get(j));
-            }
-        }
-        return new Page(blocks);
-    }
-
     @Override
     public Page getOutput() {
         if (output == null) {
@@ -429,16 +352,16 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     @Override
     public void finish() {
-        if (finished) {
+        if (finishCalled) {
             return;
         }
-        finished = true;
+        finishCalled = true;
         emitFinal();
     }
 
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return finishCalled && output == null;
     }
 
     @Override
@@ -498,7 +421,7 @@ public class PartitionedHashAggregationOperator implements Operator {
         for (int p = 0; p < partitionCount; p++) {
             newPartitions[p] = newOp();
         }
-        try (ReleasableIterator<Page> intermediatePages = evaluateToIntermediate(legacyOp)) {
+        try (ReleasableIterator<Page> intermediatePages = evaluateOp(legacyOp, Integer.MAX_VALUE)) {
             while (intermediatePages.hasNext()) {
                 try (Page intermediatePage = intermediatePages.next()) {
                     distributeIntermediatePage(intermediatePage, newPartitions);
@@ -596,7 +519,7 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     private void drainOpInto(HashAggregationOperator source, HashAggregationOperator destination) {
-        try (ReleasableIterator<Page> pages = evaluateToIntermediate(source)) {
+        try (ReleasableIterator<Page> pages = evaluateOp(source, Integer.MAX_VALUE)) {
             while (pages.hasNext()) {
                 try (Page intermediatePage = pages.next()) {
                     mergeIntermediateIntoTable(destination, intermediatePage);
@@ -616,7 +539,7 @@ public class PartitionedHashAggregationOperator implements Operator {
                     sources = new ArrayList<>();
                 }
                 int partitionIndex = p;
-                ReleasableIterator<Page> pages = evaluateToIntermediate(op, maxPageSize);
+                ReleasableIterator<Page> pages = evaluateOp(op, maxPageSize);
                 sources.add(new TaggedPageSource(p, resetPartitionOnClose(pages, partitionIndex)));
             }
         }
@@ -665,26 +588,6 @@ public class PartitionedHashAggregationOperator implements Operator {
         };
     }
 
-    /** Wraps {@code delegate} so that closing it also closes {@code op} (never rebuilt). */
-    private ReleasableIterator<Page> closeOpOnClose(ReleasableIterator<Page> delegate, HashAggregationOperator op) {
-        return new ReleasableIterator<>() {
-            @Override
-            public boolean hasNext() {
-                return delegate.hasNext();
-            }
-
-            @Override
-            public Page next() {
-                return delegate.next();
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(delegate::close, op);
-            }
-        };
-    }
-
     // ---- finish() ----
 
     private void emitFinal() {
@@ -693,7 +596,7 @@ public class PartitionedHashAggregationOperator implements Operator {
             HashAggregationOperator op = legacyOp;
             legacyOp = null;
             if (op.blockHash.numKeys() > 0) {
-                sources.add(new TaggedPageSource(NONE_PARTITION, closeOpOnClose(evaluateToIntermediate(op, maxPageSize), op)));
+                sources.add(new TaggedPageSource(NONE_PARTITION, closeOpOnClose(evaluateOp(op, maxPageSize), op)));
             } else {
                 op.close();
             }
@@ -701,7 +604,7 @@ public class PartitionedHashAggregationOperator implements Operator {
             for (int p = 0; p < partitionCount; p++) {
                 HashAggregationOperator op = partitionOps[p];
                 if (op.blockHash.numKeys() > 0) {
-                    sources.add(new TaggedPageSource(p, closeOpOnClose(evaluateToIntermediate(op, maxPageSize), op)));
+                    sources.add(new TaggedPageSource(p, closeOpOnClose(evaluateOp(op, maxPageSize), op)));
                 } else {
                     op.close();
                 }
@@ -719,7 +622,7 @@ public class PartitionedHashAggregationOperator implements Operator {
      * Builds a child {@link HashAggregationOperator} with a per-partition block hash and
      * auto-emit disabled ({@code partialEmitKeysThreshold = MAX_VALUE}). This operator manages
      * its own periodic emit externally via {@link #shouldEmitPartition} and
-     * {@link #evaluateToIntermediate}.
+     * {@link #evaluateOp}.
      */
     private HashAggregationOperator newOp() {
         return new HashAggregationOperator(
@@ -732,21 +635,6 @@ public class PartitionedHashAggregationOperator implements Operator {
             null,
             driverContext
         );
-    }
-
-    /**
-     * Evaluates {@code op}'s current contents to intermediate pages - the same flow
-     * {@link HashAggregationOperator} uses for output, reused here as an
-     * "intermediate representation to re-consume elsewhere". The operator stays alive/unmodified;
-     * the caller decides when (if ever) to close it.
-     */
-    private ReleasableIterator<Page> evaluateToIntermediate(HashAggregationOperator op) {
-        return evaluateToIntermediate(op, Integer.MAX_VALUE);
-    }
-
-    private ReleasableIterator<Page> evaluateToIntermediate(HashAggregationOperator op, int maxPageSizeForThisEmit) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeForThisEmit, NO_CUSTOMIZATION);
-        return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 
     /**
@@ -783,12 +671,6 @@ public class PartitionedHashAggregationOperator implements Operator {
             try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
                 action.accept(p, subPage);
             }
-        }
-    }
-
-    protected static void checkState(boolean condition, String msg) {
-        if (condition == false) {
-            throw new IllegalArgumentException(msg);
         }
     }
 

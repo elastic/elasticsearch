@@ -14,9 +14,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
@@ -59,15 +57,7 @@ import static java.util.stream.Collectors.joining;
  * {@link PendingTasks} / {@link SubscribableListener} / {@link ExchangeBuffer} machinery
  * as {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}.
  */
-public class PartitionedHashMergeOperator implements Operator {
-
-    /** Partition assigned to rows whose grouping key contains a null. */
-    private static final int NULL_PARTITION = 0;
-
-    private static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
-        selected.incRef();
-        return selected;
-    };
+public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggregationOperator {
 
     /**
      * Aggregator specification: supplier plus the <em>external</em> intermediate-state channels
@@ -149,18 +139,9 @@ public class PartitionedHashMergeOperator implements Operator {
         private final Executor executor;
 
         private Factory(Builder builder) {
-            List<BlockHash.GroupSpec> externalSpecs = requireNonNull(builder.groupSpecs, "groupSpecs");
-            if (externalSpecs.isEmpty()) {
-                throw new IllegalArgumentException("groupSpecs must not be empty");
-            }
-            List<Integer> channels = new ArrayList<>(externalSpecs.size());
-            List<BlockHash.GroupSpec> internalSpecs = new ArrayList<>(externalSpecs.size());
-            for (int k = 0; k < externalSpecs.size(); k++) {
-                channels.add(externalSpecs.get(k).channel());
-                internalSpecs.add(new BlockHash.GroupSpec(k, externalSpecs.get(k).elementType()));
-            }
-            this.groupChannels = List.copyOf(channels);
-            this.internalGroupSpecs = List.copyOf(internalSpecs);
+            var mapping = AbstractPartitionedHashAggregationOperator.buildGroupChannelMapping(builder.groupSpecs);
+            this.groupChannels = mapping.groupChannels();
+            this.internalGroupSpecs = mapping.internalGroupSpecs();
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> noneFactories = new ArrayList<>(aggregatorSpecs.size());
@@ -248,16 +229,7 @@ public class PartitionedHashMergeOperator implements Operator {
 
     // ---- Instance fields ----
 
-    private final List<Integer> groupChannels;
-    private final List<BlockHash.GroupSpec> internalGroupSpecs;
-    private final List<AggregatorSpec> aggregatorSpecs;
-    private final int[] combinedChannelStart;
-    private final int internalPageWidth;
-    private final int partitionCount;
     private final int workerCount;
-    private final int maxPageSize;
-    private final DriverContext driverContext;
-
     private final Executor executor;
     private final ExchangeBuffer[] workerBuffers;
     /**
@@ -273,7 +245,6 @@ public class PartitionedHashMergeOperator implements Operator {
     private volatile boolean closed = false;
     private final AtomicBoolean workerResourcesClosed = new AtomicBoolean();
     private boolean anyTaggedSeen = false;
-    private boolean finishCalled = false;
     /** Set to {@code true} the first time {@link #getOutput()} calls {@link #buildOutput()}, so that
      * {@link #isFinished()} does not return {@code true} before the driver has a chance to call
      * {@link #getOutput()} and actually produce the final output pages. */
@@ -284,21 +255,12 @@ public class PartitionedHashMergeOperator implements Operator {
     /** One FINAL-mode operator per partition; created eagerly in the constructor. */
     private HashAggregationOperator[] workerOps;
     /**
-     * Dedicated routing hash used only on the driver thread in {@link #distributeIntermediatePageToBuffers}.
-     * Kept separate from {@code workerOps[0]} to avoid a data race: the router captures the hash's
-     * internal {@code VariableWidthBatchWork} via closure, and worker threads simultaneously call
-     * {@code bulkAdd} on the same object when {@code workerOps[0]} is reused for routing.
-     */
-    private BlockHash probeHash;
-    /**
      * One child block factory per logical worker (worker {@code w} uses {@code workerBlockFactories[w]}).
      * Workers run concurrently on separate threads; each needs its own {@code LocalCircuitBreaker}
      * so that block allocation/release inside {@link BlockHash#add} does not trigger the
      * single-thread assertion that the driver's shared factory carries.
      */
     private final BlockFactory[] workerBlockFactories;
-
-    private ReleasableIterator<Page> output;
 
     @SuppressWarnings("this-escape")
     PartitionedHashMergeOperator(
@@ -316,16 +278,18 @@ public class PartitionedHashMergeOperator implements Operator {
         Executor executor,
         DriverContext driverContext
     ) {
-        this.groupChannels = groupChannels;
-        this.internalGroupSpecs = internalGroupSpecs;
-        this.aggregatorSpecs = aggregatorSpecs;
-        this.combinedChannelStart = combinedChannelStart;
-        this.internalPageWidth = internalPageWidth;
-        this.partitionCount = partitionCount;
+        super(
+            groupChannels,
+            internalGroupSpecs,
+            aggregatorSpecs.stream().map(AggregatorSpec::channels).toList(),
+            combinedChannelStart,
+            internalPageWidth,
+            partitionCount,
+            maxPageSize,
+            driverContext
+        );
         this.workerCount = workerCount;
-        this.maxPageSize = maxPageSize;
         this.executor = executor;
-        this.driverContext = driverContext;
 
         boolean success = false;
         try {
@@ -387,11 +351,6 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     // ---- Operator interface ----
-
-    @Override
-    public boolean needsInput() {
-        return output == null && finishCalled == false;
-    }
 
     @Override
     public void addInput(Page page) {
@@ -638,7 +597,7 @@ public class PartitionedHashMergeOperator implements Operator {
             noneOp = null;
             return;
         }
-        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp)) {
+        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp, maxPageSize)) {
             while (nonePages.hasNext()) {
                 try (Page p = nonePages.next()) {
                     distributeIntermediatePageToBuffers(p);
@@ -715,7 +674,7 @@ public class PartitionedHashMergeOperator implements Operator {
                 HashAggregationOperator worker = workerOps[p];
                 workerOps[p] = null;
                 if (worker != null && worker.blockHash.numKeys() > 0) {
-                    parts.add(closeOpOnClose(evaluateOp(worker), worker));
+                    parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize), worker));
                 } else if (worker != null) {
                     worker.close();
                 }
@@ -738,59 +697,6 @@ public class PartitionedHashMergeOperator implements Operator {
         }
     }
 
-    // ---- shared operator helpers ----
-
-    /**
-     * Evaluates {@code op} to pages reflecting its current state. For INTERMEDIATE-mode
-     * operators this produces intermediate pages suitable for re-merging; for FINAL-mode
-     * operators this produces final output pages.
-     */
-    private ReleasableIterator<Page> evaluateOp(HashAggregationOperator op) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSize, NO_CUSTOMIZATION);
-        return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
-    }
-
-    /**
-     * Rearranges {@code page} from the exchange's external channel layout to this operator's
-     * internal layout: grouping keys at channels 0..keyCount-1, each aggregator's intermediate
-     * state blocks at {@link #combinedChannelStart}[i]..combinedChannelStart[i]+blockCount-1.
-     * Never releases the original blocks; {@code page} remains the sole owner.
-     */
-    private Page toInternalLayout(Page page) {
-        Block[] blocks = new Block[internalPageWidth];
-        Arrays.fill(blocks, page.getBlock(groupChannels.get(0)));
-        for (int k = 0; k < groupChannels.size(); k++) {
-            blocks[k] = page.getBlock(groupChannels.get(k));
-        }
-        for (int a = 0; a < aggregatorSpecs.size(); a++) {
-            List<Integer> externalChannels = aggregatorSpecs.get(a).channels();
-            int base = combinedChannelStart[a];
-            for (int j = 0; j < externalChannels.size(); j++) {
-                blocks[base + j] = page.getBlock(externalChannels.get(j));
-            }
-        }
-        return new Page(blocks);
-    }
-
-    private ReleasableIterator<Page> closeOpOnClose(ReleasableIterator<Page> delegate, HashAggregationOperator op) {
-        return new ReleasableIterator<>() {
-            @Override
-            public boolean hasNext() {
-                return delegate.hasNext();
-            }
-
-            @Override
-            public Page next() {
-                return delegate.next();
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(delegate::close, op);
-            }
-        };
-    }
-
     private void closeWorkerResources() {
         if (workerResourcesClosed.compareAndSet(false, true) == false) {
             return;
@@ -804,12 +710,6 @@ public class PartitionedHashMergeOperator implements Operator {
                     driverContext.releaseChildBlockFactory(wf);
                 }
             }
-        }
-    }
-
-    private static void checkState(boolean condition, String msg) {
-        if (condition == false) {
-            throw new IllegalArgumentException(msg);
         }
     }
 

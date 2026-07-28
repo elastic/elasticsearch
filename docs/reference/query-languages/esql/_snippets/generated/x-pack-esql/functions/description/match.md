@@ -23,8 +23,10 @@ For a simplified syntax, you can use the [match operator](/reference/query-langu
 computed columns produced by `EVAL`, `STATS`, or other commands.
 When the target is not an indexed field, the search evaluates by scanning
 values row by row, which may be slower on large datasets.
-When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are not supported.
+When searching `text` expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are supported, except for `analyzer`: expression values are
+always analyzed with the `standard` analyzer. On other expression types options are not
+supported. {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 Additionally, `MATCH` on an expression does not contribute to the relevance score
 when using `METADATA _score`.
 

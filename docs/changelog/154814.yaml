@@ -1,0 +1,5 @@
+area: Ranking
+issues: []
+pr: 154814
+summary: Adding a hardcoded limit on nesting retrievers
+type: bug

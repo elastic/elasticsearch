@@ -581,8 +581,7 @@ public class ComputeService {
                         LOGGER.debug("subplan [{}] finished successfully", subPlanIndex);
                     }
                     exchangeSink.addCompletionListener(
-                        ActionListener.running(() -> exchangeService.finishSinkHandler(childSessionId, null)),
-                        transportService.getThreadPool().getThreadContext()
+                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
                     );
                     subPlanListener.onResponse(result.completionInfo());
                     onSubPlanCompleted();

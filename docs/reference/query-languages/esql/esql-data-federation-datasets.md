@@ -68,7 +68,7 @@ From this tab you can search your datasets, filter by data source, add a new one
 Click **Add dataset** to open a flyout where you define the dataset:
 
 - **Data source**: the connected data source to read through.
-- **Name**: a unique name for use in queries.
+- **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
 - **Description**: an optional description.
 - **Resource**: the URI and glob pattern that selects the files to read.
 - **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` to auto-detect it from the file extension. Refer to [supported file formats](#supported-file-formats).
@@ -79,7 +79,7 @@ To customize the inferred schema, rename columns, or override field types, use t
 
 ## Manage datasets using the API
 
-Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege (refer to [manage credentials and privileges](esql-data-federation-security.md)).
+Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
 | Operation | Endpoint |
 |---|---|

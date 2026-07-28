@@ -28,28 +28,29 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end coverage for {@code KibanaSmlImplicitPrivilegesProvider} against a real
+ * End-to-end coverage for {@code AiIndexImplicitPrivilegesProvider} against a real
  * default-distribution node. Unlike an in-JVM {@code internalClusterTest}, this exercises the
  * full production path: the plugin is bundled into the default distribution and auto-discovered
  * via the {@code SecurityExtension} SPI, so no test plugin is installed.
  * <p>
  * The happy path verifies that a role holding only the Kibana {@code feature_dashboards.read}
  * application privilege on {@code space:marketing} (with <b>no</b> explicit index privileges)
- * can read the {@code ai-index-idx-sml-data} index, and that the implicit document-level-security
- * filter restricts results using composite tokens stored in {@code permissions.kibana.privileges.name}
- * that bind space and privilege together:
+ * can read an {@code ai-index-*} index, and that the implicit document-level-security filter
+ * restricts results using composite scoped privileges stored in
+ * {@code permissions.kibana.privileges.name} that bind space and privilege together:
  * <ul>
- *   <li>Documents requiring a token for a different space are hidden even if the privilege matches.</li>
- *   <li>Documents requiring a token for a privilege the user does not hold are hidden even if the
- *       space matches.</li>
- *   <li>Documents requiring <em>multiple</em> composite tokens where the user lacks one are hidden
- *       (AND semantics enforced by {@code terms_set} with
+ *   <li>Documents requiring a scoped privilege for a different space are hidden even if the
+ *       privilege matches.</li>
+ *   <li>Documents requiring a scoped privilege for a privilege the user does not hold are hidden
+ *       even if the space matches.</li>
+ *   <li>Documents requiring <em>multiple</em> composite scoped privileges where the user lacks one
+ *       are hidden (AND semantics enforced by {@code terms_set} with
  *       {@code minimum_should_match_field: permissions_count}).</li>
  *   <li>Documents with no {@code permissions.kibana.privileges.name} field are always visible
  *       (public documents).</li>
  * </ul>
  */
-public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
+public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String ADMIN_USER = "test-admin";
     private static final String ADMIN_PASSWORD = "x-pack-test-password";
@@ -62,12 +63,13 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
     private static final String LOGIN_ACTION = "login:";
     private static final String DASHBOARD_GET_ACTION = "saved_object:dashboard/get";
 
-    private static final String SML_INDEX = "ai-index-idx-sml-data";
+    // Uses the ai-index-* wildcard pattern matched by the provider.
+    private static final String AI_INDEX = "ai-index-test-sml-data";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .name("kibana-sml-implicit-privileges-cluster")
+        .name("kibana-ai-index-implicit-privileges-cluster")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.ml.enabled", "false")
@@ -84,24 +86,23 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuth(ADMIN_USER, ADMIN_PASSWORD)).build();
     }
 
-    public void testSpaceAndPrivilegeScopedRoleImplicitlyReadsSmlDataWithDls() throws Exception {
+    public void testSpaceAndPrivilegeScopedRoleImplicitlyReadsAiIndexDataWithDls() throws Exception {
         // 1. Register the Kibana application privilege — actions must include login: for the provider to trigger.
         putKibanaDashboardsPrivilege();
 
-        // 2. A role holding ONLY that application privilege, scoped to space:marketing — no explicit index
-        // privileges.
-        putSmlReaderRole("sml_marketing_reader", "space:marketing");
+        // 2. A role holding ONLY that application privilege, scoped to space:marketing — no explicit index privileges.
+        putAiIndexReaderRole("ai_marketing_reader", "space:marketing");
 
         // 3. A user that holds the role.
-        putUser(SML_USER, SML_USER_PASSWORD, "sml_marketing_reader");
+        putUser(SML_USER, SML_USER_PASSWORD, "ai_marketing_reader");
 
-        // 4. As admin, create the SML index with explicit mappings so DLS term/terms queries match.
-        createSmlIndexWithDocs();
+        // 4. As admin, create the AI Index with explicit mappings so DLS term/terms queries match.
+        createAiIndexWithDocs();
 
-        // 5. The implicit grant surfaces through the get-role API, carrying the composite dls_tokens DLS query.
-        assertImplicitGrantSurfaced("sml_marketing_reader");
+        // 5. The implicit grant surfaces through the get-role API, carrying the composite scoped-privileges DLS query.
+        assertImplicitGrantSurfaced("ai_marketing_reader");
 
-        // 6. The user can read the SML index without any explicit index privilege, and DLS restricts the visible
+        // 6. The user can read the AI Index without any explicit index privilege, and DLS restricts the visible
         // documents to exactly the two that satisfy both the space and privilege dimensions.
         assertUserSeesExactlyMarketingDashboardAndGlobalNoPerms();
     }
@@ -120,7 +121,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private void putSmlReaderRole(String roleName, String resource) throws Exception {
+    private void putAiIndexReaderRole(String roleName, String resource) throws Exception {
         final Request request = new Request("PUT", "/_security/role/" + roleName);
         request.setJsonEntity(Strings.format("""
             {
@@ -148,10 +149,10 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private void createSmlIndexWithDocs() throws Exception {
+    private void createAiIndexWithDocs() throws Exception {
         // permissions.kibana.privileges.name must be keyword so the implicit terms_set DLS query matches;
         // permissions.kibana.privileges.count must be integer so the minimum_should_match_field works correctly.
-        final Request create = new Request("PUT", "/" + SML_INDEX);
+        final Request create = new Request("PUT", "/" + AI_INDEX);
         create.setJsonEntity("""
             {
               "mappings": {
@@ -179,7 +180,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(create));
 
         // Should be visible: user holds marketing|saved_object:dashboard/get.
-        indexSmlDoc("marketing-dashboard", """
+        indexDoc("marketing-dashboard", """
             {
               "spaces": ["marketing"],
               "permissions": {
@@ -195,7 +196,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // Should NOT be visible: user does not hold finance|saved_object:dashboard/get (wrong space in token).
-        indexSmlDoc("finance-dashboard", """
+        indexDoc("finance-dashboard", """
             {
               "spaces": ["finance"],
               "permissions": {
@@ -211,7 +212,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // Should NOT be visible: user doesn't hold marketing|saved_object:lens/get (privilege not in grant).
-        indexSmlDoc("marketing-lens", """
+        indexDoc("marketing-lens", """
             {
               "spaces": ["marketing"],
               "permissions": {
@@ -227,7 +228,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // Should be visible: no permissions field → public document.
-        indexSmlDoc("global-no-perms", """
+        indexDoc("global-no-perms", """
             {
               "spaces": ["*"],
               "title": "global no perms"
@@ -236,7 +237,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
 
         // Should NOT be visible: requires both tokens — AND semantics via terms_set;
         // user only holds marketing|saved_object:dashboard/get, not marketing|saved_object:lens/get.
-        indexSmlDoc("multi-perm", """
+        indexDoc("multi-perm", """
             {
               "spaces": ["marketing"],
               "permissions": {
@@ -255,8 +256,8 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
             """);
     }
 
-    private void indexSmlDoc(String id, String body) throws Exception {
-        final Request request = new Request("PUT", "/" + SML_INDEX + "/_doc/" + id);
+    private void indexDoc(String id, String body) throws Exception {
+        final Request request = new Request("PUT", "/" + AI_INDEX + "/_doc/" + id);
         request.addParameter("refresh", "true");
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
@@ -275,12 +276,11 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
 
         final List<Map<String, Object>> implicitEntries = indices.stream()
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
-            .filter(entry -> ((List<String>) entry.get("names")).contains(SML_INDEX))
+            .filter(entry -> ((List<String>) entry.get("names")).stream().anyMatch(n -> n.startsWith("ai-index-")))
             .toList();
-        assertThat("expected exactly one implicit " + SML_INDEX + " grant, got " + indices, implicitEntries, hasSize(1));
+        assertThat("expected exactly one implicit ai-index-* grant, got " + indices, implicitEntries, hasSize(1));
 
         final Map<String, Object> implicit = implicitEntries.get(0);
-        assertThat((List<String>) implicit.get("names"), equalTo(List.of(SML_INDEX)));
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");
@@ -292,7 +292,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertUserSeesExactlyMarketingDashboardAndGlobalNoPerms() throws Exception {
-        final Request search = new Request("GET", "/" + SML_INDEX + "/_search");
+        final Request search = new Request("GET", "/" + AI_INDEX + "/_search");
         search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)));
         final Response response = client().performRequest(search);
         assertOK(response);

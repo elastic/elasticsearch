@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -27,44 +26,47 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Implicitly grants read access to the Kibana SML (Semantic Machine Learning) index
- * ({@code ai-index-idx-sml-data}) for users whose roles include a Kibana application privilege
- * granting {@code login:}.
+ * Implicitly grants read access to AI Index ({@code ai-index-*}) for users whose roles include a
+ * Kibana application privilege granting {@code login:}.
  * <p>
- * SML documents carry composite tokens in {@code permissions.kibana.privileges.name} that bind a
- * space and a privilege action together (e.g. {@code "marketing|saved_object:dashboard/get"}). The
- * number of tokens a document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
+ * AI Index documents carry composite scoped-privileges in {@code permissions.kibana.privileges.name}
+ * that bind a space and a privilege action together (e.g. {@code "marketing|saved_object:dashboard/get"}).
+ * The wildcard resource ({@code *}) is treated as a literal space component, producing tokens like
+ * {@code "*|saved_object:dashboard/get"} for global documents. The number of scoped privileges a
+ * document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
  * document with no {@code permissions.kibana.privileges.name} field is a public document visible to
  * all users who pass the login check.
  * <p>
- * The provider builds the user's token set from the cross-product of their space IDs and action
- * strings across all matching grants. For each space the user belongs to and each action they hold
- * in that space, one composite token {@code "<spaceId>|<action>"} is emitted. The DLS query then
- * uses a {@code terms_set} query requiring that every token listed on the document is present in
- * the user's held set ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
+ * The provider builds the user's scoped-privilege set from the cross-product of their space IDs and
+ * action strings across all matching grants. For each resource the user belongs to and each action
+ * they hold in that resource, one composite scoped privilege {@code "<spaceId>|<action>"} is emitted.
+ * The DLS query then uses a {@code terms_set} query requiring that every scoped privilege listed on
+ * the document is present in the user's held set
+ * ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
  * <p>
- * When the user holds the wildcard resource ({@code *}), full read access is granted with no DLS
- * restriction. Otherwise, the provider builds a DLS query that:
+ * The provider always builds a DLS query — the wildcard resource ({@code *}) flows through
+ * {@link #buildScopedPrivileges} as a literal space component rather than short-circuiting to
+ * unrestricted access. The DLS query:
  * <ul>
  *   <li>Allows documents that have no {@code permissions.kibana.privileges.name} field (public
  *       documents).</li>
  *   <li>Allows documents whose entire {@code permissions.kibana.privileges.name} set is a subset of
- *       the user's held composite tokens (enforced via {@code terms_set} with
+ *       the user's held composite scoped privileges (enforced via {@code terms_set} with
  *       {@code minimum_should_match_field: permissions.kibana.privileges.count}).</li>
  * </ul>
  */
-public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
+public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     static final String LOGIN_ACTION = "login:";
-    // Index name mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String[] SML_INDICES = { "ai-index-idx-sml-data" };
+    // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
+    static final String[] AI_INDEX_INDICES = { "ai-index-*" };
     static final String RESOURCE_PREFIX = "space:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
     static final String PERMISSIONS_FIELD = "permissions.kibana.privileges.name";
     static final String PERMISSIONS_COUNT_FIELD = "permissions.kibana.privileges.count";
-    static final String TOKEN_SEPARATOR = "|";
+    static final String SCOPE_SEPARATOR = "|";
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
@@ -76,22 +78,17 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
             return List.of();
         }
 
-        // If any resource is the wildcard, grant full access with no DLS.
-        if (resourcesToActions.containsKey(ALL_RESOURCES)) {
-            return List.of(RoleDescriptor.IndicesPrivileges.builder().indices(SML_INDICES).privileges(INDEX_READ_PRIVILEGE).build());
-        }
+        Set<String> scopedPrivileges = buildScopedPrivileges(resourcesToActions);
 
-        Set<String> tokens = buildCompositeTokens(resourcesToActions);
-
-        if (tokens.isEmpty()) {
+        if (scopedPrivileges.isEmpty()) {
             return List.of();
         }
 
         return List.of(
             RoleDescriptor.IndicesPrivileges.builder()
-                .indices(SML_INDICES)
+                .indices(AI_INDEX_INDICES)
                 .privileges(INDEX_READ_PRIVILEGE)
-                .query(buildDlsQuery(tokens))
+                .query(buildDlsQuery(scopedPrivileges))
                 .build()
         );
     }
@@ -130,58 +127,60 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
     }
 
     /**
-     * Builds the cross-product composite token set from the resource-to-actions map.
+     * Builds the cross-product scoped-privilege set from the resource-to-actions map.
      * <p>
      * For each resource with a {@code "space:"} prefix, the space ID is extracted and combined
-     * with each action string to produce a composite token of the form
-     * {@code "<spaceId>|<action>"}. Resources without the {@code "space:"} prefix are ignored.
+     * with each action string to produce a composite scoped privilege of the form
+     * {@code "<spaceId>|<action>"}. The wildcard resource ({@code "*"}) is treated as a literal
+     * space component, producing {@code "*|<action>"} tokens for global documents. Resources that
+     * are neither {@code "*"} nor prefixed with {@code "space:"} are ignored.
      */
-    static Set<String> buildCompositeTokens(Map<String, Set<String>> resourcesAndActions) {
-        Set<String> tokens = new HashSet<>();
+    static Set<String> buildScopedPrivileges(Map<String, Set<String>> resourcesAndActions) {
+        Set<String> scopedPrivileges = new HashSet<>();
         for (Map.Entry<String, Set<String>> entry : resourcesAndActions.entrySet()) {
             String resource = entry.getKey();
-            if (resource.startsWith(RESOURCE_PREFIX) == false) {
+            String spaceId;
+            if (ALL_RESOURCES.equals(resource)) {
+                spaceId = ALL_RESOURCES;
+            } else if (resource.startsWith(RESOURCE_PREFIX)) {
+                spaceId = resource.substring(RESOURCE_PREFIX.length());
+            } else {
                 continue;
             }
-            String spaceId = resource.substring(RESOURCE_PREFIX.length());
             for (String action : entry.getValue()) {
-                tokens.add(spaceId + TOKEN_SEPARATOR + action);
+                scopedPrivileges.add(spaceId + SCOPE_SEPARATOR + action);
             }
         }
-        return tokens;
+        return scopedPrivileges;
     }
 
     /**
-     * Whether a resolved privilege's application targets the Kibana application. Resolution
-     * expands wildcard application names against the stored privileges, so the value is normally
-     * concrete and settled by equality; a residual wildcard (e.g. {@code "kibana-*"} or
-     * {@code "*"} with no matching stored descriptor) is matched with an automaton.
+     * Whether a resolved privilege's application targets the Kibana application.
      */
     private static boolean applicationMatchesKibana(String application) {
-        return application.contains("*")
-            ? Automatons.predicate(application).test(KIBANA_APPLICATION)
-            : KIBANA_APPLICATION.equals(application);
+        return KIBANA_APPLICATION.equals(application);
     }
 
     /**
-     * Builds the DLS query that gates SML document visibility by composite tokens stored in
-     * {@code permissions.kibana.privileges.name}.
+     * Builds the DLS query that gates AI Index document visibility by composite scoped privileges
+     * stored in {@code permissions.kibana.privileges.name}.
      * <p>
      * The query structure is a top-level {@code bool/should} with two branches:
      * <ol>
      *   <li>Public-document branch: {@code bool/must_not exists permissions.kibana.privileges.name}
-     *       — matches documents that carry no token requirements (publicly visible to any login:
-     *       user).</li>
-     *   <li>Token-match branch: {@code terms_set} on {@code permissions.kibana.privileges.name}
-     *       requiring the document's full token set to be a subset of the user's held tokens,
-     *       enforced via {@code minimum_should_match_field: permissions.kibana.privileges.count}.</li>
+     *       — matches documents that carry no scoped-privilege requirements (publicly visible to
+     *       any login: user).</li>
+     *   <li>Scoped-privilege-match branch: {@code terms_set} on
+     *       {@code permissions.kibana.privileges.name} requiring the document's full scoped-privilege
+     *       set to be a subset of the user's held scoped privileges, enforced via
+     *       {@code minimum_should_match_field: permissions.kibana.privileges.count}.</li>
      * </ol>
      * <p>
-     * Hand-rolled via {@link XContentBuilder} rather than {@code QueryBuilders} to keep the
-     * serialized DLS query free of the default {@code "boost":1.0} field that query builder
-     * classes always emit.
+     * Hand-rolled via {@link XContentBuilder} rather than {@code QueryBuilders} because
+     * {@code QueryBuilders} does not expose a {@code termsSetQuery} factory and would also emit
+     * an unwanted {@code "boost":1.0} field that complicates DLS query caching.
      */
-    static String buildDlsQuery(Set<String> tokens) {
+    static String buildDlsQuery(Set<String> scopedPrivileges) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             builder.startObject("bool");
@@ -198,11 +197,11 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
             builder.endObject(); // bool
             builder.endObject(); // outer object
 
-            // Branch B: user holds ALL of the document's required tokens
+            // Branch B: user holds ALL of the document's required scoped privileges
             builder.startObject();
             builder.startObject("terms_set");
             builder.startObject(PERMISSIONS_FIELD);
-            builder.array("terms", tokens.toArray(new String[0]));
+            builder.array("terms", scopedPrivileges.toArray(new String[0]));
             builder.field("minimum_should_match_field", PERMISSIONS_COUNT_FIELD);
             builder.endObject(); // PERMISSIONS_FIELD
             builder.endObject(); // terms_set

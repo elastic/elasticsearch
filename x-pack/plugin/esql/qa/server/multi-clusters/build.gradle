@@ -58,6 +58,7 @@ tasks.named("bwcTest").configure {
 // runs against a local cluster that has federation off. The base javaRestTest task is disabled by the bwc-test plugin
 // and every other javaRestTest class here is bwc-only, so these classes get their own current-to-current runner wired
 // into `check`.
+def federationGateTestPattern = "org.elasticsearch.xpack.esql.ccq.Federation*GateRestIT"
 def federationRemoteDatasetGateTest = tasks.register("v${currentVersion}#federationRemoteDatasetGateTest", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
@@ -65,8 +66,7 @@ def federationRemoteDatasetGateTest = tasks.register("v${currentVersion}#federat
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
   filter {
-    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT"
-    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT"
+    includeTestsMatching federationGateTestPattern
   }
 }
 tasks.named("check").configure {
@@ -79,11 +79,17 @@ def supportedVersion = bwcVersion -> {
 }
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  // These tasks run the whole javaRestTest source set (see elasticsearch.bwc-test.gradle), so the federation gate
+  // classes have to be excluded here: they need federation on both clusters and set the opt-in setting, which a node
+  // that predates it rejects at startup. Their current-to-current runner above covers them.
   def newToOld = tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
+    filter {
+      excludeTestsMatching federationGateTestPattern
+    }
   }
 
   def oldToNew = tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
@@ -91,6 +97,9 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
+    filter {
+      excludeTestsMatching federationGateTestPattern
+    }
   }
 
   def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {

@@ -146,7 +146,7 @@ public final class Federation {
         } else if (enabled) {
             logger.info("ES|QL federation (external data sources) is enabled ([{}]=[true])", FEDERATION_ENABLED.getKey());
         } else {
-            logger.debug("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());
+            logger.info("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());
         }
     }
 

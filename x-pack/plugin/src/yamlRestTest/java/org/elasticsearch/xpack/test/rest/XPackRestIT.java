@@ -38,6 +38,9 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.security.transport.ssl.verification_mode", "certificate")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
+        // Federation is opt-in for users; this suite runs the ES|QL data source and dataset YAML tests, which are
+        // skipped when their REST routes are unregistered.
+        .setting("esql.federation.enabled", "true")
         // disable ILM history, since it disturbs tests using _all
         .setting("indices.lifecycle.history_index_enabled", "false")
         .keystore("bootstrap.password", "x-pack-test-password")

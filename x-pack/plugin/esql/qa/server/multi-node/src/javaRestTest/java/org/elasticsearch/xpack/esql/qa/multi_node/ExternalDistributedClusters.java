@@ -38,6 +38,9 @@ public class ExternalDistributedClusters {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_PARQUET_RS);
+            // This suite reads external sources, so it needs the opt-in federation setting. It is set here rather
+            // than relying on Clusters, which serverless substitutes with a builder that only defines node shape.
+            spec.setting("esql.federation.enabled", "true");
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");

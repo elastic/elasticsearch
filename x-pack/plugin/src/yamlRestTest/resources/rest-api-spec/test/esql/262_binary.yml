@@ -34,7 +34,7 @@ setup:
           mappings:
             properties:
               id: { type: integer }
-              blob: { type: binary }
+              blob: { type: binary, doc_values: false }
   - do:
       bulk:
         index: binary_no_doc_values
@@ -71,7 +71,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM binary_doc_values | SORT id'
+          query: 'FROM binary_doc_values | SORT id | KEEP id, blob'
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }
   - match: { columns.1.name: "blob" }
@@ -146,7 +146,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM binary_no_doc_values | SORT id'
+          query: 'FROM binary_no_doc_values | SORT id | KEEP id, blob'
   - match: { columns.1.name: "blob" }
   - match: { columns.1.type: "binary" }
   - length: { values: 2 }
@@ -162,7 +162,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM binary_stored | SORT id'
+          query: 'FROM binary_stored | SORT id | KEEP id, blob'
   - match: { columns.1.name: "blob" }
   - match: { columns.1.type: "binary" }
   - length: { values: 3 }
@@ -193,6 +193,7 @@ setup:
 'to_binary on invalid base64 surfaces a warning and null':
   - do:
       allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
         - "Line \\d+:\\d+: evaluation of \\[TO_BINARY\\(s\\)\\] failed, treating result as null. Only first 20 failures recorded."
         - "Line \\d+:\\d+: java.lang.IllegalArgumentException: .*"
       esql.query:
@@ -251,6 +252,8 @@ setup:
 ---
 'equals between two binary literals':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'ROW a = TO_BINARY("AQID"), b = TO_BINARY("AQID"), c = TO_BINARY("BAUG") | EVAL ab = a == b, ac = a == c | KEEP ab, ac'

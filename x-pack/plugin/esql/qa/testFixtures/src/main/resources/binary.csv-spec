@@ -163,12 +163,16 @@ id:integer | label:keyword
 toBinary
 required_capability: binary_type
 
+// tag::to_binary[]
 ROW encoded = "AQID"
 | EVAL decoded = TO_BINARY(encoded)
+// end::to_binary[]
 ;
 
+// tag::to_binary-result[]
 encoded:keyword | decoded:binary
 AQID            | AQID
+// end::to_binary-result[]
 ;
 
 toBinaryRoundtrip
@@ -256,5 +260,22 @@ ROW a = TO_BINARY("AQID"), b = TO_BINARY("AQID"), c = TO_BINARY("BAUG")
 
 ab:boolean | ac:boolean
 true       | false
+;
+
+coalesce
+required_capability: binary_type
+
+FROM binary_blobs
+| EVAL filled = COALESCE(blob, TO_BINARY("CQ=="))
+| KEEP id, filled
+| SORT id
+;
+
+id:integer | filled:binary
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | CQ==
 ;
 

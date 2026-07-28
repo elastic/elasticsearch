@@ -242,12 +242,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
-    /**
-     * Load raw binary {@link BytesRef}s from base64-encoded values in {@code _source}.
-     * Used by the {@code binary} field mapper when neither {@code doc_values} nor stored
-     * fields are available — JSON {@code _source} represents binary values as base64
-     * strings, so we decode them on the way into the block.
-     */
+    /** Decodes base64 {@code _source} strings into raw {@link BytesRef}s (binary field, no doc_values/stored). */
     public static class Base64BytesRefsBlockLoader extends SourceBlockLoader {
         public Base64BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
@@ -317,8 +312,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            // Binary _source values are JSON strings encoded with the standard (non-URL) base64 alphabet.
-            // The parser stages already validated the encoding at index time, so we just decode here.
+            // JSON _source yields base64 strings; binary (SMILE/CBOR) _source yields raw byte[]/BytesRef.
             byte[] decoded;
             if (v instanceof byte[] bytes) {
                 decoded = bytes;

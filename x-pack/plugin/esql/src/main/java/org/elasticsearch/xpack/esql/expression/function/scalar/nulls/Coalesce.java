@@ -232,7 +232,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 toEvaluator,
                 children()
             );
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION ->
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION, BINARY ->
                 CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
@@ -240,7 +240,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DOUBLE_RANGE, BINARY -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DOUBLE_RANGE -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

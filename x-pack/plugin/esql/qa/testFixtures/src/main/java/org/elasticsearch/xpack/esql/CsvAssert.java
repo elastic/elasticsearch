@@ -632,8 +632,7 @@ public final class CsvAssert {
                 yield convertActualFlattenedValue(actualValue);
             }
             case BINARY -> {
-                // REST path: binary fields are returned as base64-encoded strings on the wire; decode so the
-                // comparison happens against the same BytesRef value the csv-spec parser produced.
+                // REST responses carry binary as base64 strings; decode to match the csv-spec BytesRef.
                 if (actualValue instanceof String s) {
                     yield new BytesRef(java.util.Base64.getDecoder().decode(s));
                 }

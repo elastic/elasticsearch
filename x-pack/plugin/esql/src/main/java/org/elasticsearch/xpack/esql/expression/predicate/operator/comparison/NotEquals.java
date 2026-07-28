@@ -68,7 +68,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.TDIGEST, NotEqualsTDigestEvaluator.Factory::new),
         Map.entry(DataType.EXPONENTIAL_HISTOGRAM, NotEqualsExponentialHistogramEvaluator.Factory::new),
         Map.entry(DataType.HISTOGRAM, NotEqualsBytesRefEvaluator.Factory::new),
-        Map.entry(DataType.BINARY, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.BINARY, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(

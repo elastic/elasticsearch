@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -278,11 +279,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromBinary")
     static BytesRef fromBinary(BytesRef binary) {
-        // Binary fields surface as raw bytes inside ES|QL. TO_STRING base64-encodes them so the result
-        // matches what the JSON response layer emits and round-trips through `binary` field ingestion.
+        // Copy the exact slice: the input BytesRef may share a larger backing array.
         byte[] copy = new byte[binary.length];
         System.arraycopy(binary.bytes, binary.offset, copy, 0, binary.length);
-        return new BytesRef(java.util.Base64.getEncoder().encodeToString(copy));
+        return new BytesRef(Base64.getEncoder().encodeToString(copy));
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")

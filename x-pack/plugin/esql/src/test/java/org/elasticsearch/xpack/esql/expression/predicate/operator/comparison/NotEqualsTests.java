@@ -124,7 +124,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "NotEqualsKeywordsEvaluator",
+                "NotEqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),

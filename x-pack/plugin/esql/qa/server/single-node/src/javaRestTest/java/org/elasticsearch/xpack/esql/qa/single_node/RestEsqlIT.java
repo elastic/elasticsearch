@@ -893,7 +893,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
             shouldBeSupported.remove(DataType.FLATTENED);
         }
-        shouldBeSupported.remove(DataType.BINARY); // No generic cross-type cast / suggestedCast for binary yet (deferred to Phase 3)
+        shouldBeSupported.remove(DataType.BINARY); // no generic cross-type cast / suggestedCast for binary yet
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

@@ -503,13 +503,7 @@ public enum DataType implements Writeable {
             .supportedSince(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE, DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE_RELEASE)
     ),
 
-    /**
-     * Binary blobs. In Elasticsearch the {@code binary} field type accepts arbitrary byte content
-     * (encoded as base64 on the wire) and supports the {@code doc_values} and {@code store}
-     * parameters; the field is not stored by default and is not searchable. ES|QL surfaces these
-     * as {@link BytesRef} values inside a {@link org.elasticsearch.compute.data.BytesRefBlock}.
-     * On JSON responses the value is base64-encoded so it round-trips losslessly.
-     */
+    /** Opaque byte blobs ({@code binary} field type); surfaced as {@link BytesRef}, base64-encoded in JSON responses. */
     BINARY(builder().esType("binary").estimatedSize(64).docValues().underConstruction(DataTypesTransportVersions.ESQL_BINARY_DATATYPE));
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 
@@ -207,7 +208,7 @@ public final class ResponseValueUtils {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 byte[] copy = new byte[val.length];
                 System.arraycopy(val.bytes, val.offset, copy, 0, val.length);
-                return java.util.Base64.getEncoder().encodeToString(copy);
+                return Base64.getEncoder().encodeToString(copy);
             };
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG,

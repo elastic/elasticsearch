@@ -70,7 +70,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.TDIGEST, EqualsTDigestEvaluator.Factory::new),
         Map.entry(DataType.EXPONENTIAL_HISTOGRAM, EqualsExponentialHistogramEvaluator.Factory::new),
         Map.entry(DataType.HISTOGRAM, EqualsBytesRefEvaluator.Factory::new),
-        Map.entry(DataType.BINARY, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.BINARY, EqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(

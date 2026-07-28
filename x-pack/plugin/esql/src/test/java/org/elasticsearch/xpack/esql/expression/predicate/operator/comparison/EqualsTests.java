@@ -125,7 +125,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "EqualsKeywordsEvaluator",
+                "EqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 Object::equals,

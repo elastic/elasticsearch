@@ -33,12 +33,9 @@ public class ToBinaryTests extends AbstractScalarFunctionTestCase {
         String stringEvaluator = "ToBinaryFromStringEvaluator[asString=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // BINARY -> BINARY is identity.
         TestCaseSupplier.forUnaryBinary(suppliers, read, DataType.BINARY, b -> b, List.of());
 
-        // KEYWORD / TEXT -> BINARY: the value is treated as base64. Random strings are extremely
-        // unlikely to be valid base64, so most random strings will surface as null with a warning.
-        // We rely on the explicit base64 cases below to verify happy-path behavior.
+        // Random strings are rarely valid base64, so most surface as null+warning; base64StringCases covers the happy path.
         for (DataType inputType : DataType.stringTypes()) {
             TestCaseSupplier.unary(
                 suppliers,

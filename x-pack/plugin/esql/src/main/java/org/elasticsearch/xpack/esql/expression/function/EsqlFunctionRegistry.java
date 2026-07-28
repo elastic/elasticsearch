@@ -672,14 +672,6 @@ public class EsqlFunctionRegistry {
                 TStep.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                // date_range functions
-                RangeContains.DEFINITION,
-                RangeIntersects.DEFINITION,
-                RangeMax.DEFINITION,
-                RangeMin.DEFINITION,
-                RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
-                ToText.DEFINITION,
                 // binary functions
                 ToBinary.DEFINITION } };
     }

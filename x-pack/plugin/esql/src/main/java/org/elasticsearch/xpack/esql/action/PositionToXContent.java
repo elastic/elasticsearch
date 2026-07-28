@@ -266,9 +266,7 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    // Binary values round-trip as base64 on the wire, matching the JSON representation
-                    // used by Elasticsearch's binary field type. We allocate a fresh byte array for the
-                    // exact slice to avoid encoding stale bytes when the backing array is reused.
+                    // Copy the exact slice: scratch reuses a shared backing array across positions.
                     byte[] copy = new byte[val.length];
                     System.arraycopy(val.bytes, val.offset, copy, 0, val.length);
                     return builder.value(Base64.getEncoder().encodeToString(copy));

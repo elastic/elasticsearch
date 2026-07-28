@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -20,7 +24,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -250,6 +257,14 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
      * {@link #getOutput()} and actually produce the final output pages. */
     private boolean buildOutputCalled = false;
 
+    // ---- Status tracking fields ----
+    private long reconcileNanos;
+    private int pagesProcessed;
+    private long rowsReceived;
+    /** Hash + aggregation nanos from ops that have already been closed. */
+    private long savedHashNanos;
+    private long savedAggNanos;
+
     /** Accumulates all untagged pages on the driver thread. INTERMEDIATE mode. */
     private HashAggregationOperator noneOp;
     /** One FINAL-mode operator per partition; created eagerly in the constructor. */
@@ -356,6 +371,8 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
+        pagesProcessed++;
+        rowsReceived += page.getPositionCount();
         Integer partitionId = page.partitionId();
         if (partitionId != null) {
             anyTaggedSeen = true;
@@ -562,7 +579,9 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
 
     private void emitFinal() {
         if (anyTaggedSeen) {
+            long start = System.nanoTime();
             reconcileNoneToBuffers();
+            reconcileNanos = System.nanoTime() - start;
         }
         // Signal workers that no more pages are coming.
         for (ExchangeBuffer buf : workerBuffers) {
@@ -593,6 +612,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
      */
     private void reconcileNoneToBuffers() {
         if (noneOp.blockHash.numKeys() == 0) {
+            saveNoneOpTiming();
             noneOp.close();
             noneOp = null;
             return;
@@ -604,8 +624,15 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
                 }
             }
         }
+        saveNoneOpTiming();
         noneOp.close();
         noneOp = null;
+    }
+
+    private void saveNoneOpTiming() {
+        HashAggregationOperator.Status s = (HashAggregationOperator.Status) noneOp.status();
+        savedHashNanos += s.hashNanos();
+        savedAggNanos += s.aggregationNanos();
     }
 
     /**
@@ -673,10 +700,15 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             for (int p = 0; p < partitionCount; p++) {
                 HashAggregationOperator worker = workerOps[p];
                 workerOps[p] = null;
-                if (worker != null && worker.blockHash.numKeys() > 0) {
-                    parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize), worker));
-                } else if (worker != null) {
-                    worker.close();
+                if (worker != null) {
+                    HashAggregationOperator.Status s = (HashAggregationOperator.Status) worker.status();
+                    savedHashNanos += s.hashNanos();
+                    savedAggNanos += s.aggregationNanos();
+                    if (worker.blockHash.numKeys() > 0) {
+                        parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize), worker));
+                    } else {
+                        worker.close();
+                    }
                 }
             }
             if (parts.isEmpty() == false) {
@@ -689,10 +721,15 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             // round trip that would otherwise be needed to convert to final output format.
             HashAggregationOperator op = noneOp;
             noneOp = null;
-            if (op != null && op.blockHash.numKeys() > 0) {
-                output = closeOpOnClose(op.evaluateAsFinal(), op);
-            } else if (op != null) {
-                op.close();
+            if (op != null) {
+                HashAggregationOperator.Status s = (HashAggregationOperator.Status) op.status();
+                savedHashNanos += s.hashNanos();
+                savedAggNanos += s.aggregationNanos();
+                if (op.blockHash.numKeys() > 0) {
+                    output = closeOpOnClose(op.evaluateAsFinal(), op);
+                } else {
+                    op.close();
+                }
             }
         }
     }
@@ -733,6 +770,114 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             if (refs == 0 && completed.compareAndSet(false, true)) {
                 completion.run();
             }
+        }
+    }
+
+    @Override
+    public Operator.Status status() {
+        long hashNanos = savedHashNanos, aggNanos = savedAggNanos;
+        if (noneOp != null) {
+            HashAggregationOperator.Status s = (HashAggregationOperator.Status) noneOp.status();
+            hashNanos += s.hashNanos();
+            aggNanos += s.aggregationNanos();
+        }
+        return new Status(reconcileNanos, hashNanos, aggNanos, pagesProcessed, rowsReceived);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "partitioned_hash_merge",
+            Status::new
+        );
+
+        private final long reconcileNanos;
+        private final long hashNanos;
+        private final long aggregationNanos;
+        private final int pagesProcessed;
+        private final long rowsReceived;
+
+        public Status(long reconcileNanos, long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived) {
+            this.reconcileNanos = reconcileNanos;
+            this.hashNanos = hashNanos;
+            this.aggregationNanos = aggregationNanos;
+            this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+        }
+
+        public Status(StreamInput in) throws IOException {
+            reconcileNanos = in.readVLong();
+            hashNanos = in.readVLong();
+            aggregationNanos = in.readVLong();
+            pagesProcessed = in.readVInt();
+            rowsReceived = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(reconcileNanos);
+            out.writeVLong(hashNanos);
+            out.writeVLong(aggregationNanos);
+            out.writeVInt(pagesProcessed);
+            out.writeVLong(rowsReceived);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
+
+        /**
+         * Nanoseconds spent in {@code reconcileNoneToBuffers}: evaluating the untagged accumulator
+         * and routing its output to per-partition worker buffers.
+         */
+        public long reconcileNanos() {
+            return reconcileNanos;
+        }
+
+        /** Nanoseconds inner operators spent hashing grouping keys, summed across noneOp and all worker ops. */
+        public long hashNanos() {
+            return hashNanos;
+        }
+
+        /** Nanoseconds inner operators spent running aggregations, summed across noneOp and all worker ops. */
+        public long aggregationNanos() {
+            return aggregationNanos;
+        }
+
+        /** Count of pages this operator has processed. */
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        /** Count of rows this operator has received. */
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("reconcile_nanos", reconcileNanos);
+            if (builder.humanReadable()) {
+                builder.field("reconcile_time", TimeValue.timeValueNanos(reconcileNanos));
+            }
+            builder.field("hash_nanos", hashNanos);
+            if (builder.humanReadable()) {
+                builder.field("hash_time", TimeValue.timeValueNanos(hashNanos));
+            }
+            builder.field("aggregation_nanos", aggregationNanos);
+            if (builder.humanReadable()) {
+                builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
+            }
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            return builder.endObject();
         }
     }
 

@@ -82,6 +82,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -354,6 +355,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         indexShard.recoveryStats().sourceRecoveryStarted();
         recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        // Guards against sourceRecoveryCompleted() being called twice: once in the normal success path
+        // (compoundHandoffListener.onResponse) and again via the outer failure handler if
+        // IndexShard.relocated()'s verifyRelocatingState throws after the handoff RPC already succeeded.
+        final var sourceRecoveryFinished = new AtomicBoolean(false);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -373,8 +378,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
-            indexShard.recoveryStats().sourceRecoveryCompleted();
-            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            if (sourceRecoveryFinished.compareAndSet(false, true)) {
+                indexShard.recoveryStats().sourceRecoveryCompleted();
+                recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            }
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
@@ -525,8 +532,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                         try {
                             handoffCompleteListener.onResponse(null);
-                            indexShard.recoveryStats().sourceRecoveryCompleted();
-                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                            if (sourceRecoveryFinished.compareAndSet(false, true)) {
+                                indexShard.recoveryStats().sourceRecoveryCompleted();
+                                recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                            }
                         } finally {
                             handoffResultListener.onResponse(null);
                         }

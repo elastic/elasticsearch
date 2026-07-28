@@ -171,7 +171,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
             return Failure.fail(
                 nested,
                 "a pattern that expands to multiple sources, [{}], cannot be combined with subqueries"
-                    + "; use it as the only source in the FROM command, or replace it with a single index or view",
+                    + "; replace it with a single source in the FROM command",
                 source
             );
         }

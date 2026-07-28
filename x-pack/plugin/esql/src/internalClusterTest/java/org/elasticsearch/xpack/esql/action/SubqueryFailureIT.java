@@ -377,12 +377,12 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM airports*, (FROM employees)").close());
-            assertThat(
-                e.getMessage(),
+            expectThrows(
+                VerificationException.class,
                 containsString(
                     "a pattern that expands to multiple sources, [FROM airports*, (FROM employees)], cannot be combined with subqueries"
-                )
+                ),
+                () -> run("FROM airports*, (FROM employees)").close()
             );
         } finally {
             deleteViews("airports_view");
@@ -397,10 +397,10 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM employees, (FROM airports*)").close());
-            assertThat(
-                e.getMessage(),
-                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries")
+            expectThrows(
+                VerificationException.class,
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
+                () -> run("FROM employees, (FROM airports*)").close()
             );
         } finally {
             deleteViews("airports_view");
@@ -415,13 +415,10 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(
+            expectThrows(
                 VerificationException.class,
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
                 () -> run("FROM (FROM airports*), (FROM employees)").close()
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries")
             );
         } finally {
             deleteViews("airports_view");

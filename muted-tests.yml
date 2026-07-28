@@ -766,3 +766,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testEachInstallOrRotationAddsExactlyOneNewKey
+  issue: https://github.com/elastic/elasticsearch/issues/153024

@@ -173,7 +173,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected boolean assertPrimaryCanOptimizeAddDocument(final Engine.IndexOpView index) {
+    protected boolean assertPrimaryCanOptimizeAddDocument(final Engine.Index index) {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
             : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;

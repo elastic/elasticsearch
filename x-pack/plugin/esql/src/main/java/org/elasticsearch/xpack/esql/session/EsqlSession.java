@@ -2302,8 +2302,8 @@ public class EsqlSession {
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             if (requestFilter != null && unmappedResolution != UnmappedResolution.DEFAULT && resolvedUnmappedField(plan)) {
-                // The request filter (field_caps index_filter) can hide a field mapped only in a pruned index, and unlike DEFAULT
-                // these modes don't raise a VerificationException to trigger the retry below. See #154708.
+                // The filter can hide a field mapped only in a pruned index, LOAD and NULLIFY don't raise a VerificationException
+                // to trigger a retry
                 LOGGER.debug("Analyzed plan ({}) resolved unmapped fields with a request filter present; retrying without it", description);
                 executionInfo.clusterInfo.clear();
                 resolveIndicesAndAnalyze(
@@ -2350,8 +2350,7 @@ public class EsqlSession {
 
     /**
      * Whether analysis resolved a referenced field as unmapped ({@link MissingEsField} / {@link PotentiallyUnmappedKeywordEsField}) in a
-     * non-LOOKUP {@link EsRelation}: such a field may actually be mapped in an index the request filter pruned. Conservative for
-     * {@code load} (also matches genuinely partially-mapped keywords), which merely costs an extra, idempotent field_caps. See #154708.
+     * non-LOOKUP {@link EsRelation}: such a field may actually be mapped in an index the request filter pruned.
      */
     private static boolean resolvedUnmappedField(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP && hasUnmappedFieldMarker(esr));

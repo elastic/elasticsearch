@@ -163,8 +163,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     /**
-     * Companion to {@link #testFieldExistsFilter_With_ExplicitUseOfDiscardedIndexFields} for {@code unmapped_fields="nullify"}: a field
-     * mapped only in the filter-pruned index still resolves to its real type ({@code integer}), not {@code null}. See #154708.
+     * A field mapped only in the filter-pruned index still resolves to its real type, not {@code null}.
      */
     public void testFieldExistsFilterWithNullifyResolvesPrunedFieldType() throws IOException {
         assumeTrue(
@@ -200,8 +199,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     /**
-     * As {@link #testFieldExistsFilterWithNullifyResolvesPrunedFieldType} but for {@code unmapped_fields="load"}: id2 resolves to its real
-     * ({@code integer}) mapping instead of being loaded from {@code _source} as {@code keyword}. See #154708.
+     * id2 resolves to its real ({@code integer}) mapping instead of being loaded from {@code _source} as {@code keyword}
      */
     public void testFieldExistsFilterWithLoadResolvesPrunedFieldType() throws IOException {
         assumeTrue(
@@ -239,8 +237,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     /**
      * Type-conflicted field: {@code id} is mapped as {@code integer} in test1 and {@code keyword} in test2. A request filter that prunes
      * test2 leaves {@code id} cleanly mapped as {@code integer} in the surviving index, so it resolves to that type under
-     * {@code unmapped_fields="nullify"|"load"}. Because {@code id} is still mapped, no unmapped marker is produced and the fix must NOT
-     * re-resolve without the filter (which would re-introduce the conflict). See #154708.
+     * {@code unmapped_fields="nullify"|"load"}
      */
     public void testTypeConflictedFieldResolvesToSurvivingTypeWhenFilterPrunesConflictingIndex() throws IOException {
         assumeTrue(
@@ -277,8 +274,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     /**
      * Type-conflicted field whose every mapping is pruned by the request filter: {@code id} is {@code integer} in test1 and {@code keyword}
      * in test2, while the filter keeps only test3 (which does not map {@code id}). Under {@code unmapped_fields="nullify"|"load"} the field
-     * would otherwise be silently reported as {@code null} (nullify) or {@code keyword} (load); the fix re-resolves without the filter and
-     * surfaces the real conflict as an {@code unsupported} column - exactly as DEFAULT does. See #154708.
+     * would otherwise be silently reported as {@code null} (nullify) or {@code keyword} (load)
      */
     public void testTypeConflictedFieldHiddenByFilterResolvesAsUnsupported() throws IOException {
         assumeTrue(

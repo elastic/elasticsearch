@@ -116,11 +116,8 @@ public final class QueryBuilderResolver {
             Holder<IOException> exceptionHolder,
             Holder<Boolean> updated
         ) {
-            // HIGHLIGHT builds MATCH and MATCH_PHRASE queries against a per-row MemoryIndex whose fields use ON column
-            // names. Rewriting them against the target index could produce a semantic_text inference query or use a
-            // union type's concrete field name. Neither query can run against the MemoryIndex. QSTR and KQL still need
-            // the index rewrite.
-            if (node instanceof Highlight && (expr instanceof Match || expr instanceof MatchPhrase)) {
+            // HIGHLIGHT queries run against a MemoryIndex and must be rewritten using its search context.
+            if (node instanceof Highlight) {
                 return expr;
             }
             if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {

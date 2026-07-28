@@ -2004,11 +2004,7 @@ public class VerifierTests extends ESTestCase {
             );
         }
         if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled()) {
-            // Plans below HIGHLIGHT can project away the doc IDs required by runtime Lucene evaluators.
-            fullText().error(
-                "from test | highlight \"data\" on title | where " + functionInvocation,
-                containsString("[" + functionName + "] " + functionType + " cannot be used after HIGHLIGHT")
-            );
+            fullText().query("from test | highlight \"data\" on title | where " + functionInvocation);
         }
     }
 

@@ -286,7 +286,7 @@ public abstract class FullTextFunction extends Function
         // because join is not pushed down into subqueries yet.
         boolean checkCommandsBeforeExpression = isLookupJoinOnCondition
             || checkFullTextFunctionsAboveSubqueries
-            || hasSubqueryInChildrenPlans(plan) == false;
+            || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
@@ -718,6 +718,10 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    private static boolean hasFilterPushdownTarget(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnionAll || p instanceof Highlight);
     }
 
     /**

@@ -34,21 +34,24 @@ import static org.mockito.Mockito.when;
  */
 public class EqlQueryServiceTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
     private EqlSearchRequest captureRequest(Integer size, CancellableTask parentTask) {
+        EqlSearchRequest request = captureRequestFor("idx", size, parentTask);
+        assertThat(request.indices(), equalTo(new String[] { "idx" }));
+        assertThat(request.query(), equalTo("any where true"));
+        return request;
+    }
+
+    private EqlSearchRequest captureRequestFor(String index, Integer size, CancellableTask parentTask) {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("local-node"));
 
         EqlQueryService service = new EqlQueryService(client, clusterService);
-        service.query("idx", "any where true", size, parentTask, ActionListener.noop());
+        service.query(index, "any where true", size, parentTask, ActionListener.noop());
 
         ArgumentCaptor<EqlSearchRequest> captor = ArgumentCaptor.forClass(EqlSearchRequest.class);
         verify(client).execute(eq(EqlSearchAction.INSTANCE), captor.capture(), any());
-        EqlSearchRequest request = captor.getValue();
-        assertThat(request.indices(), equalTo(new String[] { "idx" }));
-        assertThat(request.query(), equalTo("any where true"));
-        return request;
+        return captor.getValue();
     }
 
     public void testSizeAndParentTaskAreForwarded() {
@@ -63,5 +66,16 @@ public class EqlQueryServiceTests extends ESTestCase {
         // No pushed limit -> EQL keeps its own default size (10); no parent task set.
         assertThat(request.size(), equalTo(10));
         assertThat(request.getParentTask().isSet(), is(false));
+    }
+
+    public void testCommaSeparatedIndexPatternIsSplit() {
+        // The parser hands a comma-joined pattern; the service must split it so each index reaches EQL separately.
+        EqlSearchRequest request = captureRequestFor("idx1,idx2,logs-*", null, null);
+        assertThat(request.indices(), equalTo(new String[] { "idx1", "idx2", "logs-*" }));
+    }
+
+    public void testSingleIndexPatternIsForwardedVerbatim() {
+        EqlSearchRequest request = captureRequestFor("cluster_a:logs-*", null, null);
+        assertThat(request.indices(), equalTo(new String[] { "cluster_a:logs-*" }));
     }
 }

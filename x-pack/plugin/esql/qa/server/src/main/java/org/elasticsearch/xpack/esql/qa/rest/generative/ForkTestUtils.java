@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EQL_QUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
@@ -73,6 +74,11 @@ public class ForkTestUtils {
         assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(PROMQL_COMMAND_V0.capabilityName())
+        );
+
+        assumeFalse(
+            "EQL source command is coordinator-only and not exercised through the generative FORK wrapper",
+            testCase.requiredCapabilities.contains(EQL_QUERY.capabilityName())
         );
 
         assumeFalse(

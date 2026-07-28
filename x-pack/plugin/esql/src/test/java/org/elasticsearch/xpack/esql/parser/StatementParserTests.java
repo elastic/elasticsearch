@@ -1275,9 +1275,50 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(eql.query(), equalTo("any where true"));
     }
 
+    public void testEqlSourceCommandUnquotedIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql my-index | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("my-index"));
+        assertThat(eql.query(), equalTo("any where true"));
+    }
+
+    public void testEqlSourceCommandCommaSeparatedIndexPatterns() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql idx1, idx2, logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx1,idx2,logs-*"));
+    }
+
+    public void testEqlSourceCommandWildcardIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("logs-*"));
+    }
+
+    public void testEqlSourceCommandRemoteClusterIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql cluster_a:logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("cluster_a:logs-*"));
+    }
+
+    public void testEqlSourceCommandQuotedMultiIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql \"idx1,idx2\" | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx1,idx2"));
+    }
+
     public void testEqlSourceCommandNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("mismatched input 'eql'"), () -> query("eql \"idx\" | \"any where true\""));
+    }
+
+    public void testEqlSourceCommandRequiresQuotedQuery() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, () -> query("eql idx | any where true"));
+    }
+
+    public void testEqlSourceCommandRequiresIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, () -> query("eql | \"any where true\""));
     }
 
     public void testHighlightOnFields() {

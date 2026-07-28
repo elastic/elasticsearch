@@ -117,11 +117,12 @@ externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
-// EQL source command: `EQL "<index>" | "<eql query>"`. The index and the EQL query string are both
-// part of this source command; the pipe between them is consumed here. A following pipe (if any)
-// starts the regular ES|QL processing pipeline.
+// EQL source command: `EQL <index patterns> | "<eql query>"`. Index patterns reuse FROM's `indexPattern`
+// rule (unquoted/quoted, comma-separated, wildcards, `remote:` prefixes) but NOT METADATA or subqueries.
+// The pipe after the patterns separates them from the quoted EQL query; a following pipe starts the
+// regular ES|QL processing pipeline.
 eqlCommand
-    : DEV_EQL index=string PIPE eqlQuery=string
+    : DEV_EQL indexPattern (COMMA indexPattern)* PIPE eqlQuery=string
     ;
 
 indexPatternAndMetadataFields

@@ -92,6 +92,44 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testEventQueryUnquotedIndex() {
+        // The index pattern is parsed like FROM, so a plain unquoted name (no surrounding double quotes) works too.
+        try (EsqlQueryResponse resp = run("EQL " + INDEX + " | \"any where true\" | KEEP _id | SORT _id")) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo("1"));
+            assertThat(rows.get(2).get(0), equalTo("3"));
+        }
+    }
+
+    public void testEventQueryWildcardIndexPattern() {
+        try (EsqlQueryResponse resp = run("EQL eql_te* | \"any where true\" | KEEP _index, _id")) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), equalTo(INDEX));
+            }
+        }
+    }
+
+    public void testCommaSeparatedIndexPatterns() {
+        // Unquoted, comma-separated patterns must reach EQL as distinct indices (not one literal "a,b" name).
+        createEventIndex("eql_multi_a", 2);
+        createEventIndex("eql_multi_b", 3);
+        try (EsqlQueryResponse resp = run("EQL eql_multi_a, eql_multi_b | \"any where true\" | KEEP _index | LIMIT 100")) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(5));
+        }
+    }
+
+    public void testQuotedCommaSeparatedIndexPatterns() {
+        createEventIndex("eql_q_a", 2);
+        createEventIndex("eql_q_b", 3);
+        try (EsqlQueryResponse resp = run("EQL \"eql_q_a,eql_q_b\" | \"any where true\" | KEEP _index | LIMIT 100")) {
+            assertThat(getValuesList(resp), hasSize(5));
+        }
+    }
+
     public void testEmptyResultKeepsSchema() {
         try (EsqlQueryResponse resp = run("EQL \"" + INDEX + "\" | \"any where value == 999\"")) {
             assertThat(columnNames(resp), equalTo(List.of("_sequence", "_index", "_id", "_source")));

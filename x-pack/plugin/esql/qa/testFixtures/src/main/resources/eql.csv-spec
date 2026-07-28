@@ -1,0 +1,92 @@
+// Tests for the EQL source command (EQL <index-pattern> | "<eql query>" | ...), which delegates to the
+// EQL search transport action and flattens the response into the fixed schema _sequence, _index, _id, _source.
+//
+// The command is snapshot-only (capability eql_query), so every test gates on required_capability: eql_query.
+// These run only on the live-cluster QA REST suites (single-node, multi-node, mixed-cluster); the in-JVM CsvIT
+// skips them because it does not wire in the EQL plugin/transport action.
+//
+// The dataset (endgame-140) is the EQL project's corpus ported to ES|QL: each document's serial_event_id is
+// indexed as its _id, and event.category is an alias to event_type so plain "process where ..." queries resolve
+// with the EQL defaults this command sends (event.category / @timestamp, no tiebreaker). Because the command
+// does not send a tiebreaker, events sharing a @timestamp have an undefined relative order; every test below
+// selects an exact set with a "where" predicate and sorts by the numeric id, so the assertion is independent of
+// that order. Order-sensitive pipes (head/tail) and sequences are deferred to a later expansion.
+
+eventQueryEqual
+required_capability: eql_query
+EQL endgame-140 | "process where serial_event_id == 1" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+1
+;
+
+eventQueryLessThan
+required_capability: eql_query
+EQL endgame-140 | "process where serial_event_id < 4" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+1
+2
+3
+;
+
+eventQueryFalse
+required_capability: eql_query
+EQL endgame-140 | "process where false" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+;
+
+eventQueryRange
+required_capability: eql_query
+EQL endgame-140 | "process where serial_event_id <= 8 and serial_event_id > 7" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+8
+;
+
+eventQueryProcessNameOrRange
+required_capability: eql_query
+EQL endgame-140 | "process where process_name : \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+4
+;
+
+eventQueryExitCodeGteZero
+required_capability: eql_query
+EQL endgame-140 | "process where exit_code >= 0" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+58
+64
+69
+74
+80
+85
+90
+93
+94
+75303
+;
+
+// Matches more events than EQL's default size (10); the LIMIT sits directly above the EQL source so
+// PushDownLimitToEqlQuery forwards it as the EQL request size, otherwise the result would be truncated to 10.
+eventQueryLimitPushedAsSize
+required_capability: eql_query
+EQL endgame-140 | "process where serial_event_id <= 12" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
+
+id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;

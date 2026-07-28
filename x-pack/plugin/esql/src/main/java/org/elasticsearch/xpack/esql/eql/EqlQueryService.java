@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.eql;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -50,7 +51,9 @@ public class EqlQueryService {
         ActionListener<EqlSearchResponse> listener
     ) {
         EqlSearchRequest request = new EqlSearchRequest();
-        request.indices(index);
+        // The parser assembles a comma-joined pattern (FROM-style); split it into separate expressions here, the
+        // same way RestEqlSearchAction does, so a multi-index pattern reaches the EQL endpoint as distinct indices.
+        request.indices(Strings.splitStringByCommaToArray(index));
         request.query(query);
         if (size != null) {
             request.size(size);

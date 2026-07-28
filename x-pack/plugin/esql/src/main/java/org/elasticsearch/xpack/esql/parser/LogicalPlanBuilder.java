@@ -1039,7 +1039,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
         Source source = source(ctx);
-        String index = BytesRefs.toString(visitString(ctx.index).fold(FoldContext.small()));
+        // Reuse FROM's index-pattern assembly (comma-joined, cluster/selector aware) so EQL accepts the
+        // exact same index syntax; the resulting string is forwarded verbatim to the EQL search request.
+        String index = visitIndexPattern(ctx.indexPattern());
         String query = BytesRefs.toString(visitString(ctx.eqlQuery).fold(FoldContext.small()));
         return new EqlQuery(source, index, query);
     }

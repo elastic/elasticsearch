@@ -336,7 +336,12 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
-        new TestDataset("trim_test")
+        new TestDataset("trim_test"),
+        // EQL source command corpus: the EQL project's endgame-140 dataset ported to ES|QL. Only loaded on
+        // snapshot clusters that advertise the (snapshot-only) EQL command capability; see eql.csv-spec.
+        new TestDataset("endgame-140", "mapping-endgame-140.json", "endgame-140.csv", "endgame-140-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_QUERY
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

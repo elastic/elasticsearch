@@ -18,11 +18,12 @@ TS : 'ts' -> pushMode(FROM_MODE);
 DEV_EXTERNAL : {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? 'external' -> pushMode(FROM_MODE);
 
 // EQL source command (internal, snapshot-only): delegates to the EQL search endpoint.
-// EXPRESSION_MODE is pushed twice so that `eql "index" | "query"` reads two quoted strings with the
-// separating pipe consumed by the command itself (the first PIPE pops one EXPRESSION_MODE). The pipe
-// that follows the query pops the second EXPRESSION_MODE back to DEFAULT_MODE, where the downstream
-// ES|QL processing commands are lexed as usual.
-DEV_EQL : {this.isDevVersion()}? 'eql' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
+// Index patterns are lexed in FROM_MODE (identical to FROM), so they support unquoted/quoted names,
+// comma-separated lists, wildcards and `remote:` cluster prefixes. The PIPE after the index patterns
+// pops FROM_MODE back to EXPRESSION_MODE, where the quoted EQL query is read; the PIPE that follows the
+// query pops EXPRESSION_MODE back to DEFAULT_MODE, where the downstream ES|QL processing commands are
+// lexed as usual.
+DEV_EQL : {this.isDevVersion()}? 'eql' -> pushMode(EXPRESSION_MODE), pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

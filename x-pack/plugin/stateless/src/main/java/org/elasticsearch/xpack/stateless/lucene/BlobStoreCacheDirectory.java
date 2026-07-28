@@ -161,11 +161,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     public long resolveRegionTimestampMillis(long rawMillis) {
+        assert rawMillis >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || rawMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            : "raw region timestamp must be epoch millis or UNKNOWN, got " + rawMillis;
         return rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : fallbackRegionTimestampMillis();
     }
 
-    public long resolveRegionTimestampMillis(long rawMillis, long preferredMillis) {
-        return resolveRegionTimestampMillis(rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : preferredMillis);
+    public long resolveRegionTimestampMillis(long rawMillis, long preferredFallbackMillis) {
+        return resolveRegionTimestampMillis(rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : preferredFallbackMillis);
     }
 
     /**

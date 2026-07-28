@@ -444,7 +444,7 @@ public class SearchCommitPrefetcher {
             timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
         // When a blob has no known timestamp of its own, prefer this (triggering) commit's timestamp, then resolve the raw value to a
-        // stampable region timestamp (falling back to MINIMAL on time-based shards, UNKNOWN otherwise). No UNKNOWN sentinel leaks past here
+        // stampable region timestamp.
         timestampPerBlob.replaceAll(
             (blobFile, rawMillis) -> regionTimestampResolver.resolveRegionTimestampMillis(
                 rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : notificationCommitTimestamp

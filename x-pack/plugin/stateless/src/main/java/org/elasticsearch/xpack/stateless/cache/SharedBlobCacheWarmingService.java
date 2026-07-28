@@ -1137,7 +1137,11 @@ public class SharedBlobCacheWarmingService {
                 // readReferencedCompoundCommitsUsingCache had fully populated it; header-sized reads can leave gaps in that region,
                 // so searches can miss until the full range is forced into cache (see RecoveryWarmer#shouldSkipLocationWarming for SEARCH).
                 final WarmTarget target = targetToWarm.getValue();
-                assert assertTimeBasedTargetResolved(directory, targetToWarm.getKey(), target);
+                // On a time-based search shard with timestamp backfill enabled, producers must hand us fully resolved timestamps.
+                assert !(directory instanceof SearchDirectory sd)
+                    || !sd.timestampBackfillEnabled()
+                    || target.timestampMillis() >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP
+                    : "time-based warm target must be resolved, got " + target.timestampMillis() + " for " + targetToWarm.getKey();
                 if (target.endOffset() > 0) {
                     warmBlobByteRange(
                         Type.SEARCH,
@@ -1151,17 +1155,6 @@ public class SharedBlobCacheWarmingService {
                 }
             }
         }
-    }
-
-    /**
-     * On a time-based search shard, producers must hand us fully resolved timestamps.
-     */
-    private static boolean assertTimeBasedTargetResolved(BlobStoreCacheDirectory directory, BlobFile blobFile, WarmTarget target) {
-        if (directory instanceof SearchDirectory sd && sd.timestampBackfillEnabled()) {
-            assert target.timestampMillis() >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP
-                : "time-based warm target must be resolved, got " + target.timestampMillis() + " for " + blobFile;
-        }
-        return true;
     }
 
     private void warmBlobByteRange(

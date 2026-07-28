@@ -22,7 +22,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;

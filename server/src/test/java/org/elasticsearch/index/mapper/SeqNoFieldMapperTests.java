@@ -15,7 +15,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.MappedColumns;

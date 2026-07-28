@@ -12,6 +12,10 @@ products:
 
 A dataset is a read source for the standard {{esql}} pipeline. You query it with `FROM` like an index, and every processing command works the same way it does for an index. For a hands-on example, refer to [get started with {{esql}} Data Federation](esql-data-federation-quickstart.md).
 
+```esql
+FROM my_dataset
+```
+
 ## How external data is read
 
 When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data.

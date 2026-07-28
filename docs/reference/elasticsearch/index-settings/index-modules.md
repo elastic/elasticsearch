@@ -54,9 +54,7 @@ $$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
 $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
-:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
-
-        **Example**
+:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance. For example:
 
       ```console
       PUT my-index-000001
@@ -69,7 +67,6 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
       }
       ```
       1. This index uses the `standard` index mode
-    **Supported values**
 
     The `index.mode` setting supports the following values:
        - `null`:   Default value (same as `standard`).

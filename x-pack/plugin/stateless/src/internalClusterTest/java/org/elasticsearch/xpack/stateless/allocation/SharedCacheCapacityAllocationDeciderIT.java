@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements;
 import org.elasticsearch.cluster.CacheSizesAndCommitmentStats;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -30,12 +29,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDeciderTests.CACHE_SIZE_IN_BYTES;
+import static org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDeciderTests.bytesForPercent;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
-
-    private static final long CACHE_SIZE_IN_BYTES = 1000L;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -48,6 +47,10 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         return super.nodeSettings().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true)
             .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), "75%")
             .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), "95%");
+    }
+
+    private static Settings currentPersistentSettings() {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get().getState().metadata().persistentSettings();
     }
 
     public void testCanAllocateDeprioritizesOversubscribedNode() throws Exception {
@@ -63,7 +66,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // The oversubscribed node is already above the 75% low watermark. The healthy node has no commitment at all. NOT_PREFERRED
         // does not block allocation outright. With two otherwise-equal candidate search nodes, the balancer should still place the
         // search-only replica on the healthy one.
-        final long overSubscribedBoostedCommitmentBytes = 800L;
+        final long overSubscribedBoostedCommitmentBytes = bytesForPercent(80);
         final long healthyBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
@@ -103,6 +106,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 .stream()
                 .anyMatch(
                     decision -> decision.type() == Decision.Type.NOT_PREFERRED
+                        && decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
                         && decision.getExplanation().contains("already exceeds the low watermark")
                 )
         );
@@ -125,7 +129,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
 
         // The hosting node is over the 95% high watermark. The other search node has no commitment at all.
-        final long hostedBoostedCommitmentBytes = 970L;
+        final long hostedBoostedCommitmentBytes = bytesForPercent(97);
         final long otherBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
@@ -147,15 +151,18 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             .getCanRemainDecision();
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertTrue(
-            canRemainDecision.getDecisions().stream().anyMatch(decision -> decision.getExplanation().contains("exceeds the high watermark"))
+            canRemainDecision.getDecisions()
+                .stream()
+                .anyMatch(
+                    decision -> decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
+                        && decision.getExplanation().contains("exceeds the high watermark")
+                )
         );
 
         // The reconciler only moves shards away from a node when canRemain returns NO/NOT_PREFERRED and a better target exists. Drive
         // reroute passes until it picks up the fake oversubscription and relocates the shard to the healthy node.
         assertBusy(() -> {
-            safeGet(
-                client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-            );
+            ClusterRerouteUtils.reroute(client());
             assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(otherNodeId));
         });
     }
@@ -179,9 +186,9 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
 
         // Neither node is already over the 75% low watermark on its own, but the shard's own cache requirement would push the
         // tipped node over while leaving the healthy node comfortably under.
-        final long tippedNodeExistingCommitmentBytes = 700L;
+        final long tippedNodeExistingCommitmentBytes = bytesForPercent(70);
         final long healthyNodeExistingCommitmentBytes = 0L;
-        final long shardBoostedRequirementBytes = 100L;
+        final long shardBoostedRequirementBytes = bytesForPercent(10);
         final long noUnboostedCommitmentBytes = 0L;
         fakeCacheSizesAndCommitments(
             Map.of(shardId, new BoostedAndUnboostedCacheRequirements(shardBoostedRequirementBytes, noUnboostedCommitmentBytes)),
@@ -219,13 +226,14 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 .stream()
                 .anyMatch(
                     decision -> decision.type() == Decision.Type.NOT_PREFERRED
+                        && decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
                         && decision.getExplanation().contains("would raise its cache commitment")
                         && decision.getExplanation().contains("exceeding the low")
                 )
         );
     }
 
-    public void testCanAllocateUpdateAccountingModeMidTest() throws Exception {
+    public void testCanUpdateAccountingModeMidTest() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         final var divergentNode = startSearchNode();
@@ -235,13 +243,18 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String divergentNodeId = getNodeId(divergentNode);
         final String healthyNodeId = getNodeId(healthyNode);
 
+        assertThat(
+            SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.get(currentPersistentSettings()),
+            equalTo(SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED)
+        );
+
         // Switch accounting mode to TOTAL at runtime, exercising the setting's dynamic nature.
         updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), "TOTAL"));
 
         // The divergent node's boosted commitment alone is low, but its unboosted commitment is high. In TOTAL mode the combined
         // 90% already exceeds the 75% low watermark, even though BOOSTED mode alone would consider this node healthy.
-        final long divergentNodeBoostedCommitmentBytes = 100L;
-        final long divergentNodeUnboostedCommitmentBytes = 800L;
+        final long divergentNodeBoostedCommitmentBytes = bytesForPercent(10);
+        final long divergentNodeUnboostedCommitmentBytes = bytesForPercent(80);
         final long healthyBoostedCommitmentBytes = 0L;
         final long healthyUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
@@ -283,6 +296,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 .stream()
                 .anyMatch(
                     decision -> decision.type() == Decision.Type.NOT_PREFERRED
+                        && decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
                         && decision.getExplanation().contains("accounting mode [TOTAL]")
                 )
         );
@@ -304,8 +318,17 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String hostedNodeId = findSearchShard(indexName).routingEntry().currentNodeId();
         final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
 
+        // canRemain is enabled by default; assert that up front so disabling it below is a genuine, visible state change.
+        assertTrue(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.get(currentPersistentSettings()));
+
+        // Disable canRemain before faking any oversubscription. Reroute is triggered for all sorts of reasons outside this test's
+        // control, so if the oversubscription were faked first, an incidental reroute landing in the window before this setting
+        // update takes effect could see canRemain still enabled and relocate the shard prematurely, before the "must not relocate
+        // while disabled" assertions below even run.
+        updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false));
+
         // The hosting node is heavily over the 95% high watermark. The other search node has no commitment at all.
-        final long hostedBoostedCommitmentBytes = 970L;
+        final long hostedBoostedCommitmentBytes = bytesForPercent(97);
         final long otherBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
@@ -316,9 +339,6 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherBoostedCommitmentBytes, noUnboostedCommitmentBytes)
             )
         );
-
-        // Disable canRemain specifically, even though the decider as a whole, and the fake oversubscription, remain in place.
-        updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false));
 
         final var explainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
         explainRequest.setIndex(indexName).setShard(0).setPrimary(false).setCurrentNode(hostedNodeId);
@@ -332,13 +352,14 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         assertTrue(
             canRemainDecision.getDecisions()
                 .stream()
-                .anyMatch(decision -> decision.getExplanation().equals("shared cache capacity decider's canRemain check is disabled"))
+                .anyMatch(
+                    decision -> decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
+                        && decision.getExplanation().equals("shared cache capacity decider's canRemain check is disabled")
+                )
         );
 
         // A reroute pass must not relocate the shard while canRemain is disabled, despite the fake oversubscription.
-        safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
+        ClusterRerouteUtils.reroute(client());
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(hostedNodeId));
 
@@ -346,9 +367,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // relocation.
         updateClusterSettings(Settings.builder().putNull(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey()));
         assertBusy(() -> {
-            safeGet(
-                client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-            );
+            ClusterRerouteUtils.reroute(client());
             assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(otherNodeId));
         });
     }
@@ -367,7 +386,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));
 
         // The sole search node is heavily oversubscribed, but there is no alternative search node to move the shard to.
-        final long overWatermarkCommitmentBytes = 970L;
+        final long overWatermarkCommitmentBytes = bytesForPercent(97);
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
             Map.of(
@@ -385,14 +404,17 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             .getCanRemainDecision();
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertTrue(
-            canRemainDecision.getDecisions().stream().anyMatch(decision -> decision.getExplanation().contains("exceeds the high watermark"))
+            canRemainDecision.getDecisions()
+                .stream()
+                .anyMatch(
+                    decision -> decision.label().equals(SharedCacheCapacityAllocationDecider.NAME)
+                        && decision.getExplanation().contains("exceeds the high watermark")
+                )
         );
 
         // NOT_PREFERRED is only a soft deprioritization. With no alternative node available, the shard must remain assigned and
         // started rather than being left unassigned.
-        safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
+        ClusterRerouteUtils.reroute(client());
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));
         assertTrue(findSearchShard(indexName).routingEntry().started());

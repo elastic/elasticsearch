@@ -46,14 +46,14 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     static final String OTHER_SEARCH_NODE_ID = "other-" + SEARCH_NODE_ID;
     static final String INDEX_NODE_ID = "index-node";
 
-    private static final long CACHE_SIZE_IN_BYTES = 1000L;
+    static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final long NO_COMMITMENT_BYTES = 0L;
     private static final int LOW_WATERMARK_PERCENT = 75;
     private static final int HIGH_WATERMARK_PERCENT = 95;
     private static final long LOW_WATERMARK_BYTES = bytesForPercent(LOW_WATERMARK_PERCENT);
 
     public void testYesDecisionWhenDisabled() {
-        final var decider = createDecider(false, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().enabled(false).build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The node's cache is fully committed, but that should not matter while the decider is disabled.
@@ -73,7 +73,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testYesDecisionWhenNodeIsNotSearchNode() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The index node has no cache commitment data at all. The role check should short-circuit before that data is ever consulted.
@@ -90,7 +90,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testYesDecisionWhenNodeCacheDataMissing() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
@@ -109,7 +109,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testNotPreferredWhenAlreadyOverWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The node is already 80% committed, which exceeds the 75% low watermark.
@@ -142,7 +142,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testYesWhenShardRequirementMissingButBelowWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         final long belowWatermarkCommitmentBytes = bytesForPercent(50);
@@ -168,7 +168,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testNotPreferredWhenShardWouldExceedWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         final long belowWatermarkCommitmentBytes = bytesForPercent(50);
@@ -198,7 +198,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testYesWhenShardStaysBelowWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         final long belowWatermarkCommitmentBytes = bytesForPercent(50);
@@ -250,12 +250,8 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
 
         // In BOOSTED mode only the boosted bytes count, which stays well below the low watermark.
-        final var boostedDecider = createDecider(
-            true,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var boostedDecider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED)
+            .build();
         final RoutingAllocation boostedAllocation = createRoutingAllocation(boostedDecider, shardRouting, clusterInfo);
         final Decision boostedDecision = boostedDecider.canAllocate(
             shardRouting,
@@ -271,12 +267,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
 
         // In TOTAL mode the combined boosted and unboosted bytes already exceed the low watermark.
-        final var totalDecider = createDecider(
-            true,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var totalDecider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL).build();
         final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
         final Decision totalDecision = totalDecider.canAllocate(
             shardRouting,
@@ -300,12 +291,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testSentinelRequirementTreatedAsZeroNotSkipped() {
-        final var decider = createDecider(
-            true,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var decider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL).build();
         final ShardRouting shardRouting = createShardRouting();
 
         final long unboostedCommitmentBytes = bytesForPercent(50);
@@ -336,7 +322,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainYesWhenDisabled() {
-        final var decider = createDecider(false, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().enabled(false).build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The node's cache is fully committed, but that should not matter while the decider is disabled.
@@ -357,13 +343,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainYesWhenCanRemainSpecificallyDisabled() {
-        final var decider = createDecider(
-            true,
-            false,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var decider = deciderBuilder().canRemainEnabled(false).build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The node's cache is fully committed, but that should not matter while canRemain is specifically disabled.
@@ -384,7 +364,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainYesWhenNodeIsNotSearchNode() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         // The index node has no cache commitment data at all. The role check should short-circuit before that data is ever consulted.
@@ -402,7 +382,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainYesWhenNodeCacheDataMissing() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
         final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
@@ -422,11 +402,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainNotPreferredWhenOverHighWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
-        // The node is already 97% committed, which exceeds the 95% high watermark (and the 75% low watermark).
-        final long overWatermarkCommitmentBytes = bytesForPercent(97);
+        // The node is comfortably over the 95% high watermark (and the 75% low watermark).
+        final long overWatermarkCommitmentBytes = bytesForPercent(randomIntBetween(96, 150));
         final long highWatermarkBytes = bytesForPercent(HIGH_WATERMARK_PERCENT);
         final ClusterInfo clusterInfo = createClusterInfo(
             Map.of(SEARCH_NODE_ID, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, overWatermarkCommitmentBytes, NO_COMMITMENT_BYTES)),
@@ -458,12 +438,12 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testCanRemainYesWhenBelowHighWatermark() {
-        final var decider = createDecider(true, LOW_WATERMARK_PERCENT, HIGH_WATERMARK_PERCENT);
+        final var decider = deciderBuilder().build();
         final ShardRouting shardRouting = createShardRouting();
 
-        // The node is 80% committed, which exceeds the 75% low watermark but stays below the 95% high watermark. canRemain only cares
-        // about the high watermark.
-        final long belowHighWatermarkCommitmentBytes = bytesForPercent(80);
+        // The node is committed somewhere between the 75% low watermark and the 95% high watermark. canRemain only cares about the
+        // high watermark.
+        final long belowHighWatermarkCommitmentBytes = bytesForPercent(randomIntBetween(76, 94));
         final long highWatermarkBytes = bytesForPercent(HIGH_WATERMARK_PERCENT);
         final ClusterInfo clusterInfo = createClusterInfo(
             Map.of(
@@ -516,12 +496,8 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
 
         // In BOOSTED mode only the boosted bytes count, which stays well below the high watermark.
-        final var boostedDecider = createDecider(
-            true,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var boostedDecider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED)
+            .build();
         final RoutingAllocation boostedAllocation = createRoutingAllocation(boostedDecider, shardRouting, clusterInfo);
         final Decision boostedDecision = boostedDecider.canRemain(
             indexMetadata(boostedAllocation, shardRouting),
@@ -546,12 +522,7 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
 
         // In TOTAL mode the combined boosted and unboosted bytes already exceed the high watermark.
-        final var totalDecider = createDecider(
-            true,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL,
-            LOW_WATERMARK_PERCENT,
-            HIGH_WATERMARK_PERCENT
-        );
+        final var totalDecider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL).build();
         final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
         final Decision totalDecision = totalDecider.canRemain(
             indexMetadata(totalAllocation, shardRouting),
@@ -576,53 +547,63 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
     }
 
-    private static long bytesForPercent(int percent) {
+    // Package-private so SharedCacheCapacityAllocationDeciderIT (which extends this source set) can reuse it instead of duplicating it.
+    static long bytesForPercent(int percent) {
         return CACHE_SIZE_IN_BYTES * percent / 100;
     }
 
-    private static SharedCacheCapacityAllocationDecider createDecider(boolean enabled, int lowWatermarkPercent, int highWatermarkPercent) {
-        return createDecider(
-            enabled,
-            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
-            lowWatermarkPercent,
-            highWatermarkPercent
-        );
+    private static DeciderBuilder deciderBuilder() {
+        return new DeciderBuilder();
     }
 
-    private static SharedCacheCapacityAllocationDecider createDecider(
-        boolean enabled,
-        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode,
-        int lowWatermarkPercent,
-        int highWatermarkPercent
-    ) {
-        return createDecider(enabled, true, accountingMode, lowWatermarkPercent, highWatermarkPercent);
-    }
+    /**
+     * Builds a {@link SharedCacheCapacityAllocationDecider} with sensible defaults (enabled, canRemain enabled, {@code BOOSTED}
+     * accounting, the class's default low/high watermarks), so tests only need to override the settings relevant to what they're
+     * exercising instead of passing every setting positionally.
+     */
+    private static final class DeciderBuilder {
+        private boolean enabled = true;
+        private boolean canRemainEnabled = true;
+        private SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode =
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED;
+        private int lowWatermarkPercent = LOW_WATERMARK_PERCENT;
+        private int highWatermarkPercent = HIGH_WATERMARK_PERCENT;
 
-    private static SharedCacheCapacityAllocationDecider createDecider(
-        boolean enabled,
-        boolean canRemainEnabled,
-        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode,
-        int lowWatermarkPercent,
-        int highWatermarkPercent
-    ) {
-        final var clusterSettings = new ClusterSettings(
-            Settings.builder()
-                .put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), enabled)
-                .put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), canRemainEnabled)
-                .put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), accountingMode.name())
-                .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), lowWatermarkPercent + "%")
-                .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), highWatermarkPercent + "%")
-                .build(),
-            Set.of(
-                SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
-                SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
-                SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
-                SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
-                SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
-                SharedCacheCapacityAllocationDecider.MINIMUM_LOGGING_INTERVAL
-            )
-        );
-        return new SharedCacheCapacityAllocationDecider(clusterSettings);
+        DeciderBuilder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        DeciderBuilder canRemainEnabled(boolean canRemainEnabled) {
+            this.canRemainEnabled = canRemainEnabled;
+            return this;
+        }
+
+        DeciderBuilder accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode) {
+            this.accountingMode = accountingMode;
+            return this;
+        }
+
+        SharedCacheCapacityAllocationDecider build() {
+            final var clusterSettings = new ClusterSettings(
+                Settings.builder()
+                    .put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), enabled)
+                    .put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), canRemainEnabled)
+                    .put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), accountingMode.name())
+                    .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), lowWatermarkPercent + "%")
+                    .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), highWatermarkPercent + "%")
+                    .build(),
+                Set.of(
+                    SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
+                    SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
+                    SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
+                    SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
+                    SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
+                    SharedCacheCapacityAllocationDecider.MINIMUM_LOGGING_INTERVAL
+                )
+            );
+            return new SharedCacheCapacityAllocationDecider(clusterSettings);
+        }
     }
 
     private static ShardRouting createShardRouting() {

@@ -41,7 +41,7 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
 public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
-    private static final String NAME = "shared_cache_capacity";
+    public static final String NAME = "shared_cache_capacity";
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -115,7 +115,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * A dynamic override for {@code canRemain} specifically. When this is disabled, {@code canRemain} always returns
+     * A dynamic override for {@link #canRemain} specifically. When this is disabled, {@link #canRemain} always returns
      * {@link Decision#YES}, even when the decider as a whole ({@link #ENABLED_SETTING}) is enabled.
      */
     public static final Setting<Boolean> CAN_REMAIN_ENABLED_SETTING = Setting.boolSetting(
@@ -177,8 +177,6 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
-        // watermarks) within a single decision.
         if (enabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
@@ -277,11 +275,6 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
-        // watermarks) within a single decision.
-        final CacheAccountingMode accountingMode = this.accountingMode;
-        final RatioValue highWatermark = this.highWatermark;
-
         if (enabled == false) {
             return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
         }
@@ -305,6 +298,11 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         // The shard being evaluated is already allocated to this node, so its cost is already reflected in nodeCommitments. If a different
         // shard move alleviates the pressure, the simulation updates nodeCommitments accordingly before the node is re-evaluated for
         // any remaining shards.
+
+        // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
+        // watermarks) within a single decision.
+        final CacheAccountingMode accountingMode = this.accountingMode;
+        final RatioValue highWatermark = this.highWatermark;
         final long currentCommitmentBytes = accountingMode.getCurrentCommitmentBytes(nodeCommitments);
         final long thresholdBytes = (long) (nodeCommitments.cacheSizeInBytes() * highWatermark.getAsRatio());
 

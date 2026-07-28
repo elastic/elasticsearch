@@ -2960,7 +2960,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
                     if (++rejectedCount > evictionDegradationThreshold) {
                         evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
-                        logger.info(
+                        logger.warn(
                             "Eviction policy degraded: policy rejected over {}/{} regions; bypassing policy for {}",
                             evictionDegradationThreshold,
                             numRegions,

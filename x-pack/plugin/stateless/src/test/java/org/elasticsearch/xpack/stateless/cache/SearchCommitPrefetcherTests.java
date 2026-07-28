@@ -272,7 +272,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final ThreadPool threadPool = taskQueue.getThreadPool();
 
         final ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
+            settings,
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,

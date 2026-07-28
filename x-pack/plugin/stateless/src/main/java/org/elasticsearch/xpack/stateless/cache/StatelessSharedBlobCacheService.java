@@ -137,10 +137,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
     }
 
-    /// The constructor the public one delegates to, for tests that need to inject an eviction policy, a relative-time source or an
-    /// executor to run shard reads on (test thread pools do not necessarily register [StatelessPlugin#SHARD_READ_THREAD_POOL]).
-    /// `clusterSettings` must have [#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] registered and is where its value is read
-    /// from, so it should be built over the same node `settings`.
+    /// The constructor the public one delegates to, and for tests that want to alter/inject behavior.
     protected StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,

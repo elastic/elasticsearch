@@ -938,7 +938,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardMoved,
                 allocation.routingNodes().nodeInterleavedShardIterator(),
                 bestNonPreferredShardMovementsTracker,
-                canAllocateDecision -> canAllocateDecision == AllocationDecision.YES
+                Set.of(AllocationDecision.YES)
             );
             if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
                 return;
@@ -950,8 +950,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardMoved,
                     allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves::contains),
                     bestNonPreferredShardMovementsTracker,
-                    canAllocateDecision -> canAllocateDecision == AllocationDecision.YES
-                        || canAllocateDecision == AllocationDecision.NOT_PREFERRED
+                    Set.of(AllocationDecision.YES, AllocationDecision.NOT_PREFERRED)
                 );
                 assert secondPassNodesWithDeferredMoves.isEmpty() : "We shouldn't be deferring any moves on this pass";
             }
@@ -966,13 +965,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// @param shardMoved An atomic boolean that is set to true if a move was made
         /// @param shardsToCheck The iterator of shards to check
         /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
-        /// @param executeMovePredicate Predicate that determines based on the canAllocate decision whether a move should be made
+        /// @param acceptableCanAllocateDecisions A set of canAllocate decisions for which we will execute the move, others will be deferred
         /// @return The IDs of any nodes for which we deferred moves due to the `executeMovePredicate`
         private Set<String> executeMovesThatMatchPredicate(
             AtomicBoolean shardMoved,
             Iterator<ShardRouting> shardsToCheck,
             BestShardMovementsTracker bestNonPreferredShardMovementsTracker,
-            Predicate<AllocationDecision> executeMovePredicate
+            Set<AllocationDecision> acceptableCanAllocateDecisions
         ) {
             final var nodeIdsWithDeferredMoves = new HashSet<String>();
             while (shardsToCheck.hasNext()) {
@@ -1000,7 +999,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
-                    } else if (executeMovePredicate.test(moveDecision.getAllocationDecision())) {
+                    } else if (acceptableCanAllocateDecisions.contains(moveDecision.getAllocationDecision())) {
                         executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
                         shardMoved.set(true);
                     } else {

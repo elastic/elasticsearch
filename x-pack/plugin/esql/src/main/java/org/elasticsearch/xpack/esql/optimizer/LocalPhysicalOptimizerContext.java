@@ -13,14 +13,30 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(
-    PlannerSettings plannerSettings,
-    EsqlFlags flags,
-    Configuration configuration,
-    FoldContext foldCtx,
-    SearchStats searchStats,
-    ExternalOptimizerContext external
-) {
+public class LocalPhysicalOptimizerContext {
+    private final PlannerSettings plannerSettings;
+    private final EsqlFlags flags;
+    private final Configuration configuration;
+    private final FoldContext foldCtx;
+    private final SearchStats searchStats;
+    private final ExternalOptimizerContext external;
+
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats,
+        ExternalOptimizerContext external
+    ) {
+        this.plannerSettings = plannerSettings;
+        this.flags = flags;
+        this.configuration = configuration;
+        this.foldCtx = foldCtx;
+        this.searchStats = searchStats;
+        this.external = external;
+    }
+
     /**
      * Convenience constructor without external-source state (for backward compatibility and tests
      * that don't exercise external-source rules). External-source-aware rules must treat the
@@ -36,4 +52,27 @@ public record LocalPhysicalOptimizerContext(
         this(plannerSettings, flags, configuration, foldCtx, searchStats, ExternalOptimizerContext.NONE);
     }
 
+    public PlannerSettings plannerSettings() {
+        return plannerSettings;
+    }
+
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    public FoldContext foldCtx() {
+        return foldCtx;
+    }
+
+    public SearchStats searchStats() {
+        return searchStats;
+    }
+
+    public ExternalOptimizerContext external() {
+        return external;
+    }
 }

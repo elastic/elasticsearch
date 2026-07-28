@@ -16,7 +16,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -34,14 +33,33 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(mappingParserContext -> {
+    public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexMode = mappingParserContext.getIndexSettings().getMode();
-        if (indexMode == IndexMode.TIME_SERIES) {
-            return TsidExtractingIdFieldMapper.INSTANCE;
+        if (indexMode.isTsdb()) {
+            return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else {
-            return ProvidedIdFieldMapper.INSTANCE;
+            boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
+            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
         }
-    });
+    }) {
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            var indexMode = parserContext.getIndexSettings().getMode();
+            if (indexMode.isTsdb()) {
+                throw new MapperParsingException(name + " is not configurable if index mode is time_series");
+            }
+            Builder builder = super.parse(name, node, parserContext);
+            if (indexMode.isStrictColumnar()
+                && builder instanceof ProvidedIdFieldMapper.Builder idBuilder
+                && idBuilder.getMode() == ProvidedIdFieldMapper.Mode.DOCUMENT) {
+                throw new MapperParsingException(
+                    name + " does not support [mode=document] in a strictly columnar index mode [" + indexMode.getName() + "]"
+                );
+            }
+            return builder;
+        }
+    };
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
@@ -71,6 +89,13 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * like version conflicts.
      */
     public abstract String documentDescription(ParsedDocument parsedDocument);
+
+    /**
+     * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
+     */
+    public boolean isColumnarMode() {
+        return false;
+    }
 
     /**
      * Create an indexed and stored {@link Field} for the provided {@code _id}.
@@ -106,7 +131,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(false);
+        }
+
+        public AbstractIdFieldType(boolean hasDocValues) {
+            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

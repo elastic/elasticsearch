@@ -58,7 +58,7 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
     public void testFromMap_WhenInputTypeIsNull() {
         InputType inputType = null;
         MatcherAssert.assertThat(
-            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(Map.of())),
+            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>()),
             is(new AlibabaCloudSearchSparseTaskSettings(inputType, null))
         );
     }

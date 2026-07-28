@@ -8,6 +8,13 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.3.6 [elasticsearch-9.3.6-known-issues]
+
+* The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/152000) is included in 9.3.7.
+
+
 ## 9.3.3 [elasticsearch-9.3.3-known-issues]
 
 * GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.3.3 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.

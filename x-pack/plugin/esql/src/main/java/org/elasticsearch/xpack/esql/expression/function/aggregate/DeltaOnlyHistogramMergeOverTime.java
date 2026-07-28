@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -65,7 +67,12 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
 
     private final Expression temporality;
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE)
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        briefSummary = "Merges histograms over time using delta aggregation for gauge metrics."
+    )
     public DeltaOnlyHistogramMergeOverTime(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,

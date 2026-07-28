@@ -29,13 +29,15 @@ import org.gradle.plugins.ide.idea.IdeaPlugin;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -62,13 +64,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
 
-        project.getDependencies().add("compileOnly", project.project(":server"));
-        project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql-core"));
-        project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:core"));
+        var dependencies = project.getDependencies();
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":server")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql-core")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:core")));
         if (project.getPath().equals(":x-pack:plugin:esql") == false) {
-            project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql:qa:testFixtures"));
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:qa:testFixtures")));
         }
         /*
          * The main esql plugin bundles compute as {@code implementation} so that it is included in
@@ -80,17 +83,17 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
          * double-bundled.
          */
         if (project.getPath().equals(":x-pack:plugin:esql")) {
-            project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute"));
+            dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
         } else {
-            project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql:compute"));
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
         }
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute:ann"));
-        project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
-        project.getDependencies().add("testImplementation", project.project(":test:framework"));
+        dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:ann")));
+        dependencies.add("annotationProcessor", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:gen")));
+        dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
         Project coreProject = project.project(":x-pack:plugin:core");
-        ProjectDependency coreTestDep = (ProjectDependency) project.getDependencies().create(coreProject);
+        ProjectDependency coreTestDep = (ProjectDependency) dependencies.project(Map.of("path", coreProject.getPath()));
         coreTestDep.capabilities(caps -> caps.requireCapability(coreProject.getGroup() + ":" + coreTestDep.getName() + "-test-artifacts"));
-        project.getDependencies().add("testImplementation", coreTestDep);
+        dependencies.add("testImplementation", coreTestDep);
 
         String generatedPath = "src/main/generated";
         Directory generatedSourceDir = project.getLayout().getProjectDirectory().dir(generatedPath);
@@ -123,13 +126,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             String pluginName = project.getExtensions().getByType(PluginPropertiesExtension.class).getName();
             FileTree mdFiles = project.fileTree(
                 new File(
-                    project.getRootDir(),
+                    project.getLayout().getSettingsDirectory().getAsFile(),
                     "docs/reference/query-languages/" + folder + "/_snippets/generated/" + pluginName + "/commands/examples/"
                 ),
                 tree -> tree.include("**/*.csv-spec/*.md")
             );
 
-            Path docFolder = new File(project.getRootDir(), "docs/reference/query-languages/" + folder).toPath();
+            Path docFolder = new File(project.getLayout().getSettingsDirectory().getAsFile(), "docs/reference/query-languages/" + folder)
+                .toPath();
             File snippetsDocFolder = docFolder.resolve("_snippets/generated/" + pluginName).toFile();
             File imagesDocFolder = docFolder.resolve("images/generated/" + pluginName).toFile();
             File kibanaDocFolder = docFolder.resolve("kibana/generated/" + pluginName).toFile();
@@ -206,7 +210,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
     }
 
     private static void writeCommandsExamplesFile(File outputFile, FileTree mdFiles) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputFile.toPath(), StandardCharsets.UTF_8)) {
             for (File file : mdFiles) {
                 writer.write(file.getParentFile().getName() + "/" + file.getName());
                 writer.newLine();
@@ -287,6 +291,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 if (countImages <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.svg"));
                 }
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceFont);
             });
         }
@@ -329,6 +334,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                         preserveSpec.include(sub + "/**");
                     }
                 });
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceLinks);
             });
         }

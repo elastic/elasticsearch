@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
@@ -55,6 +56,22 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      */
     public ValidateQueryRequestBuilder setAllShards(boolean rewrite) {
         request.allShards(rewrite);
+        return this;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the validation will execute on.
+     */
+    public ValidateQueryRequestBuilder setRouting(String... routings) {
+        request.routing(routings);
+        return this;
+    }
+
+    /**
+     * Sets slice-routing provenance and the user-provided {@code _slice} value.
+     */
+    public ValidateQueryRequestBuilder setSearchSlice(@Nullable String searchSlice) {
+        request.searchSlice(searchSlice);
         return this;
     }
 }

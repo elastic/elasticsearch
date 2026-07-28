@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
@@ -683,7 +683,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         );
         client.addHandler(
             DeleteByQueryAction.INSTANCE,
-            (DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> flushResponseActionListener) -> {
+            (DeleteByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> flushResponseActionListener) -> {
                 deleteCount.incrementAndGet();
             }
         );

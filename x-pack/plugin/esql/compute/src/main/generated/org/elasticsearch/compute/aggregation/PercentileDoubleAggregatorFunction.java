@@ -14,10 +14,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -36,12 +39,15 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   private final double percentile;
 
+  private final double tDigestStateCompression;
+
   PercentileDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      double percentile) {
+      double percentile, double tDigestStateCompression) {
     this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = PercentileDoubleAggregator.initSingle(driverContext, percentile);
+    this.state = PercentileDoubleAggregator.initSingle(driverContext, percentile, tDigestStateCompression);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -109,6 +115,30 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
       PercentileDoubleAggregator.combine(state, vValue);
@@ -116,6 +146,39 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        PercentileDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

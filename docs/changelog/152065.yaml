@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 152065
+summary: "PromQL: Add support for increase on histograms"
+type: enhancement

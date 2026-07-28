@@ -1137,6 +1137,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testNoStoredFields() throws Exception {
+        assumeNoColumnarId("test relies on not loading id by setting stored field spect to _none_", "idx");
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())

@@ -1,0 +1,6 @@
+area: Inference
+issues:
+  - 144860
+pr: 153688
+summary: "[Inference API] Fix associating an inference endpoint to an ML node deployment"
+type: bug

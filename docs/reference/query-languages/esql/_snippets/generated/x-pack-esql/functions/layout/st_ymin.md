@@ -5,6 +5,10 @@ stack: preview
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/st_ymin.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/st_ymin.svg

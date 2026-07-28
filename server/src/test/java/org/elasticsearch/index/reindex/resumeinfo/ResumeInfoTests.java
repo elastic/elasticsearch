@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -222,7 +222,13 @@ public class ResumeInfoTests extends ESTestCase {
 
     /** Constructor rejects having both a response and a failure. */
     public void testWorkerResultRejectsBothResponseAndFailure() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         expectThrows(IllegalArgumentException.class, () -> new WorkerResult(response, new ElasticsearchException("e")));
     }
 
@@ -232,7 +238,13 @@ public class ResumeInfoTests extends ESTestCase {
     }
 
     public void testWorkerResultWithResponse() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         WorkerResult result = new WorkerResult(response, null);
         assertTrue(result.getResponse().isPresent());
         assertThat(result.getResponse().get(), equalTo(response));
@@ -293,7 +305,13 @@ public class ResumeInfoTests extends ESTestCase {
     }
 
     public void testSliceStatusWithResultResponse() {
-        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.ZERO, taskStatus(), emptyList(), emptyList(), false);
+        BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.ZERO,
+            taskStatus(),
+            emptyList(),
+            emptyList(),
+            false
+        );
         WorkerResult result = new WorkerResult(response, null);
         SliceStatus status = new SliceStatus(2, null, result);
         assertThat(status.sliceId(), equalTo(2));

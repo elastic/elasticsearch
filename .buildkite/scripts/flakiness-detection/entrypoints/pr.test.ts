@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { resolveMergeBaseTarget } from "./pr";
+import { describe, expect, test } from "vitest";
+import { resolveMergeBaseTarget } from "./pr.ts";
 
 describe("resolveMergeBaseTarget", () => {
   test("uses target branch directly when ref exists locally", () => {

@@ -305,16 +305,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             // its possible that the shard has not completed initialization, even though the cluster health is yellow, so the
             // search can throw an "all shards failed" exception. We will wait until the shard initialization has completed before
             // verifying the search hit count.
-            assertBusy(
-                () -> assertTrue(
-                    clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                        .get()
-                        .getState()
-                        .routingTable()
-                        .index(idxName)
-                        .allPrimaryShardsActive()
-                )
-            );
+            awaitClusterState(state -> state.routingTable().index(idxName).allPrimaryShardsActive());
         }
         ShardStats[] shardStats = indicesAdmin().prepareStats("test")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
@@ -456,16 +447,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             }
         });
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(
-            () -> assertTrue(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .get()
-                    .getState()
-                    .getRoutingTable()
-                    .index("test")
-                    .allPrimaryShardsUnassigned()
-            )
-        );
+        awaitClusterState(state -> state.getRoutingTable().index("test").allPrimaryShardsUnassigned());
         assertEquals(
             2,
             clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
@@ -525,16 +507,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             }
         });
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(
-            () -> assertTrue(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .get()
-                    .getState()
-                    .getRoutingTable()
-                    .index("test")
-                    .allPrimaryShardsUnassigned()
-            )
-        );
+        awaitClusterState(state -> state.getRoutingTable().index("test").allPrimaryShardsUnassigned());
         assertEquals(
             1,
             clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
@@ -549,16 +522,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
-        assertBusy(
-            () -> assertTrue(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .get()
-                    .getState()
-                    .getRoutingTable()
-                    .index("test")
-                    .allPrimaryShardsUnassigned()
-            )
-        );
+        awaitClusterState(state -> state.getRoutingTable().index("test").allPrimaryShardsUnassigned());
     }
 
     public void testNotWaitForQuorumCopies() throws Exception {
@@ -642,18 +606,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         partition.startDisrupting();
         internalCluster().stopNode(oldPrimary);
         // Checks that we fails replicas in one side but not mark them as stale.
-        assertBusy(() -> {
-            ClusterState state = client(master).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
-            final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
-            assertThat(newPrimaryNode, not(equalTo(oldPrimary)));
-            Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
-            assertThat(shardRoutingTable.activeShards(), hasSize(selectedPartition.size()));
-            for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
-                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), is(in(selectedPartition)));
-            }
-            assertThat(state.metadata().getProject().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
-        }, 1, TimeUnit.MINUTES);
+        awaitClusterState(
+            state -> primaryFailoverMatchesPartition(state, shardId, oldPrimary, replicasSide1, replicasSide2, numberOfReplicas)
+        );
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "all"));
         partition.stopDisrupting();
         partition.ensureHealthy(internalCluster());
@@ -668,6 +623,31 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             }
         }, 30, TimeUnit.SECONDS);
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
+    private static boolean primaryFailoverMatchesPartition(
+        ClusterState state,
+        ShardId shardId,
+        String oldPrimary,
+        Set<String> replicasSide1,
+        Set<String> replicasSide2,
+        int numberOfReplicas
+    ) {
+        final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+        final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
+        if (newPrimaryNode.equals(oldPrimary)) {
+            return false;
+        }
+        Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
+        if (shardRoutingTable.activeShards().size() != selectedPartition.size()) {
+            return false;
+        }
+        for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
+            if (selectedPartition.contains(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName()) == false) {
+                return false;
+            }
+        }
+        return state.metadata().getProject().index("test").inSyncAllocationIds(shardId.id()).size() == numberOfReplicas + 1;
     }
 
 }

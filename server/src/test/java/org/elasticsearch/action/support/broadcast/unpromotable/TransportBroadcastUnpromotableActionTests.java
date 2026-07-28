@@ -82,10 +82,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool(TransportBroadcastUnpromotableActionTests.class.getSimpleName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -110,10 +108,8 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction(shardStateAction);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         IOUtils.close(clusterService, transportService);
     }
 

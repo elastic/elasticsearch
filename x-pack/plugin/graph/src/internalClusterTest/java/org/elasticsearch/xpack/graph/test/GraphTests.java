@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreRequestBuilder;
 import org.elasticsearch.xpack.graph.Graph;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -72,9 +73,8 @@ public class GraphTests extends ESSingleNodeTestCase {
         new DocTemplate(2, "70s", "collaboration", "john", "yoko"),
         new DocTemplate(100, "70s", "fillerDoc", "other", "irrelevant", "duplicated", "spammy", "background") };
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupGraph() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setSettings(indexSettings(2, 0))

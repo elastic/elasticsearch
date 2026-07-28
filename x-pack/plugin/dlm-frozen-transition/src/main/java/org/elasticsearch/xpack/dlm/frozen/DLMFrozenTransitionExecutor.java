@@ -130,6 +130,11 @@ class DLMFrozenTransitionExecutor {
         return errorStore;
     }
 
+    // Visible for testing
+    boolean hasSubmittedTransitions() {
+        return submittedTransitions.isEmpty() == false;
+    }
+
     public static class UnmarkIndexForDLMFrozenExecutor implements ClusterStateTaskExecutor<UnmarkIndexForFrozenTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<UnmarkIndexForFrozenTask> batchExecutionContext) {

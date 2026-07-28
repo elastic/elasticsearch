@@ -84,13 +84,21 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
-            return new String[] { AnomalyDetectorsIndex.jobStateIndexPattern(), MlMetaIndex.indexName(), MlConfigIndex.indexName() };
+            return concatIndexPatterns(AnomalyDetectorsIndex.jobStateIndexPatterns(), MlMetaIndex.indexName(), MlConfigIndex.indexName());
         }
-        return new String[] {
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+        return concatIndexPatterns(
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             resultsIndex,
             MlMetaIndex.indexName(),
-            MlConfigIndex.indexName() };
+            MlConfigIndex.indexName()
+        );
+    }
+
+    private static String[] concatIndexPatterns(String[] indexPatterns, String... otherIndices) {
+        String[] indices = new String[indexPatterns.length + otherIndices.length];
+        System.arraycopy(indexPatterns, 0, indices, 0, indexPatterns.length);
+        System.arraycopy(otherIndices, 0, indices, indexPatterns.length, otherIndices.length);
+        return indices;
     }
 
     private final AutodetectProcessManager autodetectProcessManager;
@@ -150,7 +158,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             params.getJobId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
-            job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes,
+            JobNodeSelector.effectiveMaxLazyNodes(maxLazyMLNodes, job.allowLazyOpen()),
             node -> nodeFilter(node, job)
         );
         Assignment assignment = jobNodeSelector.selectNode(

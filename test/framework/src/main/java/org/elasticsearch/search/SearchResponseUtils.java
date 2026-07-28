@@ -1013,9 +1013,9 @@ public enum SearchResponseUtils {
         String index = get(SearchHit.Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
-            String[] split = RemoteClusterAware.splitIndexName(index);
-            clusterAlias = split[0];
-            index = split[1];
+            var split = RemoteClusterAware.splitIndexName(index);
+            clusterAlias = split.clusterAlias();
+            index = split.indexExpression();
         }
         ShardId shardId = get(SearchHit.Fields._SHARD, values, null);
         String nodeId = get(SearchHit.Fields._NODE, values, null);

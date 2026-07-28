@@ -224,7 +224,7 @@ null               | null      | null
 
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-overwriteName#[skip:-8.12.99]
+overwriteName
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -246,7 +246,7 @@ emp_no:integer | first_name:keyword | rest:keyword
 
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-overwriteNameWhere#[skip:-8.12.99]
+overwriteNameWhere
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -254,7 +254,7 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
-overwriteNameAfterSort#[skip:-8.13.0]
+overwriteNameAfterSort
 from employees | sort emp_no ASC | dissect first_name "Ge%{emp_no}gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
 ;
 
@@ -302,7 +302,7 @@ COUNT(*):long  | server_ip:keyword
 1              |10.1.0.3      
 ;
 
-emptyPattern#[skip:-8.11.99]
+emptyPattern
 ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
 
 a:keyword | b:keyword | d:keyword
@@ -310,14 +310,14 @@ b c d     | b         | d
 ;
 
 
-multipleEmptyPatterns#[skip:-8.11.99]
+multipleEmptyPatterns
 ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
 
 a:keyword | b:keyword | e:keyword
 b c d e   | b         | e
 ;
 
-firstEmptyPattern#[skip:-8.11.99]
+firstEmptyPattern
 ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
 
 a:keyword   | b:keyword | d:keyword
@@ -325,7 +325,7 @@ x b c d     | b         | d
 ;
 
 
-lastEmptyPattern#[skip:-8.11.99]
+lastEmptyPattern
 ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
 
 a:keyword  | b:keyword | d:keyword

@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 /**
  * A write-load forecaster that takes its forecasts from the most recent {@link ClusterInfo} object.
  */
-public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
+public final class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
 
     private volatile Map<Index, Double> indexWriteLoadForecasts = Map.of();
 

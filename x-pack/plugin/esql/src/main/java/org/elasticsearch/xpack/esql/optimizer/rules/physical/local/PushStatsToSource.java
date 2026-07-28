@@ -159,7 +159,8 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             else {
                                 if (target instanceof FieldAttribute fa) {
                                     var fName = fa.fieldName();
-                                    if (context.searchStats().isSingleValue(fName)) {
+                                    // Potentially unmapped fields don't appear in the mapping and shouldn't be filtered on.
+                                    if (fa.isPotentiallyUnmapped() == false && context.searchStats().isSingleValue(fName)) {
                                         fieldName = fName.string();
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }

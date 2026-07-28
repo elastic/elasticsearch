@@ -1,0 +1,6 @@
+pr: 118003
+summary: Create system index on first put
+area: Transform
+type: bug
+issues:
+ - 117995

@@ -1,0 +1,5 @@
+pr: 151016
+summary: "Painless: `script_aware` Iterable/Collection/Map augmentations"
+area: Infra/Scripting
+type: enhancement
+issues: []

@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 150231
+ - 132489
+pr: 149421
+summary: Add IP_LOCATION command
+type: feature

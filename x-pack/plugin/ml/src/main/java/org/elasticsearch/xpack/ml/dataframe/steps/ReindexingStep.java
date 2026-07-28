@@ -27,8 +27,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
@@ -90,7 +90,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
 
         // Reindexing is complete
-        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(reindexResponse -> {
+        ActionListener<BulkByPaginatedSearchResponse> reindexCompletedListener = ActionListener.wrap(reindexResponse -> {
 
             // If the reindex task is canceled, this listener is called.
             // Consequently, we should not signal reindex completion.
@@ -235,7 +235,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         );
     }
 
-    private static Exception getReindexError(String jobId, BulkByScrollResponse reindexResponse) {
+    private static Exception getReindexError(String jobId, BulkByPaginatedSearchResponse reindexResponse) {
         if (reindexResponse.getBulkFailures().isEmpty() == false) {
             LOGGER.error("[{}] reindexing encountered {} failures", jobId, reindexResponse.getBulkFailures().size());
             for (BulkItemResponse.Failure failure : reindexResponse.getBulkFailures()) {

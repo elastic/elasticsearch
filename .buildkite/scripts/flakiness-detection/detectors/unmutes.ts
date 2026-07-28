@@ -1,10 +1,10 @@
 import { parse } from "yaml";
 
-import {
+import type {
   ClassifiedTest,
   TestRef,
-} from "../domain";
-import { locateTest } from "./locator";
+} from "../domain.ts";
+import { locateTest } from "./locator.ts";
 
 interface RawMutedTest {
   class?: string;

@@ -44,11 +44,8 @@ public class LeafDocLookupTests extends ESTestCase {
     private LeafDocLookup docLookup;
     private Consumer<Integer> nextDocCallback;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initDocLookup() throws Exception {
         docValues = mock(ScriptDocValues.class);
         nextDocCallback = i -> {}; // do nothing by default
 

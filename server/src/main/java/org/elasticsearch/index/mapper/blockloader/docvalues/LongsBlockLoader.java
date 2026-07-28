@@ -9,11 +9,19 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.elasticsearch.index.mapper.BlockLoader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.mapper.FieldArrayContext;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
-public class LongsBlockLoader extends AbstractNumericBlockLoader<BlockLoader.LongBuilder> {
+/**
+ * Loads {@code long}s from doc values.
+ */
+public class LongsBlockLoader extends AbstractNumericBlockLoader {
     public LongsBlockLoader(String fieldName) {
         this(fieldName, false);
     }
@@ -28,23 +36,123 @@ public class LongsBlockLoader extends AbstractNumericBlockLoader<BlockLoader.Lon
     }
 
     @Override
-    protected LongBuilder newBuilder(BlockFactory factory, int expectedCount) {
-        return factory.longsFromDocValues(expectedCount);
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
+        return new Singleton(readerName, docValues);
     }
 
     @Override
-    protected void appendValue(LongBuilder builder, long rawValue) {
-        builder.appendLong(rawValue);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new Sorted(readerName, docValues);
     }
 
     @Override
-    protected Block tryDirectRead(OptionalColumnAtATimeReader direct, BlockFactory factory, Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
-        return direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+    protected ColumnAtATimeReader arrayOrderReader(TrackingSortedNumericDocValues values, TrackingSortedDocValues offsets) {
+        return new ArrayOrder(readerName, values, offsets);
     }
 
-    @Override
-    public String toString() {
-        return "LongsFromDocValues[" + fieldName + "]";
+    static final class Singleton extends AbstractNumericBlockLoader.Singleton {
+        Singleton(String name, TrackingNumericDocValues numericDocValues) {
+            super(name, numericDocValues);
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            NumericDocValues docValues = numericDocValues.docValues();
+            // Attempt a fast path through OptionalColumnAtATimeReader
+            if (docValues instanceof OptionalColumnAtATimeReader direct) {
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                if (result != null) {
+                    return result;
+                }
+            }
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (docValues.advanceExact(doc)) {
+                        builder.appendLong(docValues.longValue());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    static final class Sorted extends AbstractNumericBlockLoader.Sorted {
+        Sorted(String name, TrackingSortedNumericDocValues values) {
+            super(name, values);
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    readSortedDoc(docs.get(i), builder);
+                }
+                return builder.build();
+            }
+        }
+
+        void readSortedDoc(int doc, LongBuilder builder) throws IOException {
+            SortedNumericDocValues docValues = values.docValues();
+            if (docValues.advanceExact(doc) == false) {
+                builder.appendNull();
+                return;
+            }
+            int count = docValues.docValueCount();
+            if (count == 1) {
+                builder.appendLong(docValues.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendLong(docValues.nextValue());
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    static final class ArrayOrder extends AbstractNumericBlockLoader.ArrayOrder<LongBuilder> {
+        private final Sorted sortedFallback;
+
+        ArrayOrder(String name, TrackingSortedNumericDocValues values, TrackingSortedDocValues offsets) {
+            super(name, values, offsets);
+            this.sortedFallback = new Sorted(name, values);
+        }
+
+        @Override
+        protected LongBuilder newBuilder(BlockFactory factory, int count) {
+            return factory.longsFromDocValues(count);
+        }
+
+        @Override
+        protected void readSortedFallback(int docId, LongBuilder builder) throws IOException {
+            sortedFallback.readSortedDoc(docId, builder);
+        }
+
+        @Override
+        protected void emit(int[] offsetToOrd, LongBuilder builder, long[] materialized) {
+            int nonNullCount = OffsetsAwareBlockLoaderHelper.countNonNull(offsetToOrd);
+            if (nonNullCount == 0) {
+                builder.appendNull();
+                return;
+            }
+            if (nonNullCount == 1) {
+                for (int ord : offsetToOrd) {
+                    if (ord != FieldArrayContext.NULL_ORD) {
+                        builder.appendLong(materialized[ord]);
+                        return;
+                    }
+                }
+            }
+            builder.beginPositionEntry();
+            for (int ord : offsetToOrd) {
+                if (ord != FieldArrayContext.NULL_ORD) {
+                    builder.appendLong(materialized[ord]);
+                }
+            }
+            builder.endPositionEntry();
+        }
     }
 }

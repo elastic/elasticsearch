@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.BlockLoader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
@@ -29,15 +29,22 @@ public class MvMaxDoublesFromDocValuesBlockLoader extends DoublesBlockLoader {
 
     @Override
     protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMaxDoublesFromDocValues", docValues) {
+        // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
+        return new AbstractNumericBlockLoader.Sorted("MvMaxDoublesFromDocValues", docValues) {
             @Override
-            protected void readSortedDoc(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
-                if (values.docValues().advanceExact(doc) == false) {
-                    builder.appendNull();
-                    return;
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                SortedNumericDocValues docValues = values.docValues();
+                try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        if (docValues.advanceExact(docs.get(i)) == false) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        discardAllButLast(docValues);
+                        builder.appendDouble(toDouble.convert(docValues.nextValue()));
+                    }
+                    return builder.build();
                 }
-                discardAllButLast(values.docValues());
-                appendValue(builder, values.docValues().nextValue());
             }
         };
     }

@@ -184,6 +184,9 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 final int endRegion = siRange.fileOffset() + siRange.fileLength() > cacheService.getRegionSize() ? 1 : 0;
                 var cacheKey = new FileCacheKey(indexShard.shardId(), siRange.primaryTerm(), siRange.blobName());
                 var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
+                // We warm the first (and possibly second) region of the blob; both regions are stamped with the timestamp of the compound
+                // commit for the highestSegmentInfoRanges, which is acceptable since the warmed regions include it.
+                final long timestampMillis = BlobFileRanges.midpointMillisOrUnknownForCache(siRange.timestampRange());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {
@@ -243,6 +246,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                                 logger.error(() -> format("%s failed to online prewarm cache key %s", indexShard.shardId(), cacheKey), e);
                             }
                         }),
+                        timestampMillis,
                         ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef)
                     );
                 }

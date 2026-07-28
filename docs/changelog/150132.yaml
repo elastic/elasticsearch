@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 150132
+summary: "[Inference API] Adding OpenAI OAuth2 implementation"
+type: enhancement

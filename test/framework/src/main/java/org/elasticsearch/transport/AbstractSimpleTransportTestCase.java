@@ -160,10 +160,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected static final NetworkService networkService = new NetworkService(List.of());
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeTransportServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettingsA = new ClusterSettings(Settings.EMPTY, getSupportedSettings());
         final Settings.Builder connectionSettingsBuilder = Settings.builder()
@@ -217,6 +215,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
         serviceB.removeConnectionListener(waitForConnection);
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     private MockTransportService buildService(
@@ -296,16 +299,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return buildService(name, version, transportVersion, clusterSettings, settings, true, true);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void verifyAndCloseTransportServices() throws Exception {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> terminate(threadPool));
         }
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     public static void assertNumHandshakes(long expected, Transport transport) {
@@ -3420,14 +3426,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private static long[] getConstantMessageSizeHistogram(int count, long size) {
         final var histogram = new long[29];
         int bucket = 0;
-        long bucketLowerBound = 8;
+        long nextBucketLowestValue = 8;
         while (bucket < histogram.length) {
-            if (size <= bucketLowerBound) {
+            if (size < nextBucketLowestValue) {
                 histogram[bucket] = count;
                 return histogram;
             }
             bucket++;
-            bucketLowerBound <<= 1;
+            nextBucketLowestValue <<= 1;
         }
         throw new AssertionError("no bucket found");
     }

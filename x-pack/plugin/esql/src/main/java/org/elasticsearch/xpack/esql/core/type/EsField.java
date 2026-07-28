@@ -106,6 +106,7 @@ public class EsField implements Writeable {
         Map.entry("KeywordEsField", KeywordEsField::new),
         Map.entry("MissingEsField", MissingEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),
         Map.entry("TextEsField", TextEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
@@ -221,6 +222,14 @@ public class EsField implements Writeable {
      */
     public DataType getDataType() {
         return esDataType;
+    }
+
+    public EsField withDataType(DataType esDataType) {
+        return esDataType == this.esDataType ? this : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    public EsField withWidenedSmallNumeric() {
+        return withDataType(getDataType().widenSmallNumeric());
     }
 
     /**

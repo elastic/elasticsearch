@@ -585,9 +585,6 @@ public final class InferenceQueryUtils {
                     new InferenceAction.Request(
                         taskType,
                         inferenceId,
-                        null,
-                        null,
-                        null,
                         List.of(input.textValue()),
                         Map.of(),
                         InputType.INTERNAL_SEARCH,

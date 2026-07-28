@@ -18,8 +18,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
@@ -71,7 +71,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     public void testReindex() {
         Client client = client();
         // tag::reindex1
-        BulkByScrollResponse response =
+        BulkByPaginatedSearchResponse response =
           new ReindexRequestBuilder(client)
             .source("source_index")
             .destination("target_index")
@@ -91,7 +91,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
               new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index").abortOnVersionConflict(false);
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query
         }
         {
@@ -105,7 +105,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                     "painless",
                     "ctx._source.awesome = 'absolutely'",
                     Collections.emptyMap()));
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-filter
 
             // validate order of string params to Script constructor
@@ -118,7 +118,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             updateByQuery.source("source_index")
                 .source()
                 .setSize(500);
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-size
         }
         {
@@ -129,7 +129,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .maxDocs(100)
                 .source()
                 .addSort("cat", SortOrder.DESC);
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-sort
         }
         {
@@ -147,7 +147,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                         + "} else {"
                         + "ctx._source.awesome = 'absolutely'}",
                     Collections.emptyMap()));
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-script
 
             // validate order of string params to Script constructor
@@ -158,7 +158,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
               new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("foo", "bar");
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-multi-index
         }
         {
@@ -166,7 +166,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
               new UpdateByQueryRequestBuilder(client);
             updateByQuery.source().setRouting("cat");
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-routing
         }
         {
@@ -174,7 +174,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
               new UpdateByQueryRequestBuilder(client);
             updateByQuery.setPipeline("hurray");
-            BulkByScrollResponse response = updateByQuery.get();
+            BulkByPaginatedSearchResponse response = updateByQuery.get();
             // end::update-by-query-pipeline
         }
     }
@@ -234,7 +234,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         client.admin().indices().prepareCreate("persons").get();
 
         // tag::delete-by-query-sync
-        BulkByScrollResponse response =
+        BulkByPaginatedSearchResponse response =
           new DeleteByQueryRequestBuilder(client)
             .filter(QueryBuilders.matchQuery("gender", "male")) // <1>
             .source("persons")                                  // <2>
@@ -246,9 +246,9 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         new DeleteByQueryRequestBuilder(client)
             .filter(QueryBuilders.matchQuery("gender", "male"))     // <1>
             .source("persons")                                      // <2>
-            .execute(new ActionListener<BulkByScrollResponse>() {   // <3>
+            .execute(new ActionListener<BulkByPaginatedSearchResponse>() {   // <3>
                 @Override
-                public void onResponse(BulkByScrollResponse response) {
+                public void onResponse(BulkByPaginatedSearchResponse response) {
                     long deleted = response.getDeleted();           // <4>
                 }
                 @Override

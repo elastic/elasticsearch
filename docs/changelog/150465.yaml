@@ -1,0 +1,6 @@
+area: Security
+issues: []
+pr: 150465
+summary: "[kibana_system] add significant_events-* data access for `kibana_system`\
+  \ user"
+type: enhancement

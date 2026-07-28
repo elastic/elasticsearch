@@ -1,0 +1,7 @@
+@timestamp:date,labels.job:keyword,labels.instance:keyword,metrics.request_duration_seconds_bucket:double
+2024-05-10T00:05:00.000Z,api,a,15
+2024-05-10T00:05:00.000Z,api,b,15
+2024-05-10T00:05:00.000Z,worker,a,4
+2024-05-10T00:10:00.000Z,api,a,30
+2024-05-10T00:10:00.000Z,api,b,30
+2024-05-10T00:10:00.000Z,worker,a,8

@@ -10,6 +10,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.StopFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -30,6 +37,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -515,6 +524,194 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             )
             .build();
         assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapWithinSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("short"), 1, 5),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("one"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("three"), 2, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("four"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("five"), 1, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        Query expected = new SpanOrQuery(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "short")),
+            new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "one")))
+                .addGap(1)
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "three")))
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "four")))
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "five")))
+                .build()
+        );
+        assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapAfterSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("ab"), 1, 2),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("a"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("b"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("c"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("d"), 2, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        Query expected = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanOrQuery(
+                new SpanQuery[] {
+                    new SpanTermQuery(new Term(TEXT_FIELD_NAME, "ab")),
+                    new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "a")))
+                        .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "b")))
+                        .build() }
+            )
+        )
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "c")))
+            .addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "d")))
+            .build();
+        assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapBeforeSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("c"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("xy"), 2, 2),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("x"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("y"), 1, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        // the hole before the side path surfaces as a leading gap inside each alternative
+        SpanQuery compound = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "xy")))
+            .build();
+        SpanQuery decompound = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "x")))
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "y")))
+            .build();
+        SpanTermQuery first = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "c"));
+        Query variantA = new SpanNearQuery(new SpanQuery[] { first, new SpanOrQuery(compound, decompound) }, 0, true);
+        Query variantB = new SpanNearQuery(new SpanQuery[] { first, new SpanOrQuery(decompound, compound) }, 0, true);
+        assertThat(actual, either(equalTo(variantA)).or(equalTo(variantB)));
+    }
+
+    /**
+     * Scenario from https://github.com/elastic/elasticsearch/issues/86021 (duplicate of #28838):
+     * synonym_graph("fbi, federal bureau of investigation") followed by stop("of").
+     * The removed stop word leaves a position hole before "investigation" that the phrase
+     * query must preserve, otherwise documents indexed as "federal bureau of investigation"
+     * (positions federal=0 bureau=1 investigation=3) are missed at slop 0.
+     */
+    public void testGraphPhraseStopWordInSynonym() throws Exception {
+        SynonymMap synonyms = synonymMap("fbi", "federal", "bureau", "of", "investigation");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(true, synonyms, stopWords));
+
+        SpanQuery longPath = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "federal"))
+        )
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "bureau")))
+            .addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "investigation")))
+            .build();
+        SpanQuery shortPath = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "fbi"));
+
+        // SpanOr clause order is not deterministic; only the gap placement matters here
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "federal bureau of investigation"));
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "fbi"));
+    }
+
+    /**
+     * Same synonym_graph + stop analyzer shape as discussed in
+     * https://github.com/elastic/elasticsearch/issues/28838, applied to phrase-query
+     * construction: synonym_graph("wow, world of war") followed by stop("of").
+     */
+    public void testGraphPhraseSynonymContainingStopWord() throws Exception {
+        SynonymMap synonyms = synonymMap("wow", "world", "of", "war");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(true, synonyms, stopWords));
+
+        SpanQuery longPath = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "world"))
+        ).addGap(1).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "war"))).build();
+        SpanQuery shortPath = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "wow"));
+
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "world of war"));
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "wow"));
+    }
+
+    /**
+     * Documents the boundary of the gap-preservation fix: when the stop filter runs before
+     * the synonym_graph filter, the failure happens inside the analysis chain (the synonym
+     * rule cannot fire across the hole, and expansions emit stop words the index never
+     * contains). Query construction cannot repair that; these assertions hold with and
+     * without the MatchQueryParser fix. See LUCENE-8137.
+     */
+    public void testGraphPhraseStopBeforeSynonymOutOfScope() throws Exception {
+        SynonymMap synonyms = synonymMap("fbi", "federal", "bureau", "of", "investigation");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(false, synonyms, stopWords));
+
+        // the hole left by "of" prevents the 4-token synonym rule from matching: no graph,
+        // plain phrase with the hole preserved, and no "fbi" expansion
+        PhraseQuery.Builder phrase = new PhraseQuery.Builder();
+        phrase.add(new Term(TEXT_FIELD_NAME, "federal"), 0);
+        phrase.add(new Term(TEXT_FIELD_NAME, "bureau"), 1);
+        phrase.add(new Term(TEXT_FIELD_NAME, "investigation"), 3);
+        assertEquals(phrase.build(), matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "federal bureau of investigation"));
+
+        // "fbi" expands after the stop filter, so the expansion contains the literal term
+        // "of" which index-time analysis removed from every document
+        Query fbiQuery = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "fbi");
+        assertThat(fbiQuery.toString(), containsString("of"));
+    }
+
+    private static void assertSpanOrEither(SpanQuery a, SpanQuery b, Query actual) {
+        assertThat(actual, either(equalTo((Query) new SpanOrQuery(a, b))).or(equalTo((Query) new SpanOrQuery(b, a))));
+    }
+
+    private static SynonymMap synonymMap(String shortForm, String... longForm) throws IOException {
+        SynonymMap.Builder builder = new SynonymMap.Builder(true);
+        CharsRef shortRef = new CharsRef(shortForm);
+        CharsRef longRef = SynonymMap.Builder.join(longForm, new CharsRefBuilder());
+        builder.add(shortRef, longRef, true);
+        builder.add(longRef, shortRef, true);
+        return builder.build();
+    }
+
+    private static Analyzer synonymStopAnalyzer(boolean synonymFirst, SynonymMap synonyms, CharArraySet stopWords) {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new WhitespaceTokenizer();
+                TokenStream ts = tokenizer;
+                if (synonymFirst) {
+                    ts = new SynonymGraphFilter(ts, synonyms, true);
+                    ts = new StopFilter(ts, stopWords);
+                } else {
+                    ts = new StopFilter(ts, stopWords);
+                    ts = new SynonymGraphFilter(ts, synonyms, true);
+                }
+                return new TokenStreamComponents(tokenizer, ts);
+            }
+        };
     }
 
     public void testAliasWithSynonyms() throws Exception {

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148508
+pr: 152998
+summary: De-snapshot column metadata for BUCKET
+type: enhancement

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152864
+summary: Fix `COUNT` and `IS NOT NULL` over top-level external Parquet list columns
+type: bug

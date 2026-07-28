@@ -194,7 +194,7 @@ public abstract class PaginatedHitSource {
 
         /**
          * Called when done processing response to signal more data is needed.
-         * @param extraKeepAlive extra time to keep underlying scroll open.
+         * @param extraKeepAlive extra time to extend the search context keep-alive.
          */
         void done(TimeValue extraKeepAlive);
     }

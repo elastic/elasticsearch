@@ -21,6 +21,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.Map;
+
 /**
  * Configures the build to compile against Elasticsearch's test framework and
  * run integration and unit tests. Use BuildPlugin if you want to build main
@@ -36,7 +38,8 @@ public class StandaloneTestPlugin implements Plugin<Project> {
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         final SourceSet testSourceSet = sourceSets.create("test");
-        project.getDependencies().add(testSourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+        project.getDependencies()
+            .add(testSourceSet.getImplementationConfigurationName(), project.getDependencies().project(Map.of("path", ":test:framework")));
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());

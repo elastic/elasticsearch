@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,12 +31,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
      * ESRestTestCase wipes all indices between test methods, so this test always runs on a clean cluster.
      */
     public void testQueryRangeWithNoPrometheusIndicesReturnsEmptyResult() throws Exception {
-        Request request = new Request("GET", "/_prometheus/api/v1/query_range");
-        request.addParameter("query", "nonexistent_metric");
-        request.addParameter("start", "2026-01-01T00:00:00Z");
-        request.addParameter("end", "2026-01-01T00:05:00Z");
-        request.addParameter("step", "60s");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "nonexistent_metric"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -43,6 +46,32 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("status"), equalTo("success"));
         assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
         assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    /**
+     * A pure scalar constant requires no index data: each step in the range produces the literal value.
+     */
+    public void testQueryRangeScalarConstantRequiresNoIndexData() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "3.14"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        // one series entry with no labels and one sample per step
+        assertThat(path.evaluate("data.result"), hasSize(1));
+        assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of()));
+        assertThat(
+            path.evaluate("data.result.0.values"),
+            equalTo(List.of(List.of(1767225600.0, "3.14"), List.of(1767225660.0, "3.14"), List.of(1767225720.0, "3.14")))
+        );
     }
 
     public void testQueryRangeWithIngestedData() throws Exception {
@@ -81,12 +110,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
     private ObjectPath executeQueryRangeWithIndex(String index) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query_range" : "/_prometheus/" + index + "/api/v1/query_range";
-        Request request = new Request("GET", path);
-        request.addParameter("query", "test_gauge_qr{job=\"test_job\"}");
-        request.addParameter("start", "2026-01-01T00:00:00Z");
-        request.addParameter("end", "2026-01-01T00:05:00Z");
-        request.addParameter("step", "60s");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            path,
+            new BasicNameValuePair("query", "test_gauge_qr{job=\"test_job\"}"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

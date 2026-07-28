@@ -186,6 +186,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private ProjectId projectId;
     private ProjectResolver projectResolver;
+    // Backs the eager-download supplier handed to DatabaseNodeService; toggled per-test. Defaults to false so
+    // existing tests keep exercising the consumer-gated retrieval path.
+    private volatile boolean eagerDownload = false;
 
     private final Collection<Releasable> toRelease = new CopyOnWriteArrayList<>();
 
@@ -220,7 +223,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             configDatabases,
             Runnable::run,
             clusterService,
-            projectResolver
+            projectResolver,
+            () -> eagerDownload
         );
         databaseNodeService.initialize("nodeId", resourceWatcherService);
     }
@@ -300,6 +304,60 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * With {@code ingest.geoip.downloader.eager.download} enabled, an ingest-capable node must retrieve and load
+     * downloaded databases locally even when no {@link IpLocationConsumer} is registered (i.e. before any geoip
+     * pipeline exists).
+     */
+    public void testCheckDatabases_eagerDownloadRetrievesOnIngestNodeWithoutConsumer() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        // No IpLocationDownloadConsumers custom at all: without eager downloading nothing would be retrieved.
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+
+        // Precondition: eager off + no consumer -> the node does not retrieve the database.
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), nullValue());
+        verify(projectClient, never()).search(any());
+
+        // Eager download makes the ingest-capable node retrieve and load the database even without a registered consumer.
+        eagerDownload = true;
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), notNullValue());
+        verify(projectClient, times(CHUNKS_PER_DATABASE)).search(any());
+    }
+
+    /**
+     * Eager downloading only warms ingest-capable nodes. A master-only node must not retrieve databases even
+     * with {@code eager.download} enabled, since it never runs ingest pipelines.
+     */
+    public void testCheckDatabases_eagerDownloadDoesNotRetrieveOnMasterOnlyNode() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        DiscoveryNodes masterOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, masterOnlyNodes, null);
+
+        eagerDownload = true;
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), nullValue());
+        verify(projectClient, never()).search(any());
+    }
+
     public void testCheckDatabases_dontCheckDatabaseWhenNoDatabasesIndex() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
         PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
@@ -368,7 +426,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         );
     }
 
-    public void testCheckDatabases_esqlConsumerDoesNotCopyToIngestOnlyNode() throws Exception {
+    public void testCheckDatabases_ingestConsumerDoesNotCopyToMasterOnlyNode() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
             projectId,
@@ -376,18 +434,18 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
         );
 
-        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+        DiscoveryNodes masterOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build())
             .localNodeId("_id1")
             .build();
-        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
-        ClusterState state = createClusterState(projectId, tasksCustomMetadata, ingestOnlyNodes, consumers);
+        IpLocationDownloadConsumers consumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, masterOnlyNodes, consumers);
 
         databaseNodeService.checkDatabases(state);
 
-        verify(projectClient, never().description("ESQL consumer should not trigger database copy on an ingest-only node")).search(any());
+        verify(projectClient, never().description("INGEST consumer should not trigger database copy on a master-only node")).search(any());
         assertThat(
-            "database should not be available on an ingest-only node when only ESQL consumer is active",
+            "database should not be available on a master-only node when only INGEST consumer is active",
             databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"),
             nullValue()
         );
@@ -494,8 +552,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     /**
      * When the {@link IpLocationDownloadConsumers} custom is present and non-empty but its consumers require
-     * roles this node does not have (e.g. only ESQL registered while this is an ingest-only node), previously
-     * loaded databases must be pruned. Sibling to {@link #testCheckDatabases_esqlConsumerDoesNotCopyToIngestOnlyNode}
+     * roles this node does not have (e.g. only INGEST registered while this is a master-only node), previously
+     * loaded databases must be pruned. Sibling to {@link #testCheckDatabases_ingestConsumerDoesNotCopyToMasterOnlyNode}
      * which covers the no-loader case; this one pins the prune path.
      */
     public void testCheckDatabases_prunesLoadersWhenConsumerRoleNotRelevant() throws Exception {
@@ -507,13 +565,13 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
         );
 
-        // Node carries both ingest and data roles so the INGEST-phase loader can be installed.
-        DiscoveryNodes fullRoleNodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.DATA_ROLE)).build())
+        // Node carries both ingest and master roles so the INGEST-phase loader can be installed.
+        DiscoveryNodes ingestAndMasterNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)).build())
             .localNodeId("_id1")
             .build();
         IpLocationDownloadConsumers ingestConsumers = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
-        ClusterState stateIngest = createClusterState(projectId, tasksCustomMetadata, fullRoleNodes, ingestConsumers);
+        ClusterState stateIngest = createClusterState(projectId, tasksCustomMetadata, ingestAndMasterNodes, ingestConsumers);
         databaseNodeService.checkDatabases(stateIngest);
         assertThat(
             "precondition: database should load when INGEST consumer matches the local node's ingest role",
@@ -521,15 +579,14 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             notNullValue()
         );
 
-        // Now only ESQL is registered, and we downgrade the local node to ingest-only — ESQL needs a data-capable
+        // Now switch to a master-only node with only INGEST registered — INGEST needs an ingest-capable
         // node, so none of the registered consumers applies to this node.
-        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+        DiscoveryNodes masterOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build())
             .localNodeId("_id1")
             .build();
-        IpLocationDownloadConsumers esqlOnly = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
-        ClusterState stateEsqlOnly = createClusterState(projectId, tasksCustomMetadata, ingestOnlyNodes, esqlOnly);
-        databaseNodeService.checkDatabases(stateEsqlOnly);
+        ClusterState stateMasterOnly = createClusterState(projectId, tasksCustomMetadata, masterOnlyNodes, ingestConsumers);
+        databaseNodeService.checkDatabases(stateMasterOnly);
 
         assertThat(
             "loader must be pruned when no registered consumer matches the local node's roles",
@@ -750,19 +807,19 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         // adding the inner map to the outer map
         databaseNodeService.databases.put(projectId, instrumentedInner);
 
-        // ESQL consumer registered, but the local node only has the ingest role: checkDatabases hits the
+        // INGEST consumer registered, but the local node only has the master role: checkDatabases hits the
         // "no relevant consumer for this node" branch and tries to drop the project entry.
-        DiscoveryNodes ingestOnlyNodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.INGEST_ROLE)).build())
+        DiscoveryNodes masterOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build())
             .localNodeId("_id1")
             .build();
-        IpLocationDownloadConsumers esqlOnly = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.ESQL);
+        IpLocationDownloadConsumers ingestOnly = IpLocationDownloadConsumers.EMPTY.withConsumer(IpLocationConsumer.INGEST);
         PersistentTasksCustomMetadata tasks = geoIpDownloaderTask(
             projectId,
             dbName,
             new GeoIpTaskState.Metadata(10, 5, 14, "md5", System.currentTimeMillis())
         );
-        ClusterState state = createClusterState(projectId, tasks, ingestOnlyNodes, esqlOnly);
+        ClusterState state = createClusterState(projectId, tasks, masterOnlyNodes, ingestOnly);
 
         List<String> notified = new CopyOnWriteArrayList<>();
         databaseNodeService.addDatabaseAvailabilityListener((pid, db) -> notified.add(db));

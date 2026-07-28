@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -28,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.lookup.Source;
@@ -53,6 +57,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
     protected final long fromSeqNo, toSeqNo;
     protected final boolean requiredFullRange;
     protected final int searchBatchSize;
+    protected final boolean columnarId;
 
     private final boolean accessStats;
     private final int totalHits;
@@ -108,6 +113,36 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.accessStats = accessStats;
         this.totalHits = accessStats ? indexSearcher.count(rangeQuery(indexSettings, fromSeqNo, toSeqNo)) : -1;
         this.sourceMetadataFetcher = createSourceMetadataValueFetcher(mapperService, indexSearcher);
+        this.columnarId = determineIdIsColumnar(indexSearcher, mapperService);
+    }
+
+    /**
+     * Determines if the "_id" field in an index is stored in columnar fashion.
+     * <ul>
+     *     <li>If fieldsinfo indicates that _id is stored as binary doc values, then it is columnar.</li>
+     *     <li>If index is empty or no _id field info can be retrieved, then mapper service determines whether id is columnar</li>
+     * </ul>
+     * The reason why fields info is checked, is because a restore can wipe all index settings,
+     * and the mapper service can't indicate whether id is stored in columnar fashion.
+     * @return {@code true} if the "_id" field is stored in a columnar fashion; {@code false} otherwise.
+     */
+    private static boolean determineIdIsColumnar(IndexSearcher indexSearcher, MapperService mapperService) {
+        if (indexSearcher.getLeafContexts().isEmpty()) {
+            return mapperService.isUseColumnarId();
+        }
+        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(indexSearcher.getIndexReader());
+        FieldInfo idFieldInfo = fieldInfos.fieldInfo("_id");
+        if (idFieldInfo == null) {
+            // noop tombstone documents don't have an _id field.
+            return mapperService.isUseColumnarId();
+        }
+        if (idFieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+            // SyntheticIdField (TSDB) also stores _id as BINARY doc values, but its id is materialized at read time via
+            // TSDBSyntheticIdStoredFieldsReader. In that case the id mode isn't columnar, and we can determine this from the attributes:
+            return SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes()) == false;
+        } else {
+            return false;
+        }
     }
 
     private ValueFetcher createSourceMetadataValueFetcher(MapperService mapperService, IndexSearcher searcher) {

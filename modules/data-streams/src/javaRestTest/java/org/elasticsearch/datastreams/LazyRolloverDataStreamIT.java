@@ -76,8 +76,7 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createLazyDataStream() throws Exception {
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/lazy-ds-template");
         putComposableIndexTemplateRequest.setJsonEntity("""
             {

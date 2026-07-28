@@ -35,7 +35,7 @@ public class ValidatingSubstitutorTests extends ESTestCase {
     public void testReplace_ThrowsException_WhenPlaceHolderStillExists() {
         {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "key2", "value2"), "${", "}");
-            var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super:${key}", "setting"));
+            var exception = expectThrows(IllegalArgumentException.class, () -> sub.replace("super:${key}", "setting"));
 
             assertThat(
                 exception.getMessage(),
@@ -48,7 +48,7 @@ public class ValidatingSubstitutorTests extends ESTestCase {
         // only reports the first placeholder pattern
         {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "some_key2", "value2"), "${", "}");
-            var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super, ${key}, ${key2}", "setting"));
+            var exception = expectThrows(IllegalArgumentException.class, () -> sub.replace("super, ${key}, ${key2}", "setting"));
 
             assertThat(
                 exception.getMessage(),
@@ -60,7 +60,7 @@ public class ValidatingSubstitutorTests extends ESTestCase {
         }
         {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "key2", "value2"), "${", "}");
-            var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super:${     \\/\tkey\"}", "setting"));
+            var exception = expectThrows(IllegalArgumentException.class, () -> sub.replace("super:${     \\/\tkey\"}", "setting"));
 
             assertThat(
                 exception.getMessage(),

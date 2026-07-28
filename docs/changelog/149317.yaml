@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 149317
+summary: '`ThrottlingRecoveryService` can throttle recoveries on data node'
+type: feature

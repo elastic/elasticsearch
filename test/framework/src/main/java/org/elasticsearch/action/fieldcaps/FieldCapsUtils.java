@@ -117,11 +117,13 @@ public enum FieldCapsUtils {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.IS_METADATA_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), FieldCapabilities.SEARCHABLE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), FieldCapabilities.AGGREGATABLE_FIELD);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.INFERENCE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.TIME_SERIES_DIMENSION_FIELD);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.TIME_SERIES_METRIC_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_SEARCHABLE_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_AGGREGATABLE_INDICES_FIELD);
+        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_INFERENCE_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_DIMENSION_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.METRIC_CONFLICTS_INDICES_FIELD);
         parser.declareObject(

@@ -409,6 +409,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").setMapping("num1", "type=long").get();
+        assumeNoColumnarId("test relies on reading _id from stored fields", "test");
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

@@ -65,8 +65,8 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public BooleanBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override
@@ -121,6 +121,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

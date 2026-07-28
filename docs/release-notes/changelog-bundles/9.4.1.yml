@@ -69,10 +69,20 @@ changelogs:
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
+  - pr: 146167
+    summary: Update bundled JDK to Java 26
+    area: Packaging
+    type: upgrade
+    issues: []
   - pr: 147063
     summary: "[Inference API] Fix inference initialization thread exhaustion"
     area: Inference
     type: bug
+    issues: []
+  - pr: 147424
+    summary: Bump bundled JDK to Java 26.0.1
+    area: Packaging
+    type: upgrade
     issues: []
   - pr: 147678
     summary: Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation

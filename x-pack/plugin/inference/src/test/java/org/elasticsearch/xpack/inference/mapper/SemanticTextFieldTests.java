@@ -56,6 +56,8 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomByteVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -304,7 +306,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assert elementType == DenseVectorFieldMapper.ElementType.FLOAT || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
 
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
-        return new GenericDenseEmbeddingFloatResults.Embedding(randomFloatVectorOfLength(embeddingLength));
+        return new GenericDenseEmbeddingFloatResults.Embedding(randomFloatVector(embeddingLength));
     }
 
     public static EmbeddingResults.Embedding<?> randomMultimodalEmbeddingByte(Model model) {
@@ -312,7 +314,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
 
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
-        return new GenericDenseEmbeddingByteResults.Embedding(randomByteVectorOfLength(embeddingLength));
+        return new GenericDenseEmbeddingByteResults.Embedding(randomByteVector(embeddingLength));
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
@@ -333,7 +335,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = randomByteVectorOfLength(embeddingLength);
+            byte[] values = randomByteVector(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingByteResults.Embedding(values),
@@ -344,15 +346,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new ChunkedInferenceEmbedding(chunks);
     }
 
-    public static byte[] randomByteVectorOfLength(int embeddingLength) {
-        byte[] values = new byte[embeddingLength];
-        for (int j = 0; j < values.length; j++) {
-            // to avoid vectors with zero magnitude
-            values[j] = (byte) Math.max(1, randomByte());
-        }
-        return values;
-    }
-
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
@@ -360,7 +353,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = randomFloatVectorOfLength(embeddingLength);
+            float[] values = randomFloatVector(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingFloatResults.Embedding(values),
@@ -369,15 +362,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
         }
         return new ChunkedInferenceEmbedding(chunks);
-    }
-
-    public static float[] randomFloatVectorOfLength(int embeddingLength) {
-        float[] values = new float[embeddingLength];
-        for (int j = 0; j < values.length; j++) {
-            // to avoid vectors with zero magnitude
-            values[j] = Math.max(1e-6f, randomFloat());
-        }
-        return values;
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs) {

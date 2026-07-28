@@ -136,6 +136,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 .rowLimit(rowLimit)
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
+            pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
             return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
@@ -306,8 +307,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             if (split instanceof FileSplit fileSplit) {
                 currentSplitPath = fileSplit.path();
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
-                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
+                boolean lastSplit = FileSplitProvider.isLastInFile(fileSplit);
 
                 ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;
@@ -325,8 +326,10 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
                     .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
+                    .splitStartByte(fileSplit.offset())
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
 
                 // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
                 // reader already emits zero-data-block row-count pages, so skip the adapter (a

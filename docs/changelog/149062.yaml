@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 149062
+summary: Add reader-heap circuit breaker for the stateless search engine
+type: enhancement

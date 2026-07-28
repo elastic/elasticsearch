@@ -408,3 +408,49 @@ setup:
         include_defaults: true
 
   - match: { index_templates.0.index_template.template.mappings.properties.@timestamp.index: true }
+
+---
+"store: true is rejected in columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-store-rejected
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_replicas: 0
+          mappings:
+            properties:
+              agent_id:
+                type: keyword
+                store: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [store] cannot be enabled on field [agent_id] in [columnar] index mode" }
+
+---
+"store: true is rejected in logsdb_columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-store-rejected-logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_replicas: 0
+          mappings:
+            properties:
+              agent_id:
+                type: keyword
+                store: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [store] cannot be enabled on field [agent_id] in [logsdb_columnar] index mode" }

@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.sql.logging;
 
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class SqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "sql";
@@ -44,4 +48,14 @@ public class SqlLogContext extends QueryLoggerContext {
         // TODO: figure out how to extract indices for SQL
         return null;
     }
+
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
+    }
+
+    public List<String> params() {
+        return request.params().stream().map(p -> String.valueOf(p.value)).collect(Collectors.toList());
+    }
+
 }

@@ -42,7 +42,13 @@ public class LongHistogramAdapter extends AbstractInstrument<LongHistogram> impl
 
         @Override
         public LongHistogram build(Meter meter) {
-            return Objects.requireNonNull(meter).histogramBuilder(name).ofLongs().setDescription(description).setUnit(unit).build();
+            return Objects.requireNonNull(meter)
+                .histogramBuilder(name)
+                .ofLongs()
+                .setDescription(description)
+                .setUnit(unit)
+                .setExplicitBucketBoundariesAdvice(HistogramBuckets.APM_DEFAULT_LONGS)
+                .build();
         }
     }
 }

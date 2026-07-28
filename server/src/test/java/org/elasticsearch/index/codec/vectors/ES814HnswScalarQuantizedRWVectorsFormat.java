@@ -22,6 +22,7 @@ class ES814HnswScalarQuantizedRWVectorsFormat extends ES814HnswScalarQuantizedVe
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

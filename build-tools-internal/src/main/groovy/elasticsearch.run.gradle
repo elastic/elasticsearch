@@ -30,6 +30,8 @@ testClusters.register("runTask") {
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
+      keystore 'cluster.state.encryption.password.local-dev', 'local-dev-password'
+      keystore 'cluster.state.encryption.active_password_id', 'local-dev'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
       // Arrow memory allocator needs access to java.nio internals

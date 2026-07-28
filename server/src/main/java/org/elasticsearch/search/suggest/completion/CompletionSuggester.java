@@ -19,7 +19,9 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.xcontent.Text;
@@ -34,6 +36,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     public static final CompletionSuggester INSTANCE = new CompletionSuggester();
 
+    private static final String COLLECTOR_MEMORY_LABEL = "completion-suggest-collector";
+
     private CompletionSuggester() {}
 
     @Override
@@ -47,31 +51,43 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
             CompletionSuggestion completionSuggestion = emptySuggestion(name, suggestionContext, spare);
             int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
-            TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
-            suggest(searcher, suggestionContext.toQuery(), collector);
-            int numResult = 0;
-            for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
-                // collect contexts
-                Map<String, Set<String>> contexts = Collections.emptyMap();
-                if (fieldType.hasContextMappings()) {
-                    List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
-                    if (rawContexts.size() > 0) {
-                        contexts = fieldType.getContextMappings().getNamedContexts(rawContexts);
+            SearchExecutionContext searchExecutionContext = suggestionContext.getSearchExecutionContext();
+            // TopSuggestGroupDocsCollector uses a Lucene's SuggestScoreDocPriorityQueue
+            // which extends PriorityQueue and allocates a heap array of length shardSize + 1. This is the
+            // dominant cost so we make sure here we have enough heap to allocate it
+            long collectorBytes = RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (shardSize + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            try {
+                TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
+                suggest(searcher, suggestionContext.toQuery(), collector);
+                int numResult = 0;
+                for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
+                    // collect contexts
+                    Map<String, Set<String>> contexts = Collections.emptyMap();
+                    if (fieldType.hasContextMappings()) {
+                        List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
+                        if (rawContexts.size() > 0) {
+                            contexts = fieldType.getContextMappings().getNamedContexts(rawContexts);
+                        }
+                    }
+                    if (numResult++ < suggestionContext.getSize()) {
+                        CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                            suggestDoc.doc,
+                            new Text(suggestDoc.key.toString()),
+                            suggestDoc.score,
+                            contexts
+                        );
+                        completionSuggestion.getEntries().get(0).addOption(option);
+                    } else {
+                        break;
                     }
                 }
-                if (numResult++ < suggestionContext.getSize()) {
-                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
-                        suggestDoc.doc,
-                        new Text(suggestDoc.key.toString()),
-                        suggestDoc.score,
-                        contexts
-                    );
-                    completionSuggestion.getEntries().get(0).addOption(option);
-                } else {
-                    break;
-                }
+                return completionSuggestion;
+            } finally {
+                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             }
-            return completionSuggestion;
         }
         return null;
     }

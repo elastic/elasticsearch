@@ -813,7 +813,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLUSTERING, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.CLUSTERING, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.getMessage(), is("Validation Failed: 1: Input type [clustering] is not supported for [Voyage AI];"));
@@ -848,7 +848,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -921,7 +921,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -989,7 +989,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.SEARCH, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.SEARCH, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1057,7 +1057,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), null, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), null, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1237,7 +1237,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1302,7 +1302,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1349,7 +1349,6 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             // 2 input
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,

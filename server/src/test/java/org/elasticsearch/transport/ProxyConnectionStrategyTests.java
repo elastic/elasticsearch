@@ -31,6 +31,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -67,9 +68,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

@@ -282,7 +282,7 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
 
     /**
      * If the only child of FROM is a ROW subquery without an index pattern, the {@code UnionAll}
-     * is collapsed and the {@link Row} is returned directly, mirroring the behaviour for a single
+     * is collapsed and the {@link Row} is returned directly, mirroring the behavior for a single
      * FROM subquery in {@link SubqueryTests#testSubqueryOnly()}.
      *
      * Row[[1[INTEGER] AS x]]
@@ -1099,6 +1099,25 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
+    public void testRowSubqueryInReleaseBuild() {
+        requireSubqueryInFromCommand();
+        assumeFalse("only relevant for non-snapshot builds", Build.current().isSnapshot());
+        var mainQueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            FROM {}, (ROW x = 1)
+            """, mainQueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        UnionAll unionAll = as(plan, UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        UnresolvedRelation mainRelation = as(unionAll.children().get(0), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(mainQueryIndexPattern), mainRelation.indexPattern().indexPattern());
+
+        Subquery subquery = as(unionAll.children().get(1), Subquery.class);
+        as(subquery.plan(), Row.class);
+    }
+
     // negative tests
     /**
      * The TS source command does not allow subqueries, regardless of whether the subquery uses FROM or ROW.
@@ -1107,21 +1126,6 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
         requireSubqueryInFromCommand();
         String query = "TS index1, (ROW x = 1)";
         expectThrows(ParsingException.class, containsString("line 1:1: Subqueries are not supported in TS command"), () -> query(query));
-    }
-
-    /**
-     * In a release build (non-snapshot) the ROW alternative is gated off by the {@code isDevVersion}
-     * predicate in the grammar, and the parser must reject it.
-     */
-    public void testRowSubqueryNotAllowedInReleaseBuild() {
-        requireSubqueryInFromCommand();
-        assumeFalse("only relevant for non-snapshot builds", Build.current().isSnapshot());
-        var mainQueryIndexPattern = randomIndexPatterns();
-        String query = LoggerMessageFormat.format(null, """
-            FROM {}, (ROW x = 1)
-            """, mainQueryIndexPattern);
-
-        expectThrows(ParsingException.class, () -> query(query));
     }
 
     /**

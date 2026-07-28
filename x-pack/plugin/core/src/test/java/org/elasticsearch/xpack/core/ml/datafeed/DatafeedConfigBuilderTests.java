@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -115,6 +116,8 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         // Note: project_routing is intentionally not randomized here to avoid validation issues
         // with mismatched indicesOptions. project_routing is tested separately in dedicated tests.
 
+        // Note: cloud_internal_credential is intentionally not randomized here.
+
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             settings.put("type", "keyword");
@@ -157,7 +160,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
      * so the CPS flag in the stored configuration is not used.
      */
     public void testCrossProjectModeOptionsAccepted() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
         datafeedBuilder = datafeedBuilder.setIndicesOptions(
             IndicesOptions.builder(datafeedBuilder.getIndicesOptions())

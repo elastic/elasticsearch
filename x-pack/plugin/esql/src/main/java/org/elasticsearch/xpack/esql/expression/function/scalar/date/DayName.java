@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ public class DayName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns the name of the weekday for a date.",
         description = "Returns the name of the weekday for date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsDayName"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
@@ -112,9 +114,19 @@ public class DayName extends EsqlConfigurationFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (field().dataType() == DataType.DATE_NANOS) {
-            return new DayNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+            return new DayNameNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().locale()
+            );
         }
-        return new DayNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+        return new DayNameMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().locale()
+        );
     }
 
     @Override

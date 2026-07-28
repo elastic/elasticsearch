@@ -84,6 +84,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (isContentTooLarge(result)) {
             throw buildExceptionHandlingContentTooLarge(outboundRequest, result);
         } else if (statusCode == 401) {
+            outboundRequest.onAuthenticationFailure();
             throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
             throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));

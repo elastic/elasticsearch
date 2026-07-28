@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 150026
+summary: Wire OTel SDK self-monitoring metrics into the span exporter
+type: enhancement

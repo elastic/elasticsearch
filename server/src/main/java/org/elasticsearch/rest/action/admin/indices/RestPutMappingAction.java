@@ -23,6 +23,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
@@ -33,6 +34,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutMappingAction extends BaseRestHandler {
+
+    private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
 
     @Override
     public List<Route> routes() {
@@ -64,6 +67,11 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD);
     }
 
     private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {

@@ -35,7 +35,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             aggregates,
             timeBucket,
             outputBucket,
-            AbstractExpressionSerializationTests.randomChild()
+            AbstractExpressionSerializationTests.randomChild(),
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
     }
 
@@ -46,7 +47,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<? extends NamedExpression> aggregates = instance.aggregates();
         Bucket timeBucket = instance.timeBucket();
         Bucket outputBucket = instance.outputTimeBucket();
-        switch (between(0, 4)) {
+        TimeSeriesAggregate.Origin origin = instance.origin();
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
                 groupings,
@@ -55,9 +57,22 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
             case 4 -> outputBucket = randomValueOtherThan(outputBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
+            case 5 -> origin = randomValueOtherThan(
+                origin,
+                () -> TimeSeriesAggregate.Origin.values()[randomInt(TimeSeriesAggregate.Origin.values().length - 1)]
+            );
             default -> throw new IllegalStateException();
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, outputBucket, instance.timestamp());
+        return new TimeSeriesAggregate(
+            instance.source(),
+            child,
+            groupings,
+            aggregates,
+            timeBucket,
+            outputBucket,
+            instance.timestamp(),
+            origin
+        );
     }
 
     @Override

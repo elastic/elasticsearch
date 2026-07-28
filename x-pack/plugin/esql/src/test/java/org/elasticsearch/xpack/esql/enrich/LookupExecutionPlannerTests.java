@@ -163,7 +163,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             this.capturedPlan = lookupQueryPlan;
             // Don't call super - we don't want to actually start the driver in tests
             // Signal ready immediately for test purposes
-            responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
+            responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString, 0L));
         }
 
         @Override

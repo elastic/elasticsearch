@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -31,92 +30,67 @@ import static org.mockito.Mockito.mock;
 
 public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
 
-    public void testCreateEvictionPolicyReturnsDefaultWhenSettingDisabled() {
+    public void testCreateEvictionPolicyReturnsDefaultOnIndexNode() {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false);
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             settingsBuilder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             );
         }
-        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
-            settingsBuilder.build(),
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
-            mock(ThreadPool.class)
-        );
+        final var policy = createEvictionPolicy(settingsBuilder.build());
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyAlways() {
+    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyAlwaysOnSearchNode() {
         Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
             .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.ALWAYS
             )
             .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
-            settings,
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
-            mock(ThreadPool.class)
-        );
+        final var policy = createEvictionPolicy(settings);
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfigured() {
+    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfiguredOnSearchNode() {
         Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
             .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             )
             .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
-            settings,
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
-            mock(ThreadPool.class)
-        );
+        final var policy = createEvictionPolicy(settings);
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
     }
 
     public void testCreateEvictionPolicyReturnsPinnedWindowPolicyWhenBoostEnabledOnSearchNode() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
         final Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .build();
-        try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
-                settings,
-                clusterService,
-                TestUtils.mockIndicesService(clusterService),
-                taskQueue.getThreadPool()
-            );
-            assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
-        }
+        final var policy = createEvictionPolicy(settings);
+        assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsDefaultPolicyWhenBoostEnabledOnIndexNode() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
-        final Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-            .build();
-        try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
-                settings,
-                clusterService,
-                TestUtils.mockIndicesService(clusterService),
-                taskQueue.getThreadPool()
-            );
-            assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
-        }
+    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings) {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var clusterService = ClusterServiceUtils.createClusterService(
+            deterministicTaskQueue.getThreadPool(),
+            createClusterSettings(settings)
+        );
+        return StatelessCacheEvictionPolicyType.createEvictionPolicy(
+            settings,
+            clusterService,
+            TestUtils.mockIndicesService(clusterService),
+            mock(ThreadPool.class)
+        );
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

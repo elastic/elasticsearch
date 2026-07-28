@@ -77,16 +77,16 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
-     * Selects the eviction policy used by the shared blob cache when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is enabled.
-     * When cache boost preference is disabled, {@link StatelessCacheEvictionPolicyType#ALWAYS} is used regardless of this setting.
-     * Defaults to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} on search nodes and
-     * {@link StatelessCacheEvictionPolicyType#ALWAYS} on all other nodes.
+     * On search nodes, an explicit value takes precedence even when boost preference is disabled. When unset, defaults to
+     * {@link StatelessCacheEvictionPolicyType#ALWAYS} when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled,
+     * and to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} when enabled.
+     * This setting is ignored on non-search nodes, which always use {@link StatelessCacheEvictionPolicyType#ALWAYS}.
      */
-    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
+    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
-            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
-            "stateless.cache_boost_preference.eviction_policy",
+            settings -> StatelessCacheEvictionPolicyType.defaultEvictionPolicyType(settings).name(),
+            "stateless.cache_boost_preference.eviction_policy.search",
             s -> {},
             Setting.Property.NodeScope
         );

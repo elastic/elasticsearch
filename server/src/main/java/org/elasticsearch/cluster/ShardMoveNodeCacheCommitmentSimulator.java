@@ -18,7 +18,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -45,8 +44,8 @@ public class ShardMoveNodeCacheCommitmentSimulator {
     private final ObjectLongMap<String> unboostedCommitmentDeltaByNode;
 
     public ShardMoveNodeCacheCommitmentSimulator(ClusterInfo clusterInfo) {
-        this.shardCacheRequirements = new HashMap<>(clusterInfo.getShardCacheRequirements());
-        this.initialNodeCacheSizeAndCommitments = new HashMap<>(clusterInfo.getNodeCacheSizeAndCommitments());
+        this.shardCacheRequirements = Map.copyOf(clusterInfo.getShardCacheRequirements());
+        this.initialNodeCacheSizeAndCommitments = Map.copyOf(clusterInfo.getNodeCacheSizeAndCommitments());
         this.boostedCommitmentDeltaByNode = new ObjectLongHashMap<>();
         this.unboostedCommitmentDeltaByNode = new ObjectLongHashMap<>();
     }
@@ -122,6 +121,6 @@ public class ShardMoveNodeCacheCommitmentSimulator {
      * The shard cache requirements used for this simulation, unaffected by shard movement.
      */
     public Map<ShardId, BoostedAndUnboostedCacheRequirements> getShardCacheRequirements() {
-        return Collections.unmodifiableMap(shardCacheRequirements);
+        return shardCacheRequirements;
     }
 }

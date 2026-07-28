@@ -314,7 +314,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            // The wrapper exists to type a storage/reader I/O failure as client-caused (400); it is not a place to
+            // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
+            // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
+            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
         }
     }
 
@@ -360,12 +363,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "Failed to resolve metadata for [" + location + "]",
-                            new IOException("File does not exist: " + location)
-                        )
-                    );
+                    IOException missing = new IOException("File does not exist: " + location);
+                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
                     return;
                 }
             }
@@ -377,7 +376,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // the synchronous path produces, so callers see identical exceptions regardless of path.
         reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+                l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
             } else {
                 l.onFailure(e);
             }

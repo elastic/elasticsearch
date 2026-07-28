@@ -669,6 +669,7 @@ required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
 | EVAL date_string = date_string::date
+| SORT date_string
 ;
 
 date_string:date

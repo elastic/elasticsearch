@@ -77,7 +77,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
                 }
             )
         ) {
-            new TestDriverRunner().run(driver);
+            new TestDriverRunner().numThreads(1).run(driver);
         }
 
         assertDriverContext(driverContext);

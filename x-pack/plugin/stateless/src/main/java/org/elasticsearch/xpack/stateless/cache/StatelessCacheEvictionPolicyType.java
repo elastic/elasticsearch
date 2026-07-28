@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING;
+import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 
 /**
  * Factory for stateless shared blob cache eviction policies.
@@ -54,16 +54,25 @@ public enum StatelessCacheEvictionPolicyType {
     abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
+        // Explicit configuration takes precedence when on search nodes
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)
+            && settings.hasValue(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey())) {
+            return STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings);
+        }
+        // TODO: We ignore eviction policy setting on indexing node for now.
+        return defaultEvictionPolicyType(settings);
+    }
+
+    static StatelessCacheEvictionPolicyType defaultEvictionPolicyType(Settings settings) {
+        // Cache boost preference is disabled: use always evict policy
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {
             return ALWAYS;
         }
-        if (settings.hasValue(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey())) {
-            return STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.get(settings);
-        }
+        // Default setting value depends on the node role
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE) ? PINNED_WINDOW : ALWAYS;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+    public static EvictionPolicy<FileCacheKey> createEvictionPolicy(
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,

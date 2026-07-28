@@ -28,7 +28,7 @@ TopNExec[[Order[name{r}#0,ASC,LAST]],10000[INTEGER],null]
   |             \_ExchangeExec[[_tsid{m}#13, $$RATE_$0$timestamps{r}#16, $$RATE_$1$values{r}#17, $$RATE_$2$sampleCounts{r}#18, $$RATE_$3$resets{r}#19, $$cluster$values{r}#20],true]
   |               \_ProjectExec[[_tsid{m}#13, $$RATE_$0$timestamps{r}#21, $$RATE_$1$values{r}#22, $$RATE_$2$sampleCounts{r}#23, $$RATE_$3$resets{r}#24, $$cluster$values{r}#25]]
   |                 \_EvalExec[[cluster{f}#5 AS cluster#25]]
-  |                   \_FieldExtractExec[cluster{f}#5]<[],[],[]>
+  |                   \_ReadDimsExec[cluster{f}#5]<tsid=_tsid{m}#13>
   |                     \_TimeSeriesAggregateExec[[_tsid{m}#13],[RATE(network.total_bytes_in{f}#14,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#15,<temporality>{t}#26) AS RATE_$1#9, _tsid{m}#13, FIRSTDOCID(_doc{f}#27,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#28],INITIAL,[_tsid{m}#13, $$RATE_$0$timestamps{r}#21, $$RATE_$1$values{r}#22, $$RATE_$2$sampleCounts{r}#23, $$RATE_$3$resets{r}#24, _doc{r}#29],144,null,null]
   |                       \_FieldExtractExec[_tsid{m}#13, network.total_bytes_in{f}#14, @timestamp{f}#15, <temporality>{t}#26]<[],[],[]>
   |                         \_EsQueryExec[k8s], indexMode[time_series], [_doc{f}#27, _ts_slice_index{f}#30, _ts_future_max_timestamp{f}#31], limit[], sort[] estimatedRowSize[86] queryBuilderAndTags [[QueryBuilderAndTags[query={

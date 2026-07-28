@@ -38,19 +38,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
-    private static final String LOGIN_ACTION = "login:";
-
     private final AiIndexImplicitPrivilegesProvider contributor = new AiIndexImplicitPrivilegesProvider();
 
-    /** User holds login: + a saved_object action on a single space → DLS query with composite scoped privilege. */
+    /** User holds a saved_object action on a single space → DLS query with composite scoped privilege. */
     public void testSingleSpaceGrantsDlsQuery() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(
-                KIBANA_APPLICATION,
-                "feature_sml_read",
-                Set.of(LOGIN_ACTION, "saved_object:dashboard/get"),
-                Map.of()
-            )
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml_read", Set.of("saved_object:dashboard/get"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("feature_sml_read", "space:marketing");
 
@@ -73,7 +66,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     /** User holds grants on multiple spaces → composite scoped privileges for all space × action combinations in the DLS query. */
     public void testMultipleSpacesProduceCompositeScopedPrivileges() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("sml_read", "space:foo", "space:bar");
 
@@ -83,8 +76,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + LOGIN_ACTION);
-        assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + LOGIN_ACTION);
+        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "saved_object:canvas/read");
+        assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + "saved_object:canvas/read");
     }
 
     /**
@@ -93,7 +86,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      */
     public void testWildcardResourceProducesDlsQueryWithWildcardTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("sml_read", "*");
 
@@ -109,14 +102,14 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(privilege.getQuery(), is(notNullValue()));
 
         Map<String, Object> queryMap = parseQuery(privilege.getQuery());
-        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + LOGIN_ACTION);
+        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + "saved_object:canvas/read");
         assertQueryHasTermsSet(queryMap);
     }
 
     /** When * and specific spaces both appear, both produce tokens in the DLS query. */
     public void testWildcardAndSpecificSpacesBothProduceTokens() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("sml_read", "*", "space:foo");
 
@@ -126,14 +119,14 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + LOGIN_ACTION);
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + LOGIN_ACTION);
+        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + "saved_object:canvas/read");
+        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "saved_object:canvas/read");
     }
 
     /** Privilege on a different application → empty (provider does not apply). */
     public void testNonMatchingApplicationReturnsEmpty() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor("other-app", "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor("other-app", "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = new RoleDescriptor(
             "test_role",
@@ -184,7 +177,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     /** Resources without the "space:" prefix and not equal to "*" are ignored; if no valid resources remain → empty. */
     public void testResourcesWithoutSpacePrefixAreIgnored() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("sml_read", "no-prefix-resource");
 
@@ -214,7 +207,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     /** DLS query must contain a terms_set clause referencing count field and composite scoped privileges. */
     public void testDlsQueryIncludesCompositeScopedPrivileges() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml", Set.of(LOGIN_ACTION, "saved_object:lens/get"), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml", Set.of("saved_object:lens/get"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("feature_sml", "space:default");
 
@@ -232,7 +225,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     /** DLS query must include a must_not exists clause so documents with no permissions tokens are visible. */
     public void testDlsQueryAllowsDocsWithNoScopedPrivileges() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of(LOGIN_ACTION), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("saved_object:canvas/read"), Map.of())
         );
         RoleDescriptor roleDescriptor = role("sml_read", "space:default");
 
@@ -251,13 +244,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      */
     public void testMultiplePrivilegesAndSpacesProduceCrossProductScopedPrivileges() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(
-                KIBANA_APPLICATION,
-                "sml_dashboard",
-                Set.of(LOGIN_ACTION, "saved_object:dashboard/get"),
-                Map.of()
-            ),
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_lens", Set.of(LOGIN_ACTION, "saved_object:lens/get"), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_dashboard", Set.of("saved_object:dashboard/get"), Map.of()),
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_lens", Set.of("saved_object:lens/get"), Map.of())
         );
         // Two separate grants: sml_dashboard on space:foo, sml_lens on space:bar.
         RoleDescriptor roleDescriptor = new RoleDescriptor(
@@ -289,10 +277,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
         // foo space tokens from sml_dashboard
         assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "saved_object:dashboard/get");
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + LOGIN_ACTION);
         // bar space tokens from sml_lens
         assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + "saved_object:lens/get");
-        assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + LOGIN_ACTION);
 
         // foo tokens from sml_dashboard should NOT appear for bar and vice versa
         assertQueryDoesNotContainTerm(queryMap, "foo" + SCOPE_SEPARATOR + "saved_object:lens/get");
@@ -303,7 +289,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBuildDlsQueryFormat() {
         Set<String> tokens = Set.of(
-            "marketing" + SCOPE_SEPARATOR + LOGIN_ACTION,
+            "marketing" + SCOPE_SEPARATOR + "saved_object:canvas/read",
             "marketing" + SCOPE_SEPARATOR + "saved_object:dashboard/get"
         );
         String query = AiIndexImplicitPrivilegesProvider.buildDlsQuery(tokens);
@@ -339,7 +325,10 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         List<String> terms = (List<String>) termsSetField.get("terms");
         assertThat(
             terms,
-            containsInAnyOrder("marketing" + SCOPE_SEPARATOR + LOGIN_ACTION, "marketing" + SCOPE_SEPARATOR + "saved_object:dashboard/get")
+            containsInAnyOrder(
+                "marketing" + SCOPE_SEPARATOR + "saved_object:canvas/read",
+                "marketing" + SCOPE_SEPARATOR + "saved_object:dashboard/get"
+            )
         );
 
         // No old-style spaces or dls_tokens fields
@@ -352,24 +341,33 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     public void testBuildScopedPrivileges() {
         Map<String, Set<String>> resourcesAndActions = Map.of(
             "space:marketing",
-            Set.of(LOGIN_ACTION, "saved_object:dashboard/get"),
+            Set.of("saved_object:canvas/read", "saved_object:dashboard/get"),
             "space:finance",
-            Set.of(LOGIN_ACTION),
+            Set.of("saved_object:canvas/read"),
             "*",
-            Set.of(LOGIN_ACTION),
+            Set.of("saved_object:canvas/read"),
             "no-prefix-resource",
-            Set.of(LOGIN_ACTION)
+            Set.of("saved_object:canvas/read")
         );
 
         Set<String> scopedPrivileges = AiIndexImplicitPrivilegesProvider.buildScopedPrivileges(resourcesAndActions);
 
-        assertTrue("expected marketing|login:", scopedPrivileges.contains("marketing" + SCOPE_SEPARATOR + LOGIN_ACTION));
+        assertTrue(
+            "expected marketing|saved_object:canvas/read",
+            scopedPrivileges.contains("marketing" + SCOPE_SEPARATOR + "saved_object:canvas/read")
+        );
         assertTrue(
             "expected marketing|saved_object:dashboard/get",
             scopedPrivileges.contains("marketing" + SCOPE_SEPARATOR + "saved_object:dashboard/get")
         );
-        assertTrue("expected finance|login:", scopedPrivileges.contains("finance" + SCOPE_SEPARATOR + LOGIN_ACTION));
-        assertTrue("expected *|login: for wildcard resource", scopedPrivileges.contains("*" + SCOPE_SEPARATOR + LOGIN_ACTION));
+        assertTrue(
+            "expected finance|saved_object:canvas/read",
+            scopedPrivileges.contains("finance" + SCOPE_SEPARATOR + "saved_object:canvas/read")
+        );
+        assertTrue(
+            "expected *|saved_object:canvas/read for wildcard resource",
+            scopedPrivileges.contains("*" + SCOPE_SEPARATOR + "saved_object:canvas/read")
+        );
         // Resources without "space:" prefix (and not "*") must be excluded
         assertFalse(
             "no-prefix-resource should not produce tokens",

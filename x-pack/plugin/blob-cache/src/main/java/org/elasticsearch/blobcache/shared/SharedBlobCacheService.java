@@ -323,22 +323,25 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
      * scan before the cache enters an eviction degradation period. When {@code rejectedCount / numRegions} exceeds
      * this ratio the policy is bypassed for the duration of {@link #SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
-     * Defaults to {@code 100%}, which disables the feature.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
      */
     public static final Setting<RatioValue> SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "eviction_policy_degradation.threshold",
-        "100%",
+        "95%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope
     );
 
     /**
-     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. Defaults to {@code 0} (disabled).
+     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. A zero value disables it.
      * Set to a non-zero duration together with a threshold below {@code 100%} to fully enable degradation mode.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
      */
     public static final Setting<TimeValue> SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "eviction_policy_degradation.period",
-        TimeValue.ZERO,
+        TimeValue.timeValueMinutes(5),
         TimeValue.ZERO,
         Setting.Property.NodeScope
     );

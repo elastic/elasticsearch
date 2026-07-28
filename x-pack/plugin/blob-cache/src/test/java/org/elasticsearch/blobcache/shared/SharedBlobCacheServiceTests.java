@@ -1992,6 +1992,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             @Override
             public void onEvicted(CacheRegion<TestCacheKey> region) {}
         };
+        // Disable degradation since the test expects 100% rejection
+        settings = Settings.builder()
+            .put(settings)
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "100%")
+            .build();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(
@@ -2052,6 +2057,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final AtomicLong clock = new AtomicLong();
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
+            // Disable degradation since the test expects 100% rejection
+            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "100%")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
@@ -4765,16 +4772,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testEvictionDegradationTriggersOnExcessiveRejections() throws Exception {
         final int numRegions = randomIntBetween(4, 20);
         final long regionSize = size(1L);
-        // 95% threshold is always crossed when the never-evict policy rejects all numRegions entries
-        final Settings settings = Settings.builder()
+        // The default 95% threshold is always crossed when the never-evict policy rejects all numRegions entries
+        final var settingBuilder = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "95%")
-            .put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m")
-            .put("path.home", createTempDir())
-            .build();
+            .put("path.home", createTempDir());
+        // Sometimes configure the defaults explicitly
+        if (randomBoolean()) {
+            settingBuilder.put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "95%");
+        }
+        if (randomBoolean()) {
+            settingBuilder.put(SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m");
+        }
+        final Settings settings = settingBuilder.build();
         final AtomicInteger policyCallCount = new AtomicInteger(0);
         final var evicted = new AtomicBoolean(false);
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();

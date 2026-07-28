@@ -34,6 +34,8 @@ tasks.named("yamlRestTest") {
   enabled = false
 }
 
+// Docker-based Testcontainers work on Linux, macOS, and Windows (via Docker Desktop / WSL2),
+// so no OS guard is needed here — tests run on all platforms where Docker is available.
 int currentMajorVersion = org.elasticsearch.gradle.VersionProperties.elasticsearchVersion.major
 assert (currentMajorVersion - 2) == 7 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
 

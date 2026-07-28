@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -79,21 +78,8 @@ public class OldMappingsIT extends ESRestTestCase {
         }
     }
 
-    private static final OldElasticsearchContainer oldEs = new OldElasticsearchContainer(
-        System.getProperty("tests.es.version"),
-        System.getProperty("tests.repo.location")
-    );
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .nodes(2)
-        .setting("path.repo", () -> System.getProperty("tests.repo.location"))
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .user("admin", "admin-password", "superuser", false)
-        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
-        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
-        .build();
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer();
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster();
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
@@ -507,6 +493,9 @@ public class OldMappingsIT extends ESRestTestCase {
         ensureGreen("nested");
         ensureGreen("standard_token_filter");
         ensureGreen("similarity");
+        if (oldVersion.before(Version.fromString("6.0.0"))) {
+            ensureGreen("winlogbeat");
+        }
 
         // Re-run a key verification to confirm data survived the restart
         testMappingOk();

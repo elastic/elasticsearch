@@ -8,6 +8,11 @@ mapped_pages:
 ---
 # Approximate `STATS` queries
 
+::::{admonition} Requirements
+:applies_to: { ess:, ece:, eck:, self: }
+For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, approximation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+::::
+
 {{esql}} [`STATS`](/reference/query-languages/esql/commands/stats-by.md) commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: {{esql}} rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
 
 Approximation breaks the dependency between performance and dataset size. Accuracy depends principally on the data characteristics and the query itself, not on how many rows are in the source index. This means the performance advantage grows as your data grows.
@@ -58,6 +63,8 @@ The additional columns are:
 
 - **`_approximation_confidence_interval(<agg>)`**: The central 90% confidence interval for the estimate. This is an interval that has a high probability (0.9) of containing the true value. The interval can be `null` if no reasonable confidence interval could be computed for the estimate.
 - **`_approximation_certified(<agg>)`**: A boolean indicating whether the statistical properties of the estimate are behaving as expected. When `true`, the confidence interval is trustworthy. When `false`, the estimate may still be accurate, but the distribution of the approximation could not be confirmed to satisfy the assumptions used to compute the interval.
+
+To understand the approximation metadata returned in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
 
 
 ## Configuration options

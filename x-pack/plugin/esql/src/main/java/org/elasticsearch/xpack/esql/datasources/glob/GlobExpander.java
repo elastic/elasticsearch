@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -71,7 +70,7 @@ public final class GlobExpander {
 
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
-     * (DictionaryFileList or HiveFileList). This is the primary entry point for the resolver.
+     * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
      */
     public static FileList expandAndCompact(
         String path,
@@ -431,15 +430,13 @@ public final class GlobExpander {
     }
 
     private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
-        if (discoveredCount > maxDiscoveredFiles) {
-            throw new QlIllegalArgumentException(
-                "Glob pattern discovered too many files ({}, limit {}). "
-                    + "Narrow your glob pattern, add partition filters, "
-                    + "or increase the [esql.external.max_discovered_files] cluster setting.",
-                discoveredCount,
-                maxDiscoveredFiles
-            );
-        }
+        Check.clientError(
+            discoveredCount <= maxDiscoveredFiles,
+            "Glob pattern discovered too many files ({}, limit {}). Narrow your glob pattern, add partition "
+                + "filters, or increase the [esql.external.max_discovered_files] cluster setting.",
+            discoveredCount,
+            maxDiscoveredFiles
+        );
     }
 
     public static FileList expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {

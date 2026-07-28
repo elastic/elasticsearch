@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -71,8 +71,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
-        // in-development runtime search support; move to capabilities(...) when released
-        .snapshotCapabilities("runtime_filter")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -87,20 +86,34 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        briefSummary = "Performs a match_phrase query on the specified field.",
+        briefSummary = "Performs a match_phrase query on the specified field or expression.",
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
-            specified field.
+            specified field or expression.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
-            MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
-            MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
+            MatchPhrase can be used on <<text, text>> and keyword fields.
+            MatchPhrase is not supported for other field types, like <<semantic-text, semantic_text>>, boolean, date, or numeric types.
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.
+
+            **`MATCH_PHRASE` on expressions**
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,
+            such as computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+            On a `keyword` expression the whole query string must equal a value exactly, matching
+            the term query semantics of `match_phrase` on an indexed keyword field.
+            When searching expressions, <<esql-function-named-params,function named parameters>>
+            (match_phrase query options) are not supported.
+            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -110,12 +123,16 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     )
     public MatchPhrase(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "Field or expression that the query will target."
+        ) Expression field,
         @Param(
             name = "query",
             type = { "keyword" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
-            description = "Value to find in the provided field."
+            description = "Value to find in the provided field or expression."
         ) Expression matchPhraseQuery,
         @MapParam(
             name = "options",
@@ -181,7 +198,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new MatchPhrase(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new MatchPhrase(source, field, query, options, queryBuilder);
     }
 
     @Override
@@ -190,6 +210,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -246,25 +270,30 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
-    /**
-     * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
-     * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
-     * {@link #DEFINITION}.
-     */
-    public static boolean runtimeSearchEnabled() {
-        return Build.current().isSnapshot();
-    }
-
     @Override
     public boolean isRuntimeSearch() {
-        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null;
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // This isn't a field in the index, so the expression is evaluated at runtime, row by row.
+            return true;
+        }
+        // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+        // indices where the field is unmapped, so it is matched at runtime instead.
+        return fieldAttribute.isPotentiallyUnmapped();
     }
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (fieldAsFieldAttribute() == null) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
             return Translatable.NO;
         }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
         return super.translatable(pushdownPredicates);
     }
 

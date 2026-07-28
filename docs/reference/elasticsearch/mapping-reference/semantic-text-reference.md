@@ -11,6 +11,8 @@ applies_to:
 
 This page provides reference content for the `semantic_text` field type, including parameter descriptions, {{infer}} endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
 
+The `semantic_text` field type accepts text only. To use images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
+
 ## Parameters for `semantic_text` [semantic-text-params]
 
 The `semantic_text` field type uses default indexing settings based on the [{{infer}} endpoint](#configuring-inference-endpoints) specified, enabling you to get started without providing additional configuration details. You can override these defaults by customizing the parameters described below.
@@ -232,6 +234,7 @@ POST /_query
 
 `semantic_text` field types have the following limitations:
 
+* `semantic_text` fields accept text only. For images, audio, video, or PDF files, use [`semantic`](./semantic-field.md).
 * `semantic_text` fields are not currently supported as elements
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can't currently be set as part

@@ -88,6 +88,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings -> StatelessCacheEvictionPolicyType.defaultEvictionPolicyType(settings).name(),
             "stateless.cache_boost_preference.eviction_policy.search",
             s -> {},
+            Setting.Property.OperatorDynamic,
             Setting.Property.NodeScope
         );
 
@@ -129,7 +130,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings,
             threadPool,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             metricsHolder
         );
     }
@@ -167,7 +168,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings,
             threadPool,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             relativeTimeInNanosSupplier,
             metricsHolder
         );
@@ -189,6 +190,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
+    }
+
+    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool
+    ) {
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+            return new DelegatingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+        } else {
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+        }
     }
 
     /**

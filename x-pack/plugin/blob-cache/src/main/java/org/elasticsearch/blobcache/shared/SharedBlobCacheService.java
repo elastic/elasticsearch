@@ -506,11 +506,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             threadPool.generic()
         );
         logger.info(
-            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}], eviction policy=[{}]",
+            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}]",
             ByteSizeValue.ofBytes(cacheSize),
             ByteSizeValue.ofBytes(regionSize),
-            numRegions,
-            evictionPolicy.getClass().getSimpleName()
+            numRegions
         );
     }
 
@@ -931,6 +930,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     public long countCachedRegions(ShardId shardId, BiPredicate<KeyType, Integer> regionPredicate) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.countCachedRegions(shardId, regionPredicate);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
+    // used by tests
+    public EvictionPolicy<KeyType> getEvictionPolicy() {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.evictionPolicy;
         }
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }

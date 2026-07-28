@@ -172,7 +172,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
         Regression.OLSResult scalingParams = new Regression.OLSResult(-2.5, 0.35, 0.01, 0.001, 0.0, 0.01);
         ErrorScalingFit scalingFit = ErrorScalingFit.fromScalingModel(new QuantizationErrorStdModel(scalingParams));
@@ -263,7 +264,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             range(numQueries, corpusSize),
-            10
+            10,
+            fvv.size()
         );
         int nDocsPerCluster = 128;
 
@@ -369,7 +371,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             range(256, 8000),
-            10
+            10,
+            fvv.size()
         );
         double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
 
@@ -403,7 +406,8 @@ public class ErrorModelTests extends ESTestCase {
             false,
             null,
             corpus,
-            10
+            10,
+            fvv.size()
         );
         double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
@@ -432,7 +436,19 @@ public class ErrorModelTests extends ESTestCase {
 
     private record CalibrationFixture(FloatVectorValues fvv, int[] queryOrdinals, int[] corpusOrdinals, int dim) {
         CalibrationSource toSource(VectorSimilarityFunction similarityFunction, int k) {
-            return new CalibrationSource(similarityFunction, dim, fvv, queryOrdinals, dim, false, false, null, corpusOrdinals, k);
+            return new CalibrationSource(
+                similarityFunction,
+                dim,
+                fvv,
+                queryOrdinals,
+                dim,
+                false,
+                false,
+                null,
+                corpusOrdinals,
+                k,
+                fvv.size()
+            );
         }
     }
 

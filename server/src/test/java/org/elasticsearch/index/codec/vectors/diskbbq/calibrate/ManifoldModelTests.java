@@ -114,7 +114,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
         double[] params = ManifoldModel.estimateManifoldParameters(source);
         assertTrue(Double.isFinite(params[0]));
@@ -143,7 +144,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
         double[] params = ManifoldModel.estimateManifoldParameters(source);
         double logAlpha = params[0];
@@ -212,7 +214,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
         double[] params = ManifoldModel.estimateManifoldParameters(cosineSource);
         assertTrue(Double.isFinite(params[0]));
@@ -242,7 +245,8 @@ public class ManifoldModelTests extends ESTestCase {
             true,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
         double[] params = ManifoldModel.estimateManifoldParameters(neyshaburSource);
         assertTrue(Double.isFinite(params[0]));
@@ -313,7 +317,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
         CalibrationSource largeSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
@@ -325,7 +330,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
 
         double[] paramsSmall = ManifoldModel.estimateManifoldParameters(smallSource);

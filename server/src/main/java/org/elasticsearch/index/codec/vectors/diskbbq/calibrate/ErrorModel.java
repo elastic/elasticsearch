@@ -62,7 +62,6 @@ public final class ErrorModel {
         int nDocs,
         int[] docAssignments,
         float[][] docCentroids,
-        int nQueryClusters,
         int qbits,
         int dbits,
         HierarchicalKMeans<float[]> kmeans,
@@ -78,7 +77,7 @@ public final class ErrorModel {
             return new QuantizedQueryErrorResult(1.0, docCentroids.length > 0 ? new float[][] { docCentroids[0].clone() } : new float[0][]);
         }
 
-        int effectiveQueryClusters = Math.min(nQueryClusters, nDocClusters);
+        int effectiveQueryClusters = Math.min(N_QUERY_CLUSTERS, nDocClusters);
         float[][] queryCentroids;
         int[] docCentroidAssignments;
         if (effectiveQueryClusters <= 1) {
@@ -296,7 +295,6 @@ public final class ErrorModel {
             nDocs,
             flatAssignments,
             docCentroids,
-            ErrorModel.N_QUERY_CLUSTERS,
             qbits,
             dbits,
             kmeans,

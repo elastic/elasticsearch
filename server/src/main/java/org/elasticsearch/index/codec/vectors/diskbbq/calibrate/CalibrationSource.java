@@ -38,5 +38,6 @@ public record CalibrationSource(
     boolean neyshabur,
     Preconditioner preconditioner,
     int[] corpusOrdinals,
-    int k
+    int k,
+    int numVectors
 ) {}

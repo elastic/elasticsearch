@@ -75,8 +75,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
     }
 
     /**
-     * End-to-end check that {@link ErrorModel#estimateErrorScalingFit} and
-     * {@link ErrorModel#estimateMagnitudeModel} compose: scaling is fit once at 4q/1d,
+     * End-to-end check that {@code ErrorModel#estimateErrorScalingFit} and
+     * {@code ErrorModel#estimateMagnitudeModel} compose: scaling is fit once at 4q/1d,
      * then magnitude is fit for a target encoding while reusing the scaling slope.
      */
     public void testErrorScalingFitAndMagnitudeModelCompose() throws IOException {
@@ -187,7 +187,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            CALIBRATION_K
+            CALIBRATION_K,
+            fixture.fvv.size()
         );
     }
 

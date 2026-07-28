@@ -287,10 +287,8 @@ public final class ManifoldModel {
     ) {
         double logK = Math.log(k);
         double logN = Math.log(numDocs);
-        if (isDotLike(similarityFunction)) {
-            return -Math.exp(alpha + (logK - logN) * invDim);
-        }
-        return Math.exp(alpha + (logK - logN) * invDim);
+        double v = Math.exp(alpha + (logK - logN) * invDim);
+        return isDotLike(similarityFunction) ? -v : v;
     }
 
     public static boolean isDotLike(VectorSimilarityFunction similarityFunction) {

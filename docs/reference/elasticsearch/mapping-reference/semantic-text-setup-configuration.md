@@ -11,6 +11,8 @@ applies_to:
 
 This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including [default](#default-endpoints) and [preconfigured](#preconfigured-endpoints) options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 
+`semantic_text` accepts text only. For images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
+
 ## Configure {{infer}} endpoints [configure-inference-endpoints]
 
 You can configure {{infer}} endpoints for `semantic_text` fields in the following ways:
@@ -425,4 +427,3 @@ The `element_type` override is only valid for {{infer}} endpoints that produce `
 For `float` models, valid values are `float` and `bfloat16`.
 For other model element types (such as `byte` or `bit`), the `element_type` must match the model's native element type if specified.
 :::
-

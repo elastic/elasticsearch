@@ -42,15 +42,25 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CAN_MATCH_SHARD_REQUEST_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CAN_MATCH_SHARD_RESULT_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_QUERY_SHARD_RESULT_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_SHARD_REQUEST_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.DFS_SHARD_RESULT_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.FETCH_SHARD_RESULT_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SHARD_RESULT_BYTES_TOTAL_NAME;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
@@ -161,6 +171,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         List<Measurement> fetchMeasurements = plugin.getLongHistogramMeasurement(FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
         assertEquals("one fetch observation per request", 1, fetchMeasurements.size());
         assertThat("fetch response bytes must be > 0", fetchMeasurements.get(0).getLong(), greaterThan(0L));
+
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
     }
 
     public void testNonBatchedQueryThenFetchRecordsNonZeroBytes() {
@@ -189,6 +204,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             List<Measurement> fetchMeasurements = plugin.getLongHistogramMeasurement(FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertEquals("one fetch observation per request", 1, fetchMeasurements.size());
             assertThat("fetch response bytes must be > 0", fetchMeasurements.get(0).getLong(), greaterThan(0L));
+
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
         } finally {
             updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
         }
@@ -230,6 +250,15 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         assertThat("fetch response bytes must be > 0", fetchMeasurements.get(0).getLong(), greaterThan(0L));
 
         assertEquals(0, plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME).size());
+
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertThat(plugin.getLongCounterMeasurement(QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME), empty());
+        assertThat(plugin.getLongCounterMeasurement(QUERY_SHARD_RESULT_BYTES_TOTAL_NAME), empty());
     }
 
     public void testCanMatchRecordsNonZeroBytes() {
@@ -251,6 +280,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         List<Measurement> canMatchRequestMeasurements = plugin.getLongHistogramMeasurement(CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         assertEquals("one can_match request observation per search request", 1, canMatchRequestMeasurements.size());
         assertThat("CanMatchNodeRequest bytes must be > 0", canMatchRequestMeasurements.get(0).getLong(), greaterThan(0L));
+
+        assertCounterMirrorsHistogram(plugin, CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, CAN_MATCH_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, CAN_MATCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
     }
 
     private static long sumHistogram(TestTelemetryPlugin plugin, String... histogramNames) {
@@ -259,6 +291,28 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             total += plugin.getLongHistogramMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
         }
         return total;
+    }
+
+    private static long sumCounter(TestTelemetryPlugin plugin, String... counterNames) {
+        long total = 0;
+        for (String name : counterNames) {
+            total += plugin.getLongCounterMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
+        }
+        return total;
+    }
+
+    /**
+     * Asserts that a {@code .total} counter accumulates the exact same bytes as its {@code .histogram}
+     * sibling, checked at the value level rather than assumed from the fact that both are currently
+     * recorded from the same call site. This is what actually protects against a future change that
+     * decouples the counter from the histogram (e.g. a different guard, a different value source).
+     */
+    private static void assertCounterMirrorsHistogram(TestTelemetryPlugin plugin, String histogramName, String counterName) {
+        assertEquals(
+            "total counter [" + counterName + "] must equal the sum of histogram [" + histogramName + "] observations",
+            sumHistogram(plugin, histogramName),
+            sumCounter(plugin, counterName)
+        );
     }
 
     /**
@@ -334,6 +388,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 fetchRequestMeasurements.stream().mapToLong(Measurement::getLong).sum(),
                 greaterThan(0L)
             );
+
+            // the .total counters must accumulate across all 3 independent observations too
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
         } finally {
             indicesAdmin().prepareDelete(collapseIndex).get();
         }
@@ -353,6 +413,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         );
         long queryResultBytesNoAgg = sumHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
         long queryRequestBytesNoAgg = sumHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
         plugin.resetMeter();
 
         assertSearchHitsWithoutFailures(
@@ -365,6 +427,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         );
         long queryResultBytesWithAgg = sumHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
         long queryRequestBytesWithAgg = sumHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
         assertThat(
             "NodeQueryRequest with aggregation must be larger than without",
             queryRequestBytesWithAgg,
@@ -390,6 +454,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         );
         long fetchRequestBytesSize1 = sumHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long fetchResultBytesSize1 = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
         plugin.resetMeter();
 
         // Fetch both hits → one ShardFetchSearchRequest per shard.
@@ -400,6 +466,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         );
         long fetchRequestBytesSize2 = sumHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long fetchResultBytesSize2 = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
 
         assertThat(
             "fetching more hits must accumulate more request bytes than fetching a single hit",
@@ -440,6 +508,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         long dfsRequestBaseline = sumHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long dfsQueryRequestBaseline = sumHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long dfsQueryResultBaseline = sumHistogram(plugin, DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
         plugin.resetMeter();
 
         // Term query: DfsSearchResult carries term statistics → larger DFS result and query request.
@@ -452,6 +524,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         long dfsResultTerm = sumHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
         long dfsRequestTerm = sumHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long dfsQueryRequestTerm = sumHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_SHARD_RESULT_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
         plugin.resetMeter();
 
         assertThat("term query adds term statistics to DfsSearchResult", dfsResultTerm, greaterThan(dfsResultBaseline));
@@ -474,6 +549,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
         long dfsRequestWithAgg = sumHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         long dfsQueryResultWithAgg = sumHistogram(plugin, DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+        assertCounterMirrorsHistogram(plugin, DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
         assertThat("DFS request with aggregation must be larger than without", dfsRequestWithAgg, greaterThan(dfsQueryRequestBaseline));
         assertThat(
             "DFS QuerySearchResult with aggregation must be larger than without",
@@ -498,6 +575,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             "2"
         );
         long canMatchRequestBytesSimple = sumHistogram(plugin, CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, CAN_MATCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
         plugin.resetMeter();
 
         assertSearchHitsWithoutFailures(
@@ -510,6 +588,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         );
 
         long canMatchRequestBytesComplex = sumHistogram(plugin, CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+        assertCounterMirrorsHistogram(plugin, CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, CAN_MATCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
         assertThat(
             "boolQuery wrapping must serialize more bytes than bare matchAllQuery",
             canMatchRequestBytesComplex,
@@ -533,6 +612,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             long nonChunkedQueryResultBytes = sumHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             long nonChunkedFetchRequestBytes = sumHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
             long nonChunkedFetchResultBytes = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
             plugin.resetMeter();
 
             // Enable chunked fetch: ShardFetchSearchRequest now carries coordinatingNode and coordinatingTaskId.
@@ -547,6 +630,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             long chunkedQueryResultBytes = sumHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             long chunkedFetchRequestBytes = sumHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
             long chunkedFetchResultBytes = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, FETCH_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
 
             assertThat("query request bytes are fetch-method independent", chunkedQueryRequestBytes, equalTo(nonChunkedQueryRequestBytes));
 
@@ -619,6 +706,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             long dfsResultBytesLocalIndex = dfsResultBytes.get(0).getLong();
             assertThat(dfsResultBytesLocalIndex, greaterThan(0L));
 
+            assertCounterMirrorsHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_SHARD_RESULT_BYTES_TOTAL_NAME);
+
             plugin.resetMeter();
 
             // localIndex succeeds, so we move past the dfs phase
@@ -640,6 +730,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             assertThat(dfsResultBytes, hasSize(1));
             assertEquals(dfsResultBytesLocalIndex, dfsResultBytes.get(0).getLong());
 
+            assertCounterMirrorsHistogram(plugin, DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, DFS_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME, DFS_SHARD_RESULT_BYTES_TOTAL_NAME);
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }
@@ -688,6 +780,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             long queryResultBytesLocalIndex = queryResultBytes.get(0).getLong();
             assertThat(queryResultBytesLocalIndex, greaterThan(0L));
 
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
+
             plugin.resetMeter();
 
             assertResponse(
@@ -706,6 +801,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
             assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));
+
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME, QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME);
+            assertCounterMirrorsHistogram(plugin, QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME, QUERY_SHARD_RESULT_BYTES_TOTAL_NAME);
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }
@@ -725,6 +823,8 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
         assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME), empty());
         assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME), empty());
+        assertThat(plugin.getLongCounterMeasurement(QUERY_SHARD_REQUEST_BYTES_TOTAL_NAME), empty());
+        assertThat(plugin.getLongCounterMeasurement(QUERY_SHARD_RESULT_BYTES_TOTAL_NAME), empty());
     }
 
     /**
@@ -768,6 +868,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 "large2"
             );
             long nonChunkedFetchResultBytes = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
             plugin.resetMeter();
 
             // Chunked path: an intermediate chunk carries doc1 and the FetchSearchResult carries doc2.
@@ -779,6 +880,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 "large2"
             );
             long chunkedFetchResultBytes = sumHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertCounterMirrorsHistogram(plugin, FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME, FETCH_SHARD_RESULT_BYTES_TOTAL_NAME);
 
             // The tolerance covers per-chunk format overhead (routing VLong, shardId, hit-position
             // VInts) minus differences in SearchHits vs chunk-stream framing. For 1 intermediate

@@ -424,10 +424,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          */
         public void completeIfFinished() {
             synchronized (checkpoint) {
-                    if (completed.get()) {
-                        return;
-                    }
-                    if (hasFailure() && completed.compareAndSet(false, true)) {
+                if (completed.get()) {
+                    return;
+                }
+                if (hasFailure() && completed.compareAndSet(false, true)) {
                     // An exception occurred during execution.
                     // Fail the operation.
                     completionListener.onFailure(exception.get());

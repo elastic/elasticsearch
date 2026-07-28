@@ -48,9 +48,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -886,7 +886,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             ctx.primaryExpression(),
             ctx.NOT(),
             ctx.RLIKE().getText(),
-            UnresolvedRegexExpression.Variant.RLIKE
+            DeferredRegexExpression.Variant.RLIKE
         );
     }
 
@@ -898,7 +898,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             ctx.primaryExpression(),
             ctx.NOT(),
             ctx.LIKE().getText(),
-            UnresolvedRegexExpression.Variant.LIKE
+            DeferredRegexExpression.Variant.LIKE
         );
     }
 
@@ -906,7 +906,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * Shared builder for the single-value {@code LIKE}/{@code RLIKE} forms. A string literal known
      * at parse time is validated and turned into a concrete {@link WildcardLike}/{@link RLike}
      * immediately; a wrong-typed {@code ?param} is rejected here; any other constant expression
-     * becomes an {@link UnresolvedRegexExpression} placeholder that the optimizer folds later.
+     * becomes an {@link DeferredRegexExpression} placeholder that the optimizer folds later.
      *
      * @param opText the operator keyword exactly as the user typed it, used only in parameter-type
      *               error messages; the fast-path message uses the canonical {@code variant} name.
@@ -917,7 +917,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         EsqlBaseParser.PrimaryExpressionContext patternCtx,
         TerminalNode not,
         String opText,
-        UnresolvedRegexExpression.Variant variant
+        DeferredRegexExpression.Variant variant
     ) {
         Source source = source(ctx);
         Expression left = expression(valueExpr);
@@ -971,7 +971,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             );
         }
         // General constant expression: defer type/foldability checks and folding to the analysis phase
-        UnresolvedRegexExpression regex = new UnresolvedRegexExpression(source, left, right, variant);
+        DeferredRegexExpression regex = new DeferredRegexExpression(source, left, right, variant);
         return not == null ? regex : new Not(source, regex);
     }
 

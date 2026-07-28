@@ -48,8 +48,8 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -1681,29 +1681,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLikeRLikeConstantExpression() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        // At parse time, a non-literal RHS produces an UnresolvedRegexExpression placeholder.
-        // The optimizer folds the pattern and ReplaceUnresolvedRegex converts it to WildcardLike/RLike.
+        // At parse time, a non-literal RHS produces an DeferredRegexExpression placeholder.
+        // The optimizer folds the pattern and ReplaceDeferredRegex converts it to WildcardLike/RLike.
         LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
         assertEquals(Filter.class, cmd.getClass());
-        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
-        assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
 
         cmd = processingCommand("where foo rlike concat(\"pre\", \".*\")");
         assertEquals(Filter.class, cmd.getClass());
-        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
-        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
 
-        // Integer literals parse as UnresolvedRegexExpression too, but the query still fails:
+        // Integer literals parse as DeferredRegexExpression too, but the query still fails:
         // post-optimization verification rejects non-string patterns (see OptimizerVerificationTests).
         cmd = processingCommand("where foo like 12");
         assertEquals(Filter.class, cmd.getClass());
-        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
-        assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
 
         cmd = processingCommand("where foo rlike 12");
         assertEquals(Filter.class, cmd.getClass());
-        assertEquals(UnresolvedRegexExpression.class, ((Filter) cmd).condition().getClass());
-        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, ((UnresolvedRegexExpression) ((Filter) cmd).condition()).variant());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
     }
 
     public void testLikeRLikeConstantExpressionComposition() {
@@ -1712,30 +1712,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // surrounding boolean operators exactly like the old stringOrParameter form.
         Filter and = (Filter) processingCommand("where foo like concat(\"a\", \"*\") and bar > 2");
         And andCond = as(and.condition(), And.class);
-        assertEquals(UnresolvedRegexExpression.class, andCond.left().getClass());
+        assertEquals(DeferredRegexExpression.class, andCond.left().getClass());
         assertEquals(GreaterThan.class, andCond.right().getClass());
 
         // A literal RHS still takes the parse-time fast path (WildcardLike), while a constant expression
-        // on the other side of the OR becomes an UnresolvedRegexExpression placeholder.
+        // on the other side of the OR becomes an DeferredRegexExpression placeholder.
         Filter or = (Filter) processingCommand("where foo like \"a*\" or bar rlike concat(\"b\", \".*\")");
         Or orCond = as(or.condition(), Or.class);
         assertEquals(WildcardLike.class, orCond.left().getClass());
-        assertEquals(UnresolvedRegexExpression.class, orCond.right().getClass());
+        assertEquals(DeferredRegexExpression.class, orCond.right().getClass());
 
         Filter not = (Filter) processingCommand("where not (foo like concat(\"a\", \"*\"))");
         Not notCond = as(not.condition(), Not.class);
-        assertEquals(UnresolvedRegexExpression.class, notCond.field().getClass());
+        assertEquals(DeferredRegexExpression.class, notCond.field().getClass());
     }
 
     public void testLikeRLikeConstantExpressionCast() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
         // A cast expression (`::`) is a primaryExpression, so it is accepted and deferred to the optimizer as
-        // an UnresolvedRegexExpression. Whether it ultimately succeeds depends on the folded value/type, which
+        // an DeferredRegexExpression. Whether it ultimately succeeds depends on the folded value/type, which
         // is exercised in OptimizerVerificationTests.
         for (String pattern : new String[] { "\"abc\"::keyword", "12::keyword", "last_name::keyword" }) {
             Filter cmd = (Filter) processingCommand("where foo like " + pattern);
-            assertEquals(UnresolvedRegexExpression.class, cmd.condition().getClass());
-            assertEquals(UnresolvedRegexExpression.Variant.LIKE, ((UnresolvedRegexExpression) cmd.condition()).variant());
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
+            assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) cmd.condition()).variant());
         }
     }
 
@@ -1753,16 +1753,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         // A parenthesized non-literal expression is deferred to the optimizer.
         Filter paren = (Filter) processingCommand("where foo like (concat(\"a\", \"*\"))");
-        assertEquals(UnresolvedRegexExpression.class, paren.condition().getClass());
+        assertEquals(DeferredRegexExpression.class, paren.condition().getClass());
     }
 
     public void testLikeRLikeConstantExpressionFieldReference() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        // A field reference on the RHS parses as an UnresolvedRegexExpression; it is rejected later as
+        // A field reference on the RHS parses as an DeferredRegexExpression; it is rejected later as
         // non-foldable (see OptimizerVerificationTests).
         for (String pattern : new String[] { "last_name", "some.nested.field" }) {
             Filter cmd = (Filter) processingCommand("where foo like " + pattern);
-            assertEquals(UnresolvedRegexExpression.class, cmd.condition().getClass());
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
         }
     }
 

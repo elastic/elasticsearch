@@ -34,12 +34,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * walk resolves the pattern expression through the normal reference/function resolution rules.
  * <p>
  * After analysis the optimizer's {@code PropagateEvalFoldables} and {@code ConstantFolding} rules
- * run on the pattern child. A subsequent optimizer rule ({@code ReplaceUnresolvedRegex}) then
+ * run on the pattern child. A subsequent optimizer rule ({@code ReplaceDeferredRegex}) then
  * replaces this node with a concrete {@link WildcardLike} or {@link RLike} once the pattern is
  * foldable to a string. Any node that survives to post-optimization verification is reported as
  * an error via {@link #postOptimizationVerification}.
+ * <p>
+ * Naming: {@code Deferred} because its resolution is deferred to the optimizer — deliberately
+ * neither an analyzer {@code Unresolved*} node (it does not implement {@code Unresolvable} and is
+ * not rejected by the {@code Verifier}; it is fully resolved after analysis and intentionally
+ * survives to the optimizer) nor a {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
+ * (that mechanism runs in the substitutions batch, before {@code ConstantFolding}, and its
+ * {@code surrogate()} gets no fold context — so it could not fold the pattern; the dedicated
+ * {@code ReplaceDeferredRegex} rule, placed after {@code ConstantFolding}, does the replacement).
  */
-public class UnresolvedRegexExpression extends Expression implements PostOptimizationVerificationAware {
+public class DeferredRegexExpression extends Expression implements PostOptimizationVerificationAware {
 
     /** Which regex operator this placeholder represents. */
     public enum Variant {
@@ -51,7 +59,7 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
     private final Expression patternExpression;
     private final Variant variant;
 
-    public UnresolvedRegexExpression(Source source, Expression field, Expression patternExpression, Variant variant) {
+    public DeferredRegexExpression(Source source, Expression field, Expression patternExpression, Variant variant) {
         super(source, List.of(field, patternExpression));
         this.field = field;
         this.patternExpression = patternExpression;
@@ -94,8 +102,8 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
 
     /**
      * Validates the pattern after the optimizer has run constant folding and eval propagation.
-     * Any {@code UnresolvedRegexExpression} that survives to this point means the optimizer's
-     * {@code ReplaceUnresolvedRegex} rule could not convert it: the pattern has a non-string type,
+     * Any {@code DeferredRegexExpression} that survives to this point means the optimizer's
+     * {@code ReplaceDeferredRegex} rule could not convert it: the pattern has a non-string type,
      * is not foldable (e.g. a field reference), or the optimizer reduced it to a null literal.
      * <p>
      * The null check uses {@link Expressions#isGuaranteedNull} rather than folding again: after
@@ -130,9 +138,9 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
         if (Expressions.isGuaranteedNull(patternExpression)) {
             failures.add(Failure.fail(patternExpression, "[{}] pattern must not be null", opName));
         } else {
-            // Foldable, string-typed, non-null: ReplaceUnresolvedRegex must have replaced this node.
+            // Foldable, string-typed, non-null: ReplaceDeferredRegex must have replaced this node.
             // Reaching here indicates an optimizer bug.
-            assert false : "BUG: UnresolvedRegexExpression survived optimization with a foldable non-null string pattern";
+            assert false : "BUG: DeferredRegexExpression survived optimization with a foldable non-null string pattern";
             failures.add(Failure.fail(this, "internal error: [{}] pattern was not resolved during optimization", opName));
         }
     }
@@ -144,26 +152,26 @@ public class UnresolvedRegexExpression extends Expression implements PostOptimiz
 
     @Override
     public Object fold(FoldContext ctx) {
-        throw new UnsupportedOperationException("UnresolvedRegexExpression cannot be folded directly");
+        throw new UnsupportedOperationException("DeferredRegexExpression cannot be folded directly");
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("UnresolvedRegexExpression should not be serialized");
+        throw new UnsupportedOperationException("DeferredRegexExpression should not be serialized");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("UnresolvedRegexExpression should not be serialized");
+        throw new UnsupportedOperationException("DeferredRegexExpression should not be serialized");
     }
 
     @Override
-    protected NodeInfo<UnresolvedRegexExpression> info() {
-        return NodeInfo.create(this, UnresolvedRegexExpression::new, field, patternExpression, variant);
+    protected NodeInfo<DeferredRegexExpression> info() {
+        return NodeInfo.create(this, DeferredRegexExpression::new, field, patternExpression, variant);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UnresolvedRegexExpression(source(), newChildren.get(0), newChildren.get(1), variant);
+        return new DeferredRegexExpression(source(), newChildren.get(0), newChildren.get(1), variant);
     }
 }

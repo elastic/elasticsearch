@@ -73,9 +73,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.UnresolvedRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -5181,7 +5181,7 @@ public class AnalyzerTests extends ESTestCase {
 
     /**
      * After analysis (before optimization), a constant-expression LIKE pattern remains as
-     * UnresolvedRegexExpression. The optimizer's ConstantFolding + ReplaceUnresolvedRegex rule
+     * DeferredRegexExpression. The optimizer's ConstantFolding + ReplaceDeferredRegex rule
      * converts it to a concrete WildcardLike; see OptimizerVerificationTests.
      */
     public void testLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
@@ -5189,8 +5189,8 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name like concat(\"Anna\", \"*\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        UnresolvedRegexExpression expr = as(filter.condition(), UnresolvedRegexExpression.class);
-        assertEquals(UnresolvedRegexExpression.Variant.LIKE, expr.variant());
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.LIKE, expr.variant());
     }
 
     /**
@@ -5201,8 +5201,8 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name rlike concat(\"Anna\", \".*\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        UnresolvedRegexExpression expr = as(filter.condition(), UnresolvedRegexExpression.class);
-        assertEquals(UnresolvedRegexExpression.Variant.RLIKE, expr.variant());
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, expr.variant());
     }
 
     /**
@@ -5214,7 +5214,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name like last_name");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        as(filter.condition(), UnresolvedRegexExpression.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     /**
@@ -5225,7 +5225,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name rlike last_name");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        as(filter.condition(), UnresolvedRegexExpression.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     /**
@@ -5237,7 +5237,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name like to_integer(\"42\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        as(filter.condition(), UnresolvedRegexExpression.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     /**
@@ -5248,7 +5248,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = basic().query("from test | where first_name rlike to_integer(\"42\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        as(filter.condition(), UnresolvedRegexExpression.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     public void testConfigurationAwareResolved() {

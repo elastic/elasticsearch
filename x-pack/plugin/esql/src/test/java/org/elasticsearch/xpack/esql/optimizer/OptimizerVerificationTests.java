@@ -737,7 +737,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     /**
      * EVAL with a CONCAT that folds: the optimizer first evaluates CONCAT, then propagates and
-     * converts the UnresolvedRegexExpression, decomposing the prefix pattern into a {@link StartsWith}.
+     * converts the DeferredRegexExpression, decomposing the prefix pattern into a {@link StartsWith}.
      */
     public void testLikeEvalPropagatedConcat() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
@@ -792,7 +792,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     /**
      * EVAL with a matchesAll pattern ("*") should produce IsNotNull, same as the inline case.
-     * ReplaceUnresolvedRegex handles this directly after propagation.
+     * ReplaceDeferredRegex handles this directly after propagation.
      */
     public void testLikeEvalPropagatedMatchesAll() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
@@ -882,7 +882,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
-     * RLIKE pattern ".*" via EVAL matches every non-null string; ReplaceUnresolvedRegex
+     * RLIKE pattern ".*" via EVAL matches every non-null string; ReplaceDeferredRegex
      * detects {@code matchesAll()} and produces {@link IsNotNull} instead of {@link RLike}.
      * Symmetric to {@link #testLikeEvalPropagatedMatchesAll}.
      */
@@ -896,7 +896,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     /**
      * RLIKE pattern with no regex metacharacters ("Anna") via EVAL has only one accepted
-     * string; ReplaceUnresolvedRegex detects {@code exactMatch()} and produces {@link Equals}.
+     * string; ReplaceDeferredRegex detects {@code exactMatch()} and produces {@link Equals}.
      * Symmetric to {@link #testLikeEvalPropagatedExactMatch}.
      */
     public void testRLikeEvalPropagatedExactMatch() {
@@ -919,8 +919,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
-     * NOT LIKE with a constant expression: the parser wraps the UnresolvedRegexExpression in
-     * Not; ReplaceUnresolvedRegex descends into it and resolves the inner node normally.
+     * NOT LIKE with a constant expression: the parser wraps the DeferredRegexExpression in
+     * Not; ReplaceDeferredRegex descends into it and resolves the inner node normally.
      */
     public void testLikeNotConstantExpression() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
@@ -946,7 +946,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     /**
      * NOT LIKE with a non-foldable pattern (a field reference) must be rejected at
      * post-optimization verification. The {@code Not} wrapper must not prevent the
-     * {@code LogicalVerifier} from descending into the inner {@code UnresolvedRegexExpression}.
+     * {@code LogicalVerifier} from descending into the inner {@code DeferredRegexExpression}.
      */
     public void testNotLikeNonFoldablePatternReportsError() {
         assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
@@ -969,7 +969,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * it, producing a VerificationException, while the literal-pattern path via
      * {@code WildcardLike} would accept it via {@code isString}. This test locks in the
      * correct behaviour after the fix to use {@code isString} in
-     * {@code UnresolvedRegexExpression.resolveType()}.
+     * {@code DeferredRegexExpression.resolveType()}.
      * {@code gender} in mapping-basic.json is a pure text field with no keyword sub-field.
      */
     public void testLikeConstantExpressionOnTextField() {

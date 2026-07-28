@@ -269,21 +269,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=tsdb/27_id_generation_synthetic_id_true/create operation on top of old document fails}
   issue: https://github.com/elastic/elasticsearch/issues/155027
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.mvJoinKeyFromRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155103
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155104
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:folding.mvDouble_Equals_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/155105
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/155106
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
-  issue: https://github.com/elastic/elasticsearch/issues/155113
 
 # Examples:
 #

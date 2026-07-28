@@ -514,12 +514,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             var le = firstPhaseResult.header().column(HistogramQuantile.LE_LABEL);
             if (le == null) {
                 // like prometheus, return warning and drop series w/o `le`
-                HeaderWarning.addWarning(
-                    "function [{}] input vector lacks required [ "
-                        + HistogramQuantile.LE_LABEL
-                        + " ] label for histogram bucket evaluation",
-                    definition.name()
-                );
+                HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
                 var skipAllFilter = new Filter(hq.source(), childPlan, Literal.FALSE);
                 var nullGrouping = new Values(hq.source(), new Literal(hq.source(), null, DataType.DOUBLE));
                 return doTranslateAgg(firstPhaseResult, skipAllFilter, firstPhaseResult.header(), false, nullGrouping);

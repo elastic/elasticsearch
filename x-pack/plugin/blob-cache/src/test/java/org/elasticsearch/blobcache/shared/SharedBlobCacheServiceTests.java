@@ -4821,6 +4821,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // the never-evict policy rejects all regions, crossing the threshold and triggering degradation
             final boolean decayed = fillAndMaybeDecay(cacheService, taskQueue);
             evictRandomly(cacheService, regionSize, decayed);
+            // We have up to 20 regions, and its degradation threshold of 95% is 19 regions. So the degradation
+            // kicks in on the 20th region, which means the policy is called numRegions times.
             assertThat(policyCallCount.get(), equalTo(numRegions));
             assertTrue(evicted.get());
         }

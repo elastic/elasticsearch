@@ -30,13 +30,17 @@ public class TransportPutRoleAction extends TransportAction<PutRoleRequest, PutR
 
     @Override
     protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        rolesStore.putRole(request.getRefreshPolicy(), request.roleDescriptor(), listener.safeMap(created -> {
-            if (created) {
+        rolesStore.putRoleWithPreviousState(request.getRefreshPolicy(), request.roleDescriptor(), listener.safeMap(result -> {
+            if (result.created()) {
                 logger.info("added role [{}]", request.name());
             } else {
                 logger.info("updated role [{}]", request.name());
             }
-            return new PutRoleResponse(created);
+            final PutRoleResponse response = new PutRoleResponse(result.created());
+            // Carry the reliable before-image (if captured) to the audit trail via a transient,
+            // non-serialized response field. It is null unless diff auditing is enabled and the role previously existed.
+            response.setPreviousRoleDescriptor(result.previous());
+            return response;
         }));
     }
 }

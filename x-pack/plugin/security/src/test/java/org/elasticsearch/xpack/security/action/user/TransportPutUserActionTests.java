@@ -205,10 +205,10 @@ public class TransportPutUserActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             @SuppressWarnings("unchecked")
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-            listener.onResponse(created);
+            ActionListener<NativeUsersStore.PutUserResult> listener = (ActionListener<NativeUsersStore.PutUserResult>) args[1];
+            listener.onResponse(new NativeUsersStore.PutUserResult(created, null, false));
             return null;
-        }).when(usersStore).putUser(eq(request), anyActionListener());
+        }).when(usersStore).putUserWithPreviousState(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -227,7 +227,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().created(), is(created));
-        verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
+        verify(usersStore, times(1)).putUserWithPreviousState(eq(request), anyActionListener());
     }
 
     public void testInvalidUserWithSpecialChars() {
@@ -340,10 +340,10 @@ public class TransportPutUserActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             @SuppressWarnings("unchecked")
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
+            ActionListener<NativeUsersStore.PutUserResult> listener = (ActionListener<NativeUsersStore.PutUserResult>) args[1];
             listener.onFailure(e);
             return null;
-        }).when(usersStore).putUser(eq(request), anyActionListener());
+        }).when(usersStore).putUserWithPreviousState(eq(request), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -362,6 +362,6 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
-        verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
+        verify(usersStore, times(1)).putUserWithPreviousState(eq(request), anyActionListener());
     }
 }

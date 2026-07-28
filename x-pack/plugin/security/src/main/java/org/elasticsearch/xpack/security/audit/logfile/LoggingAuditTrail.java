@@ -78,14 +78,17 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
@@ -95,6 +98,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
@@ -121,6 +125,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -155,6 +160,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICA
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGE;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGE_DIFF;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
@@ -169,6 +175,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
     public static final String SECURITY_CHANGE_ORIGIN_FIELD_VALUE = "security_config_change";
+    // event.type of the opt-in before/after diff record. Gated by the SECURITY_CONFIG_CHANGE_DIFF audit level.
+    public static final String SECURITY_CHANGE_DIFF_ORIGIN_FIELD_VALUE = "security_config_change_diff";
 
     // changing any of these field names requires changing the log4j2.properties file(s) too
     public static final String LOG_TYPE = "type";
@@ -222,6 +230,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String CHANGE_CONFIG_FIELD_NAME = "change";
     public static final String CREATE_CONFIG_FIELD_NAME = "create";
     public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate";
+    // top-level audit field of the opt-in post-execution record (event.type=security_config_change_diff),
+    // a boolean indicating whether the security object was created (true) or updated (false). It has a matching entry in
+    // log4j2.properties. See coordinatingActionResponse.
+    public static final String CREATED_FIELD_NAME = "created";
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(
@@ -286,6 +298,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     );
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(
         setting("audit.logfile.events.emit_request_body"),
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+    // Opt-in, off by default. Independent of the SECURITY_CONFIG_CHANGE_DIFF audit level (which controls
+    // whether the post-execution outcome record is emitted at all): this setting additionally includes the reliable before/after
+    // diff in that record. Because capturing the "before" image requires a GET + compare-and-swap read-modify-write in the store,
+    // it changes the write path, so the cost is only paid when this is explicitly enabled (on top of the audit level).
+    public static final Setting<Boolean> EMIT_CONFIG_CHANGE_DIFF = Setting.boolSetting(
+        setting("audit.logfile.events.emit_security_config_change_diff"),
         false,
         Property.NodeScope,
         Property.Dynamic
@@ -358,6 +380,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     // package for testing
     volatile EnumSet<AuditLevel> events;
     volatile boolean includeRequestBody;
+    // Gates inclusion of the before/after diff (and the store's GET+CAS capture). See EMIT_CONFIG_CHANGE_DIFF.
+    volatile boolean emitConfigChangeDiff;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -390,6 +414,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
+        this.emitConfigChangeDiff = EMIT_CONFIG_CHANGE_DIFF.get(settings);
         this.threadContext = threadContext;
         this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
@@ -398,6 +423,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
             this.entryCommonFields = this.entryCommonFields.withNewSettings(newSettings);
             this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
+            this.emitConfigChangeDiff = EMIT_CONFIG_CHANGE_DIFF.get(newSettings);
             // `events` is a volatile field! Keep `events` write last so that
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
@@ -412,7 +438,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 EMIT_CLUSTER_UUID_SETTING,
                 INCLUDE_EVENT_SETTINGS,
                 EXCLUDE_EVENT_SETTINGS,
-                INCLUDE_REQUEST_BODY
+                INCLUDE_REQUEST_BODY,
+                EMIT_CONFIG_CHANGE_DIFF
             )
         );
         clusterService.getClusterSettings()
@@ -1127,7 +1154,70 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest transportRequest,
         TransportResponse transportResponse
     ) {
-        // not implemented yet
+        // Opt-in, off by default. When the SECURITY_CONFIG_CHANGE_DIFF audit level is enabled (via the audit
+        // events include/exclude settings), emit a post-execution `security_config_change_diff` record for the native upsert actions
+        // (put_user/put_role/put_role_mapping, plus one record per role for bulk_put_roles) carrying a top-level `created` flag that
+        // distinguishes creation from modification. This is a post-execution companion to the pre-execution `security_config_change`
+        // record and is correlated to it by request.id. Additionally, when the EMIT_CONFIG_CHANGE_DIFF setting is enabled, the records
+        // for put_role and bulk_put_roles also carry the reliable before/after states and changed fields captured by NativeRolesStore.
+        // Dispatch is on the response/request types, so when the level is disabled or the response is not one of these upserts this is a
+        // no-op and default audit output is unchanged. This hook fires only on successful completion, so failed writes (including
+        // exhausted compare-and-swap retries, and individually-failed items of a bulk request) emit no record.
+        if (events.contains(SECURITY_CONFIG_CHANGE_DIFF) == false) {
+            return;
+        }
+        try {
+            if (transportResponse instanceof PutRoleResponse putRoleResponse && transportRequest instanceof PutRoleRequest putRoleRequest) {
+                securityChangeDiffLogEntryBuilder(requestId).withPutRoleOutcome(
+                    putRoleRequest.name(),
+                    putRoleResponse.isCreated(),
+                    putRoleResponse.getPreviousRoleDescriptor(),
+                    putRoleRequest.roleDescriptor(),
+                    emitConfigChangeDiff
+                ).build();
+            } else if (transportResponse instanceof PutUserResponse putUserResponse
+                && transportRequest instanceof PutUserRequest putUserRequest) {
+                    securityChangeDiffLogEntryBuilder(requestId).withPutUserOutcome(
+                        putUserRequest,
+                        putUserResponse.created(),
+                        putUserResponse.getPreviousUser(),
+                        putUserResponse.previousHadPassword(),
+                        emitConfigChangeDiff
+                    ).build();
+                } else if (transportResponse instanceof PutRoleMappingResponse putRoleMappingResponse
+                    && transportRequest instanceof PutRoleMappingRequest putRoleMappingRequest) {
+                        securityChangeDiffLogEntryBuilder(requestId).withPutRoleMappingOutcome(
+                            putRoleMappingRequest.getName(),
+                            putRoleMappingResponse.isCreated()
+                        ).build();
+                    } else if (transportResponse instanceof BulkRolesResponse bulkRolesResponse
+                        && transportRequest instanceof BulkPutRolesRequest bulkPutRolesRequest) {
+                            // One diff record per successfully upserted role, correlated to the pre-execution records by request.id.
+                            // Failed items (validation errors, exhausted compare-and-swap retries) carry no outcome and are skipped.
+                            final Map<String, RoleDescriptor> afterByRoleName = new HashMap<>();
+                            for (RoleDescriptor roleDescriptor : bulkPutRolesRequest.getRoles()) {
+                                afterByRoleName.put(roleDescriptor.getName(), roleDescriptor);
+                            }
+                            for (BulkRolesResponse.Item item : bulkRolesResponse.getItems()) {
+                                if (item.isFailed()) {
+                                    continue;
+                                }
+                                final RoleDescriptor after = afterByRoleName.get(item.getRoleName());
+                                if (after == null) {
+                                    continue;
+                                }
+                                securityChangeDiffLogEntryBuilder(requestId).withPutRoleOutcome(
+                                    item.getRoleName(),
+                                    "created".equals(item.getResultType()),
+                                    bulkRolesResponse.getPreviousRoleDescriptor(item.getRoleName()),
+                                    after,
+                                    emitConfigChangeDiff
+                                ).build();
+                            }
+                        }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to build the security_config_change_diff audit record", e);
+        }
     }
 
     public boolean includeRequestBody() {
@@ -1136,6 +1226,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
+    }
+
+    // Builder for the opt-in before/after diff record. Gated by the SECURITY_CONFIG_CHANGE_DIFF audit level.
+    private LogEntryBuilder securityChangeDiffLogEntryBuilder(String requestId) {
+        return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_DIFF_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
 
     private class LogEntryBuilder {
@@ -1160,28 +1255,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(PutUserRequest putUserRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                .startObject("user")
-                .field("name", putUserRequest.username())
-                .field("enabled", putUserRequest.enabled())
-                .array("roles", putUserRequest.roles());
-            if (putUserRequest.fullName() != null) {
-                builder.field("full_name", putUserRequest.fullName());
-            }
-            if (putUserRequest.email() != null) {
-                builder.field("email", putUserRequest.email());
-            }
-            // password and password hashes are not exposed in the audit log
-            builder.field("has_password", putUserRequest.passwordHash() != null);
-            if (putUserRequest.metadata() != null && false == putUserRequest.metadata().isEmpty()) {
-                // JSON building for the metadata might fail when encountering unknown class types.
-                // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
-                // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
-                // Also the malevolent metadata can only be produced by the transport client.
-                builder.field("metadata", putUserRequest.metadata());
-            }
-            builder.endObject() // user
-                .endObject();
+            builder.startObject().field("user");
+            withUserObject(
+                builder,
+                putUserRequest.username(),
+                putUserRequest.enabled(),
+                putUserRequest.roles(),
+                putUserRequest.fullName(),
+                putUserRequest.email(),
+                putUserRequest.passwordHash() != null,
+                putUserRequest.metadata()
+            );
+            builder.endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
@@ -1216,6 +1301,106 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRoleDescriptor(builder, roleDescriptor);
             builder.endObject() // role
                 .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        // The post-execution outcome record for a put_role upsert. Always records the object identity plus a
+        // top-level `created` flag. When {@code includeDiff} is set (EMIT_CONFIG_CHANGE_DIFF enabled), the "put" object also carries
+        // the reliable "before" image captured by the store (null when the role was created), the "after" (requested) state, and the
+        // "changed_fields" list of differing top-level role fields.
+        LogEntryBuilder withPutRoleOutcome(
+            String roleName,
+            boolean created,
+            @Nullable RoleDescriptor before,
+            RoleDescriptor after,
+            boolean includeDiff
+        ) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
+            logEntry.with(CREATED_FIELD_NAME, Boolean.toString(created));
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("role").field("name", roleName);
+            if (includeDiff) {
+                builder.field("before");
+                if (before == null) {
+                    builder.nullValue();
+                } else {
+                    withRoleDescriptor(builder, before);
+                }
+                builder.field("after");
+                withRoleDescriptor(builder, after);
+                if (before != null) {
+                    builder.array("changed_fields", roleDescriptorChangedFields(before, after).toArray(String[]::new));
+                }
+            }
+            builder.endObject() // role
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        // The post-execution outcome record for a put_user upsert. Always records the object identity plus a top-level `created`
+        // flag. When {@code includeDiff} is set (EMIT_CONFIG_CHANGE_DIFF enabled), the "put" object also carries the reliable
+        // "before" image captured by the store (null when the user was created), the "after" (requested) state, and the
+        // "changed_fields" list of differing top-level user fields. The password hash is never logged; only whether a password
+        // is set is surfaced (as "has_password"), and "password" appears in "changed_fields" only when that presence changes.
+        LogEntryBuilder withPutUserOutcome(
+            PutUserRequest request,
+            boolean created,
+            @Nullable User before,
+            boolean beforeHadPassword,
+            boolean includeDiff
+        ) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user");
+            logEntry.with(CREATED_FIELD_NAME, Boolean.toString(created));
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("user").field("name", request.username());
+            if (includeDiff) {
+                builder.field("before");
+                if (before == null) {
+                    builder.nullValue();
+                } else {
+                    // name omitted: it is carried on the enclosing "user" object
+                    withUserObject(
+                        builder,
+                        null,
+                        before.enabled(),
+                        before.roles(),
+                        before.fullName(),
+                        before.email(),
+                        beforeHadPassword,
+                        before.metadata()
+                    );
+                }
+                final boolean afterHasPassword = request.passwordHash() != null || beforeHadPassword;
+                builder.field("after");
+                withUserObject(
+                    builder,
+                    null,
+                    request.enabled(),
+                    request.roles(),
+                    request.fullName(),
+                    request.email(),
+                    afterHasPassword,
+                    request.metadata()
+                );
+                if (before != null) {
+                    builder.array("changed_fields", userChangedFields(before, beforeHadPassword, request).toArray(String[]::new));
+                }
+            }
+            builder.endObject() // user
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        // The post-execution outcome record for a put_role_mapping upsert - the object identity plus a
+        // top-level `created` flag. No before/after diff is captured for role mappings.
+        LogEntryBuilder withPutRoleMappingOutcome(String roleMappingName, boolean created) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role_mapping");
+            logEntry.with(CREATED_FIELD_NAME, Boolean.toString(created));
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("role_mapping").field("name", roleMappingName).endObject().endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
@@ -1405,6 +1590,105 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 "expiration",
                 baseUpdateApiKeyRequest.getExpiration() != null ? baseUpdateApiKeyRequest.getExpiration().toString() : null
             );
+        }
+
+        // The top-level role fields that differ between the before and after images, using the same field
+        // names as the rendered role descriptor. Kept intentionally coarse (top-level only).
+        private static List<String> roleDescriptorChangedFields(RoleDescriptor before, RoleDescriptor after) {
+            final List<String> changed = new ArrayList<>();
+            if (Arrays.equals(before.getClusterPrivileges(), after.getClusterPrivileges()) == false) {
+                changed.add(RoleDescriptor.Fields.CLUSTER.getPreferredName());
+            }
+            if (Arrays.equals(before.getConditionalClusterPrivileges(), after.getConditionalClusterPrivileges()) == false) {
+                changed.add(RoleDescriptor.Fields.GLOBAL.getPreferredName());
+            }
+            if (Arrays.equals(before.getIndicesPrivileges(), after.getIndicesPrivileges()) == false) {
+                changed.add(RoleDescriptor.Fields.INDICES.getPreferredName());
+            }
+            if (Arrays.equals(before.getApplicationPrivileges(), after.getApplicationPrivileges()) == false) {
+                changed.add(RoleDescriptor.Fields.APPLICATIONS.getPreferredName());
+            }
+            if (Arrays.equals(before.getRunAs(), after.getRunAs()) == false) {
+                changed.add(RoleDescriptor.Fields.RUN_AS.getPreferredName());
+            }
+            if (Objects.equals(before.getMetadata(), after.getMetadata()) == false) {
+                changed.add(RoleDescriptor.Fields.METADATA.getPreferredName());
+            }
+            if (Arrays.equals(before.getRemoteIndicesPrivileges(), after.getRemoteIndicesPrivileges()) == false) {
+                changed.add(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
+            }
+            if (Objects.equals(before.getRemoteClusterPermissions(), after.getRemoteClusterPermissions()) == false) {
+                changed.add(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName());
+            }
+            if (Objects.equals(before.getDescription(), after.getDescription()) == false) {
+                changed.add(RoleDescriptor.Fields.DESCRIPTION.getPreferredName());
+            }
+            return changed;
+        }
+
+        // The single, canonical rendering of a user's redaction-safe profile as a JSON object, shared by both the pre-execution
+        // put_user record (via {@link #withRequestBody(PutUserRequest)}) and the before/after images of the post-execution diff
+        // record (via {@link #withPutUserOutcome}). The identity {@code name} is included when non-null and omitted when the
+        // caller carries it on the enclosing object (as the diff record does). The password hash is never rendered; only whether
+        // a password is set is surfaced via "has_password", which the caller computes.
+        private static void withUserObject(
+            XContentBuilder builder,
+            @Nullable String name,
+            boolean enabled,
+            String[] roles,
+            @Nullable String fullName,
+            @Nullable String email,
+            boolean hasPassword,
+            @Nullable Map<String, Object> metadata
+        ) throws IOException {
+            builder.startObject();
+            if (name != null) {
+                builder.field("name", name);
+            }
+            builder.field("enabled", enabled).array("roles", roles);
+            if (fullName != null) {
+                builder.field("full_name", fullName);
+            }
+            if (email != null) {
+                builder.field("email", email);
+            }
+            // password and password hashes are not exposed in the audit log
+            builder.field("has_password", hasPassword);
+            if (metadata != null && false == metadata.isEmpty()) {
+                // JSON building for the metadata might fail when encountering unknown class types.
+                // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
+                // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                // Also the malevolent metadata can only be produced by the transport client.
+                builder.field("metadata", metadata);
+            }
+            builder.endObject();
+        }
+
+        // The top-level user fields that differ between the before image and the requested after state. "password" is reported
+        // only when the presence of a password changes (never by comparing hashes), since put_user cannot observe a hash change.
+        private static List<String> userChangedFields(User before, boolean beforeHadPassword, PutUserRequest after) {
+            final List<String> changed = new ArrayList<>();
+            if (before.enabled() != after.enabled()) {
+                changed.add("enabled");
+            }
+            if (Arrays.equals(before.roles(), after.roles()) == false) {
+                changed.add("roles");
+            }
+            if (Objects.equals(before.fullName(), after.fullName()) == false) {
+                changed.add("full_name");
+            }
+            if (Objects.equals(before.email(), after.email()) == false) {
+                changed.add("email");
+            }
+            final Map<String, Object> afterMetadata = after.metadata() == null ? Map.of() : after.metadata();
+            if (Objects.equals(before.metadata(), afterMetadata) == false) {
+                changed.add("metadata");
+            }
+            final boolean afterHasPassword = after.passwordHash() != null || beforeHadPassword;
+            if (afterHasPassword != beforeHadPassword) {
+                changed.add("password");
+            }
+            return changed;
         }
 
         private static void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
@@ -1881,6 +2165,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
+        settings.add(EMIT_CONFIG_CHANGE_DIFF);
         settings.add(FILTER_POLICY_IGNORE_PRINCIPALS);
         settings.add(FILTER_POLICY_IGNORE_INDICES);
         settings.add(FILTER_POLICY_IGNORE_ROLES);

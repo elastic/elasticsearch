@@ -10,22 +10,24 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.util.function.DoubleToLongFunction;
 import java.util.function.LongUnaryOperator;
 
 /**
- * Converts a numeric {@link EscfColumn} (LONG or DOUBLE kind) into an {@link EscfColumnData} of
- * LONG kind whose values are the sortable-long doc-values encoding for a given
- * {@link NumberFieldMapper.NumberType}. The sortable encoding ({@link NumericUtils#floatToSortableInt},
- * {@link NumericUtils#doubleToSortableLong}) is applied by {@code NumberType.addFields}, not the
- * parser; this class reproduces it without boxing or calling {@code NumberType.parse}.
+ * Converts a numeric {@link EscfColumn} (LONG, DOUBLE, STRING, or ARRAY) into an
+ * {@link EscfColumnData} of LONG kind holding the sortable-long doc-values encoding for a given
+ * {@link NumberFieldMapper.NumberType}. STRING values are parsed with indexing-path semantics:
+ * integer types try an ASCII fast path then fall back to {@link AbstractXContentParser};
+ * float/double go straight to {@link String} parsing. {@code coerce=false} rejects any string.
  */
 public final class NumberColumnTransform {
 
@@ -40,11 +42,12 @@ public final class NumberColumnTransform {
         return switch (source.kind()) {
             case EscfColumnKind.LONG -> fromLong(source, type, recycler);
             case EscfColumnKind.DOUBLE -> fromDouble(source, type, coerce, recycler);
+            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler);
             case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
-                    + "] — only LONG, DOUBLE, and ARRAY are supported"
+                    + "] — only LONG, DOUBLE, STRING, and ARRAY are supported"
             );
         };
     }
@@ -63,13 +66,151 @@ public final class NumberColumnTransform {
         EscfColumnData transformedChild = switch (child.kind()) {
             case EscfColumnKind.LONG -> fromLong(child, type, recycler);
             case EscfColumnKind.DOUBLE -> fromDouble(child, type, coerce, recycler);
+            case EscfColumnKind.STRING -> fromString(child, type, coerce, recycler);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: ARRAY child kind ["
                     + EscfColumnKind.name(child.kind())
-                    + "] is not supported — child must be LONG or DOUBLE"
+                    + "] is not supported — child must be LONG, DOUBLE, or STRING"
             );
         };
         return EscfColumnData.ofArray(sourceData.docCount(), sourceData.validity(), sourceData.offsets(), transformedChild);
+    }
+
+    private static EscfColumnData fromString(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler
+    ) {
+        AbstractXContentParser.checkCoerceString(coerce, classForType(type));
+        EscfColumnBuilder builder = newLongBuilder(recycler);
+        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor();
+        final long min = integerMinForType(type);
+        final long max = integerMaxForType(type);
+        final long[] scratch = new long[1];
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            builder.setLong(doc, stringToSortableLong(cursor.value(), type, min, max, scratch));
+        }
+        return builder.finish(source.docCount());
+    }
+
+    /**
+     * Parses a UTF-8 {@link BytesRef} into the sortable-long encoding for {@code type}: integer
+     * types try the ASCII fast path first, float/double go straight to the string slow path.
+     */
+    private static long stringToSortableLong(BytesRef ref, NumberFieldMapper.NumberType type, long min, long max, long[] scratch) {
+        return switch (type) {
+            case FLOAT, HALF_FLOAT, DOUBLE -> stringSlowPath(ref, type);
+            case BYTE, SHORT, INTEGER, LONG -> tryParseAsciiLong(ref, min, max, scratch) ? scratch[0] : stringSlowPath(ref, type);
+        };
+    }
+
+    /** Lower bound for the integer ASCII fast path; float/double are unused (they take the slow path). */
+    private static long integerMinForType(NumberFieldMapper.NumberType type) {
+        return switch (type) {
+            case BYTE -> Byte.MIN_VALUE;
+            case SHORT -> Short.MIN_VALUE;
+            case INTEGER -> Integer.MIN_VALUE;
+            case LONG, FLOAT, HALF_FLOAT, DOUBLE -> Long.MIN_VALUE;
+        };
+    }
+
+    /** Upper bound for the integer ASCII fast path; float/double are unused (they take the slow path). */
+    private static long integerMaxForType(NumberFieldMapper.NumberType type) {
+        return switch (type) {
+            case BYTE -> Byte.MAX_VALUE;
+            case SHORT -> Short.MAX_VALUE;
+            case INTEGER -> Integer.MAX_VALUE;
+            case LONG, FLOAT, HALF_FLOAT, DOUBLE -> Long.MAX_VALUE;
+        };
+    }
+
+    /** Slow-path String fallback; separate to avoid inlining cold code into the hot path. */
+    private static long stringSlowPath(BytesRef ref, NumberFieldMapper.NumberType type) {
+        String s = ref.utf8ToString();
+        return switch (type) {
+            case LONG -> AbstractXContentParser.toLong(s, true);
+            case INTEGER -> AbstractXContentParser.parseInt(s);
+            case SHORT -> AbstractXContentParser.parseShort(s);
+            case BYTE -> {
+                // BYTE indexes via parser.intValue, so the coerce-rejection class is Integer.
+                int intVal = AbstractXContentParser.parseInt(s);
+                if (intVal < Byte.MIN_VALUE || intVal > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + intVal + "] is out of range for a byte");
+                }
+                yield intVal;
+            }
+            case FLOAT -> doubleToFloatSortable(Float.parseFloat(s));
+            case HALF_FLOAT -> toValidatedHalfFloat(Float.parseFloat(s));
+            case DOUBLE -> {
+                double d = Double.parseDouble(s);
+                if (Double.isFinite(d) == false) {
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + d + "]");
+                }
+                yield NumericUtils.doubleToSortableLong(d);
+            }
+        };
+    }
+
+    /**
+     * Parses a plain ASCII decimal integer from {@code ref} into {@code out[0]} without allocating
+     * a {@link String}. Accepts optional {@code '-'} then one or more ASCII digits, nothing else;
+     * accumulates negatively to handle {@link Long#MIN_VALUE} without overflow. Returns {@code true}
+     * on success; {@code false} if the bytes are not a plain integer or the value is outside
+     * {@code [min, max]} — the caller then falls back to {@link String} parsing.
+     */
+    private static boolean tryParseAsciiLong(BytesRef ref, long min, long max, long[] out) {
+        byte[] bytes = ref.bytes;
+        int offset = ref.offset;
+        int len = ref.length;
+        if (len == 0) {
+            return false;
+        }
+        int pos = offset;
+        int end = offset + len;
+        boolean negative = false;
+        if (bytes[pos] == '-') {
+            negative = true;
+            pos++;
+            if (pos == end) {
+                return false; // bare '-' is not a number
+            }
+        }
+        long negativeAcc = 0;
+        while (pos < end) {
+            int digit = bytes[pos] - '0';
+            if (digit < 0 || digit > 9) {
+                return false; // non-digit byte (e.g. '.', 'e', '+', whitespace)
+            }
+            if (negativeAcc < Long.MIN_VALUE / 10) {
+                return false; // would overflow on next multiply
+            }
+            negativeAcc = negativeAcc * 10 - digit;
+            if (negativeAcc > 0) {
+                return false; // wrapped around (only possible for very large magnitudes)
+            }
+            pos++;
+        }
+        long value = negative ? negativeAcc : -negativeAcc;
+        if (negative == false && negativeAcc == Long.MIN_VALUE) {
+            return false; // -Long.MIN_VALUE overflows; narrower types can't represent it anyway
+        }
+        if (value < min || value > max) {
+            return false; // out of target-type range → let String path produce the proper error message
+        }
+        out[0] = value;
+        return true;
+    }
+
+    private static Class<? extends Number> classForType(NumberFieldMapper.NumberType type) {
+        return switch (type) {
+            case LONG -> Long.class;
+            case INTEGER -> Integer.class;
+            case SHORT -> Short.class;
+            case BYTE -> Integer.class; // BYTE indexes via parser.intValue
+            case FLOAT, HALF_FLOAT -> Float.class;
+            case DOUBLE -> Double.class;
+        };
     }
 
     private static EscfColumnData fromLong(EscfColumn source, NumberFieldMapper.NumberType type, Recycler<BytesRef> recycler) {
@@ -121,7 +262,6 @@ public final class NumberColumnTransform {
         Recycler<BytesRef> recycler
     ) {
         return switch (type) {
-            // sortableDoubleBits is a branch-free bit-op equivalent to doubleToSortableLong.
             case DOUBLE -> copyDoubleBits(source, recycler);
             case FLOAT -> copyDouble(source, NumberColumnTransform::doubleToFloatSortable, recycler);
             case BYTE -> narrowDoubleToInteger(source, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte", coerce, recycler);

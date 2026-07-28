@@ -153,7 +153,8 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
             // Sparse columns must be consumed via tuples(); the dense values cursor is undefined for absent rows.
             return super.values();
         }
-        return data.longValuesCursor();
+        // DENSE is only set when data is an EscfLongColumn with no validity bitset (see factory methods).
+        return ((EscfLongColumn) data).longValuesCursor();
     }
 
     private static final class ColumnLongField extends Field {

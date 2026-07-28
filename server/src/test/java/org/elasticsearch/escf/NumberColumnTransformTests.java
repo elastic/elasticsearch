@@ -14,6 +14,7 @@ import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -648,6 +649,311 @@ public class NumberColumnTransformTests extends ESTestCase {
                 () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.BYTE, false, BytesRefRecycler.NON_RECYCLING_INSTANCE)
             );
         }
+    }
+
+    // =================== STRING column tests ===================
+
+    /**
+     * Builds a scalar STRING {@link EscfColumnData} where each non-null entry in {@code values}
+     * becomes a present row and each null entry becomes an absent row. The string bytes are stored
+     * verbatim as UTF-8.
+     */
+    private static EscfColumnData stringColumnData(String... values) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != null) {
+                b.setString(i, new BytesRef(values[i]));
+            }
+        }
+        return b.finish(values.length);
+    }
+
+    /**
+     * Builds an ARRAY-of-STRING {@link EscfColumnData}. Each non-null entry in {@code rows} is an
+     * array of strings (possibly empty); null entries are absent rows.
+     */
+    private static EscfColumnData stringArrayColumnData(String[]... rows) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        for (int doc = 0; doc < rows.length; doc++) {
+            if (rows[doc] != null) {
+                b.beginArray(doc);
+                for (String s : rows[doc]) {
+                    b.appendString(new BytesRef(s));
+                }
+                b.endArray();
+            }
+        }
+        return b.finish(rows.length);
+    }
+
+    /** Happy path: integer strings parse to the expected sortable-long for each integer type. */
+    public void testStringToLong_integerTypes_happyPath() {
+        NumberType[] intTypes = { NumberType.LONG, NumberType.INTEGER, NumberType.SHORT, NumberType.BYTE };
+        long[] values = { 0L, 1L, -1L, 42L, 127L, -128L };
+        for (NumberType type : intTypes) {
+            long[] inRange = java.util.Arrays.stream(values).filter(v -> isLongInRange(v, type)).toArray();
+            String[] strs = java.util.Arrays.stream(inRange).mapToObj(Long::toString).toArray(String[]::new);
+            EscfColumnData src = stringColumnData(strs);
+            EscfColumn col = EscfColumn.from(src);
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(col, type, true, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+            long[] actual = readValues(out, inRange.length);
+            for (int i = 0; i < inRange.length; i++) {
+                assertEquals(type + " string \"" + strs[i] + "\"", inRange[i], actual[i]);
+            }
+        }
+    }
+
+    /** Absent rows in a STRING column propagate to the output as absent rows. */
+    public void testStringToLong_absentRows() {
+        EscfColumnData src = stringColumnData("10", null, "30");
+        EscfColumn col = EscfColumn.from(src);
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            col,
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 3);
+        assertEquals(10L, vals[0]);
+        assertEquals(Long.MIN_VALUE, vals[1]); // absent sentinel
+        assertEquals(30L, vals[2]);
+    }
+
+    /**
+     * ASCII fast-path equivalence: strings that look like plain integers (fast path) and strings
+     * that require the fallback (scientific notation, decimal) must produce the same result for LONG.
+     */
+    public void testStringToLong_fastPathAndFallbackEquivalent() {
+        // "1000" → fast path; "1e3" → fallback; both should equal 1000L
+        EscfColumnData fast = stringColumnData("1000");
+        EscfColumnData slow = stringColumnData("1e3");
+        long fastVal = readValues(
+            NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(fast),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            ),
+            1
+        )[0];
+        long slowVal = readValues(
+            NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(slow),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            ),
+            1
+        )[0];
+        assertEquals("fast-path and fallback must agree for \"1000\" vs \"1e3\"", fastVal, slowVal);
+    }
+
+    /** LONG string: decimal with coerce=true truncates (matches AbstractXContentParser.toLong). */
+    public void testStringToLong_decimal_coerceTrue_truncates() {
+        EscfColumnData src = stringColumnData("1.9");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        assertEquals(1L, readValues(out, 1)[0]);
+    }
+
+    /** LONG string: decimal with coerce=false throws "has a decimal part". */
+    public void testStringToLong_decimal_coerceFalse_throws() {
+        EscfColumnData src = stringColumnData("1.9");
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+        assertTrue("expected coerce message but got: " + ex.getMessage(), ex.getMessage().contains("Long value passed as String"));
+    }
+
+    /** Any string with coerce=false throws "X value passed as String" (where X is the type name). */
+    public void testStringToAny_coerceFalse_throws() {
+        NumberType[] types = NumberType.values();
+        for (NumberType type : types) {
+            EscfColumnData src = stringColumnData("42");
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), type, false, BytesRefRecycler.NON_RECYCLING_INSTANCE)
+            );
+            assertTrue(
+                type + ": expected 'value passed as String' in message but got: " + ex.getMessage(),
+                ex.getMessage().contains("value passed as String")
+            );
+        }
+    }
+
+    /**
+     * BYTE uses Integer as the coerce-check class (mirrors {@code parser.intValue} in the row path),
+     * so the rejection message must say "Integer value passed as String".
+     */
+    public void testStringToByte_coerceFalse_throwsIntegerMessage() {
+        EscfColumnData src = stringColumnData("5");
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.BYTE,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+        assertTrue("expected 'Integer value passed as String' but got: " + ex.getMessage(), ex.getMessage().contains("Integer"));
+    }
+
+    /** Out-of-range string for BYTE throws. */
+    public void testStringToByte_outOfRange_throws() {
+        EscfColumnData src = stringColumnData("128");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.BYTE,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+    }
+
+    /** Out-of-range string for SHORT throws. */
+    public void testStringToShort_outOfRange_throws() {
+        EscfColumnData src = stringColumnData("70000");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.SHORT,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+    }
+
+    /** Float string produces the sortable-int encoding matching the row-path oracle. */
+    public void testStringToFloat_happyPath() {
+        EscfColumnData src = stringColumnData("1.5", "-2.25");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.FLOAT,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 2);
+        assertEquals((long) NumericUtils.floatToSortableInt(1.5f), vals[0]);
+        assertEquals((long) NumericUtils.floatToSortableInt(-2.25f), vals[1]);
+    }
+
+    /** Double string produces the sortable-long encoding. */
+    public void testStringToDouble_happyPath() {
+        EscfColumnData src = stringColumnData("1.5", "-2.25", "0.0");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.DOUBLE,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 3);
+        assertEquals(NumericUtils.doubleToSortableLong(1.5), vals[0]);
+        assertEquals(NumericUtils.doubleToSortableLong(-2.25), vals[1]);
+        assertEquals(NumericUtils.doubleToSortableLong(0.0), vals[2]);
+    }
+
+    /** Non-finite float strings throw for FLOAT. */
+    public void testStringToFloat_nonFinite_throws() {
+        for (String nonFinite : new String[] { "Infinity", "-Infinity", "NaN" }) {
+            EscfColumnData src = stringColumnData(nonFinite);
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(
+                    EscfColumn.from(src),
+                    NumberType.FLOAT,
+                    true,
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                )
+            );
+            assertTrue("expected 'finite values' in message but got: " + ex.getMessage(), ex.getMessage().contains("finite values"));
+        }
+    }
+
+    /** Non-finite double strings throw for DOUBLE. */
+    public void testStringToDouble_nonFinite_throws() {
+        for (String nonFinite : new String[] { "Infinity", "-Infinity", "NaN" }) {
+            EscfColumnData src = stringColumnData(nonFinite);
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(
+                    EscfColumn.from(src),
+                    NumberType.DOUBLE,
+                    true,
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                )
+            );
+            assertTrue(
+                "DOUBLE \"" + nonFinite + "\": expected 'finite values' in message but got: " + ex.getMessage(),
+                ex.getMessage().contains("finite values")
+            );
+        }
+    }
+
+    /** Non-finite half_float strings throw for HALF_FLOAT. */
+    public void testStringToHalfFloat_nonFinite_throws() {
+        for (String nonFinite : new String[] { "Infinity", "-Infinity", "NaN" }) {
+            EscfColumnData src = stringColumnData(nonFinite);
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(
+                    EscfColumn.from(src),
+                    NumberType.HALF_FLOAT,
+                    true,
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                )
+            );
+            assertTrue(
+                "HALF_FLOAT \"" + nonFinite + "\": expected 'finite values' in message but got: " + ex.getMessage(),
+                ex.getMessage().contains("finite values")
+            );
+        }
+    }
+
+    /**
+     * ARRAY-of-STRING: elements are parsed to the correct sortable-long per-element. Absent docs
+     * produce null in the output. Element-order and row offsets are preserved.
+     */
+    public void testStringArray_longType() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "2", "3" }, null, new String[] { "-100", "42" });
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[][] vals = readArrayValues(out, 3);
+        assertArrayEquals(new long[] { 1L, 2L, 3L }, vals[0]);
+        assertNull(vals[1]);
+        assertArrayEquals(new long[] { -100L, 42L }, vals[2]);
+    }
+
+    /** ARRAY-of-STRING for a float type: each element is parsed and encoded via floatToSortableInt. */
+    public void testStringArray_floatType() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1.5", "-2.25" }, new String[] { "0.5" });
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.FLOAT,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[][] vals = readArrayValues(out, 2);
+        assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(1.5f), NumericUtils.floatToSortableInt(-2.25f) }, vals[0]);
+        assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(0.5f) }, vals[1]);
     }
 
     private static boolean isLongInRange(long l, NumberType type) {

@@ -2797,7 +2797,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
                 "mapColumnBatch: ESCF column kind ["

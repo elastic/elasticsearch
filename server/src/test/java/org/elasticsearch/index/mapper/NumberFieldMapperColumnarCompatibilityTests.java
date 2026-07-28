@@ -142,4 +142,95 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("double from long", 1L, doc("d1", 1L, "{\"f\":5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-100}"))
         );
     }
+
+    public void testLongField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch("long string", 1L, doc("d1", 1L, "{\"f\":\"42\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-7\"}"))
+        );
+    }
+
+    /** Quoted Long.MIN_VALUE and Long.MAX_VALUE exercise the ASCII fast path at boundary values. */
+    public void testLongField_stringColumn_boundaries() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch(
+                "long string boundaries",
+                1L,
+                doc("d1", 1L, "{\"f\":\"-9223372036854775808\"}"),
+                doc("d2", 2L, "{\"f\":\"9223372036854775807\"}")
+            )
+        );
+    }
+
+    /**
+     * A batch mixing a plain integer string (ASCII fast path) and scientific notation (slow path)
+     * must produce the same doc values as the row path for both.
+     */
+    public void testLongField_stringColumn_fastPathAndFallbackInOneBatch() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch("long string fast+slow", 1L, doc("d1", 1L, "{\"f\":\"1000\"}"), doc("d2", 2L, "{\"f\":\"1e3\"}"))
+        );
+    }
+
+    /** A decimal string with coerce=true (default) is truncated to a long, matching the row path. */
+    public void testLongField_stringColumn_decimalTruncated() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch("long string decimal coerce", 1L, doc("d1", 1L, "{\"f\":\"1.9\"}"), doc("d2", 2L, "{\"f\":\"42\"}"))
+        );
+    }
+
+    public void testIntegerField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
+            columnarSettings(),
+            batch("integer string", 1L, doc("d1", 1L, "{\"f\":\"100\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-50\"}"))
+        );
+    }
+
+    public void testShortField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "short").endObject()),
+            columnarSettings(),
+            batch("short string", 1L, doc("d1", 1L, "{\"f\":\"32767\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-1\"}"))
+        );
+    }
+
+    public void testByteField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "byte").endObject()),
+            columnarSettings(),
+            batch("byte string", 1L, doc("d1", 1L, "{\"f\":\"127\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-128\"}"))
+        );
+    }
+
+    public void testFloatField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "float").endObject()),
+            columnarSettings(),
+            batch("float string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-2.25\"}"))
+        );
+    }
+
+    public void testDoubleField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
+            columnarSettings(),
+            batch("double string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-2.25\"}"))
+        );
+    }
+
+    public void testHalfFloatField_stringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
+            columnarSettings(),
+            batch("half_float string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-2.25\"}"))
+        );
+    }
 }

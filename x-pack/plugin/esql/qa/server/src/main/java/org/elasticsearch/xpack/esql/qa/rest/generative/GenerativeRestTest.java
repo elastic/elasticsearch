@@ -251,7 +251,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
         ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
-            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range|double_range)].*",
         Pattern.DOTALL
     );
 

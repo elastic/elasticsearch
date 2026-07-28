@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -133,14 +134,18 @@ public class FederationTests extends ESTestCase {
         );
     }
 
-    public void testLogsDefaultOffAtInfo() {
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
+        reason = "federation being off is the default state, so it is logged at DEBUG"
+    )
+    public void testLogsDefaultOffAtDebug() {
         MockLog.assertThatLogger(
             () -> Federation.logEffectiveState(true, false),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "disabled",
                 Federation.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
             ),
             new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")

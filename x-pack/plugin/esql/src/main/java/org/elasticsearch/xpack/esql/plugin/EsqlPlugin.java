@@ -377,8 +377,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
-        // This must stay the node's first touch of Federation: it initializes the class, which is where an invalid
-        // value for the operator property is rejected, so the failure surfaces at boot rather than on a later query.
+        // Report the effective federation state at startup rather than lazily on the first federation operation.
+        // Rejecting an invalid value for the operator property is not this call's job: that happens wherever
+        // Federation is first initialized, which is already the FEDERATION_ENABLED registration in getSettings().
         Federation.logEffectiveState(services.clusterService().getSettings());
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)

@@ -39,7 +39,9 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         // Federation is opt-in for users; this suite runs the ES|QL data source and dataset YAML tests, which are
-        // skipped when their REST routes are unregistered.
+        // skipped when their REST routes are unregistered. Known limitation: dropping this setting silently skips
+        // those tests rather than failing them. Their capability gate cannot be tightened into a hard failure because
+        // other runners of the same YAML files legitimately have federation off.
         .setting("esql.federation.enabled", "true")
         // disable ILM history, since it disturbs tests using _all
         .setting("indices.lifecycle.history_index_enabled", "false")

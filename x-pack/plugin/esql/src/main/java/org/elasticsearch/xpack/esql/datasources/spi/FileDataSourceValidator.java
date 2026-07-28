@@ -61,7 +61,16 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
+    /**
+     * Upper bound accepted for {@code schema_sample_size} at registration. It MUST NOT sit below any reader's own
+     * default for the setting, or the validator forbids the value the reader uses when the user says nothing: the
+     * bound was 1000 while both text readers default to 20000, so every value from 1001 up to and including the
+     * default was rejected, and the setting was unconfigurable across its whole useful range.
+     * {@code FileDataSourceValidatorSampleSizeBoundTests} pins it against the reader constant so the two cannot
+     * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
+     * settle — it only makes the default reachable.
+     */
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
 
     /**
      * Coordinator-level data-shape keys accepted on a dataset, sourced from each owning component's

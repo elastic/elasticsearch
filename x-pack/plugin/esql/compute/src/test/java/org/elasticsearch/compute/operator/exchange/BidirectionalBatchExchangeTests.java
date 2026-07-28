@@ -396,8 +396,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
-     * Circuit breaker trips are backpressure, not bugs. They are logged at WARN even when the caller requests
-     * ERROR so that quality gates and on-call alerts are not tripped by expected heap pressure.
+     * Circuit breaker trips are backpressure, not bugs. They are logged at WARN when the caller opts in so
+     * quality gates and on-call alerts are not tripped by expected heap pressure.
      */
     public void testCircuitBreakingFailuresAreLoggedAtWarn() {
         for (Exception failure : List.of(
@@ -405,6 +405,18 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
         )) {
             assertCircuitBreakingFailureLoggedAtWarn(failure);
+        }
+    }
+
+    /**
+     * Client and server exchange layers suppress duplicate circuit breaker WARN logs; the operator opts in.
+     */
+    public void testCircuitBreakingFailuresAreLoggedAtDebugWhenNotReported() {
+        for (Exception failure : List.of(
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT),
+            new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
+        )) {
+            assertCircuitBreakingFailureLoggedAtDebug(failure);
         }
     }
 
@@ -431,9 +443,21 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
         String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
         MockLog.assertThatLogger(
-            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, true, failure, "failure: {}", "msg"),
             BidirectionalBatchExchangeClient.class,
             new MockLog.SeenEventExpectation("logged at WARN", loggerName, Level.WARN, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
+        );
+    }
+
+    private static void assertCircuitBreakingFailureLoggedAtDebug(Exception failure) {
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, false, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*"),
             new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*")
         );
     }

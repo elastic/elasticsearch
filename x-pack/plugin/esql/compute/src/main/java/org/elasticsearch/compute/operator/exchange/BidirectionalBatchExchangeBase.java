@@ -41,9 +41,9 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
      * Logs an exchange failure at {@code nonCancellationLevel}, unless it is a cancellation or a circuit breaker
      * trip. Cancellations are expected teardown (for example the query reached its LIMIT and the exchange was
      * closed early via a synthesized "client stopped" error, or the task was cancelled), so they are logged at
-     * DEBUG to keep genuine failures visible. Circuit breaker trips are logged at WARN because they are an
-     * expected backpressure signal (the client receives a 429) rather than a bug. Shared by the client, the
-     * server, and the operator driving them, so the caller supplies its own logger.
+     * DEBUG to keep genuine failures visible. Circuit breaker trips are expected backpressure (the client
+     * receives a 429) rather than a bug: they are logged at WARN only when {@code reportCircuitBreakerAtWarn}
+     * is true, otherwise at DEBUG so client/server/operator do not triple-log the same trip.
      *
      * @param logger               the logger to log to (the caller's own logger)
      * @param nonCancellationLevel the level to log at when the failure is not a cancellation
@@ -53,10 +53,29 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
      */
     @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
     public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
+        logExchangeFailure(logger, nonCancellationLevel, false, failure, message, params);
+    }
+
+    /**
+     * @param reportCircuitBreakerAtWarn when true, circuit breaker trips are logged at WARN; otherwise DEBUG
+     */
+    @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
+    public static void logExchangeFailure(
+        Logger logger,
+        Level nonCancellationLevel,
+        boolean reportCircuitBreakerAtWarn,
+        Exception failure,
+        String message,
+        Object... params
+    ) {
         if (failure != null && ExceptionsHelper.isTaskCancelledException(failure)) {
             logger.debug(message, params);
         } else if (failure != null && ExceptionsHelper.unwrapCause(failure) instanceof CircuitBreakingException) {
-            logger.warn(message, params);
+            if (reportCircuitBreakerAtWarn) {
+                logger.warn(message, params);
+            } else {
+                logger.debug(message, params);
+            }
         } else {
             logger.log(nonCancellationLevel, message, params);
         }

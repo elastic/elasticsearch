@@ -263,12 +263,24 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     private HashAggregationOperator legacyOp;
 
     private long routingNanos;
+    /** Subset of {@link #routingNanos} spent during the one-time conversion in {@link #convertToPartitioned}. */
+    private long conversionNanos;
+    /** Hash + aggregation nanos from ops that have already been closed. */
+    private long savedHashNanos;
+    private long savedAggNanos;
     private int pagesProcessed;
     private long rowsReceived;
+    private long rowsEmitted;
     /** Non-null once converted from the legacy table. */
     private HashAggregationOperator[] partitionOps;
     /** Set once a multi-valued key is observed; conversion is never attempted again after that. */
     private boolean permanentlyUnpartitioned;
+    /**
+     * Set at the start of {@link #emitFinal}: true if this operator converted to partitioned mode
+     * and wasn't subsequently reverted. Used by {@link #toString()} and {@link #status()} after
+     * ops are nulled out.
+     */
+    private boolean emittedFromPartitioned;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -351,7 +363,9 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             output = null;
             return null;
         }
-        return output.next();
+        Page page = output.next();
+        rowsEmitted += page.getPositionCount();
+        return page;
     }
 
     @Override
@@ -389,8 +403,12 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             sb.append("partitionCount=").append(partitionCount);
         } else if (legacyOp != null) {
             sb.append("legacy=").append(legacyOp.blockHash);
+        } else if (permanentlyUnpartitioned) {
+            sb.append("unpartitioned");
+        } else if (emittedFromPartitioned) {
+            sb.append("partitioned");
         } else {
-            sb.append("emitting");
+            sb.append("legacy");
         }
         sb.append("]");
         return sb.toString();
@@ -425,6 +443,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         for (int p = 0; p < partitionCount; p++) {
             newPartitions[p] = newOp();
         }
+        long routingBefore = routingNanos;
         try (ReleasableIterator<Page> intermediatePages = evaluateOp(legacyOp, Integer.MAX_VALUE)) {
             while (intermediatePages.hasNext()) {
                 try (Page intermediatePage = intermediatePages.next()) {
@@ -432,6 +451,8 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
                 }
             }
         }
+        conversionNanos = routingNanos - routingBefore;
+        saveOpTiming(legacyOp);
         legacyOp.close();
         legacyOp = null;
         partitionOps = newPartitions;
@@ -512,6 +533,11 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             BlockHash ph = probeHash;
             probeHash = null;
             Releasables.close(ph);
+            for (HashAggregationOperator op : partitionOps) {
+                if (op != null) {
+                    saveOpTiming(op);
+                }
+            }
             Releasables.close(partitionOps);
             partitionOps = null;
             if (success) {
@@ -579,6 +605,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             @Override
             public void close() {
                 delegate.close();
+                saveOpTiming(partitionOps[partitionIndex]);
                 partitionOps[partitionIndex].close();
                 partitionOps[partitionIndex] = newOp();
             }
@@ -588,10 +615,12 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     // ---- finish() ----
 
     private void emitFinal() {
+        emittedFromPartitioned = (partitionOps != null);
         List<TaggedPageSource> sources = new ArrayList<>();
         if (legacyOp != null) {
             HashAggregationOperator op = legacyOp;
             legacyOp = null;
+            saveOpTiming(op);
             if (op.blockHash.numKeys() > 0) {
                 sources.add(new TaggedPageSource(NONE_PARTITION, closeOpOnClose(evaluateOp(op, maxPageSize), op)));
             } else {
@@ -600,6 +629,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         } else {
             for (int p = 0; p < partitionCount; p++) {
                 HashAggregationOperator op = partitionOps[p];
+                saveOpTiming(op);
                 if (op.blockHash.numKeys() > 0) {
                     sources.add(new TaggedPageSource(p, closeOpOnClose(evaluateOp(op, maxPageSize), op)));
                 } else {
@@ -668,9 +698,15 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         void accept(int partition, Page subPage);
     }
 
+    private void saveOpTiming(HashAggregationOperator op) {
+        HashAggregationOperator.Status s = (HashAggregationOperator.Status) op.status();
+        savedHashNanos += s.hashNanos();
+        savedAggNanos += s.aggregationNanos();
+    }
+
     @Override
     public Operator.Status status() {
-        long hashNanos = 0, aggregationNanos = 0;
+        long hashNanos = savedHashNanos, aggregationNanos = savedAggNanos;
         if (partitionOps != null) {
             for (HashAggregationOperator op : partitionOps) {
                 if (op != null) {
@@ -684,7 +720,17 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             hashNanos += s.hashNanos();
             aggregationNanos += s.aggregationNanos();
         }
-        return new Status(routingNanos, hashNanos, aggregationNanos, pagesProcessed, rowsReceived);
+        boolean isPartitioned = emittedFromPartitioned || partitionOps != null;
+        return new Status(
+            routingNanos - conversionNanos,
+            conversionNanos,
+            hashNanos,
+            aggregationNanos,
+            pagesProcessed,
+            rowsReceived,
+            rowsEmitted,
+            isPartitioned
+        );
     }
 
     public static class Status implements Operator.Status {
@@ -695,34 +741,55 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         );
 
         private final long routingNanos;
+        private final long conversionNanos;
         private final long hashNanos;
         private final long aggregationNanos;
         private final int pagesProcessed;
         private final long rowsReceived;
+        private final long rowsEmitted;
+        private final boolean partitionedMode;
 
-        public Status(long routingNanos, long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived) {
+        public Status(
+            long routingNanos,
+            long conversionNanos,
+            long hashNanos,
+            long aggregationNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted,
+            boolean partitionedMode
+        ) {
             this.routingNanos = routingNanos;
+            this.conversionNanos = conversionNanos;
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
             this.pagesProcessed = pagesProcessed;
             this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
+            this.partitionedMode = partitionedMode;
         }
 
         public Status(StreamInput in) throws IOException {
             routingNanos = in.readVLong();
+            conversionNanos = in.readVLong();
             hashNanos = in.readVLong();
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
             rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
+            partitionedMode = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(routingNanos);
+            out.writeVLong(conversionNanos);
             out.writeVLong(hashNanos);
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
             out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            out.writeBoolean(partitionedMode);
         }
 
         @Override
@@ -730,9 +797,21 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             return ENTRY.name;
         }
 
-        /** Nanoseconds spent in the bucket-sort routing pass (fillPartitions + prefix-sum + scatter). */
+        /**
+         * Nanoseconds spent in steady-state bucket-sort routing (fillPartitions + prefix-sum + scatter),
+         * excluding the one-time conversion pass; see {@link #conversionNanos()}.
+         */
         public long routingNanos() {
             return routingNanos;
+        }
+
+        /**
+         * Nanoseconds spent routing the legacy table's intermediate output to partition operators
+         * during the one-time conversion in {@code convertToPartitioned}. Subset of the total
+         * routing work; reported separately so it doesn't inflate the per-page routing cost.
+         */
+        public long conversionNanos() {
+            return conversionNanos;
         }
 
         /** Nanoseconds inner partition operators spent hashing grouping keys, summed across all partitions. */
@@ -750,9 +829,19 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             return pagesProcessed;
         }
 
-        /** Count of rows this operator has received. */
+        /** Count of rows this operator has received as input. */
         public long rowsReceived() {
             return rowsReceived;
+        }
+
+        /** Count of rows this operator has emitted as output. */
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
+        /** True if this operator ran (at least partially) in partitioned mode. */
+        public boolean partitionedMode() {
+            return partitionedMode;
         }
 
         @Override
@@ -763,9 +852,14 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("partitioned_mode", partitionedMode);
             builder.field("routing_nanos", routingNanos);
             if (builder.humanReadable()) {
                 builder.field("routing_time", TimeValue.timeValueNanos(routingNanos));
+            }
+            builder.field("conversion_nanos", conversionNanos);
+            if (builder.humanReadable()) {
+                builder.field("conversion_time", TimeValue.timeValueNanos(conversionNanos));
             }
             builder.field("hash_nanos", hashNanos);
             if (builder.humanReadable()) {
@@ -777,6 +871,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             }
             builder.field("pages_processed", pagesProcessed);
             builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
     }

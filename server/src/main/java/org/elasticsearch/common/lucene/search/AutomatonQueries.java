@@ -177,13 +177,12 @@ public class AutomatonQueries {
         if (circuitBreaker == null) {
             return re.toAutomaton();
         }
-        final String label = "regexp-nfa:" + field;
         final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, label);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         try {
             return re.toAutomaton();
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, label);
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         }
     }
 

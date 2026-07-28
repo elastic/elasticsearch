@@ -260,7 +260,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
-        
+
         var bytesReleasedLatch = new CountDownLatch(1);
         var releaseBytes = Releasables.releaseOnce(() -> {
             trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed);

@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 155150
+pr: 155270
+summary: Fix double `RecoveryStats.sourceRecoveryCompleted` on relocation
+type: bug

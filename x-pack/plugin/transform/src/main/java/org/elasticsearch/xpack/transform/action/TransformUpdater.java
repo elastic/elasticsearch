@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -147,7 +148,18 @@ public class TransformUpdater {
     ) {
         // rewrite config into a new format if necessary
         final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
-        final TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        TransformConfig appliedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        if (shouldDefaultProjectRoutingForUiamMigration(config, appliedConfig, update, callerCredential, mintCloudCredential)) {
+            logger.info(
+                "[{}] defaulting project_routing to [{}] to preserve local search scope",
+                config.getId(),
+                ProjectRoutingResolver.LOCAL_ONLY
+            );
+            appliedConfig = new TransformConfig.Builder(appliedConfig).setSource(
+                appliedConfig.getSource().withProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            ).build();
+        }
+        final TransformConfig updatedConfig = appliedConfig;
         final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
         // <5> Update state document + checkpoints, then emit result.
@@ -525,6 +537,46 @@ public class TransformUpdater {
                 listener.onResponse(null);
             })
         );
+    }
+
+    /**
+     * Returns {@code true} when an API-key → UIAM migration should cause {@code project_routing} to
+     * be defaulted to {@link ProjectRoutingResolver#LOCAL_ONLY} in order to preserve the pre-migration
+     * local-only search scope. All conditions must hold:
+     * <ul>
+     *   <li>A UIAM credential is being minted now (feature flag on, update path, and
+     *       a non-null caller-supplied cloud credential — extracted on the coordinating node and
+     *       passed in, since the thread-context transient does not survive master forwarding).</li>
+     *   <li>The original config has no UIAM credential ({@code credentialId == null}), meaning
+     *       this is an API-key → UIAM migration and not a re-key of an already-migrated transform.</li>
+     *   <li>The incoming update does not explicitly supply a {@code source} config. Sending an
+     *       explicit {@code source} block as part of the migrating update — even one that omits
+     *       {@code project_routing} — is a deliberate choice by the caller and is never overridden;
+     *       the default only applies when {@code source}, and with it {@code project_routing},
+     *       carries over unchanged from before the migration.</li>
+     *   <li>The applied (post-update) config has no explicit {@code project_routing} set.</li>
+     * </ul>
+     */
+    private static boolean shouldDefaultProjectRoutingForUiamMigration(
+        TransformConfig originalConfig,
+        TransformConfig appliedConfig,
+        TransformConfigUpdate update,
+        @Nullable CloudCredential callerCredential,
+        boolean mintCloudCredential
+    ) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false || mintCloudCredential == false || callerCredential == null) {
+            return false;
+        }
+        if (originalConfig.getCredentialId() != null) {
+            // already on a UIAM credential — this is a re-key, not an API-key → UIAM migration
+            return false;
+        }
+        if (update != null && update.getSource() != null) {
+            // caller explicitly supplied a source config as part of this update — respect it
+            // as-is, even if it omits project_routing
+            return false;
+        }
+        return appliedConfig.getSource().getProjectRouting() == null;
     }
 
     private TransformUpdater() {}

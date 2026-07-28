@@ -151,7 +151,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     private void createAiIndexWithDocs() throws Exception {
         // permissions.kibana.privileges.name must be keyword so the implicit terms_set DLS query matches;
-        // permissions.kibana.privileges.count must be integer so the minimum_should_match_field works correctly.
+        // permissions.kibana.privileges.count must be long so the minimum_should_match_field works correctly.
         final Request create = new Request("PUT", "/" + AI_INDEX);
         create.setJsonEntity("""
             {
@@ -165,7 +165,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
                           "privileges": {
                             "properties": {
                               "name": { "type": "keyword" },
-                              "count": { "type": "integer" }
+                              "count": { "type": "long" }
                             }
                           }
                         }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
@@ -63,6 +64,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
     @Override
     public abstract boolean equals(Object other);
+
+    /**
+     * Rejects patterns longer than {@link IndexSettings#MAX_REGEX_LENGTH_SETTING} before compilation is attempted.
+     */
+    protected static void checkRegexLength(String pattern, String ruleName, SearchExecutionContext context) {
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (pattern.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of ["
+                    + pattern.length()
+                    + "] used in the ["
+                    + ruleName
+                    + "] rule of the Intervals Query request has exceeded the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+    }
 
     public static IntervalsSourceProvider fromXContent(XContentParser parser) throws IOException {
         assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
@@ -659,6 +680,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+            checkRegexLength(pattern, NAME, context);
+
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
@@ -777,6 +800,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+            checkRegexLength(pattern, NAME, context);
+
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
@@ -789,7 +814,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
-            IntervalsSource source = fieldType.regexpIntervals(normalizedPattern, context);
+            IntervalsSource source;
+            try {
+                source = fieldType.regexpIntervals(normalizedPattern, context);
+            } catch (StackOverflowError e) {
+                throw new QueryShardException(
+                    context,
+                    "The [{}] rule of the Intervals Query request has a pattern that is too deeply nested",
+                    NAME
+                );
+            }
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }

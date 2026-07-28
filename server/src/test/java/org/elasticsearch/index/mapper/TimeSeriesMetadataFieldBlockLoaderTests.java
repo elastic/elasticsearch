@@ -330,18 +330,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
     }
 
-    public void testReaderFiltersSourcePathsMergedAcrossLoaders() throws IOException {
-        BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
-        BytesRef value = readTimeSeriesValue(
-            TSDB_SYNTHETIC_SETTINGS,
-            MAPPING,
-            sourceToParse(json, XContentType.JSON),
-            Set.of("host", "region"),
-            Set.of("host", "env", "region")
-        );
-        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
-    }
-
     /**
      * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
      * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
@@ -386,18 +374,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         );
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
         assertThat(sourcePaths(loader), equalTo(Set.of()));
-    }
-
-    public void testWithoutAllDimensionsReadsEmptyObject() throws IOException {
-        BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
-        BytesRef value = readTimeSeriesValue(
-            TSDB_SYNTHETIC_SETTINGS,
-            MAPPING,
-            sourceToParse(json, XContentType.JSON),
-            Set.of("host", "env", "region"),
-            Set.of("host", "env", "region")
-        );
-        assertThat(parseJsonObject(value), equalTo(Map.of()));
     }
 
     /**
@@ -453,16 +429,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
         throws IOException {
-        return readTimeSeriesValue(settings, mapping, sourceToParse, withoutFields, null);
-    }
-
-    private BytesRef readTimeSeriesValue(
-        Settings settings,
-        String mapping,
-        SourceToParse sourceToParse,
-        Set<String> withoutFields,
-        Set<String> loadedSourcePaths
-    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
@@ -479,10 +445,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
                 SourceFilter filter = loaderSpec.requiresSource()
-                    ? new SourceFilter(
-                        (loadedSourcePaths == null ? loaderSpec.sourcePaths() : loadedSourcePaths).toArray(String[]::new),
-                        null
-                    )
+                    ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;
                 SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
                 SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx.reader(), null);

@@ -9,8 +9,9 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 
@@ -28,13 +29,21 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
         String pattern,
         int syntaxFlags,
         int matchFlags,
-        int maxDeterminizedStates
+        int maxDeterminizedStates,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
             script,
             leafFactory,
             fieldName,
-            new ByteRunAutomaton(new RegExp(Objects.requireNonNull(pattern), syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates))
+            AutomatonQueries.toRegexpByteRunAutomaton(
+                fieldName,
+                Objects.requireNonNull(pattern),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                circuitBreaker
+            )
         );
         this.pattern = pattern;
         this.syntaxFlags = syntaxFlags;

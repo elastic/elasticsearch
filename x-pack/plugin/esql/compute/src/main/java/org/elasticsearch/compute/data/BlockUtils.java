@@ -96,7 +96,7 @@ public final class BlockUtils {
                             if (isAscending(listVal) && random.nextBoolean()) {
                                 wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
                             } else {
-                                wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERED);
+                                wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
                             }
                         } else if (isAscending(listVal) && random.nextBoolean()) {
                             wrapper.builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);

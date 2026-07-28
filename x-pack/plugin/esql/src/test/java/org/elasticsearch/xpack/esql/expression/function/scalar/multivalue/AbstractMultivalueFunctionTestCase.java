@@ -771,7 +771,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         switch (ordering) {
             case UNORDERED -> {
             }
-            case DEDUPLICATED_UNORDERED -> {
+            case DEDUPLICATED_UNORDERD -> {
                 var dedup = new LinkedHashSet<>(mvData);
                 mvData.clear();
                 mvData.addAll(dedup);

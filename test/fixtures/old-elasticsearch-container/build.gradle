@@ -13,28 +13,33 @@ apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'
 
-def fixtureVersion = '1.1'
+def fixtureVersion = '1.2'
+def sharedDockerContext = project.file('src/main/resources/docker')
 
 dockerFixtures {
   create('old-elasticsearch-5-0-0') {
-    dockerContext = project.file('src/main/resources/docker/5.0.0')
+    dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '5.0.0']
   }
   create('old-elasticsearch-5-6-16') {
-    dockerContext = project.file('src/main/resources/docker/5.6.16')
+    dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '5.6.16']
   }
   create('old-elasticsearch-6-0-0') {
-    dockerContext = project.file('src/main/resources/docker/6.0.0')
+    dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '6.0.0']
   }
   create('old-elasticsearch-6-8-20') {
-    dockerContext = project.file('src/main/resources/docker/6.8.20')
+    dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '6.8.20']
   }
 }
 

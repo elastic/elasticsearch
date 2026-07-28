@@ -24,7 +24,7 @@ import java.util.Objects;
 public class CompatibilityService {
 
     public static final String URL_UNSUPPORTED_MESSAGE = """
-        The url field in service_settings is not supported by all nodes in the cluster; \
+        The the field [url] in service_settings is not supported by all nodes in the cluster; \
         please finish upgrading before creating an inference endpoint with a custom url""";
 
     private final ClusterService clusterService;

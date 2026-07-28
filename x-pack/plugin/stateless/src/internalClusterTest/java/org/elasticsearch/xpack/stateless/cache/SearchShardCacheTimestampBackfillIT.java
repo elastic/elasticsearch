@@ -12,6 +12,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -538,7 +539,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             ClusterService clusterService,
             IndicesService indicesService
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            return new CapturingCacheService(nodeEnvironment, settings, clusterService.getClusterSettings(), threadPool, blobCacheMetrics);
         }
     }
 
@@ -546,13 +547,20 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
 
         private final TimestampCapturingEvictionPolicy capturingPolicy;
 
-        CapturingCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, BlobCacheMetrics blobCacheMetrics) {
-            this(environment, settings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+        CapturingCacheService(
+            NodeEnvironment environment,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics
+        ) {
+            this(environment, settings, clusterSettings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
         }
 
         private CapturingCacheService(
             NodeEnvironment environment,
             Settings settings,
+            ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             TimestampCapturingEvictionPolicy capturingPolicy
@@ -560,9 +568,12 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             super(
                 environment,
                 settings,
+                clusterSettings,
                 threadPool,
                 blobCacheMetrics,
                 capturingPolicy,
+                System::nanoTime,
+                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
             this.capturingPolicy = capturingPolicy;

@@ -18,7 +18,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
@@ -151,14 +150,14 @@ public class AutomatonQueries {
             nfa,
             maxDeterminizedStates,
             circuitBreaker,
-            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+            "regexp"
         );
         long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, "regexp");
         try {
             return new ByteRunAutomaton(dfa);
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            circuitBreaker.addWithoutBreaking(-reservation, "regexp");
         }
     }
 
@@ -179,11 +178,11 @@ public class AutomatonQueries {
             return re.toAutomaton();
         }
         final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, "regexp");
         try {
             return re.toAutomaton();
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            circuitBreaker.addWithoutBreaking(-reservation, "regexp");
         }
     }
 

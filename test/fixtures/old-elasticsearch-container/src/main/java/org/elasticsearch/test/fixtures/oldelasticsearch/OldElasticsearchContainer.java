@@ -28,12 +28,25 @@ import java.util.Map;
 public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int HTTP_PORT = 9200;
-    private static final String FIXTURE_IMAGE_VERSION = "1.1";
+    private static final String FIXTURE_IMAGE_VERSION = "1.2";
     private static final Map<String, String> IMAGES = Map.of(
-        "5.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
-        "5.6.16", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:" + FIXTURE_IMAGE_VERSION,
-        "6.0.0", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
-        "6.8.20", "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:" + FIXTURE_IMAGE_VERSION
+        "5.0.0",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
+        "5.6.16",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-6-16-fixture:" + FIXTURE_IMAGE_VERSION,
+        "6.0.0",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
+        "6.8.20",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:" + FIXTURE_IMAGE_VERSION
+    );
+
+    // Version-specific elasticsearch.yml settings appended at runtime via ES_EXTRA_CONFIG.
+    // 5.x versions need no extra settings beyond what is baked into the shared Dockerfile.
+    private static final Map<String, String> EXTRA_CONFIGS = Map.of(
+        "6.0.0",
+        "discovery.type: single-node",
+        "6.8.20",
+        "xpack.ml.enabled: false\nxpack.security.enabled: false\ndiscovery.type: single-node"
     );
 
     public OldElasticsearchContainer(String version, String repoLocation) {
@@ -41,6 +54,10 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
         addExposedPort(HTTP_PORT);
         withFileSystemBind(repoLocation, repoLocation);
         withEnv("ES_PATH_REPO", repoLocation);
+        String extraConfig = EXTRA_CONFIGS.get(version);
+        if (extraConfig != null) {
+            withEnv("ES_EXTRA_CONFIG", extraConfig);
+        }
         setWaitStrategy(Wait.forHttp("/_cluster/health").forPort(HTTP_PORT).forStatusCode(200).withStartupTimeout(Duration.ofMinutes(2)));
     }
 
@@ -53,9 +70,9 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
     }
 
     private static ImageFromDockerfile localImage(String version) {
-        String resourceBase = "docker/" + version + "/";
-        return new ImageFromDockerfile().withFileFromClasspath("Dockerfile", resourceBase + "Dockerfile")
-            .withFileFromClasspath("entrypoint.sh", resourceBase + "entrypoint.sh");
+        return new ImageFromDockerfile().withFileFromClasspath("Dockerfile", "docker/Dockerfile")
+            .withFileFromClasspath("entrypoint.sh", "docker/entrypoint.sh")
+            .withBuildArg("ES_VERSION", version);
     }
 
     public int getHttpPort() {

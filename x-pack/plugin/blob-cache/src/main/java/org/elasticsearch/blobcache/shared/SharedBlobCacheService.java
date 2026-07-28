@@ -2937,16 +2937,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return found;
         }
 
-        private boolean isInEvictionDegradationPeriod() {
-            final long startMillis = evictionDegradationStartMillis;
-            if (startMillis < 0L) {
-                return false;
-            }
-            return threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationPeriodMillis;
-        }
-
         private Predicate<CacheRegion<KeyType>> createEvictionPredicate(CacheRegion<KeyType> incoming) {
-            if (isInEvictionDegradationPeriod()) {
+            if (evictionDegradationThreshold == numRegions || evictionDegradationPeriodMillis <= 0) {
+                // Degradation is disabled, just use the eviction policy's predicate directly.
+                return evictionPolicy.createPredicate(incoming);
+            }
+
+            final long startMillis = evictionDegradationStartMillis;
+            if (startMillis >= 0 && threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationPeriodMillis) {
                 return Predicates.always();
             }
             final Predicate<CacheRegion<KeyType>> policyPredicate = evictionPolicy.createPredicate(incoming);

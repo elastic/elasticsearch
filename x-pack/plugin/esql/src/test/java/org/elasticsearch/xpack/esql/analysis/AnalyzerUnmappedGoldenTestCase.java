@@ -13,11 +13,10 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 /** Shared analysis setup and mode-specific builders for analyzer tests of unmapped field behavior. */
 abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
-    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
-
     AnalyzerUnmappedGoldenTestCase(String mode) {
         super(mode);
     }
@@ -30,15 +29,21 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
         return builder("SET unmapped_fields=\"load\"; " + query).nestedPath(ArrayUtils.prepend("load", variants));
     }
 
-    /** Runs the same query in both unmapped-field modes. */
-    protected void runInBothModes(String query, String... variants) {
+    /** Runs the same query in the nullify and load modes. */
+    protected void runInNullifyAndLoadModes(String query, String... variants) {
         nullify(query, variants).run();
         load(query, variants).run();
     }
 
+    /** Runs the same query and views in the nullify and load modes. */
+    protected void runInNullifyAndLoadModes(String query, Map<String, String> views, String... variants) {
+        nullify(query, variants).views(views).run();
+        load(query, variants).views(views).run();
+    }
+
     @Override
     protected TestBuilder builder(String query) {
-        return super.builder(query).stages(STAGES.clone());
+        return super.builder(query).stages(EnumSet.of(Stage.ANALYSIS));
     }
 
     @Override

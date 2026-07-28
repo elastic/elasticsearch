@@ -9,8 +9,9 @@ Contrast with regular (unit) tests, which include a specific assertion of some c
 
 ## How do I add a new golden test?
 
-Extend `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, and add new tests with its builder.
-The chain keeps the query and any special inputs or version coverage together.
+Extend `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, then invoke `runGoldenTest(...)` or
+use its fluent builder. The builder keeps the query and any special inputs or version coverage
+together.
 
 ```java
 class MyGoldenTest extends GoldenTestCase {
@@ -27,7 +28,7 @@ You can also specify which plans you want to verify (all plans are output by def
 ```java
 public void testBasic() throws Exception {
   builder("FROM employees")
-      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL))
+      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
       .run();
 }
 ```
@@ -115,28 +116,6 @@ oldest-first; neither combines with a pinned `transportVersion(...)`. Tests with
 the flat layout, and directory names carry no order, so a new label never renames existing
 directories or breaks existing mutes. Keep `since(...)` and `expectationChangesAt(...)` directly
 on each affected test's builder chain so its version coverage is visible beside its query.
-
-### Analyzer unmapped tests
-
-`AnalyzerUnmappedGoldenTests` uses `load(...)` and `nullify(...)` helpers that return a builder
-configured with the analysis stage, setting prefix, and existing mode-specific resource directory.
-When both modes use the same query and configuration, `runInBothModes(query)` avoids repeating the
-pipeline. When their version coverage differs, keep it on the applicable chain in the test method:
-
-```java
-public void testMultiTypeField() {
-  String query = """
-      FROM employees | WHERE emp_no::keyword == "10001"
-      """;
-
-  nullify(query).run();
-  load(query)
-      .expectationChangesAt("compact_multi_type_es_field")
-      .run();
-}
-```
-
-Both modes share one test identity. Some scenarios intentionally run only one mode.
 
 ### Two runs per suite
 

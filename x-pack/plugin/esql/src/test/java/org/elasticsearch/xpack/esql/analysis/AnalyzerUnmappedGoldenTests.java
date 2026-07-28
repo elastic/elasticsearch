@@ -35,28 +35,28 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testKeep() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | keep does_not_exist_field
             """);
     }
 
     public void testKeepRepeated() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | KEEP does_not_exist_field, does_not_exist_field
             """);
     }
 
     public void testKeepAndMatchingStar() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | KEEP emp_*, does_not_exist_field
             """);
     }
 
     public void testEvalAndKeep() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL x = does_not_exist_field1::INTEGER + 42
             | KEEP does_not_exist_field1, does_not_exist_field2
@@ -64,7 +64,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testEvalAfterKeepStar() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | KEEP *
             | EVAL x = emp_no + 1
@@ -73,7 +73,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testEvalAfterMatchingKeepWithWildcard() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | KEEP emp_no, *
             | EVAL x = emp_no + 1
@@ -88,12 +88,12 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             Tuple.tuple("same_field", ", does_not_exist_field"),
             Tuple.tuple("another_field", ", does_not_exist_field2")
         )) {
-            runInBothModes("FROM employees | DROP does_not_exist_field" + drop.v2(), drop.v1());
+            runInNullifyAndLoadModes("FROM employees | DROP does_not_exist_field" + drop.v2(), drop.v1());
         }
     }
 
     public void testDropWithMatchingStar() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | DROP emp_*, does_not_exist_field
             """);
@@ -109,21 +109,21 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testRename() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, emp_no AS employee_number
             """);
     }
 
     public void testRenameShadowed() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number
             """);
     }
 
     public void testEvalAfterRename() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | RENAME emp_no AS employee_number
             | EVAL x = does_not_exist::DOUBLE + 1
@@ -131,7 +131,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testEval() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
             """);
@@ -145,7 +145,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testMultipleEval() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL a = 1
             | EVAL x = a + b::DOUBLE
@@ -154,21 +154,21 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testCasting() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL x = does_not_exist_field::LONG
             """);
     }
 
     public void testCastingNoAliasing() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL does_not_exist_field::LONG
             """);
     }
 
     public void testShadowingAfterEval() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
             | EVAL does_not_exist_field = 42
@@ -176,7 +176,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testShadowingAfterKeep() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | KEEP does_not_exist_field
             | EVAL does_not_exist_field = 42
@@ -184,21 +184,21 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testStatsAgg() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS cnt = COUNT(does_not_exist_field)
             """);
     }
 
     public void testStatsGroup() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS BY does_not_exist_field
             """);
     }
 
     public void testDoesNotExistAfterInlineStats() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | INLINE STATS COUNT(*) BY emp_no
             | EVAL x = does_not_exist_field
@@ -206,35 +206,35 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testStatsAggAndGroup() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
             """);
     }
 
     public void testInlineStatsAggAndGroup() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | INLINE STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
             """);
     }
 
     public void testStatsAggAndAliasedGroup() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE) + d2 BY d2 = does_not_exist2::DOUBLE, emp_no
             """);
     }
 
     public void testStatsAggAndAliasedGroupWithExpression() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS sum = SUM(does_not_exist1::DOUBLE) + s0 + s1 BY s0 = does_not_exist2::DOUBLE + does_not_exist3::DOUBLE, s1 = emp_no
             """);
     }
 
     public void testStatsMixed() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
             """);
@@ -248,42 +248,42 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testInlineStatsMixed() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | INLINE STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
             """);
     }
 
     public void testWhere() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist::LONG > 0
             """);
     }
 
     public void testWhereOr() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist::LONG > 0 OR emp_no > 0
             """);
     }
 
     public void testWhereComplex() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100
             """);
     }
 
     public void testAggsFiltering() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0
             """);
     }
 
     public void testAggsFilteringMultipleFields() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | STATS c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100,
                     c2 = COUNT(*) WHERE does_not_exist3 IS NULL
@@ -291,7 +291,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testStatsAggAndAliasedShadowingGroupOverExpression() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM languages
             | WHERE language_code == 1
             | STATS c = COUNT(*) + language_code
@@ -300,7 +300,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testStatsAggAndAliasedShadowingGroup() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM languages
             | WHERE language_code == 1
             | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
@@ -308,28 +308,28 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testSort() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | SORT does_not_exist ASC
             """);
     }
 
     public void testSortExpression() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | SORT does_not_exist::LONG + 1
             """);
     }
 
     public void testSortExpressionMultipleFields() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
             """);
     }
 
     public void testMvExpand() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | MV_EXPAND does_not_exist
             """);
@@ -356,7 +356,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branches (#142033, "referenced after subqueries"), exactly as "FROM idx1, idx2 | KEEP missing" loads it from every index.
     public void testSubqueryKeepUnmapped() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, (FROM languages | KEEP language_code)
             | KEEP emp_no, language_code, does_not_exist
             """);
@@ -366,7 +366,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // source and null-filled in the employees branch (Decision A).
     public void testSubqueryWithStats() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
             | KEEP emp_no, max_ts, does_not_exist
             """);
@@ -376,7 +376,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // and null-filled in the employees branch (Decision A).
     public void testSubqueryKeepMultipleUnmapped() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages | KEEP language_code, unmapped1, unmapped2)
             | KEEP emp_no, language_code, unmapped1, unmapped2
@@ -384,7 +384,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testFork() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
@@ -392,7 +392,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (WHERE unmapped_message == "Disconnection error")
                    (WHERE message == "42")
@@ -402,7 +402,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumn() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (WHERE unmapped_message == "Disconnection error")
                    (EVAL branch_tag = "two")
@@ -412,7 +412,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkLoadsUnmappedFieldKeptInOneBranchOnly() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (KEEP message, unmapped_message)
                    (WHERE message == "42")
@@ -423,7 +423,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // DROP of an unmapped field is a mention, so the sibling branch materializes it while the DROP branch null-fills it. #152843
     public void testForkDropsUnmappedFieldInOneBranchMaterializesSibling() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (DROP unmapped_message)
                    (WHERE true)
@@ -433,7 +433,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // WHERE then DROP of an unmapped field is still a mention, so the sibling branch materializes it. #152843
     public void testForkWhereThenDropsUnmappedFieldInOneBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
                    (WHERE true)
@@ -443,7 +443,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // MV_EXPAND turns unmapped_message into a ReferenceAttribute in branch 1; the sibling branch still loads it by name. #142033
     public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (MV_EXPAND unmapped_message)
                    (WHERE message == "42")
@@ -453,7 +453,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkRenamesUnmappedFieldInOneBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM partial_mapping_sample_data
             | FORK (WHERE unmapped_message == "Disconnection error")
                    (RENAME unmapped_message AS msg)
@@ -465,7 +465,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // does_not_exist is referenced only in the WHERE branch; the LEFT LOOKUP JOIN branch still loads it into its left source and
     // flows it through the join rather than null-filling. #142033
     public void testForkLoadsUnmappedFieldAcrossLookupJoinBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL language_code = languages
             | FORK (LOOKUP JOIN languages_lookup ON language_code)
@@ -478,7 +478,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // The LOOKUP JOIN branch loads does_not_exist across (into its left source), the WHERE branch loads it directly, and the STATS branch
     // null-fills it because an aggregation drops non-grouped fields - exercising load-through-join, load-direct and null-fill in one FORK.
     public void testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranches() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL language_code = languages
             | FORK (LOOKUP JOIN languages_lookup ON language_code)
@@ -492,7 +492,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // gender is a two-legged PUNK (TEXT in employees_gender_text, unmapped in employees_no_gender); a FORK output must preserve its
     // TEXT type, not flag it UNSUPPORTED.
     public void testForkKeepsSingleTypePartiallyUnmappedTextField() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees_gender_text, employees_no_gender
             | KEEP gender
             | FORK (WHERE true)
@@ -536,7 +536,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the
     // FORK output; KEEP-only is tolerated (checkFork skips it).
     public void testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM all_types, all_types_short_as_long, all_types_no_short
             | KEEP short
             | FORK (WHERE true)
@@ -547,7 +547,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkWithEval() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
@@ -555,7 +555,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkWithStats() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | FORK (STATS c = COUNT(*) BY does_not_exist)
                    (STATS d = AVG(salary::DOUBLE))
@@ -564,7 +564,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkBranchesWithDifferentSchemas() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE first_name == "Chris" AND does_not_exist1::LONG > 5
             | EVAL does_not_exist2 IS NULL
@@ -577,7 +577,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkBranchesAfterStats2ndBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist1 IS NULL
             | FORK (STATS c = COUNT(*))
@@ -617,7 +617,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testCoalesce() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL x = COALESCE(does_not_exist::LONG, emp_no, 0)
             | KEEP emp_no, x
@@ -640,14 +640,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testTBucketGroupByUnmapped() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM sample_data
             | STATS c = COUNT(*) BY tbucket(1 hour), does_not_exist
             """);
     }
 
     public void testTBucketAggregateUnmapped() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM sample_data
             | STATS s = SUM(does_not_exist::DOUBLE), c = COUNT(*) BY tbucket(1 day)
             """);
@@ -681,7 +681,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // source - the linear/FORK path, unchanged by Step 2.
     public void testSubqueryOnly() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist::LONG > 1)
@@ -695,7 +695,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -711,7 +711,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -728,7 +728,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1)
@@ -741,7 +741,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, (ROW synthetic = 1)
             | KEEP emp_no, synthetic, does_not_exist
             """);
@@ -750,7 +750,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): emp_no_foo is loaded into the merged source (linear path).
     public void testSubqueryMix() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM employees
                  | EVAL emp_no_plus = emp_no_foo::LONG + 1
@@ -763,7 +763,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): emp_no_foo is loaded into the merged source (linear path).
     public void testSubqueryMixWithDropPattern() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM employees
                  | EVAL emp_no_plus = emp_no_foo::LONG + 1
@@ -776,7 +776,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Single subquery merged during analysis (no UnionAll): does_not_exist is loaded into the merged source (linear path).
     public void testSubqueryAfterUnionAllOfStats() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM
                 (FROM employees
                  | STATS c = COUNT(*) BY does_not_exist)
@@ -788,7 +788,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branch loads it but STATS drops it, so it null-fills at the union.
     public void testSubqueryAfterUnionAllOfStatsAndMain() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM employees | STATS c = count(*))
             | SORT does_not_exist
@@ -802,7 +802,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1),
@@ -905,7 +905,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testPartiallyMappedField() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM sample_data, partial_mapping_sample_data
             | KEEP @timestamp, message, unmapped_message
             """);
@@ -1101,7 +1101,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
     // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, employees_no_names
             | SORT emp_no
             | LIMIT 1
@@ -1111,7 +1111,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
     // gender (keyword, fully mapped in both indices) should remain a regular KeywordEsField.
     public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, employees_no_names
             | KEEP first_name, gender
             """);
@@ -1120,7 +1120,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // gender is text in employees_gender_text but missing in employees_no_gender.
     // It should appear as InvalidMappedField (unsupported) in the EsRelation.
     public void testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees_gender_text, employees_no_gender
             | KEEP gender
             """);
@@ -1158,14 +1158,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.
     public void testPartiallyMappedFieldsDropKeywordWithWildcards() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, employees_no_names
             | DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*
             """);
     }
 
     public void testForkBranchesAfterStats1stBranch() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist1 IS NULL
             | FORK (STATS c = COUNT(*) BY does_not_exist2)
@@ -1260,7 +1260,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      * It should not treat it as unmapped, because there is clearly a nanos attribute in the EVAL's input.
      */
     public void testDoNotResolveUnmappedFieldPresentInChildren() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
@@ -1287,7 +1287,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      * Tests both nullify and load modes: the plan shape is the same, only the field type in the EsRelation differs.
      */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | EVAL entity.id = "foo"
             | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
@@ -1298,14 +1298,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // A single subquery without a main index is merged into the main query during analysis,
         // so there is no Subquery node in the plan and no branching — this is allowed in load.
-        runInBothModes("FROM (FROM languages | WHERE language_code > 1)");
+        runInNullifyAndLoadModes("FROM (FROM languages | WHERE language_code > 1)");
     }
 
     // does_not_exist is referenced inside the languages subquery (WHERE + KEEP): under load it is loaded into that branch's source
     // and null-filled in the employees branch (Decision A in #142033).
     public void testSubqueryLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages | WHERE does_not_exist::LONG > 1 | KEEP language_code, does_not_exist)
             | KEEP emp_no, language_code, does_not_exist
@@ -1316,7 +1316,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // it from _source - the in-branch DROP no longer suppresses the broadcast to the sibling. #142033
     public void testSubqueryDropInBranchMaterializesSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages | DROP does_not_exist)
             | KEEP emp_no, language_code, does_not_exist
@@ -1327,7 +1327,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // branch (#142033), while the languages branch surfaces the value under the new name and null-fills the original name at the union.
     public void testSubqueryRenameInBranchOuterReferencesOriginalName() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages | RENAME does_not_exist AS renamed)
             | KEEP emp_no, language_code, does_not_exist, renamed
@@ -1338,35 +1338,27 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        nullify("""
+        runInNullifyAndLoadModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
-            """).views(Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)")).run();
-        load("""
-            FROM emp_lang_view
-            | KEEP emp_no, language_code, does_not_exist
-            """).views(Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)")).run();
+            """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
     }
 
     // Branching view (ViewUnionAll): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
     // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
     public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        nullify("""
+        runInNullifyAndLoadModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
-            """).views(Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)")).run();
-        load("""
-            FROM emp_lang_view
-            | KEEP emp_no, language_code, does_not_exist
-            """).views(Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)")).run();
+            """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));
     }
 
     // does_not_exist is in-branch (loaded in the languages branch, null-filled in employees); emp_no/language_code each exist in one
     // branch and null-fill in the other through the union output. Decision A, #142033.
     public void testSubquery() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0)
             | KEEP emp_no, language_code
             """);
@@ -1379,7 +1371,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees,
                 (FROM languages | WHERE language_code > 0),
                 (FROM employees | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
@@ -1389,7 +1381,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testForkWithSort() throws Exception {
-        runInBothModes("""
+        runInNullifyAndLoadModes("""
             FROM employees
             | WHERE does_not_exist1::LONG > 5
             | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)

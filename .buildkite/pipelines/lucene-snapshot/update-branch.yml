@@ -7,3 +7,9 @@ steps:
     build:
       branch: "${BUILDKITE_BRANCH}"
     async: true
+  - trigger: "elasticsearch-lucene-snapshot-update-branch"
+    label: Update lucene_snapshot_11 branch
+    if: build.branch == "lucene_snapshot"
+    build:
+      branch: "lucene_snapshot_11"
+    async: true

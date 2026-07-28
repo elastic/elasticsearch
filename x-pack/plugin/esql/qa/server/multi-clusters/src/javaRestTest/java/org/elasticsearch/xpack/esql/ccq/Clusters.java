@@ -231,13 +231,13 @@ public class Clusters {
     }
 
     /**
-     * Whether a cluster of this version accepts the ES|QL federation setting. A node that predates it rejects an
-     * unknown setting and never starts, and it has federation registered unconditionally, so leaving the setting off
-     * matches how it behaves in production. Suites that depend on driving the setting skip against such a cluster on
-     * the {@code FEDERATION_ENABLED_SETTING} capability.
+     * Whether a cluster of this version accepts the ES|QL federation setting, which exists as of 9.6.0. A node that
+     * predates it rejects an unknown setting and never starts, and it has federation registered unconditionally, so
+     * leaving the setting off matches how it behaves in production. Suites that depend on driving the setting skip
+     * against such a cluster on the {@code FEDERATION_ENABLED_SETTING} capability.
      */
     private static boolean knowsFederationSetting(org.elasticsearch.Version version) {
-        return version.equals(org.elasticsearch.Version.CURRENT);
+        return version.onOrAfter(org.elasticsearch.Version.V_9_6_0);
     }
 
     public static org.elasticsearch.Version bwcVersion() {

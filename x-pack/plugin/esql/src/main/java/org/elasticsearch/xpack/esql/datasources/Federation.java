@@ -50,12 +50,16 @@ import java.util.function.Function;
  *       and does not ask its own remotes to resolve datasets, so {@code FROM <remote>:<name>} falls
  *       through to normal remote index resolution in both directions instead of failing with a
  *       {@code RemoteDatasetNotSupportedException} that names datasets.</li>
+ *   <li>A data node refuses an external request on arrival
+ *       ({@code DataNodeComputeHandler.handleExternalSourceRequest}), before local planning runs. This closes
+ *       the data-node execution path: work shipped from an enabled coordinator (in CCS/CPS, or during a
+ *       rolling restart that has not yet reached this node) is refused whatever the plan turns into, including
+ *       an ungrouped {@code COUNT}/{@code MIN}/{@code MAX} that {@code PushStatsToExternalSource} would answer
+ *       from split stats without ever building a scanning operator.</li>
  *   <li>Every node keeps a backstop at the physical external-source operator build
- *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}.
- *       This closes the data-node execution path: an already-rewritten {@code ExternalSourceExec}
- *       shipped from an enabled coordinator (in CCS/CPS, or during a rolling restart that has not yet
- *       reached this node) is refused before it can build a scanning operator, so a node without
- *       federation runs no external scan. Coordinator-side work (the {@code FROM <dataset>} rewrite) is
+ *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}, which
+ *       also covers plans built outside the data-node request path above. Coordinator-side work (the
+ *       {@code FROM <dataset>} rewrite) is
  *       closed separately by the {@code DatasetResolver} gate above; the snapshot-only inline
  *       {@code EXTERNAL} command bypasses that gate and is only stopped here at operator build, so on a
  *       coordinator without federation its planning-time source resolution and split discovery can
@@ -125,7 +129,8 @@ public final class Federation {
     /**
      * Surfaces the effective state in the node log at startup so an operator can confirm both levers after
      * a bounce, and warns when the setting is configured on a node where the feature is not registered and
-     * therefore cannot honor it.
+     * therefore cannot honor it. Federation being off is the default, so that state is logged at
+     * {@code DEBUG} to keep it out of every node's startup log.
      */
     public static void logEffectiveState(Settings settings) {
         logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));
@@ -146,16 +151,17 @@ public final class Federation {
         } else if (enabled) {
             logger.info("ES|QL federation (external data sources) is enabled ([{}]=[true])", FEDERATION_ENABLED.getKey());
         } else {
-            logger.info("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());
+            logger.debug("ES|QL federation (external data sources) is disabled ([{}]=[false])", FEDERATION_ENABLED.getKey());
         }
     }
 
     /**
-     * The {@code 400} thrown by the data-node backstop when an external-source plan reaches a node that does
-     * not have federation available. The message deliberately omits the property and setting names so it reads
-     * as a plain "feature not present" error rather than a configuration hint.
+     * The {@code 400} raised when external-source work reaches a node that does not have federation available,
+     * either at the data node's external-request entry point or at the operator-build backstop. The message
+     * deliberately omits the property and setting names so it reads as a plain "feature not present" error
+     * rather than a configuration hint.
      */
-    static ElasticsearchStatusException notAvailableException() {
+    public static ElasticsearchStatusException notAvailableException() {
         return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
     }
 }

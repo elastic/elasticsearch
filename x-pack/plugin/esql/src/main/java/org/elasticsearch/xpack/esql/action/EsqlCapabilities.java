@@ -2818,11 +2818,12 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
-         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
-         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
-         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
-         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
-         * containing such a node correctly returns {@code supported=false}.
+         * Signals that this node reports no datasets during remote field resolution whenever federation is unavailable
+         * (see {@code Federation}), whether because the operator property suppressed it or because the setting leaves it
+         * off, so a {@code FROM <remote>:<dataset>} falls through to normal index resolution instead of surfacing a
+         * {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster predate this behavior and will not
+         * report the capability via {@code /_capabilities}, so any mixed cluster containing such a node correctly
+         * returns {@code supported=false}.
          */
         REGISTER_FEDERATION_FEATURE,
 

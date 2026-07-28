@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
@@ -33,6 +34,11 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.GLOBAL_PHYSICAL);
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {

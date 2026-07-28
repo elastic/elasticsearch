@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Physical plan optimizer for the lookup node. Mirrors {@link LocalPhysicalPlanOptimizer} but with a
@@ -47,6 +48,11 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
 
     public LookupPhysicalPlanOptimizer(LookupPhysicalOptimizerContext context) {
         super(context);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.LOOKUP_PHYSICAL);
     }
 
     @Override

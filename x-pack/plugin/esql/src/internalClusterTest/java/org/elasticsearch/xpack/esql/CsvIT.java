@@ -195,6 +195,17 @@ public class CsvIT extends ESTestCase {
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
 
         /**
+         * Returns the expected documents-found value to pass to {@link CsvAssert#assertDocumentsFound}.
+         * Return {@code null} to suppress the check (e.g. when the variant disables a pushdown
+         * optimizer rule that legitimately changes how many Lucene documents are fetched without
+         * affecting result correctness). The default implementation returns the original value from
+         * the csv-spec entry unchanged.
+         */
+        default String transformExpectedDocumentsFound(CsvSpecReader.CsvTestCase testCase) {
+            return testCase.expectedDocumentsFound;
+        }
+
+        /**
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
@@ -421,7 +432,7 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
-            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
+            CsvAssert.assertDocumentsFound(indexLoadStrategy.transformExpectedDocumentsFound(testCase), response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;

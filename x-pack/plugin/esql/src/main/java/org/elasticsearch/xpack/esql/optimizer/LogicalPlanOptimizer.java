@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * <p>This class is part of the planner</p>
@@ -132,6 +133,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.GLOBAL_LOGICAL);
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {

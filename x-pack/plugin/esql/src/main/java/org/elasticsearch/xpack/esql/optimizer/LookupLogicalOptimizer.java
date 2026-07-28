@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 
@@ -39,6 +40,13 @@ public class LookupLogicalOptimizer extends LocalLogicalPlanOptimizer {
 
     public LookupLogicalOptimizer(LocalLogicalOptimizerContext context) {
         super(context);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        // Override to use LOOKUP_LOGICAL rather than inheriting LOCAL_LOGICAL from the parent,
+        // so that lookup-stage rules can be targeted independently.
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.LOOKUP_LOGICAL);
     }
 
     @Override

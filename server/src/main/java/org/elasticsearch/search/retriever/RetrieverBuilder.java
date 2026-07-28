@@ -283,16 +283,6 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return validationException;
     }
 
-    /**
-     * @return Additional fields associated with this retriever that we want to track in
-     * {@link org.elasticsearch.action.admin.cluster.stats.SearchUsageStats}.
-     *
-     * Individual retrievers should override this to add their own specific custom fields.
-     */
-    public Set<String> getExtendedUsageFields() {
-        return Set.of();
-    }
-
     private static final class RetrieverNestingDepthExceededException extends IllegalArgumentException {
         RetrieverNestingDepthExceededException(String message) {
             super(message);

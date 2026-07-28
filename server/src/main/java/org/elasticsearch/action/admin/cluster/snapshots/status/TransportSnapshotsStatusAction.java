@@ -294,7 +294,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 builder.add(
                     new SnapshotStatus(
                         entry.snapshot(),
-                        entry.state(),
+                        convertStateIfFinalizing(entry.state()),
                         Collections.unmodifiableList(shardStatusBuilder),
                         entry.includeGlobalState(),
                         entry.startTime(),
@@ -310,6 +310,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
+    }
+
+    /// [SnapshotsInProgress] entries have state `SUCCESS` as soon as all shard snapshots complete, but it's still in progress (awaiting
+    /// finalization) so reporting `SUCCESS` in this API doesn't make sense to users. Keep it at `STARTED` until it's really complete.
+    private static SnapshotsInProgress.State convertStateIfFinalizing(SnapshotsInProgress.State state) {
+        return state == SnapshotsInProgress.State.SUCCESS ? SnapshotsInProgress.State.STARTED : state;
     }
 
     // Visible for testing

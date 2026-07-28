@@ -196,6 +196,8 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
                 return "obj";
             }
         });
+        data.put("n", null);
+        data.put("L", List.of("a", "b", "c"));
         ESLogMessage msg = new ESLogMessage().field("k", data);
         LogRecordData record = emitMapMessage(msg);
         Value<?> v = record.getAttributes().get(AttributeKey.valueKey("k"));
@@ -211,6 +213,8 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         assertThat(map.get("d"), equalTo(Value.of(2.5)));
         assertThat(map.get("f"), equalTo(Value.of(1.5)));
         assertThat(map.get("o"), equalTo(Value.of("obj")));
+        assertThat(map.get("L"), equalTo(Value.of(List.of(Value.of("a"), Value.of("b"), Value.of("c")))));
+        assertFalse(map.containsKey("n"));
     }
 
     @SuppressWarnings("unchecked")

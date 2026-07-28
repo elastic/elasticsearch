@@ -278,7 +278,6 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
 
     static Value<?> toValue(Object o) {
         return switch (o) {
-            case null -> Value.of("");
             case String s -> Value.of(s);
             case Boolean b -> Value.of(b);
             case Long l -> Value.of(l);
@@ -294,7 +293,11 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
 
     private static Map<String, Value<?>> toValueMap(Map<?, ?> map) {
         Map<String, Value<?>> result = new LinkedHashMap<>(map.size());
-        map.forEach((k, v) -> result.put(String.valueOf(k), toValue(v)));
+        map.forEach((k, v) -> {
+            if (v != null) {
+                result.put(String.valueOf(k), toValue(v));
+            }
+        });
         return result;
     }
 

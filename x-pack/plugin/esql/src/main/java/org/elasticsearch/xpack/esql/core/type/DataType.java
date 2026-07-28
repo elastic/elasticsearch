@@ -335,6 +335,15 @@ public enum DataType implements Writeable {
             .supportedSince(ESQL_LONG_RANGES, DataTypesTransportVersions.ESQL_DATE_RANGE_TECH_PREVIEW)
     ),
     /**
+     * Represents a half-open range between two double-precision floating-point numbers.
+     */
+    DOUBLE_RANGE(
+        builder().esType("double_range")
+            .estimatedSize(2 * Double.BYTES)
+            .docValues()
+            .underConstruction(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_TECH_PREVIEW)
+    ),
+    /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
      * in IPv6. These flow through the compute engine as fixed length, 16 byte
@@ -865,6 +874,7 @@ public enum DataType implements Writeable {
             || t == AGGREGATE_METRIC_DOUBLE
             || t == DATE_PERIOD
             || t == DATE_RANGE
+            || t == DOUBLE_RANGE
             || t == FLATTENED
             || t == HISTOGRAM
             || t == TIME_DURATION
@@ -1285,5 +1295,10 @@ public enum DataType implements Writeable {
          * Tech preview transport version for date_range field type support.
          */
         public static final TransportVersion ESQL_DATE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_date_range_tech_preview");
+
+        /**
+         * Tech preview transport version for double_range field type support
+         */
+        public static final TransportVersion ESQL_DOUBLE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_double_range_tech_preview");
     }
 }

@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -600,7 +602,7 @@ public final class CsvSpecReader {
         try {
             LogicalPlan plan = SPEC_PARSER.parseQuery(query);
             // Peel through nodes that do not disturb the established sort order.
-            while (plan instanceof Limit || plan instanceof SortPreserving) {
+            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename) {
                 plan = ((UnaryPlan) plan).child();
             }
             return plan instanceof OrderBy;
@@ -638,7 +640,7 @@ public final class CsvSpecReader {
             LogicalPlan plan = SPEC_PARSER.parseQuery(testCase.query);
 
             // Walk to the top-level OrderBy, skipping Limit and SortPreserving wrappers.
-            while (plan instanceof Limit || plan instanceof SortPreserving) {
+            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename) {
                 plan = ((UnaryPlan) plan).child();
             }
             if (plan instanceof OrderBy == false) {
@@ -692,7 +694,7 @@ public final class CsvSpecReader {
             // Map each sort key name to its column index in the header.
             String[] header = rows.get(0);
             int[] sortKeyIndices = new int[sortKeyNames.size()];
-            java.util.Arrays.fill(sortKeyIndices, -1);
+            Arrays.fill(sortKeyIndices, -1);
             for (int col = 0; col < header.length; col++) {
                 // Header cells are of the form "name:type"; strip the type.
                 String colName = header[col].contains(":") ? header[col].substring(0, header[col].indexOf(':')).trim() : header[col].trim();
@@ -735,7 +737,7 @@ public final class CsvSpecReader {
                 if (tied) {
                     // If the rows are completely identical across all columns, swapping them
                     // produces the same test output — not a real flakiness risk.
-                    if (java.util.Arrays.equals(rowA, rowB)) {
+                    if (Arrays.equals(rowA, rowB)) {
                         continue;
                     }
                     String message = "Rows "

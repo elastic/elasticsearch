@@ -14,14 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Column;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.EphemeralColumn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.HeaderColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.RequireHeader;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.NamedColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.TimeSeriesColumn;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -34,75 +32,146 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
     private static final Attribute REGION = attr("region");
 
     public void testTimeSeriesRequirementsAreAdditive() {
-        RequireHeader requirement = RequireHeader.copyInput()
-            .requiring(EphemeralColumn.of(List.of(REGION)))
-            .requiring(EphemeralColumn.of(List.of(REGION)))
-            .requiring(EphemeralColumn.of(List.of(POD, REGION)));
-        Header header = requirement.header();
+        Header requirement = Header.undefined()
+            .including(TimeSeriesColumn.of(List.of(REGION)))
+            .including(TimeSeriesColumn.of(List.of(REGION)))
+            .including(TimeSeriesColumn.of(List.of(POD, REGION)));
+        TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
+        TimeSeriesColumn withoutRegion = TimeSeriesColumn.of(List.of(REGION));
+        TimeSeriesColumn withoutPodRegion = TimeSeriesColumn.of(List.of(POD, REGION));
 
-        assertThat(header.additionalEphemeralColumns(), hasSize(2));
-        assertThat(names(header.additionalEphemeralColumns().get(0).exclusions()), equalTo(Set.of("region")));
-        assertThat(names(header.additionalEphemeralColumns().get(1).exclusions()), equalTo(Set.of("pod", "region")));
+        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion, withoutPodRegion))));
+        assertFalse(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion))));
     }
 
-    public void testRequirementChecksStrictColumnsButAllowsConcreteIdentity() {
-        RequireHeader requirement = RequireHeader.copyInput().requiring(EphemeralColumn.of(List.of(REGION))).including(List.of(CLUSTER));
-        EphemeralColumn identity = new EphemeralColumn(attr(MetadataAttribute.TIMESERIES), List.of());
-        EphemeralColumn withoutRegion = new EphemeralColumn(attr(MetadataAttribute.TIMESERIES), List.of(REGION));
+    public void testRequirementChecksTimeSeriesColumnsButAllowsConcreteIdentity() {
+        Header requirement = Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).including(List.of(CLUSTER));
+        TimeSeriesColumn identity = new TimeSeriesColumn(attr(MetadataAttribute.TIMESERIES), List.of());
+        TimeSeriesColumn withoutRegion = new TimeSeriesColumn(attr(MetadataAttribute.TIMESERIES), List.of(REGION));
 
-        assertTrue(requirement.check(new Header(List.of(identity), List.of(identity, withoutRegion, new Column(CLUSTER)))));
-        assertFalse(requirement.check(new Header(List.of(identity), List.of(identity, new Column(CLUSTER)))));
-        assertTrue(RequireHeader.copyInput().check(Header.of(List.of(CLUSTER))));
+        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, withoutRegion, new NamedColumn(CLUSTER)))));
+        assertFalse(requirement.success(new Header(List.of(identity), List.of(identity, new NamedColumn(CLUSTER)))));
+        assertTrue(Header.undefined().success(concreteHeader(CLUSTER)));
     }
 
     public void testConcreteLabelWideningPreservesTimeSeriesRequirements() {
-        RequireHeader requirement = RequireHeader.copyInput()
-            .requiring(EphemeralColumn.of(List.of(POD, REGION)))
-            .including(List.of(CLUSTER));
-        Header header = requirement.header();
+        Header requirement = Header.undefined().including(TimeSeriesColumn.of(List.of(POD, REGION))).including(List.of(CLUSTER));
+        TimeSeriesColumn identity = TimeSeriesColumn.of(List.of());
+        TimeSeriesColumn required = TimeSeriesColumn.of(List.of(POD, REGION));
 
-        assertThat(requirement.demandedLabels(), equalTo(List.of(CLUSTER)));
-        assertThat(header.additionalEphemeralColumns().getFirst().exclusions(), equalTo(List.of(POD, REGION)));
+        assertThat(requirement.labels(), equalTo(List.of(CLUSTER)));
+        assertTrue(requirement.success(new Header(List.of(identity), List.of(identity, required))));
+    }
+
+    public void testIdentityGroupingDefaultsOnlyUndemandedGrouping() {
+        Header demand = Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).including(List.of(CLUSTER));
+        Header surface = demand.withIdentityGrouping();
+
+        assertTrue(surface.hasTimeSeriesGrouping());
+        // the demanded identity and labels remain exposed alongside the default identity
+        assertTrue(Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).success(surface));
+        assertTrue(Header.undefined().including(TimeSeriesColumn.of(List.of())).success(surface));
+        assertThat(surface.labels(), equalTo(List.of(CLUSTER)));
+
+        // a demand that pins concrete grouping is returned unchanged
+        Header concrete = concreteHeader(CLUSTER);
+        assertThat(concrete.withIdentityGrouping(), sameInstance(concrete));
     }
 
     public void testNestedWithoutSelectsExactCarriedIdentity() {
         Attribute regionIdentity = attr(MetadataAttribute.TIMESERIES);
         Attribute podRegionIdentity = attr(MetadataAttribute.TIMESERIES);
 
-        EphemeralColumn region = new EphemeralColumn(regionIdentity, List.of(REGION));
-        EphemeralColumn podRegion = new EphemeralColumn(podRegionIdentity, List.of(POD, REGION));
+        TimeSeriesColumn region = new TimeSeriesColumn(regionIdentity, List.of(REGION));
+        TimeSeriesColumn podRegion = new TimeSeriesColumn(podRegionIdentity, List.of(POD, REGION));
         Header inner = new Header(List.of(region), List.of(region, podRegion));
-        Header outer = inner.without(List.of(POD));
+        Header outer = inner.groupedWithout(List.of(POD));
 
-        assertThat(names(outer.groupByEphemeral().exclusions()), equalTo(Set.of("region", "pod")));
-        assertThat(outer.groupByEphemeral().attribute(), sameInstance(podRegionIdentity));
-        assertThat(attributes(outer.bind(List.of(regionIdentity, podRegionIdentity)).groupBy()), equalTo(List.of(podRegionIdentity)));
+        assertThat(
+            outer.transformExpressions(
+                (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(regionIdentity, podRegionIdentity))
+            ).groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
+            equalTo(List.of(podRegionIdentity))
+        );
     }
 
     public void testByKeepsConcreteKeysAndReportsMissingLabels() {
-        Header by = Header.of(List.of(CLUSTER)).groupedBy(List.of(CLUSTER, REGION));
+        Header by = concreteHeader(CLUSTER).groupedBy(List.of(CLUSTER, REGION));
 
-        Header bound = by.bind(List.of(CLUSTER));
-        assertThat(attributes(bound.groupBy()), equalTo(List.of(CLUSTER, REGION)));
+        Header bound = by.transformExpressions(
+            (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(CLUSTER))
+        );
+        assertThat(
+            bound.groupingExpressions().stream().map(expression -> expression.toAttribute()).toList(),
+            equalTo(List.of(CLUSTER, REGION))
+        );
     }
 
     public void testDuplicateConcreteLabelsCollapseByName() {
         Attribute duplicate = attr("cluster");
-        Header by = Header.of(List.of(CLUSTER, duplicate)).groupedBy(List.of(CLUSTER, duplicate));
+        Header by = concreteHeader(CLUSTER, duplicate).groupedBy(List.of(CLUSTER, duplicate));
 
-        assertThat(by.declared(), hasSize(1));
-        assertThat(by.bind(List.of(CLUSTER, duplicate)).groupBy(), hasSize(1));
+        assertThat(by.labels(), hasSize(1));
+        assertThat(
+            by.transformExpressions(
+                (column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(CLUSTER, duplicate))
+            ).groupingExpressions(),
+            hasSize(1)
+        );
+    }
+
+    public void testTransformRunsOnceAndPreservesMembership() {
+        NamedColumn proxy = new NamedColumn(CLUSTER);
+        Header header = new Header(List.of(proxy), List.of(proxy));
+        Attribute transformed = attr("transformed");
+        int[] calls = new int[1];
+
+        Header result = header.transformExpressions((column, grouping) -> switch (column) {
+            case NamedColumn ignored -> {
+                calls[0]++;
+                assertTrue(grouping);
+                yield new NamedColumn(transformed);
+            }
+            case TimeSeriesColumn ignored -> throw new AssertionError();
+        });
+
+        assertThat(calls[0], equalTo(1));
+        assertThat(result.groupingExpressions().getFirst(), sameInstance(result.exposedExpressions().getFirst()));
+        assertThat(result.groupingExpressions().getFirst(), sameInstance(transformed));
+    }
+
+    public void testResolveLinksProxiesToPlanOutput() {
+        Attribute identity = attr(MetadataAttribute.TIMESERIES);
+        Header bound = new Header(
+            List.of(new TimeSeriesColumn(identity, List.of(REGION))),
+            List.of(new TimeSeriesColumn(identity, List.of(REGION)), new NamedColumn(CLUSTER))
+        ).transformExpressions((column, grouping) -> PromqlAttributesTranslationContext.resolveColumn(column, List.of(identity, CLUSTER)));
+        int[] resolvedKinds = new int[2];
+
+        bound.transformExpressions((column, grouping) -> switch (column) {
+            case NamedColumn named -> {
+                resolvedKinds[0]++;
+                assertThat(named.attribute(), sameInstance(CLUSTER));
+                yield named;
+            }
+            case TimeSeriesColumn timeSeries -> {
+                resolvedKinds[1]++;
+                assertTrue(grouping);
+                assertThat(timeSeries.attribute(), sameInstance(identity));
+                assertThat(timeSeries.exclusions(), equalTo(List.of(REGION)));
+                yield timeSeries;
+            }
+        });
+
+        assertThat(resolvedKinds, equalTo(new int[] { 1, 1 }));
     }
 
     private static Attribute attr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD);
     }
 
-    private static Set<String> names(List<Attribute> attributes) {
-        return attributes.stream().map(Attribute::name).collect(Collectors.toSet());
-    }
-
-    private static List<Attribute> attributes(List<HeaderColumn> columns) {
-        return columns.stream().map(HeaderColumn::attribute).toList();
+    private static Header concreteHeader(Attribute... attributes) {
+        List<Column> columns = Arrays.stream(attributes).map(NamedColumn::new).map(Column.class::cast).toList();
+        return new Header(columns, columns);
     }
 }

@@ -470,7 +470,7 @@ public final class MethodWriter extends GeneratorAdapter {
         // capture index followed by the estimator's owner/name/descriptor — so the generated lambda charges the delegate per
         // invocation against the captured script (see LambdaBootstrap). Compile-time (typed) references always capture the
         // script first, so the index is 0. Both paths otherwise build the same args and end with the injections.
-        boolean chargesAllocation = functionRef.allocationEstimator != null;
+        boolean chargesAllocation = functionRef.chargesAllocation;
 
         int size = 7 + functionRef.delegateInjections.length;
         if (chargesAllocation) {

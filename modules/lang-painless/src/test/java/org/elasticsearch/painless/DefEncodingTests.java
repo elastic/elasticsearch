@@ -44,11 +44,34 @@ public class DefEncodingTests extends ESTestCase {
 
         assertEquals(new Def.Encoding(true, true, "this", "mycompare", 0), new Def.Encoding("Stthis.mycompare,0"));
 
-        // Allocation-charging external reference: needsInstance=true on a non-'this' symbol (captures the script).
+        // Non-charging reference with needsInstance=true on a non-'this' symbol: valid and distinct from a charging one —
+        // chargesAllocation is a separate flag, not inferred from needsInstance+symbol.
         assertEquals(
             new Def.Encoding(true, true, "java.lang.String", "toUpperCase", 0),
             new Def.Encoding("Stjava.lang.String.toUpperCase,0")
         );
+
+        // Charging static reference (external @allocates target): needsInstance=true captures the script, chargesAllocation
+        // adds the trailing 'c'. Distinct encoding from the non-charging needsInstance case above.
+        assertEquals(
+            new Def.Encoding(true, true, "java.lang.String", "toUpperCase", 0, true),
+            new Def.Encoding("Stjava.lang.String.toUpperCase,0c")
+        );
+        assertTrue(new Def.Encoding("Stjava.lang.String.toUpperCase,0c").chargesAllocation);
+
+        // Charging dynamic reference (PR 8.6): trailing 'c' after numCaptures marks a def-receiver bound ref that charges.
+        // The script is a trailing capture, so numCaptures counts it (here: receiver + script = 2).
+        Def.Encoding charging = new Def.Encoding(false, false, "s", "concat", 2, true);
+        assertEquals("Dfs.concat,2c", charging.toString());
+        assertEquals(charging, new Def.Encoding("Dfs.concat,2c"));
+        assertTrue(charging.chargesAllocation);
+        assertEquals(2, charging.numCaptures);
+
+        // A plain (non-charging) encoding parses with chargesAllocation=false and no 'c' in its string.
+        Def.Encoding plain = new Def.Encoding("Dfs.concat,2");
+        assertFalse(plain.chargesAllocation);
+        assertEquals("Dfs.concat,2", plain.toString());
+        assertNotEquals(charging, plain);
     }
 
     public void testValidate() {

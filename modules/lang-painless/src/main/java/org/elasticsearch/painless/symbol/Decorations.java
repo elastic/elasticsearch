@@ -242,6 +242,17 @@ public class Decorations {
         public static EncodingDecoration of(boolean isStatic, boolean needsInstance, String symbol, String methodName, int captures) {
             return new EncodingDecoration(new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures));
         }
+
+        public static EncodingDecoration of(
+            boolean isStatic,
+            boolean needsInstance,
+            String symbol,
+            String methodName,
+            int captures,
+            boolean chargesAllocation
+        ) {
+            return new EncodingDecoration(new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures, chargesAllocation));
+        }
     }
 
     public record CapturesDecoration(List<Variable> captures) implements Decoration {

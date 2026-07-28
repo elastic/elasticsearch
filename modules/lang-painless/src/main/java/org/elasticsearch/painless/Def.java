@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -418,11 +419,10 @@ public final class Def {
                 if (defEncoding.isStatic) {
                     // the implementation is strongly typed, now that we know the interface type,
                     // we have everything.
-                    // An external reference (symbol != "this") that needs the script instance was encoded that way by
-                    // allocation tracking to capture the script for a possible per-invocation charge (see the semantic
-                    // function-reference lowering). "this" references need the script as a real delegate argument and
-                    // are not charged.
-                    boolean chargesAllocation = defEncoding.needsInstance && "this".equals(defEncoding.symbol) == false;
+                    // needsInstance captures the script (threaded through the argument index math above and dropped by the
+                    // charging bootstrap); chargesAllocation is the explicit, independent signal that the resolved target
+                    // should be charged. They are orthogonal: this::userFunc has needsInstance=true but chargesAllocation
+                    // false (the script is a real delegate argument, not a charge). Both come straight from the encoding.
                     filter = lookupReferenceInternal(
                         painlessLookup,
                         functions,
@@ -433,7 +433,8 @@ public final class Def {
                         defEncoding.methodName,
                         defEncoding.numCaptures,
                         defEncoding.needsInstance,
-                        chargesAllocation
+                        defEncoding.chargesAllocation,
+                        false
                     );
                 } else {
                     // the interface type is now known, but we need to get the implementation.
@@ -443,6 +444,9 @@ public final class Def {
                     for (int capture = 0; capture < captures.length; capture++) {
                         captures[capture] = callSiteType.parameterType(i + 1 + capture + scriptThisOffset);
                     }
+                    // For a charging dynamic def-receiver bound reference, numCaptures is 2 ([receiver, #scriptThis]); the
+                    // nested REFERENCE bootstrap dispatches on captures[0]=receiver and receives a trailing int charge flag so
+                    // Def.lookupReference charges the runtime-resolved target (when annotated) and drops the script capture.
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
                         painlessLookup,
@@ -453,7 +457,8 @@ public final class Def {
                         nestedType,
                         0,
                         DefBootstrap.REFERENCE,
-                        PainlessLookupUtility.typeToCanonicalTypeName(interfaceType)
+                        PainlessLookupUtility.typeToCanonicalTypeName(interfaceType),
+                        defEncoding.chargesAllocation ? 1 : 0
                     );
                     filter = nested.dynamicInvoker();
                 }
@@ -481,7 +486,8 @@ public final class Def {
         MethodHandles.Lookup methodHandlesLookup,
         String interfaceClass,
         Class<?> receiverClass,
-        String name
+        String name,
+        boolean chargesAllocation
     ) throws Throwable {
 
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
@@ -500,6 +506,11 @@ public final class Def {
             );
         }
 
+        // A charging dynamic reference (`def s = obj; s::method` under allocation tracking) was over-captured at compile time
+        // with a trailing #scriptThis (the receiver type was unknown, so no pre-filter). Only actually charge when the target
+        // resolved for this runtime receiver carries an estimator; otherwise the trailing script capture is still dropped but
+        // nothing is charged. lookupReferenceInternal appends the script as a trailing capture (dynamicScriptCapture) and
+        // charges at that index.
         return lookupReferenceInternal(
             painlessLookup,
             functions,
@@ -510,7 +521,8 @@ public final class Def {
             implMethod.javaMethod().getName(),
             1,
             false,
-            false
+            chargesAllocation,
+            chargesAllocation
         );
     }
 
@@ -525,7 +537,8 @@ public final class Def {
         String call,
         int captures,
         boolean needsScriptInstance,
-        boolean chargesAllocation
+        boolean chargesAllocation,
+        boolean dynamicScriptCapture
     ) throws Throwable {
 
         final FunctionRef ref = FunctionRef.create(
@@ -540,6 +553,17 @@ public final class Def {
             needsScriptInstance
         );
         Class<?>[] parameters = ref.factoryMethodParameters(needsScriptInstance ? methodHandlesLookup.lookupClass() : null);
+        // The script capture that the charging bootstrap drops sits at index 0 by default (needsScriptInstance prepends it as
+        // the first factory parameter). For a dynamic def-receiver bound reference the receiver must stay at index 0 (the
+        // REFERENCE bootstrap dispatches on it), so instead the script is an extra trailing capture and is charged at that
+        // index. The extra parameter is the generated script class (the runtime #scriptThis), which carries $checkAllocBytes.
+        int scriptCaptureIndex = 0;
+        if (dynamicScriptCapture) {
+            scriptCaptureIndex = parameters.length;
+            Class<?>[] withScript = Arrays.copyOf(parameters, parameters.length + 1);
+            withScript[parameters.length] = methodHandlesLookup.lookupClass();
+            parameters = withScript;
+        }
         MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
         final CallSite callSite;
         // A charge-capturing reference (needsScriptInstance forced for an external @allocates target under tracking, see the
@@ -568,8 +592,7 @@ public final class Def {
                 ref.delegateMethodType,
                 ref.isDelegateInterface ? 1 : 0,
                 ref.isDelegateAugmented ? 1 : 0,
-                // needsScriptInstance prepends the script as the first factory parameter, so it is capture 0 here.
-                0,
+                scriptCaptureIndex,
                 estimatorClassName,
                 estimatorMethodName,
                 estimatorMethodDescriptor,
@@ -1911,6 +1934,14 @@ public final class Def {
         public final String symbol;
         public final String methodName;
         public final int numCaptures;
+        /**
+         * The explicit signal that this reference's resolved target should be charged per invocation under allocation
+         * tracking, read directly by {@link Def#lookupReferenceInternal}. Orthogonal to {@link #needsInstance}, which is the
+         * capture-plumbing (it threads the script instance through the def-call argument index math and is also {@code true}
+         * for a non-charging {@code this::userFunc} delegate). Encoded as a trailing {@code c} after {@code numCaptures} (see
+         * {@link #FORMAT}); it only appears when tracking is on, so tracking-off encodings are byte-for-byte identical.
+         */
+        public final boolean chargesAllocation;
 
         /**
          * Encoding is passed to invokedynamic to help DefBootstrap find the method.  invokedynamic can only take
@@ -1920,15 +1951,34 @@ public final class Def {
          * */
         public final String encoding;
 
-        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures";
+        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures[c]";
 
         public Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures) {
+            this(isStatic, needsInstance, symbol, methodName, numCaptures, false);
+        }
+
+        public Encoding(
+            boolean isStatic,
+            boolean needsInstance,
+            String symbol,
+            String methodName,
+            int numCaptures,
+            boolean chargesAllocation
+        ) {
             this.isStatic = isStatic;
             this.needsInstance = needsInstance;
             this.symbol = Objects.requireNonNull(symbol);
             this.methodName = Objects.requireNonNull(methodName);
             this.numCaptures = numCaptures;
-            this.encoding = (isStatic ? "S" : "D") + (needsInstance ? "t" : "f") + symbol + "." + methodName + "," + numCaptures;
+            this.chargesAllocation = chargesAllocation;
+            this.encoding = (isStatic ? "S" : "D")
+                + (needsInstance ? "t" : "f")
+                + symbol
+                + "."
+                + methodName
+                + ","
+                + numCaptures
+                + (chargesAllocation ? "c" : "");
 
             if ("this".equals(symbol)) {
                 if (isStatic == false) {
@@ -1936,9 +1986,9 @@ public final class Def {
                 }
             }
             // needsInstance on a non-'this' symbol is permitted: allocation tracking encodes an external reference to an
-            // @allocates target with needsInstance=true to capture the script, which the charging lambda bootstrap drops
-            // before delegating (see the semantic function-reference lowering and Def.lookupReferenceInternal). This keeps
-            // the encoding format unchanged, so tracking-off scripts encode byte-for-byte as before.
+            // @allocates target with needsInstance=true to capture the script (chargesAllocation carries the charge signal),
+            // which the charging lambda bootstrap drops before delegating (see the semantic function-reference lowering and
+            // Def.lookupReferenceInternal). Tracking-off scripts set neither flag, so they encode byte-for-byte as before.
 
             if (methodName.isEmpty()) {
                 throw new IllegalArgumentException("methodName must be non-empty, encoding [" + encoding + "]");
@@ -2016,7 +2066,15 @@ public final class Def {
                 );
             }
 
-            this.numCaptures = Integer.parseUnsignedInt(encoding.substring(commaIndex + 1));
+            // numCaptures is the leading digits after the comma; an optional trailing 'c' marks a charging dynamic reference.
+            String captureField = encoding.substring(commaIndex + 1);
+            if (captureField.charAt(captureField.length() - 1) == 'c') {
+                this.chargesAllocation = true;
+                captureField = captureField.substring(0, captureField.length() - 1);
+            } else {
+                this.chargesAllocation = false;
+            }
+            this.numCaptures = Integer.parseUnsignedInt(captureField);
         }
 
         @Override
@@ -2032,6 +2090,7 @@ public final class Def {
             return isStatic == encoding1.isStatic
                 && needsInstance == encoding1.needsInstance
                 && numCaptures == encoding1.numCaptures
+                && chargesAllocation == encoding1.chargesAllocation
                 && Objects.equals(symbol, encoding1.symbol)
                 && Objects.equals(methodName, encoding1.methodName)
                 && Objects.equals(encoding, encoding1.encoding);
@@ -2039,7 +2098,7 @@ public final class Def {
 
         @Override
         public int hashCode() {
-            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, encoding);
+            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, chargesAllocation, encoding);
         }
     }
 }

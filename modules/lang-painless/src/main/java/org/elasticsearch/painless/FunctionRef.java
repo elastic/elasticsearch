@@ -303,7 +303,8 @@ public class FunctionRef {
                 factoryMethodType,
                 needsScriptInstance ? WriterConstants.CLASS_TYPE : null,
                 isScriptAware,
-                allocationEstimator
+                allocationEstimator,
+                false
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -339,12 +340,19 @@ public class FunctionRef {
     /** whether the delegate is a {@code @script_aware} augmentation (script captured as a leading factory parameter) */
     public final boolean isScriptAware;
     /**
-     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. Its presence is the charge signal:
-     * a reference reaching code generation with a non-null estimator is charged per invocation against the captured script.
-     * {@code create} resolves it for every annotated target; the compiler clears it (see {@link #withoutAllocationEstimator})
-     * on references it decides not to charge (tracking off, or ineligible), leaving them to emit unchanged.
+     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. {@code create} resolves it for every
+     * annotated target. It is <em>not</em> the charge signal — {@link #chargesAllocation} is; a non-charging reference may
+     * still carry a resolved estimator (it is simply never read). When charging, this supplies the estimator emitted into the
+     * charge call site (see {@link MethodWriter#invokeLambdaCall} and {@link Def#lookupReferenceInternal}).
      */
     public final java.lang.reflect.Method allocationEstimator;
+    /**
+     * The explicit signal that this reference is charged per invocation against the captured script. Set by
+     * {@link #withAllocationCharge} when the compiler decides to charge an annotated target (tracking on, eligible form);
+     * false otherwise. Mirrors {@code Def.Encoding#chargesAllocation} on the dynamic path so both paths express the charge
+     * decision the same way rather than inferring it from {@link #allocationEstimator} being non-null.
+     */
+    public final boolean chargesAllocation;
 
     private FunctionRef(
         String interfaceMethodName,
@@ -359,7 +367,8 @@ public class FunctionRef {
         MethodType factoryMethodType,
         Type factoryMethodReceiver,
         boolean isScriptAware,
-        java.lang.reflect.Method allocationEstimator
+        java.lang.reflect.Method allocationEstimator,
+        boolean chargesAllocation
     ) {
 
         this.interfaceMethodName = interfaceMethodName;
@@ -375,6 +384,7 @@ public class FunctionRef {
         this.factoryMethodReceiver = factoryMethodReceiver;
         this.isScriptAware = isScriptAware;
         this.allocationEstimator = allocationEstimator;
+        this.chargesAllocation = chargesAllocation;
     }
 
     /** Get the factory method type, with updated receiver if {@code factoryMethodReceiver} is set */
@@ -407,19 +417,18 @@ public class FunctionRef {
             factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver,
             isScriptAware,
-            allocationEstimator
+            allocationEstimator,
+            chargesAllocation
         );
     }
 
     /**
-     * Returns a copy with {@link #allocationEstimator} cleared, so the reference is not charged. Used by the compiler for
-     * annotated targets it decides not to charge (tracking off, or an ineligible reference form), so they emit unchanged.
-     * Returns {@code this} when there is nothing to clear.
+     * Returns a copy set up to charge this reference's allocation per invocation: the script instance is prepended as a
+     * leading factory capture (so {@code LambdaBootstrap} captures it) and {@link #chargesAllocation} is set. Used by the
+     * compiler for an annotated {@code @allocates} target it decides to charge (tracking on, eligible reference form). The
+     * script capture is dropped by the charging bootstrap before the delegate runs.
      */
-    public FunctionRef withoutAllocationEstimator() {
-        if (allocationEstimator == null) {
-            return this;
-        }
+    public FunctionRef withAllocationCharge(Class<?> scriptClass) {
         return new FunctionRef(
             interfaceMethodName,
             interfaceMethodType,
@@ -430,10 +439,11 @@ public class FunctionRef {
             delegateMethodName,
             delegateMethodType,
             delegateInjections,
-            factoryMethodType,
+            factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver,
             isScriptAware,
-            null
+            allocationEstimator,
+            true
         );
     }
 

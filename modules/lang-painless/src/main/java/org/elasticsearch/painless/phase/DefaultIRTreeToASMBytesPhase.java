@@ -103,6 +103,7 @@ import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCChargeAllocation;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
@@ -1825,8 +1826,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
-        Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
-        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName);
+        if (irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class)) {
+            // Charging def-receiver bound reference (target type known): push the script after the receiver as a trailing
+            // capture and pass the charge flag on the REFERENCE call site. Def.lookupReference drops the script capture and
+            // charges the runtime-resolved target when it is annotated. The script is typed as the generated script class
+            // (CLASS_TYPE), matching the trailing capture that lookupReferenceInternal appends.
+            writeInstanceScriptCapture(writeScope, methodWriter);
+            Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType(), CLASS_TYPE);
+            methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName, 1);
+        } else {
+            Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
+            methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName);
+        }
     }
 
     @Override

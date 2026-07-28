@@ -727,4 +727,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public LookupFromIndexService getLookupFromIndexService() {
         return lookupFromIndexService;
     }
+
+    public ComputeService computeService() {
+        return computeService;
+    }
+
+    public TransportActionServices services() {
+        return services;
+    }
+
+    public EnrichPolicyResolver enrichPolicyResolver() {
+        return enrichPolicyResolver;
+    }
+
+    public DatasetResolver datasetResolver() {
+        return datasetResolver;
+    }
 }

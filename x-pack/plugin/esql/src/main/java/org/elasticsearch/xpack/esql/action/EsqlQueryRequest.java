@@ -66,6 +66,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private Integer pageSize = null;
+    // TODO: Move this to a query param
+    private boolean dropNullColumns = false;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -116,6 +119,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.pageSize = source.pageSize;
+        this.dropNullColumns = source.dropNullColumns;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -329,6 +334,24 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        return this;
+    }
+
+    public Integer pageSize() {
+        return pageSize;
+    }
+
+    public EsqlQueryRequest pageSize(int pageSize) {
+        this.pageSize = pageSize;
+        return this;
+    }
+
+    public boolean dropNullColumns() {
+        return dropNullColumns;
+    }
+
+    public EsqlQueryRequest dropNullColumns(boolean dropNullColumns) {
+        this.dropNullColumns = dropNullColumns;
         return this;
     }
 

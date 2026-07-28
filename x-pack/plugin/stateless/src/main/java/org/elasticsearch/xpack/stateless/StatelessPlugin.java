@@ -82,6 +82,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1366,7 +1367,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             SharedBlobCacheService.SHARED_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
@@ -1943,7 +1944,22 @@ public class StatelessPlugin extends Plugin
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId
     ) {
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        boolean hasTimestampField = hasTimestampField(indicesService.get(), shardId);
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, hasTimestampField);
+    }
+
+    /**
+     * Resolves whether this shard's mapping has a {@code @timestamp} field.
+     * The result is frozen at search-directory creation; mapping changes after shard open are intentionally stale until
+     * relocation or restart.
+     */
+    static boolean hasTimestampField(IndicesService indicesService, ShardId shardId) {
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService == null) {
+            return false;
+        }
+        final MapperService mapperService = indexService.mapperService();
+        return mapperService != null && mapperService.mappingLookup().getTimestampFieldType() != null;
     }
 
     protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(

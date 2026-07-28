@@ -412,6 +412,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.multiproject,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,

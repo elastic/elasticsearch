@@ -150,7 +150,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
 
     private void createSmlIndexWithDocs() throws Exception {
         // permissions.kibana.privileges.name must be keyword so the implicit terms_set DLS query matches;
-        // permissions_count must be integer so the minimum_should_match_field works correctly.
+        // permissions.kibana.privileges.count must be integer so the minimum_should_match_field works correctly.
         final Request create = new Request("PUT", "/" + SML_INDEX);
         create.setJsonEntity("""
             {
@@ -163,14 +163,14 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
                         "properties": {
                           "privileges": {
                             "properties": {
-                              "name": { "type": "keyword" }
+                              "name": { "type": "keyword" },
+                              "count": { "type": "integer" }
                             }
                           }
                         }
                       }
                     }
                   },
-                  "permissions_count": { "type": "integer" },
                   "title": { "type": "keyword" }
                 }
               }
@@ -184,10 +184,12 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "marketing|saved_object:dashboard/get"}]
+                  "privileges": {
+                    "name": "marketing|saved_object:dashboard/get",
+                    "count": 1
+                  }
                 }
               },
-              "permissions_count": 1,
               "title": "marketing dashboard"
             }
             """);
@@ -198,10 +200,12 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
               "spaces": ["finance"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "finance|saved_object:dashboard/get"}]
+                  "privileges": {
+                    "name": "finance|saved_object:dashboard/get",
+                    "count": 1
+                  }
                 }
               },
-              "permissions_count": 1,
               "title": "finance dashboard"
             }
             """);
@@ -212,10 +216,12 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
-                  "privileges": [{"name": "marketing|saved_object:lens/get"}]
+                  "privileges": {
+                    "name": "marketing|saved_object:lens/get",
+                    "count": 1
+                  }
                 }
               },
-              "permissions_count": 1,
               "title": "marketing lens"
             }
             """);
@@ -224,7 +230,6 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
         indexSmlDoc("global-no-perms", """
             {
               "spaces": ["*"],
-              "permissions_count": 0,
               "title": "global no perms"
             }
             """);
@@ -236,13 +241,15 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
               "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
-                  "privileges": [
-                    {"name": "marketing|saved_object:dashboard/get"},
-                    {"name": "marketing|saved_object:lens/get"}
-                  ]
+                  "privileges": {
+                    "name": [
+                      "marketing|saved_object:dashboard/get",
+                      "marketing|saved_object:lens/get"
+                    ],
+                    "count": 2
+                  }
                 }
               },
-              "permissions_count": 2,
               "title": "multi perm"
             }
             """);
@@ -278,7 +285,7 @@ public class KibanaSmlImplicitPrivilegesIT extends ESRestTestCase {
 
         final String query = (String) implicit.get("query");
         assertThat(query, containsString("permissions.kibana.privileges.name"));
-        assertThat(query, containsString("permissions_count"));
+        assertThat(query, containsString("permissions.kibana.privileges.count"));
         assertThat(query, containsString("marketing|saved_object:dashboard/get"));
         assertThat(query, containsString("terms_set"));
     }

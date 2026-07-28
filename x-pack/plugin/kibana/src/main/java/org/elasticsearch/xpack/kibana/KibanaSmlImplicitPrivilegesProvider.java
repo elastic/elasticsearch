@@ -33,7 +33,7 @@ import java.util.Set;
  * <p>
  * SML documents carry composite tokens in {@code permissions.kibana.privileges.name} that bind a
  * space and a privilege action together (e.g. {@code "marketing|saved_object:dashboard/get"}). The
- * number of tokens a document requires is pre-computed and stored in {@code permissions_count}. A
+ * number of tokens a document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
  * document with no {@code permissions.kibana.privileges.name} field is a public document visible to
  * all users who pass the login check.
  * <p>
@@ -41,7 +41,7 @@ import java.util.Set;
  * strings across all matching grants. For each space the user belongs to and each action they hold
  * in that space, one composite token {@code "<spaceId>|<action>"} is emitted. The DLS query then
  * uses a {@code terms_set} query requiring that every token listed on the document is present in
- * the user's held set ({@code minimum_should_match_field: permissions_count}).
+ * the user's held set ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
  * <p>
  * When the user holds the wildcard resource ({@code *}), full read access is granted with no DLS
  * restriction. Otherwise, the provider builds a DLS query that:
@@ -50,7 +50,7 @@ import java.util.Set;
  *       documents).</li>
  *   <li>Allows documents whose entire {@code permissions.kibana.privileges.name} set is a subset of
  *       the user's held composite tokens (enforced via {@code terms_set} with
- *       {@code minimum_should_match_field: permissions_count}).</li>
+ *       {@code minimum_should_match_field: permissions.kibana.privileges.count}).</li>
  * </ul>
  */
 public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
@@ -63,7 +63,7 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
     static final String PERMISSIONS_FIELD = "permissions.kibana.privileges.name";
-    static final String PERMISSIONS_COUNT_FIELD = "permissions_count";
+    static final String PERMISSIONS_COUNT_FIELD = "permissions.kibana.privileges.count";
     static final String TOKEN_SEPARATOR = "|";
 
     @Override
@@ -174,7 +174,7 @@ public class KibanaSmlImplicitPrivilegesProvider implements ImplicitPrivilegesPr
      *       user).</li>
      *   <li>Token-match branch: {@code terms_set} on {@code permissions.kibana.privileges.name}
      *       requiring the document's full token set to be a subset of the user's held tokens,
-     *       enforced via {@code minimum_should_match_field: permissions_count}.</li>
+     *       enforced via {@code minimum_should_match_field: permissions.kibana.privileges.count}.</li>
      * </ol>
      * <p>
      * Hand-rolled via {@link XContentBuilder} rather than {@code QueryBuilders} to keep the

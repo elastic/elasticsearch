@@ -23,7 +23,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.KIBANA_APPLICATION;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.LOGIN_ACTION;
-import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.PERMISSIONS_COUNT_FIELD;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.PERMISSIONS_FIELD;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.SML_INDICES;
 import static org.elasticsearch.xpack.kibana.KibanaSmlImplicitPrivilegesProvider.TOKEN_SEPARATOR;
@@ -64,7 +63,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue(query.contains("\"" + PERMISSIONS_FIELD + "\""));
         assertTrue(query.contains("marketing" + TOKEN_SEPARATOR + "saved_object:dashboard/get"));
         assertTrue(query.contains("terms_set"));
-        assertTrue(query.contains(PERMISSIONS_COUNT_FIELD));
+        assertTrue(query.contains("permissions.kibana.privileges.count"));
     }
 
     /** User holds grants on multiple spaces → composite tokens for all space × action combinations in the DLS query. */
@@ -199,7 +198,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
         String query = result.iterator().next().getQuery().utf8ToString();
         assertTrue("expected terms_set in query", query.contains("terms_set"));
         assertTrue("expected permissions field in query", query.contains(PERMISSIONS_FIELD));
-        assertTrue("expected permissions_count field in query", query.contains(PERMISSIONS_COUNT_FIELD));
+        assertTrue("expected permissions.kibana.privileges.count field in query", query.contains("permissions.kibana.privileges.count"));
         assertTrue(
             "expected composite token default|saved_object:lens/get in query",
             query.contains("default" + TOKEN_SEPARATOR + "saved_object:lens/get")
@@ -306,7 +305,7 @@ public class KibanaSmlImplicitPrivilegesProviderTests extends ESTestCase {
 
         // Token-match branch
         assertTrue("expected terms_set in query", query.contains("terms_set"));
-        assertTrue("expected permissions_count field in query", query.contains(PERMISSIONS_COUNT_FIELD));
+        assertTrue("expected permissions.kibana.privileges.count field in query", query.contains("permissions.kibana.privileges.count"));
         assertTrue("expected composite token marketing|login: in query", query.contains("marketing" + TOKEN_SEPARATOR + LOGIN_ACTION));
         assertTrue(
             "expected composite token marketing|saved_object:dashboard/get in query",

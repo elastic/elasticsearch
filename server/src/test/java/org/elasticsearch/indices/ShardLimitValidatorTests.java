@@ -334,9 +334,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
     ) {
         // Index shard capacity is checked before search shard capacity and fails fast. For tests that expect the search shard capacity
         // to be exceeded, this ensures there are enough index nodes that opening the closed index does not trip the index tier validation
-        final Integer minIndexNodesForSearch = group == LimitGroup.SEARCH
+        final int minIndexNodesForSearch = group == LimitGroup.SEARCH
             ? (openIndexShards + closedIndexShards + shardsPerNode - 1) / shardsPerNode
-            : null;
+            : 0;
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group, minIndexNodesForSearch);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
@@ -362,10 +362,10 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, LimitGroup group) {
-        return createDiscoveryNodes(nodesInCluster, group, null);
+        return createDiscoveryNodes(nodesInCluster, group, 0);
     }
 
-    private static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, LimitGroup group, Integer minIndexNodesForSearch) {
+    private static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, LimitGroup group, int minIndexNodesForSearch) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < nodesInCluster; i++) {
             Set<DiscoveryNodeRole> roles;
@@ -399,7 +399,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             // Stateless validation checks shard capacity on index nodes before search nodes and fails fast on the first limit that
             // is exceeded. Opening a closed index adds primary shards to index nodes and replica shards to search nodes. For tests that
             // expect the closed index to overflow search nodes, so we must give the index tier enough nodes that its limit still has room
-            int indexNodes = Math.max(nodesInCluster + 1, minIndexNodesForSearch == null ? 0 : minIndexNodesForSearch);
+            int indexNodes = Math.max(nodesInCluster + 1, minIndexNodesForSearch);
             IntStream.range(0, indexNodes)
                 .forEach(
                     i -> builder.add(

@@ -63,8 +63,8 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String LOGIN_ACTION = "login:";
     private static final String DASHBOARD_GET_ACTION = "saved_object:dashboard/get";
 
-    // Uses the ai-index-* wildcard pattern matched by the provider.
-    private static final String AI_INDEX = "ai-index-test-sml-data";
+    // Matches the ai-index-idx-* pattern so the stack plugin template auto-applies.
+    private static final String AI_INDEX = "ai-index-idx-test";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -87,7 +87,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     public void testSpaceAndPrivilegeScopedRoleImplicitlyReadsAiIndexDataWithDls() throws Exception {
-        // 1. Register the Kibana application privilege — actions must include login: for the provider to trigger.
+        // 1. Register the Kibana application privilege.
         putKibanaDashboardsPrivilege();
 
         // 2. A role holding ONLY that application privilege, scoped to space:marketing — no explicit index privileges.
@@ -157,7 +157,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
             {
               "mappings": {
                 "properties": {
-                  "spaces": { "type": "keyword" },
                   "permissions": {
                     "properties": {
                       "kibana": {
@@ -182,7 +181,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // Should be visible: user holds marketing|saved_object:dashboard/get.
         indexDoc("marketing-dashboard", """
             {
-              "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": {
@@ -198,7 +196,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // Should NOT be visible: user does not hold finance|saved_object:dashboard/get (wrong space in token).
         indexDoc("finance-dashboard", """
             {
-              "spaces": ["finance"],
               "permissions": {
                 "kibana": {
                   "privileges": {
@@ -214,7 +211,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // Should NOT be visible: user doesn't hold marketing|saved_object:lens/get (privilege not in grant).
         indexDoc("marketing-lens", """
             {
-              "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": {
@@ -230,7 +226,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // Should be visible: no permissions field → public document.
         indexDoc("global-no-perms", """
             {
-              "spaces": ["*"],
               "title": "global no perms"
             }
             """);
@@ -239,7 +234,6 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // user only holds marketing|saved_object:dashboard/get, not marketing|saved_object:lens/get.
         indexDoc("multi-perm", """
             {
-              "spaces": ["marketing"],
               "permissions": {
                 "kibana": {
                   "privileges": {

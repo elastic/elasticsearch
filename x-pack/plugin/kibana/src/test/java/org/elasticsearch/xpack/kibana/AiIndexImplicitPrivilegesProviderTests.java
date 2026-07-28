@@ -26,7 +26,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.AI_INDEX_INDICES;
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.LOGIN_ACTION;
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.PERMISSIONS_FIELD;
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.SCOPE_SEPARATOR;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -38,6 +37,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
+
+    private static final String LOGIN_ACTION = "login:";
 
     private final AiIndexImplicitPrivilegesProvider contributor = new AiIndexImplicitPrivilegesProvider();
 
@@ -156,8 +157,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, is(empty()));
     }
 
-    /** Privilege action does not include login: → empty (provider only triggers on login:). */
-    public void testNonMatchingActionReturnsEmpty() {
+    /** Privilege without login: still triggers the provider — any kibana-.kibana application privilege is sufficient. */
+    public void testNonLoginActionStillTriggersProvider() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_write", Set.of("saved_object:dashboard/create"), Map.of())
         );
@@ -166,7 +167,9 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
             resolve(roleDescriptor, storedPrivileges)
         );
-        assertThat(result, is(empty()));
+        assertThat(result, hasSize(1));
+        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
+        assertQueryContainsTerm(queryMap, "default" + SCOPE_SEPARATOR + "saved_object:dashboard/create");
     }
 
     /** Resources without the "space:" prefix and not equal to "*" are ignored; if no valid resources remain → empty. */
@@ -183,17 +186,20 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * Role writes login: as the raw action pattern directly (no stored descriptor). The raw-pattern
+     * Role writes a raw action pattern directly (no stored descriptor). The raw-pattern
      * branch in privilege resolution should still trigger the provider and produce a DLS query.
      */
-    public void testEmptyStoredPrivilegesWithLoginActionStillWorks() {
-        // No stored descriptors; login: is used as a raw action pattern.
-        RoleDescriptor roleDescriptor = role(LOGIN_ACTION, "space:default");
+    public void testEmptyStoredPrivilegesWithRawActionStillWorks() {
+        // No stored descriptors; action pattern is used directly.
+        RoleDescriptor roleDescriptor = role("saved_object:dashboard/get", "space:default");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery(), is(notNullValue()));
-        assertQueryContainsTerm(parseQuery(result.iterator().next().getQuery()), "default" + SCOPE_SEPARATOR + LOGIN_ACTION);
+        assertQueryContainsTerm(
+            parseQuery(result.iterator().next().getQuery()),
+            "default" + SCOPE_SEPARATOR + "saved_object:dashboard/get"
+        );
     }
 
     /** DLS query must contain a terms_set clause referencing count field and composite scoped privileges. */
@@ -306,9 +312,13 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         // Public-document branch: bool/must_not/exists
         Map<String, Object> publicBranch = shouldClauses.stream().filter(c -> c.containsKey("bool")).findFirst().orElse(null);
         assertThat("expected a bool/must_not branch", publicBranch, is(notNullValue()));
-        Map<String, Object> mustNot = (Map<String, Object>) ((Map<String, Object>) publicBranch.get("bool")).get("must_not");
-        assertThat("expected exists in must_not", mustNot, hasKey("exists"));
-        Map<String, Object> exists = (Map<String, Object>) mustNot.get("exists");
+        // must_not is serialized as an array by BoolQueryBuilder
+        List<Map<String, Object>> mustNotList = (List<Map<String, Object>>) ((Map<String, Object>) publicBranch.get("bool")).get(
+            "must_not"
+        );
+        assertThat("expected exactly one must_not clause", mustNotList, hasSize(1));
+        Map<String, Object> exists = (Map<String, Object>) mustNotList.get(0).get("exists");
+        assertThat("expected exists in must_not clause", exists, is(notNullValue()));
         assertThat("expected PERMISSIONS_FIELD in exists", exists.get("field"), is(PERMISSIONS_FIELD));
 
         // Scoped-privilege-match branch: terms_set
@@ -322,9 +332,6 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
             terms,
             containsInAnyOrder("marketing" + SCOPE_SEPARATOR + LOGIN_ACTION, "marketing" + SCOPE_SEPARATOR + "saved_object:dashboard/get")
         );
-
-        // No boost noise from QueryBuilders
-        assertFalse("unexpected boost field in hand-rolled query", query.contains("boost"));
 
         // No old-style spaces or dls_tokens fields
         assertFalse("unexpected old spaces field", query.contains("\"spaces\""));

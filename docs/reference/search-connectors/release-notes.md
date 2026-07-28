@@ -13,6 +13,15 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.0 [connectors-9.5.0-release-notes]
+
+### Features and enhancements [connectors-9.5.0-features-enhancements]
+* Added the `elasticsearch.bulk.max_text_document_size` setting, a per-document size cap for non-binary documents sent to the Elasticsearch bulk sink (default 3 MiB; set to `0` to disable). Oversized text documents are skipped and logged instead of overwhelming the cluster. [#4013](https://github.com/elastic/connectors/pull/4013), [#14454](https://github.com/elastic/search-team/issues/14454)
+* Trimmed Gmail messages to their body and a minimal set of headers before indexing, reducing indexed payload size and noise from raw message content. A new `include_full_raw_message` toggle (default `false`) restores the previous full-raw behavior. [#4031](https://github.com/elastic/connectors/pull/4031), [#1369](https://github.com/elastic/connectors/issues/1369)
+
+### Fixes [connectors-9.5.0-fixes]
+* Fixed the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled, naming the affected site and explaining how to grant `Sites.FullControl.All` or disable DLS. [#4266](https://github.com/elastic/connectors/pull/4266), [#3293](https://github.com/elastic/connectors/issues/3293)
+
 ## 9.4.4 [connectors-9.4.4-release-notes]
 
 ### Fixes [connectors-9.4.4-fixes]

@@ -45,7 +45,9 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -106,6 +108,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -498,6 +502,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     public void testPrefetchRegionZeroOfReferencedBccBlobsBeforeHeaderReads() throws Exception {
         final long primaryTerm = randomLongBetween(10, 42);
         long regionSizeInBytes = ByteSizeValue.ofKb(256).getBytes();
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         try (
             var fakeNode = new FakeStatelessNode(
                 this::newEnvironment,
@@ -505,7 +510,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 xContentRegistry(),
                 primaryTerm,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                new RecordingMeterRegistry()
+                recordingMeterRegistry
             ) {
                 @Override
                 protected Settings nodeSettings() {
@@ -520,6 +525,23 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
                         )
                         .build();
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    );
                 }
             }
         ) {
@@ -574,6 +596,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
             fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobFiles, warmFuture);
             safeGet(warmFuture);
+            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "region0PreWarm");
 
             PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
@@ -1750,7 +1773,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
-        try (FakeStatelessNode fakeNode = createCacheCapturingFakeNode(primaryTerm, regionSizeInBytes, capturingPolicy)) {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            FakeStatelessNode fakeNode = createCacheCapturingFakeNode(
+                primaryTerm,
+                regionSizeInBytes,
+                capturingPolicy,
+                recordingMeterRegistry
+            )
+        ) {
             // Build a VBCC larger than a single region and upload it to the blob store.
             var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
             var vbcc = new VirtualBatchedCompoundCommit(
@@ -1797,6 +1828,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 warmListener
             );
             safeGet(warmListener);
+            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "offline");
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, vbcc.getBlobName());
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
@@ -1814,7 +1846,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final long knownTimestamp = randomLongBetween(1, Long.MAX_VALUE);
         final Map<CapturedRegion, Long> capturedTimestamps = new ConcurrentHashMap<>();
-        try (FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(primaryTerm, regionSizeInBytes, capturedTimestamps)) {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(
+                primaryTerm,
+                regionSizeInBytes,
+                capturedTimestamps,
+                recordingMeterRegistry
+            )
+        ) {
             var indexCommits = fakeNode.generateIndexCommitsWithoutCompoundFiles(randomIntBetween(1, 5));
             var vbcc = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
@@ -1845,6 +1885,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
             fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
             safeGet(warmListener);
+            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "headerFooter");
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());
             for (var entry : capturedTimestamps.entrySet()) {
@@ -1862,9 +1903,34 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private FakeStatelessNode createMaybeFetchRangeCapturingFakeNode(
         long primaryTerm,
         long regionSizeInBytes,
-        Map<CapturedRegion, Long> capturedTimestamps
+        Map<CapturedRegion, Long> capturedTimestamps,
+        RecordingMeterRegistry recordingMeterRegistry
     ) throws IOException {
-        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+        return new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            recordingMeterRegistry
+        ) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider(recordingMeterRegistry),
+                    clusterSettings,
+                    warmingRatioProvider
+                );
+            }
+
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
@@ -1918,9 +1984,34 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private FakeStatelessNode createCacheCapturingFakeNode(
         long primaryTerm,
         long regionSizeInBytes,
-        EvictionPolicy<FileCacheKey> capturingPolicy
+        EvictionPolicy<FileCacheKey> capturingPolicy,
+        RecordingMeterRegistry recordingMeterRegistry
     ) throws IOException {
-        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+        return new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            recordingMeterRegistry
+        ) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider(recordingMeterRegistry),
+                    clusterSettings,
+                    warmingRatioProvider
+                );
+            }
+
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
@@ -1977,6 +2068,85 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             StatelessCompoundCommit latestCommit = pendingCompoundCommits.get(pendingCompoundCommits.size() - 1);
             searchDirectory.updateCommit(latestCommit);
+        }
+    }
+
+    private static TelemetryProvider telemetryProvider(MeterRegistry meterRegistry) {
+        return new TelemetryProvider() {
+            @Override
+            public Tracer getTracer() {
+                return Tracer.NOOP;
+            }
+
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meterRegistry;
+            }
+
+            @Override
+            public HttpServerInstrumentation getHttpServerInstrumentation() {
+                return HttpServerInstrumentation.NOOP;
+            }
+
+            @Override
+            public void attemptFlush() {}
+        };
+    }
+
+    private static void assertWarmingDurationMetricRecorded(RecordingMeterRegistry meterRegistry, String expectedWarmingType) {
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_DURATION_METRIC);
+        assertThat(measurements, hasSize(1));
+        Measurement measurement = measurements.get(0);
+        assertThat(measurement.getDouble(), greaterThanOrEqualTo(0.0));
+        assertThat(
+            measurement.attributes(),
+            equalTo(Map.of(SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY, expectedWarmingType))
+        );
+    }
+
+    public void testMergeWarmingRecordsDurationMetric() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                null
+            ) {
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    );
+                }
+            }
+        ) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(),
+                fileName -> null,
+                () -> false,
+                future
+            );
+            safeGet(future);
+            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "merge");
         }
     }
 }

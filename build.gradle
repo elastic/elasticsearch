@@ -559,20 +559,26 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',
   ],
-  // The ESQL QA suite is sharded into two balanced halves so neither exceeds the CI timeout.
-  // The two heaviest, independently-growing workloads are kept apart: single-node runs the full
-  // CSV-spec suite twice (EsqlSpecIT + EsqlSpecForceStoredLoadingIT), while mixed-cluster runs the
-  // spec/yaml suites once per supported BWC version (and grows as new versions are added).
+  // The ESQL QA suite is sharded so no job exceeds the CI timeout. The three heaviest,
+  // independently-growing workloads are kept apart:
+  //   Qa1: single-node's csvSpecTests (~1h 10m) run in isolation.
+  //   Qa2: mixed-cluster runs the spec/yaml suites once per supported BWC version.
+  //   Qa3: single-node's REST tests plus the remaining lightweight QA projects.
   releaseTestCheckEsqlQa1: [
-    ':x-pack:plugin:esql:qa:action',
-    ':x-pack:plugin:esql:qa:server',
-    ':x-pack:plugin:esql:qa:server:single-node',
-    ':x-pack:plugin:esql:qa:server:multi-clusters',
+    // Explicit task path — the loop appends :releaseTestCheck only for plain project paths.
+    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckCsvSpec',
   ],
   releaseTestCheckEsqlQa2: [
     ':x-pack:plugin:esql:qa:server:mixed-cluster',
     ':x-pack:plugin:esql:qa:server:multi-node',
     ':x-pack:plugin:esql:qa:security',
+  ],
+  releaseTestCheckEsqlQa3: [
+    ':x-pack:plugin:esql:qa:action',
+    ':x-pack:plugin:esql:qa:server',
+    // Explicit task path — runs only the REST variants (csvSpecTests runs in its own Qa1 job).
+    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckRest',
+    ':x-pack:plugin:esql:qa:server:multi-clusters',
   ],
   releaseTestCheckEsqlDatasourceCore: [
     ':x-pack:plugin:esql-datasource-azure',
@@ -602,11 +608,12 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',
   ],
-].each { taskName, projectPaths ->
+].each { taskName, taskPaths ->
   tasks.register(taskName) {
     group = 'Verification'
     description = "Runs ${taskName} tasks."
-    dependsOn projectPaths.collect { "${it}:releaseTestCheck" }
+    // Plain project paths get :releaseTestCheck appended; explicit task paths are used as-is.
+    dependsOn taskPaths.collect { path -> path.contains(':releaseTestCheck') ? path : "${path}:releaseTestCheck" }
   }
 }
 

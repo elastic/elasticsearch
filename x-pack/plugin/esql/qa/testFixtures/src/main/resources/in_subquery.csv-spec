@@ -46,28 +46,35 @@ emp_no:integer
 notInSubqueryEmptyResults
 required_capability: where_in_subquery_without_view
 
+// tag::not_in_subquery[]
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE salary < 10000 | KEEP emp_no)
 | SORT emp_no
 | KEEP emp_no
 | LIMIT 3
+// end::not_in_subquery[]
 ;
 
+// tag::not_in_subquery-result[]
 emp_no:integer
 10001
 10002
 10003
+// end::not_in_subquery-result[]
 ;
 
 inSubqueryWithStatsInsideInSubquery
 required_capability: where_in_subquery_without_view
 
+// tag::in_subquery_with_aggregation[]
 FROM employees
 | WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
 | KEEP emp_no, salary, languages
 | SORT emp_no
+// end::in_subquery_with_aggregation[]
 ;
 
+// tag::in_subquery_with_aggregation-result[]
 emp_no:integer | salary:integer | languages:integer
 10007          | 74572          | 4
 10019          | 73717          | 1
@@ -75,6 +82,7 @@ emp_no:integer | salary:integer | languages:integer
 10045          | 74970          | 3
 10094          | 66817          | 5
 10099          | 73578          | 2
+// end::in_subquery_with_aggregation-result[]
 ;
 
 inSubqueryWithStatsBeforeAndAfterInSubquery
@@ -195,12 +203,15 @@ Guoxiang           | 25324          | 10        | 8
 inSubqueryWithFilterInsideInSubquery
 required_capability: where_in_subquery_without_view
 
+// tag::basic_in_subquery[]
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
 | SORT emp_no
 | KEEP emp_no
+// end::basic_in_subquery[]
 ;
 
+// tag::basic_in_subquery-result[]
 emp_no:integer
 10007
 10019
@@ -210,6 +221,7 @@ emp_no:integer
 10045
 10097
 10099
+// end::basic_in_subquery-result[]
 ;
 
 inSubqueryWithFilterAfterInSubquery
@@ -454,7 +466,9 @@ emp_no:integer | first_name:keyword | salary:integer | languages:integer
 
 fromSubqueryWithNestedNotInSubquery
 required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
 
+// tag::in_subquery_in_from_subquery[]
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name, salary, languages),
   (FROM employees
@@ -469,8 +483,10 @@ FROM
 | SORT emp_no
 | KEEP emp_no, first_name, salary, languages
 | LIMIT 6
+// end::in_subquery_in_from_subquery[]
 ;
 
+// tag::in_subquery_in_from_subquery-result[]
 emp_no:integer | first_name:keyword | salary:integer | languages:integer
 10005          | Kyoichi            | 63528          | 1
 10007          | Tzvetan            | 74572          | 4
@@ -478,23 +494,28 @@ emp_no:integer | first_name:keyword | salary:integer | languages:integer
 10013          | Eberhardt          | 48735          | 1
 10019          | Lillian            | 73717          | 1
 10019          | Lillian            | 73717          | 1
+// end::in_subquery_in_from_subquery-result[]
 ;
 
 multipleConjunctiveInSubqueries
 required_capability: where_in_subquery_without_view
 
+// tag::multiple_in_subqueries[]
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE languages IN (1, 2) | KEEP emp_no)
     AND emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
     AND languages > 0
 | SORT emp_no
 | KEEP emp_no, languages, salary
+// end::multiple_in_subqueries[]
 ;
 
+// tag::multiple_in_subqueries-result[]
 emp_no:integer | languages:integer | salary:integer
 10007          | 4                 | 74572
 10045          | 3                 | 74970
 10097          | 3                 | 71165
+// end::multiple_in_subqueries-result[]
 ;
 
 multipleConjunctiveInSubqueriesInsideFromSubquery
@@ -581,6 +602,7 @@ lookupJoinInsideInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: join_lookup_v12
 
+// tag::in_subquery_with_lookup_join[]
 FROM employees
 | WHERE emp_no IN (
     FROM employees
@@ -592,14 +614,17 @@ FROM employees
 | SORT emp_no
 | KEEP emp_no, first_name
 | LIMIT 5
+// end::in_subquery_with_lookup_join[]
 ;
 
+// tag::in_subquery_with_lookup_join-result[]
 emp_no:integer | first_name:keyword
 10003          | Parto
 10007          | Tzvetan
 10010          | Duangkaew
 10031          | null
 10036          | null
+// end::in_subquery_with_lookup_join-result[]
 ;
 
 lookupJoinBeforeInSubquery
@@ -1284,20 +1309,24 @@ forkWithInSubqueryInsideBranch
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
 
+// tag::in_subquery_with_fork[]
 FROM employees
 | FORK (WHERE emp_no IN (FROM employees | WHERE salary > 74000 | KEEP emp_no) | KEEP emp_no, salary)
        (WHERE emp_no IN (FROM employees | WHERE salary < 30000 | KEEP emp_no) | KEEP emp_no, salary)
 | SORT emp_no, _fork
 | KEEP emp_no, salary, _fork
 | LIMIT 5
+// end::in_subquery_with_fork[]
 ;
 
+// tag::in_subquery_with_fork-result[]
 emp_no:integer | salary:integer | _fork:keyword
 10007          | 74572          | fork1
 10015          | 25324          | fork2
 10026          | 28336          | fork2
 10029          | 74999          | fork1
 10035          | 25945          | fork2
+// end::in_subquery_with_fork-result[]
 ;
 
 forkAfterNotInSubquery
@@ -2291,14 +2320,17 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 deeplyNestedDisjunctiveInSubqueries
 required_capability: where_in_subquery_without_view
 
+// tag::nested_in_subquery[]
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 73000 | KEEP emp_no)
      OR (gender == "F" AND (salary > 70000 OR emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no)))
 | SORT emp_no
 | KEEP emp_no, gender, languages, salary
 | LIMIT 15
+// end::nested_in_subquery[]
 ;
 
+// tag::nested_in_subquery-result[]
 emp_no:integer | gender:keyword | languages:integer | salary:integer
 10007          | F              | 4                 | 74572
 10009          | F              | 1                 | 66174
@@ -2312,6 +2344,7 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10045          | M              | 3                 | 74970
 10092          | F              | 1                 | 25976
 10099          | F              | 2                 | 73578
+// end::nested_in_subquery-result[]
 ;
 
 threeWayDisjunctiveInSubqueriesWithPredicates
@@ -2451,16 +2484,20 @@ inSubqueryWithMultivalueRowAsSourceAndMvExpand
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
+// tag::in_subquery_with_row[]
 FROM employees
 | WHERE emp_no IN (ROW x = [10001, 10002, 10003] | MV_EXPAND x)
 | SORT emp_no
 | KEEP emp_no, first_name
+// end::in_subquery_with_row[]
 ;
 
+// tag::in_subquery_with_row-result[]
 emp_no:integer | first_name:keyword
 10001          | Georgi
 10002          | Bezalel
 10003          | Parto
+// end::in_subquery_with_row-result[]
 ;
 
 inSubqueryWithMultipleRowsAsSource
@@ -2736,15 +2773,19 @@ emp_no:integer
 rowOuterMultiValueMvExpandWithFromInSubquery
 required_capability: where_in_subquery_without_view
 
+// tag::row_source_with_in_subquery[]
 ROW emp_no = [10001, 10002, 99999]
 | MV_EXPAND emp_no
 | WHERE emp_no IN (FROM employees | KEEP emp_no)
 | SORT emp_no
+// end::row_source_with_in_subquery[]
 ;
 
+// tag::row_source_with_in_subquery-result[]
 emp_no:integer
 10001
 10002
+// end::row_source_with_in_subquery-result[]
 ;
 
 rowOuterMultiValueMvExpandWithFromNotInSubquery

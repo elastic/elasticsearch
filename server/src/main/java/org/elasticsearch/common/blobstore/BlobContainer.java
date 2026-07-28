@@ -22,6 +22,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -179,6 +180,7 @@ public interface BlobContainer {
      * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
      *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param executor            The executor used to dispatch concurrent part upload tasks. The calling thread also participates.
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
@@ -187,7 +189,8 @@ public interface BlobContainer {
         String blobName,
         long blobSize,
         BlobMultiPartInputStreamProvider provider,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        Executor executor
     ) throws IOException {
         throw new UnsupportedOperationException();
     }

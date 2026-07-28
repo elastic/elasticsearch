@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1627,6 +1627,26 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
+    public void testDoubleRangeUnsupportedOperations() {
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V1.isEnabled());
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | STATS count(*) BY height_range",
+                containsString("cannot group by on [double_range] type for grouping [height_range]")
+            );
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .addLookupIndex("heights_lookup", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | LOOKUP JOIN heights_lookup ON height_range",
+                containsString("JOIN with right field [height_range] of type [DOUBLE_RANGE] is not supported")
+            );
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
@@ -1948,14 +1968,13 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
-        checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", false);
+        // MATCH_PHRASE supports runtime search on text and keyword expressions
+        fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
+        fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
+        fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
-    }
-
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
-        checkFieldBasedFunctionNotAllowedAfterCommands(functionName, functionType, functionInvocation, false);
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(
@@ -2052,29 +2071,6 @@ public class VerifierTests extends ESTestCase {
                     + "| where title : \"data\"",
                 allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
             );
-    }
-
-    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
-        fullText().error(
-            "from test | eval text = substring(title, 1) | where " + functionInvocation,
-            containsString(
-                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
-            )
-        );
-        fullText().error(
-            "from test | eval text=concat(title, body) | where " + functionInvocation,
-            containsString(
-                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
-            )
-        );
-        var keywordInvocation = functionInvocation.replace("text", "text::keyword");
-        fullText().error(
-            "row n = null | eval text = n + 5 | where " + keywordInvocation,
-            allOf(
-                containsString("[" + functionName + "] " + functionType + " cannot operate on"),
-                containsString("which is not a field from an index mapping")
-            )
-        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -2366,11 +2362,8 @@ public class VerifierTests extends ESTestCase {
         // match and : support runtime search and can operate on EVAL columns
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
-        // match_phrase still requires an index field
-        fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
-        );
+        // match_phrase supports runtime search on text EVAL columns
+        fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
     }
 
     /**
@@ -2379,10 +2372,12 @@ public class VerifierTests extends ESTestCase {
      * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
      */
     public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
+        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
         fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            "from test | eval v = vector | where knn(v, [1, 2, 3])",
             allOf(
-                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
                 not(containsString("federated"))
             )
         );
@@ -2396,28 +2391,17 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
-        // MATCH_PHRASE still requires an argument that is a field from an index mapping
-        fullText().error(
-            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
+        // MATCH_PHRASE supports runtime search on renamed text and keyword expressions (concat, grok, dissect and
+        // substring all produce keyword)
+        fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+        fullText().query(
+            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")"
         );
-        fullText().error(
-            "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+        fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+        fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+        fullText().query(
+            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")"
         );
-        fullText().error(
-            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
-        );
-
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2947,6 +2931,24 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
+    public void testMvLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
+        // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
+        // after constant folding, in postOptimizationVerification — see LogicalPlanOptimizerTests#testMvLike*.
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_like(first_name, 1)",
+            containsString("second argument of [mv_like(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
+    public void testMvRLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_rlike(first_name, \"Ann.*\")");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_rlike(first_name, 1)",
+            containsString("second argument of [mv_rlike(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 
@@ -3441,15 +3443,6 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
         fullText().query("from test | where " + functionInvocation);
-    }
-
-    public void testInsistNotOnTopOfFrom() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        defaultAnalyzer().error(
-            "FROM test | EVAL foo = 42 | INSIST_🐔 bar",
-            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
-        );
     }
 
     public void testFullTextFunctionsInStats() {
@@ -4586,21 +4579,18 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
-    public void testHighlightRejectsInvalidEnumOptions() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+    public void testHighlightRejectsInvalidOptionEnums() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
-    }
-
-    public void testHighlightEncoderIsCaseSensitive() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
         assertInvalidHighlightOption("encoder", "HTML");
     }
 
-    public void testHighlightRejectsWrongValueTypesAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+    public void testHighlightRejectsInvalidOptionValues() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assertInvalidHighlightOptionValue("analyzer", "123", containsString("Option [analyzer] must be a string"));
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
@@ -4610,10 +4600,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
         assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
-    }
-
-    public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4622,17 +4608,9 @@ public class VerifierTests extends ESTestCase {
                 containsString("[en_US] is not a valid language tag")
             )
         );
-    }
-
-    public void testHighlightRejectsDecimalNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Option [number_of_fragments] must be an integer"));
         assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Option [fragment_size] must be an integer"));
         assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Option [max_analyzed_offset] must be an integer"));
-    }
-
-    public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
@@ -4646,6 +4624,92 @@ public class VerifierTests extends ESTestCase {
             "max_analyzed_offset",
             "-2",
             containsString("Option [max_analyzed_offset] must be a positive integer, or -1")
+        );
+    }
+
+    public void testHighlightAcceptsValidQueries() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        defaultAnalyzer().query("FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT title : \"fox\" ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") OR MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
+        fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
+        defaultAnalyzer().query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
+    }
+
+    public void testHighlightAnalyzerOption() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
+            containsString("Invalid query [fox AND] in HIGHLIGHT:")
+        );
+        // Do not report a query error when its analyzer is unknown.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
+        );
+    }
+
+    public void testHighlightRejectsInvalidQueries() {
+        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON salary",
+            containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON still_hired",
+            containsString("HIGHLIGHT ON field [still_hired] must be [text] or [keyword], found [boolean]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON hire_date",
+            containsString("HIGHLIGHT ON field [hire_date] must be [text] or [keyword], found [datetime]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"x\" ON emp_no WITH { \"number_of_fragments\": 2 }",
+            containsString("HIGHLIGHT ON field [emp_no] must be [text] or [keyword], found [integer]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name",
+            containsString("Invalid query [fox AND] in HIGHLIGHT: Failed to parse query [fox AND]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT category > 5 ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
+        );
+        // The runtime context only registers its default analyzer.
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // KQL syntax is checked while building the query.
+        fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
+        fullText().error(
+            "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",
+            containsString("Unknown column [title]")
         );
     }
 
@@ -4699,7 +4763,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json")
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }

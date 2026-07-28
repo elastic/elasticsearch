@@ -30,11 +30,11 @@ import java.util.Locale;
  * {@link Highlight#postAnalysisVerification} reuses {@link #validate} so invalid values fail during analysis rather
  * than only later during local planning.
  */
-// TODO: add an analyzer name field here once the "analyzer" option is supported.
 public record HighlightOptions(
     String preTag,
     String postTag,
     String encoder,
+    String analyzerName,
     int numberOfFragments,
     int fragmentSize,
     int noMatchSize,
@@ -95,6 +95,7 @@ public record HighlightOptions(
             string(Highlight.PRE_TAGS, options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
             string(Highlight.POST_TAGS, options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
             ENCODER_OPTION.normalize(string(Highlight.ENCODER, options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER)),
+            analyzerName(Highlight.ANALYZER, options.get(Highlight.ANALYZER), foldContext),
             integer(Highlight.NUMBER_OF_FRAGMENTS, options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
             integer(Highlight.FRAGMENT_SIZE, options.get(Highlight.FRAGMENT_SIZE), foldContext, DEFAULT_FRAGMENT_SIZE),
             integer(Highlight.NO_MATCH_SIZE, options.get(Highlight.NO_MATCH_SIZE), foldContext, DEFAULT_NO_MATCH_SIZE),
@@ -112,6 +113,7 @@ public record HighlightOptions(
             DEFAULT_PRE_TAG,
             DEFAULT_POST_TAG,
             DEFAULT_ENCODER,
+            null /* analyzerName */,
             DEFAULT_NUMBER_OF_FRAGMENTS,
             DEFAULT_FRAGMENT_SIZE,
             DEFAULT_NO_MATCH_SIZE,
@@ -133,6 +135,7 @@ public record HighlightOptions(
     public static void validate(String name, Expression value, FoldContext foldContext) {
         switch (name) {
             case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(name, value, foldContext, null);
+            case Highlight.ANALYZER -> analyzerName(name, value, foldContext);
             case Highlight.BOUNDARY_CHARS -> requireString(name, value.fold(foldContext));
             case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(name, value, foldContext);
             case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN -> integer(
@@ -168,6 +171,14 @@ public record HighlightOptions(
             return list.isEmpty() ? defaultValue : requireString(name, list.getFirst());
         }
         return requireString(name, folded);
+    }
+
+    /** Reads the {@code analyzer} name without resolving it. */
+    static String analyzerName(String name, Expression value, FoldContext foldContext) {
+        if (value == null) {
+            return null;
+        }
+        return requireString(name, value.fold(foldContext));
     }
 
     /**

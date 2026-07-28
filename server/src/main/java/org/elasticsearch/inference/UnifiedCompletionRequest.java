@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.Content;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
@@ -43,12 +44,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_CONTROL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SESSION_ID_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
@@ -66,7 +70,9 @@ public record UnifiedCompletionRequest(
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
     @Nullable Float topP,
-    @Nullable Reasoning reasoning
+    @Nullable Reasoning reasoning,
+    @Nullable CacheControl cacheControl,
+    @Nullable String sessionId
 ) implements Accountable, Writeable, ToXContentFragment {
 
     /**
@@ -155,7 +161,9 @@ public record UnifiedCompletionRequest(
             (ToolChoice) args[5],
             (List<Tool>) args[6],
             (Float) args[7],
-            (Reasoning) args[8]
+            (Reasoning) args[8],
+            (CacheControl) args[9],
+            (String) args[10]
         )
     );
 
@@ -174,6 +182,8 @@ public record UnifiedCompletionRequest(
         PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField(TOOL_FIELD));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField(TOP_P_FIELD));
         PARSER.declareObject(optionalConstructorArg(), Reasoning.PARSER::apply, new ParseField(REASONING_FIELD));
+        PARSER.declareObject(optionalConstructorArg(), CacheControl.PARSER::apply, new ParseField(CACHE_CONTROL_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(SESSION_ID_FIELD));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -205,7 +215,7 @@ public record UnifiedCompletionRequest(
     }
 
     public static UnifiedCompletionRequest of(List<Message> messages) {
-        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null);
+        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, null);
     }
 
     public UnifiedCompletionRequest(
@@ -218,7 +228,7 @@ public record UnifiedCompletionRequest(
         @Nullable List<Tool> tools,
         @Nullable Float top
     ) {
-        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null);
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null, null, null);
     }
 
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
@@ -233,7 +243,11 @@ public record UnifiedCompletionRequest(
             in.readOptionalFloat(),
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                 ? in.readOptionalNamedWriteable(Reasoning.class)
-                : null
+                : null,
+            in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED)
+                ? in.readOptionalWriteable(CacheControl::new)
+                : null,
+            in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) ? in.readOptionalString() : null
         );
     }
 
@@ -249,6 +263,10 @@ public record UnifiedCompletionRequest(
         out.writeOptionalFloat(topP);
         if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
             out.writeOptionalNamedWriteable(reasoning);
+        }
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED)) {
+            out.writeOptionalWriteable(cacheControl);
+            out.writeOptionalString(sessionId);
         }
     }
 
@@ -282,6 +300,12 @@ public record UnifiedCompletionRequest(
         if (reasoning != null) {
             builder.field(REASONING_FIELD, reasoning);
         }
+        if (cacheControl != null) {
+            builder.field(CACHE_CONTROL_FIELD, cacheControl);
+        }
+        if (sessionId != null) {
+            builder.field(SESSION_ID_FIELD, sessionId);
+        }
         return builder;
     }
 
@@ -291,6 +315,14 @@ public record UnifiedCompletionRequest(
 
     public boolean containsChatCompletionReasoning() {
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
+    }
+
+    public boolean containsChatCompletionCacheControl() {
+        return cacheControl() != null;
+    }
+
+    public boolean containsSessionId() {
+        return sessionId() != null;
     }
 
     @Override
@@ -327,5 +359,4 @@ public record UnifiedCompletionRequest(
 
         throw new XContentParseException("Unsupported token [" + token + "]");
     }
-
 }

@@ -301,6 +301,14 @@ public final class SplitDiscoveryPhase {
         }
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
+            // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
+            // filter still runs downstream, so the answer is unchanged (0 rows). An empty result that is NOT an
+            // exhaustive prune (unresolved glob, SINGLE source, or a row-count-unsafe no-overlap drop) falls through
+            // to the whole read. Return before the stats increments below to keep honest zero scanned counts.
+            if (result.exhaustivelyPruned()) {
+                return exec.withFileList(FileList.EMPTY);
+            }
             return exec;
         }
         stats.filesScanned += result.filesScanned();

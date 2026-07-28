@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
-public class CohereService extends SenderService<CohereModel> implements RerankingInferenceService {
+public class CohereService extends SenderService<CohereModel<?>> implements RerankingInferenceService {
     public static final String NAME = "cohere";
 
     private static final String SERVICE_NAME = "Cohere";
@@ -73,7 +73,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-    private static final Map<TaskType, ModelCreator<? extends CohereModel>> MODEL_CREATORS = Map.of(
+    private static final Map<TaskType, ModelCreator<? extends CohereModel<?>>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
         new CohereEmbeddingsModelCreator(),
         TaskType.COMPLETION,
@@ -147,7 +147,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
             return;
         }
 
-        CohereModel cohereModel = (CohereModel) model;
+        CohereModel<?> cohereModel = (CohereModel<?>) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings);
@@ -185,7 +185,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
             return;
         }
 
-        CohereModel cohereModel = (CohereModel) model;
+        CohereModel<?> cohereModel = (CohereModel<?>) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(

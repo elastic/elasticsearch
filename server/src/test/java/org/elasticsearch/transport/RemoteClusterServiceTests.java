@@ -35,6 +35,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -86,7 +87,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(final String id, final List<DiscoveryNode> knownNodes, final Settings settings) {
-        return RemoteClusterConnectionTests.startTransport(
+        final MockTransportService transportService = RemoteClusterConnectionTests.startTransport(
             id,
             knownNodes,
             VersionInformation.CURRENT,
@@ -94,6 +95,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             threadPool,
             settings
         );
+        transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+        return transportService;
     }
 
     private MockTransportService startTransport() {

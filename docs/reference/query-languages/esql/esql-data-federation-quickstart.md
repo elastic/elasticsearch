@@ -46,13 +46,6 @@ This example registers a data source that points at a public S3 bucket with anon
 5. Set **Region** to `us-east-1`.
 6. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
 7. Click **Connect**.
-
-:::{dropdown} Show the completed Connect data source flyout
-:::{image} images/data-federation/connect-data-source-anonymous.png
-:alt: Connect data source flyout configured for Amazon S3 with anonymous authentication
-:width: 450px
-:::
-:::
 :::
 
 :::{tab-item} Console
@@ -146,7 +139,11 @@ This example creates a dataset over one quarter of Ookla's fixed-broadband perfo
 1. Select the **Datasets** tab, then click **Add dataset**.
 2. Select `ookla_speedtest` as the **Data source**.
 3. Enter `speedtest_fixed` as the **Name**.
-4. In **Resource**, enter `s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet`.
+4. In **Resource**, enter the resource path that selects the files to read:
+
+   ```text
+   s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet
+   ```
 5. Set **Format** to **Parquet**.
 6. Click **Add**.
 
@@ -514,7 +511,8 @@ curl -X DELETE "${ELASTICSEARCH_URL}/network_incidents" \
 
 ## Next steps
 
-- For query performance, pushdown behavior, and current limitations, refer to [query external datasets](esql-data-federation-querying.md).
-- To set up connections and authentication, refer to [connect external data sources](esql-data-federation-sources.md).
-- For file formats, dataset settings, and schema inference, refer to [select external datasets](esql-data-federation-datasets.md).
-- For a high-level overview of concepts and capabilities, refer to [](esql-data-federation.md).
+Now that you have a working data source and dataset, you can:
+
+- **Speed up queries.** Learn how column selection, partition pruning, and filter pushdown reduce the data read from storage. Refer to [query external datasets](esql-data-federation-querying.md).
+- **Connect your own bucket.** The quickstart uses anonymous access. To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
+- **Tune dataset settings.** Override file formats, customize schema inference, and declare explicit column mappings. Refer to [select external datasets](esql-data-federation-datasets.md).

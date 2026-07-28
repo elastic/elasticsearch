@@ -253,21 +253,12 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/151732
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  method: testCleanUpAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/151819
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/151837
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testDeleteIndexAfterRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/151884
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
   issue: https://github.com/elastic/elasticsearch/issues/151992
@@ -310,9 +301,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testCloseWhileShardsAreHollowed
-  issue: https://github.com/elastic/elasticsearch/issues/151861
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -403,18 +391,6 @@ tests:
 - class: org.elasticsearch.exponentialhistogram.ExponentialHistogramMergerTests
   method: testDifferenceForCumulativeHistos
   issue: https://github.com/elastic/elasticsearch/issues/153665
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorRejectsUnwrappedFilterIndexInput
-  issue: https://github.com/elastic/elasticsearch/issues/153738
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsMMapInput
-  issue: https://github.com/elastic/elasticsearch/issues/153739
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsDirectAccessInput
-  issue: https://github.com/elastic/elasticsearch/issues/153740
-- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
-  method: testES92ConstructorAcceptsPlainInput
-  issue: https://github.com/elastic/elasticsearch/issues/153741
 - class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
   method: testMixedSingleDoubleParams
   issue: https://github.com/elastic/elasticsearch/issues/153746
@@ -427,9 +403,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/153848
-- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
-  method: testConcurrentForceMergeIsNotAborted
-  issue: https://github.com/elastic/elasticsearch/issues/153854
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/153888
@@ -487,9 +460,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testPopulateCacheWithSharedSourceInputStreamFactory
   issue: https://github.com/elastic/elasticsearch/issues/154597
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testShardFailures
-  issue: https://github.com/elastic/elasticsearch/issues/154600
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602
@@ -508,9 +478,6 @@ tests:
 - class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
   method: testTokensStayInvalidatedInUpgradedCluster
   issue: https://github.com/elastic/elasticsearch/issues/154627
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithRelocationOrObjectStoreFailures
-  issue: https://github.com/elastic/elasticsearch/issues/154655
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/10_basic/Create index with write aliases}
   issue: https://github.com/elastic/elasticsearch/issues/154659
@@ -604,9 +571,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
   method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
   issue: https://github.com/elastic/elasticsearch/issues/153700
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/155150
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/153434

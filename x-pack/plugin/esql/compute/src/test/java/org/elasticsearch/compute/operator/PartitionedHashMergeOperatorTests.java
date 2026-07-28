@@ -252,7 +252,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(countSupplier, List.of())))
             .partitionCount(8)
             .partitionConversionThreshold(30)
-            .perPartitionEmit(Integer.MAX_VALUE, 1.0)
+            .perPartitionEmitThreshold(Integer.MAX_VALUE)
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()
@@ -397,7 +397,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(sumSupplier, List.of(1))))
             .partitionCount(partitionCount)
             .partitionConversionThreshold(conversionThreshold)
-            .perPartitionEmit(Integer.MAX_VALUE, 1.0) // disable periodic early emit; only finish() emits
+            .perPartitionEmitThreshold(Integer.MAX_VALUE) // disable periodic early emit; only finish() emits
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()

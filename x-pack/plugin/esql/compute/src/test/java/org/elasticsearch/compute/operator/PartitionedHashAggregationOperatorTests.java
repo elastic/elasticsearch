@@ -89,7 +89,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(50)
-            .perPartitionEmit(Integer.MAX_VALUE, 1.0) // no periodic early emit; only finish() emits
+            .perPartitionEmitThreshold(Integer.MAX_VALUE) // no periodic early emit; only finish() emits
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -111,7 +111,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(4)
             .partitionConversionThreshold(30)
-            .perPartitionEmit(20, 0.9) // aggressive: force frequent per-partition resets
+            .perPartitionEmitThreshold(20) // aggressive: force frequent per-partition resets
             .maxPageSize(500)
             .aggregationBatchSize(500);
 
@@ -130,7 +130,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(30)
-            .perPartitionEmit(50, 0.5)
+            .perPartitionEmitThreshold(50)
             .maxPageSize(2_000)
             .aggregationBatchSize(2_000);
 
@@ -174,7 +174,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(30)
-            .perPartitionEmit(Integer.MAX_VALUE, 1.0)
+            .perPartitionEmitThreshold(Integer.MAX_VALUE)
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -303,7 +303,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(countAllFactory()))
             .partitionCount(8)
             .partitionConversionThreshold(30)  // low threshold forces conversion to partitioned mode
-            .perPartitionEmit(Integer.MAX_VALUE, 1.0)
+            .perPartitionEmitThreshold(Integer.MAX_VALUE)
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 

@@ -69,7 +69,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     public static final int DEFAULT_PARTITION_COUNT = 8;
     public static final int DEFAULT_PARTITION_CONVERSION_THRESHOLD = 100_000;
     public static final int DEFAULT_PER_PARTITION_EMIT_THRESHOLD = 50_000;
-    public static final double DEFAULT_PER_PARTITION_EMIT_UNIQUENESS_THRESHOLD = 0.1;
 
     /**
      * Returns true if the given group specs can be routed across partitions at runtime.
@@ -113,7 +112,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         private int partitionCount = DEFAULT_PARTITION_COUNT;
         private int partitionConversionThreshold = DEFAULT_PARTITION_CONVERSION_THRESHOLD;
         private int perPartitionEmitThreshold = DEFAULT_PER_PARTITION_EMIT_THRESHOLD;
-        private double perPartitionEmitUniquenessThreshold = DEFAULT_PER_PARTITION_EMIT_UNIQUENESS_THRESHOLD;
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
 
@@ -137,9 +135,8 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             return this;
         }
 
-        public Builder perPartitionEmit(int keysThreshold, double uniquenessThreshold) {
+        public Builder perPartitionEmitThreshold(int keysThreshold) {
             this.perPartitionEmitThreshold = keysThreshold;
-            this.perPartitionEmitUniquenessThreshold = uniquenessThreshold;
             return this;
         }
 
@@ -169,7 +166,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         private final int partitionCount;
         private final int partitionConversionThreshold;
         private final int perPartitionEmitThreshold;
-        private final double perPartitionEmitUniquenessThreshold;
         private final int maxPageSize;
         private final int aggregationBatchSize;
 
@@ -226,7 +222,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             this.partitionCount = builder.partitionCount;
             this.partitionConversionThreshold = builder.partitionConversionThreshold;
             this.perPartitionEmitThreshold = builder.perPartitionEmitThreshold;
-            this.perPartitionEmitUniquenessThreshold = builder.perPartitionEmitUniquenessThreshold;
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
         }
@@ -243,7 +238,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
                 partitionCount,
                 partitionConversionThreshold,
                 perPartitionEmitThreshold,
-                perPartitionEmitUniquenessThreshold,
                 maxPageSize,
                 aggregationBatchSize,
                 driverContext
@@ -263,7 +257,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     private final List<GroupingAggregator.Factory> aggregatorFactories;
     private final int partitionConversionThreshold;
     private final int perPartitionEmitThreshold;
-    private final double perPartitionEmitUniquenessThreshold;
     private final int aggregationBatchSize;
 
     /** Non-null until {@link #convertToPartitioned} (or a multi-valued key) replaces it. */
@@ -288,7 +281,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         int partitionCount,
         int partitionConversionThreshold,
         int perPartitionEmitThreshold,
-        double perPartitionEmitUniquenessThreshold,
         int maxPageSize,
         int aggregationBatchSize,
         DriverContext driverContext
@@ -312,7 +304,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         this.aggregatorFactories = aggregatorFactories;
         this.partitionConversionThreshold = partitionConversionThreshold;
         this.perPartitionEmitThreshold = perPartitionEmitThreshold;
-        this.perPartitionEmitUniquenessThreshold = perPartitionEmitUniquenessThreshold;
         this.aggregationBatchSize = aggregationBatchSize;
         boolean success = false;
         try {
@@ -562,14 +553,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     }
 
     private boolean shouldEmitPartition(HashAggregationOperator op) {
-        if (op.rowsAddedInCurrentBatch == 0) {
-            return false;
-        }
-        int numKeys = op.blockHash.numKeys();
-        if (numKeys < perPartitionEmitThreshold) {
-            return false;
-        }
-        return op.rowsAddedInCurrentBatch * perPartitionEmitUniquenessThreshold <= numKeys;
+        return op.blockHash.numKeys() >= perPartitionEmitThreshold;
     }
 
     /**

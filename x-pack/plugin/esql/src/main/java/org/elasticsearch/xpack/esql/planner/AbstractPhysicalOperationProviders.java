@@ -211,7 +211,7 @@ public abstract class AbstractPhysicalOperationProviders {
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
                 PlannerSettings plannerSettings = context.plannerSettings();
-                int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT);
+                int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(plannerSettings.partitionedAggMergeWorkerCount());
                 int partitionCount = Math.min(
                     pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount()),
                     mergeWorkerCount
@@ -261,9 +261,8 @@ public abstract class AbstractPhysicalOperationProviders {
                             .partitionConversionThreshold(
                                 pragmas.partitionedAggConversionThreshold(plannerSettings.partitionedAggConversionThreshold())
                             )
-                            .perPartitionEmit(
-                                pragmas.partitionedAggPerPartitionEmitThreshold(plannerSettings.partitionedAggPerPartitionEmitThreshold()),
-                                PartitionedHashAggregationOperator.DEFAULT_PER_PARTITION_EMIT_UNIQUENESS_THRESHOLD
+                            .perPartitionEmitThreshold(
+                                pragmas.partitionedAggPerPartitionEmitThreshold(plannerSettings.partitionedAggPerPartitionEmitThreshold())
                             )
                             .maxPageSize(maxPageSize)
                             .aggregationBatchSize(aggregationBatchSize)

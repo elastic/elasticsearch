@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -37,15 +39,14 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -226,9 +227,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
-        List<Alias> packDimensions = new ArrayList<>();
+        List<Attribute> packDimensions = new ArrayList<>();
+        List<Attribute> unpackDimensions = new ArrayList<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
-        List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
         Consumer<NamedExpression> extractTimeBucket = e -> {
@@ -294,18 +295,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(
-                            g,
-                            a,
-                            firstPassAggs,
-                            secondPassGroupings,
-                            internalNames,
-                            context,
-                            packDimensions,
-                            unpackDimensions,
-                            packPositions,
-                            i
-                        );
+                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket && timeBucket == null) {
@@ -362,27 +352,35 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
-            Eval packValues = new Eval(firstPhase.source(), firstPhase, packDimensions);
+            PackDims packDims = new PackDims(
+                aggregate.source(),
+                firstPhase,
+                packDimensions,
+                PackDims.newPackedAttribute(aggregate.source())
+            );
+            Alias packedGrouping = PackDims.newPackedGrouping(aggregate.source(), packDims.packed());
+            secondPassGroupings.add(packedGrouping);
             Aggregate secondPhase = new Aggregate(
-                firstPhase.source(),
-                packValues,
+                aggregate.source(),
+                packDims,
                 secondPassGroupings,
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
-            Eval unpackValues = new Eval(secondPhase.source(), secondPhase, unpackDimensions);
+            UnpackDims unpackDims = new UnpackDims(aggregate.source(), secondPhase, packedGrouping.toAttribute(), unpackDimensions);
             List<NamedExpression> projects = new ArrayList<>();
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
             }
-            int packPos = 0;
-            for (int i = 0; i < secondPassGroupings.size(); i++) {
+            int groupPos = 0;
+            int dimPos = 0;
+            for (int i = 0; i < aggregate.groupings().size(); i++) {
                 if (packPositions[i]) {
-                    projects.add(unpackDimensions.get(packPos++).toAttribute());
+                    projects.add(unpackDimensions.get(dimPos++));
                 } else {
-                    projects.add(Expressions.attribute(secondPassGroupings.get(i)));
+                    projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
             }
-            return new Project(newChild.source(), unpackValues, projects);
+            return new Project(newChild.source(), unpackDims, projects);
         }
     }
 
@@ -413,31 +411,27 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         Attribute attribute,
         List<NamedExpression> firstPassAggs,
         List<Expression> secondPassGroupings,
-        TemporaryNameGenerator internalNames,
         AnalyzerContext context,
-        List<Alias> packDimensions,
-        List<Alias> unpackDimensions,
+        List<Attribute> packDimensions,
+        List<Attribute> unpackDimensions,
         boolean[] packPositions,
         int position
     ) {
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
         if (attribute.isDimension()) {
-            Alias pack = new Alias(
-                group.source(),
-                internalNames.next("pack_" + group.name()),
-                new PackDimension(group.source(), valuesAgg.toAttribute())
+            packDimensions.add(valuesAgg.toAttribute());
+            unpackDimensions.add(
+                new ReferenceAttribute(
+                    group.source(),
+                    null,
+                    group.name(),
+                    attribute.dataType().noText(),
+                    Nullability.TRUE,
+                    group.id(),
+                    false
+                )
             );
-            packDimensions.add(pack);
-            Alias packedGrouping = new Alias(group.source(), internalNames.next("group_" + group.name()), pack.toAttribute());
-            secondPassGroupings.add(packedGrouping);
-            Alias unpack = new Alias(
-                group.source(),
-                group.name(),
-                new UnpackDimension(group.source(), packedGrouping.toAttribute(), attribute.dataType().noText()),
-                group.id()
-            );
-            unpackDimensions.add(unpack);
             packPositions[position] = true;
         } else {
             secondPassGroupings.add(new Alias(group.source(), group.name(), valuesAgg.toAttribute(), group.id()));

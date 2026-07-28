@@ -243,6 +243,7 @@ public final class BlockUtils {
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
+            case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) val);
             case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -281,6 +282,7 @@ public final class BlockUtils {
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
             case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
             case LONG_RANGE -> blockFactory.newConstantLongRangeBlockWith((LongRangeBlockBuilder.LongRange) val, size);
+            case DOUBLE_RANGE -> blockFactory.newConstantDoubleRangeBlockWith((DoubleRangeBlockBuilder.DoubleRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -357,12 +359,11 @@ public final class BlockUtils {
             }
             case LONG_RANGE -> {
                 LongRangeBlock b = (LongRangeBlock) block;
-                LongBlock fromBlock = b.getFromBlock();
-                LongBlock toBlock = b.getToBlock();
-                if (fromBlock.isNull(offset) || toBlock.isNull(offset)) {
-                    yield null;
-                }
-                yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
+                yield b.getLongRange(offset, new LongRangeBlockBuilder.LongRange());
+            }
+            case DOUBLE_RANGE -> {
+                DoubleRangeBlock b = (DoubleRangeBlock) block;
+                yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

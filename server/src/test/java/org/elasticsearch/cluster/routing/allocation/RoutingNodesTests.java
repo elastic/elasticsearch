@@ -391,7 +391,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         testNodeInterleavedShardIteratorCommon(Set::copyOf);
     }
 
-    public void testNodeInterleavedShardIteratorCommon(Function<Set<String>, Set<String>> subsetSelector) {
+    private void testNodeInterleavedShardIteratorCommon(Function<Set<String>, Set<String>> subsetSelector) {
         final var projectId = randomProjectIdOrDefault();
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);

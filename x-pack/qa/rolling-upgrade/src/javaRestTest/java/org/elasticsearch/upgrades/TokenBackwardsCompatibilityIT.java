@@ -64,10 +64,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWi
 
     @After
     public void cleanUpClients() throws IOException {
-        for (RestClient client : twoClients) {
-            client.close();
+        if (twoClients != null) {
+            for (RestClient client : twoClients) {
+                client.close();
+            }
+            twoClients = null;
         }
-        twoClients = null;
     }
 
     public void testGeneratingTokensInOldCluster() throws Exception {

@@ -244,9 +244,8 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
-        MappingLookup mappingLookup = mapperService.mappingLookup();
-        IndexSettings indexSettings = mapperService.getIndexSettings();
-        BatchMappingContext context = new BatchMappingContext(IndexOperationBatch.initFromRequests(requests), mappingLookup, indexSettings);
+        IndexOperationBatch batch = IndexOperationBatch.initFromRequests(requests);
+        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
 
         mapper.preColumnarParse(context);
 

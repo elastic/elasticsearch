@@ -1160,23 +1160,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
-        final List<Engine.Index> ops = batch.batch().materializeIndexOps();
-        // TODO: Per-op listener rewrites are not honored in the batch path; a future batch-aware
-        // listener API (preIndexBatch/postIndexBatch) will handle this properly.
-        final Engine.Index[] preOps = new Engine.Index[ops.size()];
-        for (int i = 0; i < ops.size(); i++) {
-            preOps[i] = indexingOperationListeners.preIndex(shardId, ops.get(i));
+        final List<Engine.Index> operations = batch.batch().materializeIndexOps();
+        List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
+        // TODO: Right now the only production users are stats. Should add batch listener.
+        for (Engine.Index op : operations) {
+            preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
         try {
             final List<Engine.IndexResult> results = engine.indexBatch(batch);
-            active.set(true);
+            // TODO: Look at if these can be batch optimized
             for (int i = 0; i < results.size(); i++) {
-                indexingOperationListeners.postIndex(shardId, preOps[i], results.get(i));
+                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
             }
+            active.set(true);
             return results;
         } catch (Exception e) {
-            for (Engine.Index preOp : preOps) {
-                indexingOperationListeners.postIndex(shardId, preOp, e);
+            for (Engine.Index preIndexOp : preIndexOps) {
+                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
             }
             throw e;
         }

@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 154417
-summary: Remove geo from MV_SORT allowed inputs and added error tests
+summary: Fixed the case where MV_SORT incorrectly allowed geospatial types, which are not sortable
 type: bug

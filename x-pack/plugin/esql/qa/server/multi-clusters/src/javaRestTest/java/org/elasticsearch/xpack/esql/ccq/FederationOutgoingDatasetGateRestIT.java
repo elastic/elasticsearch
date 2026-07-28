@@ -19,8 +19,9 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
-import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -57,13 +58,7 @@ public class FederationOutgoingDatasetGateRestIT extends ESRestTestCase {
     private static final Path DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(DATA_PATH, emptyMap(), false);
-    static ElasticsearchCluster localCluster = Clusters.localCluster(
-        DATA_PATH,
-        remoteCluster,
-        false,
-        Map.of(Federation.FEDERATION_ENABLED.getKey(), "false"),
-        false
-    );
+    static ElasticsearchCluster localCluster = Clusters.localCluster(DATA_PATH, remoteCluster, false, emptyMap(), false, "false");
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
@@ -75,6 +70,26 @@ public class FederationOutgoingDatasetGateRestIT extends ESRestTestCase {
 
     public void testDisabledLocalResolvesRemoteDatasetAsMissingIndex() throws Exception {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
+        // The premise is a local cluster with federation off, which only holds where the setting exists: a node without
+        // it has federation on and would ask the remote to resolve datasets. The remote has to expose the CRUD routes
+        // for the dataset this test registers there.
+        assumeTrue(
+            "the local cluster has to read the federation setting",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(EsqlCapabilities.Cap.FEDERATION_ENABLED_SETTING.capabilityName()))
+                .orElse(false)
+        );
+        try (RestClient capabilityClient = remoteClusterClient()) {
+            assumeTrue(
+                "the remote cluster has to expose the data source routes",
+                clusterHasCapability(
+                    capabilityClient,
+                    "PUT",
+                    "/_query/data_source/{name}",
+                    List.of(),
+                    List.of(EsqlDataSourcesCapabilities.DATA_SOURCES)
+                ).orElse(false)
+            );
+        }
 
         final String dataSource = "outgoing_gate_ds";
         final String dataset = "outgoing_gate_dataset";

@@ -2832,6 +2832,14 @@ public class EsqlCapabilities {
         REGISTER_FEDERATION_FEATURE,
 
         /**
+         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so
+         * federation is off unless a deployment opts in. Nodes that only have the operator kill switch report
+         * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
+         * per node, so a test that drives the setting has to skip against them.
+         */
+        FEDERATION_ENABLED_SETTING,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}

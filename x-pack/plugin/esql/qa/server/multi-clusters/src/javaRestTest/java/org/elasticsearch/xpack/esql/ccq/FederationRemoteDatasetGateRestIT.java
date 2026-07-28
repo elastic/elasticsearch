@@ -89,14 +89,24 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
         // The remote-dataset gate needs federation on both clusters: the coordinator only sends the resolveDatasets
         // option to the remote when federation is available locally, and the remote honors its own state by dropping its
-        // datasets. Older nodes predate the feature and do not report the capability, so a mixed cluster correctly skips
-        // this scenario.
-        List<String> federationCapability = List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName());
+        // datasets. Phase 2 turns the remote off through the setting, so the remote also has to be a version that reads
+        // it; one that only has the operator kill switch cannot be turned off per node and skips here.
         try (RestClient capabilityClient = remoteClusterClient()) {
             assumeTrue(
-                "the remote-dataset gate requires the feature on both clusters",
-                clusterHasCapability("POST", "/_query", List.of(), federationCapability).orElse(false)
-                    && clusterHasCapability(capabilityClient, "POST", "/_query", List.of(), federationCapability).orElse(false)
+                "the remote-dataset gate requires the feature locally and the federation setting on the remote",
+                clusterHasCapability(
+                    "POST",
+                    "/_query",
+                    List.of(),
+                    List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName())
+                ).orElse(false)
+                    && clusterHasCapability(
+                        capabilityClient,
+                        "POST",
+                        "/_query",
+                        List.of(),
+                        List.of(EsqlCapabilities.Cap.FEDERATION_ENABLED_SETTING.capabilityName())
+                    ).orElse(false)
             );
         }
 

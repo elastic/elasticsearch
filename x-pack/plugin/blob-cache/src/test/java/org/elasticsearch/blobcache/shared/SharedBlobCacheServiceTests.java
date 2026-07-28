@@ -1711,7 +1711,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(SharedBlobCacheService.calculateCacheSize(settings, largeSize), equalTo(largeSize - ByteSizeValue.ofGb(100).getBytes()));
     }
 
-    public static TestCacheKey generateCacheKey() {
+    private static TestCacheKey generateCacheKey() {
         return randomTestCacheKey(randomShardId());
     }
 
@@ -4813,12 +4813,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public record TestCacheKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
+    private record TestCacheKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
 
     private static TestCacheKey randomTestCacheKey(ShardId shardId) {
         return new TestCacheKey(shardId, randomAlphaOfLength(5));
     }
 
+    // Following methods are helpers to call package private methods on SharedBlobCacheService for testing purposes
     public static <K extends SharedBlobCacheService.KeyBase> int freeRegionCountFromCacheService(SharedBlobCacheService<K> cacheService) {
         return cacheService.freeRegionCount();
     }

@@ -146,12 +146,7 @@ public class AutomatonQueries {
             return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
         }
 
-        Automaton dfa = CircuitBreakingOperations.determinize(
-            nfa,
-            maxDeterminizedStates,
-            circuitBreaker,
-            "regexp"
-        );
+        Automaton dfa = CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp");
         long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
         circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, "regexp");
         try {

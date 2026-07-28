@@ -10,6 +10,8 @@ import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -65,6 +67,48 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
             metricFields.put(m, subfield);
         }
         return new AggregateMetricDoubleFieldType(name, null, metricFields, meta);
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return createDefaultFieldType("agg_metric", Collections.emptyMap());
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        AggregateMetricDoubleFieldType fieldType = createDefaultFieldType("agg_metric", Collections.emptyMap());
+        // Any configured metric subfield being present in FieldInfos means the aggregate field has a value.
+        FieldInfos fieldInfos = new FieldInfos(
+            new FieldInfo[] { getFieldInfoWithName(subfieldName("agg_metric", randomFrom(Metric.values()))) }
+        );
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
+    }
+
+    public void testFieldHasValueWhenOnlyUnrelatedFieldsArePresent() {
+        AggregateMetricDoubleFieldType fieldType = createDefaultFieldType("agg_metric", Collections.emptyMap());
+        // The parent name on its own and unrelated fields should not count as the aggregate field having a value.
+        FieldInfos fieldInfos = new FieldInfos(
+            new FieldInfo[] { getFieldInfoWithName("agg_metric"), getFieldInfoWithName("another_field") }
+        );
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
+    }
+
+    public void testFieldHasValueWithSingleMetricConfigured() {
+        Metric singleMetric = randomFrom(Metric.values());
+        AggregateMetricDoubleFieldType fieldType = createFieldType("agg_metric", Collections.emptyMap(), singleMetric);
+        // The single configured metric's subfield is present.
+        assertTrue(
+            fieldType.fieldHasValue(
+                new FieldInfos(new FieldInfo[] { getFieldInfoWithName(subfieldName("agg_metric", singleMetric)) })
+            )
+        );
+        // A different metric's subfield (not configured on this field type) does not count.
+        Metric otherMetric = randomValueOtherThan(singleMetric, () -> randomFrom(Metric.values()));
+        assertFalse(
+            fieldType.fieldHasValue(
+                new FieldInfos(new FieldInfo[] { getFieldInfoWithName(subfieldName("agg_metric", otherMetric)) })
+            )
+        );
     }
 
     public void testTermQuery() {

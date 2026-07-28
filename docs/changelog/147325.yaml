@@ -1,0 +1,6 @@
+pr: 147325
+summary: Return `aggregate_metric_double` fields from `_field_caps` when populated
+area: Mapping
+type: bug
+issues:
+ - 142139

@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -73,6 +76,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,6 +88,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -1119,9 +1124,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * The gate resolves the format the way the READ path does, and any resolution failure refuses
-     * rather than throws: the registry throws {@code QlIllegalArgumentException} (not
-     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is
-     * an optimization that must never turn a resolvable read into a throw.
+     * rather than throws: the registry rejects an unregistered extension with an
+     * {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn a
+     * resolvable read into a throw.
      */
     public void testDatasetAggregateKeyUnregisteredExtensionRefusesWithoutThrowing() {
         ExternalSourceResolver resolver = datasetGateResolver(null);
@@ -2257,6 +2262,101 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The everyday failure — the object is missing, unreadable, or not the format it claims to be — reaches the
+     * resolver as a checked {@link IOException} from the reader. Whatever wrapping it picks up on the way out, the
+     * message the caller sees must carry the reader's own diagnosis and must not contain a JVM type name.
+     * <p>
+     * Asserted on the uncached path. On the cacheable rail the failure is additionally wrapped by
+     * {@code Cache#computeIfAbsent} in an {@code ExecutionException} whose message is its cause's {@code toString()},
+     * which prefixes a JVM type name onto whatever is inside; removing that wrapper is the subject of a separate
+     * change, and this one is about making the message inside it worth reading. The two compose — with the wrapper
+     * gone, what the client sees is exactly what is asserted here.
+     * <p>
+     * Status is deliberately not asserted: this change is scoped to messages.
+     */
+    public void testMetadataResolutionUnreadableObjectCarriesTheReaderDetail() {
+        String detail = "Object not found: the reader's own words";
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                formatName,
+                format[1],
+                schemasByPath,
+                () -> new IOException(detail),
+                null
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), future);
+
+            String where = "format [" + formatName + "]";
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(where + " must name the source", e.getMessage(), containsString(path));
+            assertThat(where + " must carry the reader's diagnosis", e.getMessage(), containsString(detail));
+            assertThat(where + " must not leak a java type name", e.getMessage(), not(containsString("java.")));
+        }
+    }
+
+    /**
+     * The path is context, not the diagnosis, and it is added by exactly one layer. Historically the factory wrapper
+     * and the resolver's fall-through wrapper both stated it, and the message said nothing else. Pins that the
+     * user-visible reason names the path once, on the cached and uncached paths alike.
+     */
+    public void testResolutionFailureNamesThePathOnce() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "csv",
+            ".csv",
+            schemasByPath,
+            () -> new IOException("CSV file has no schema line"),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        String message = expectThrows(Exception.class, future::actionGet).getMessage();
+        assertEquals("the path must appear once in [" + message + "]", 1, occurrences(message, path));
+    }
+
+    /**
+     * Two different unreadable-object conditions must not produce the same sentence: collapsing them onto one message
+     * is what makes an external-source failure unactionable, since the reason is the only part of the response most
+     * clients surface. Runs on the cached path, which is where the collapse happened.
+     */
+    public void testDistinctResolutionFailuresProduceDistinctMessages() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        List<String> messages = new ArrayList<>();
+        for (String detail : List.of("CSV file has no schema line", "Object not found: " + path)) {
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                    "csv",
+                    ".csv",
+                    schemasByPath,
+                    () -> new IOException(detail),
+                    cacheService
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(path), Map.of(), future);
+                messages.add(expectThrows(Exception.class, future::actionGet).getMessage());
+            }
+            // Runs on the cacheable rail deliberately: distinctness has to survive the ExecutionException wrapper,
+            // because that is the rail a real single-file resolve takes.
+        }
+        assertThat("distinct conditions must not share a message", messages.get(0), not(equalTo(messages.get(1))));
+    }
+
+    private static int occurrences(String haystack, String needle) {
+        int count = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+            count++;
+        }
+        return count;
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -2273,6 +2373,231 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(null, Map.of(), future);
         ExternalSourceResolution resolution = future.actionGet();
         assertTrue(resolution.isEmpty());
+    }
+
+    // ===== Format claiming: unrecognized / absent extensions =====
+
+    /**
+     * An explicit {@code format} names the reader directly, so it must claim files whose extension says nothing —
+     * on the MULTI-FILE path as well as the single-file one. Every glob, prefix and comma-list resolves through
+     * {@code resolveSingleSourceAsync}, which selected factories with the path-only {@code canHandle(path)} and so
+     * discarded the caller's config: {@code format} was honored for one concrete file and silently a no-op for every
+     * glob. A real dataset of {@code .log.gz} objects was therefore unreadable no matter how it was configured.
+     * {@code FileSourceFactoryTests#testCanHandleWithExplicitFormatIsAuthoritativeRegardlessOfObjectName} pins the
+     * factory-level contract; this pins the resolver actually invoking it.
+     */
+    public void testExplicitFormatClaimsUnrecognizedExtensionOnMultiFileGlob() throws Exception {
+        List<Attribute> schema = List.of(attr("srcaddr", DataType.KEYWORD), attr("bytes", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/vpcflow/a.log.gz", schema);
+        schemasByPath.put("s3://bucket/vpcflow/b.log.gz", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100), entry("s3://bucket/vpcflow/b.log.gz", 200));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+            "s3://bucket/vpcflow/*",
+            schemasByPath,
+            listing,
+            // "parquet" is the format the test plugin registers; the point is that it is named explicitly
+            // rather than inferred, over objects whose own extension resolves to nothing.
+            Map.of("format", "parquet")
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        assertNotNull("explicit format must claim unrecognized extensions on the multi-file path", resolved);
+        assertEquals(List.of("srcaddr", "bytes"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * Without a format to go on, an unreadable extension must say so — and must say it as a client error. The failure
+     * previously blamed a missing plugin (the scheme is already validated by the time we get here, so a plugin is
+     * never the cause) and threw {@code UnsupportedOperationException}, which {@code ExceptionsHelper#status} does not
+     * map and therefore rendered a plain user-input mistake as a 500.
+     */
+    public void testMultiFileGlobWithoutFormatReportsUnreadableExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals("an unreadable extension is a client error, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/a.log.gz"));
+        // The compound tail, not the bare ".gz": the outer codec IS supported, so naming it alone contradicts itself.
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), containsString("[format]"));
+        // The remedy is a dataset setting, never a query surface syntax the resolver has no business prescribing.
+        assertThat(e.getMessage(), not(containsString("WITH")));
+        assertThat(e.getMessage(), not(containsString("plugin is installed")));
+    }
+
+    /**
+     * The extensionless branch of the same failure — the shape produced by data-lake litter that carries no extension
+     * at all ({@code _SUCCESS} markers, {@code folder/} placeholders, bare prefixes), which the listing does not
+     * filter out.
+     */
+    public void testMultiFileGlobWithoutFormatReportsMissingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/_SUCCESS", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/_SUCCESS", 0));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/_SUCCESS"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
+    }
+
+    /**
+     * A client error must keep its status even when something between the throw and the boundary wrapped it.
+     * Resolution on the cacheable rail runs inside {@code Cache#computeIfAbsent}, which reports a loader failure
+     * as an {@code ExecutionException} -- so the same unreadable object answered 400 on one provider and 500 on
+     * another, purely because one was cacheable. Recovering the client error from the cause chain at the boundary
+     * is deliberately general: it holds for any wrapper, including ones introduced after this test was written,
+     * which is what makes it a gate rather than an audit of today's call sites.
+     */
+    public void testAClientErrorKeepsItsStatusThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalArgumentException original = new IllegalArgumentException("Cannot determine how to read [s3://b/x.log.gz]");
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
+     * A breaker trip keeps its 429 through a wrapper. It carries its own status like the outage and rejection
+     * cases, so recovering only the client error would have left this one masked as a 500 the moment a cache
+     * loader wrapped it.
+     */
+    public void testABreakerTripKeepsIts429ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        CircuitBreakingException original = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException("wrapped", original));
+
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mapped));
+        assertSame(original, mapped);
+    }
+
+    /**
+     * A bare compression suffix is its own diagnosis: {@code .gz} IS a registered codec, so reporting it as an
+     * unmatched format would contradict itself. What is missing is an inner format extension.
+     */
+    public void testBareCompressionSuffixIsDiagnosedAsCodecNotFormat() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/archive.gz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/archive.gz", schemasByPath));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("names a compression codec, not a data format"));
+        // It must suggest the shape that WOULD work, built from the codec actually seen.
+        assertThat(e.getMessage(), containsString(".csv.gz"));
+        assertThat(e.getMessage(), not(containsString("does not match any registered format")));
+    }
+
+    /**
+     * A dotted stem must not be dragged into the reported extension: the two-segment form is for a real codec
+     * pair only, so {@code 2026.07.26.data.xyz} reports {@code .xyz}, not {@code .data.xyz}.
+     */
+    public void testDottedStemReportsOnlyTheTrailingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/2026.07.26.data.xyz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/2026.07.26.data.xyz", schemasByPath));
+
+        assertThat(e.getMessage(), containsString("extension [.xyz]"));
+        // Scoped to the REPORTED extension: the message also quotes the full path back, which legitimately
+        // contains ".data.xyz".
+        assertThat(e.getMessage(), not(containsString("extension [.data.xyz]")));
+    }
+
+    /**
+     * The anchor resolve under FIRST_FILE_WINS is a separate route into the async factory selection from the
+     * per-file fan-out that {@link #testExplicitFormatClaimsUnrecognizedExtensionOnMultiFileGlob} exercises
+     * (it resolves one anchor rather than every file), so it needs its own pin: both must honor an explicit format.
+     */
+    public void testExplicitFormatClaimsUnrecognizedExtensionUnderFirstFileWins() throws Exception {
+        List<Attribute> schema = List.of(attr("srcaddr", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/vpcflow/a.log.gz", schema);
+        schemasByPath.put("s3://bucket/vpcflow/b.log.gz", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100), entry("s3://bucket/vpcflow/b.log.gz", 200));
+
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("format", "parquet");
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, config);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        assertNotNull("explicit format must claim the FIRST_FILE_WINS anchor too", resolved);
+        assertEquals(List.of("srcaddr"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * The claim must widen only for an <em>authoritative</em> format. {@code auto} is the "infer from the extension"
+     * sentinel, so it must leave an unreadable extension unreadable — otherwise the config-aware selection would
+     * claim everything and defer the failure to a much deeper, worse error inside the reader.
+     */
+    public void testFormatAutoDoesNotClaimUnrecognizedExtensionOnMultiFileGlob() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of("format", "auto"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+    }
+
+    /**
+     * An unregistered format name must not claim either — the widened selection keys on the format being registered,
+     * not merely present.
+     */
+    public void testUnregisteredFormatDoesNotClaimUnrecognizedExtensionOnMultiFileGlob() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of("format", "not-a-real-format"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
+     * The synchronous single-file path throws the same failure from the same builder, so it carries the same message
+     * and the same status — the two throw sites must not drift back apart.
+     */
+    public void testSingleFileWithoutFormatReportsUnreadableExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/vpcflow/a.log.gz", schemasByPath));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), not(containsString("plugin is installed")));
+    }
+
+    /**
+     * A single-segment extension reports itself alone — the two-segment tail is for compound names only, and must not
+     * drag a preceding dotted stem into the message.
+     */
+    public void testUnreadableSingleSegmentExtensionIsReportedAlone() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/events.avro", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/data/events.avro", schemasByPath));
+
+        assertThat(e.getMessage(), containsString("[.avro]"));
     }
 
     // ===== Resolver + Cache integration =====
@@ -3175,6 +3500,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
                 return Map.of("parquet", (s, bf) -> formatReader);
             }
+
+            /**
+             * A gzip codec, so the fixture models a real cluster (the gzip data-source plugin ships and is
+             * installed by default). Without it {@code .gz} is not a registered compression suffix here, and the
+             * resolver correctly reports {@code .gz} itself as the unknown extension rather than the
+             * {@code .log.gz} pair — a different, equally correct message that would leave the compound-name
+             * diagnosis unexercised.
+             */
+            @Override
+            public List<DecompressionCodec> decompressionCodecs(Settings settings) {
+                return List.of(new DecompressionCodec() {
+                    @Override
+                    public String name() {
+                        return "gzip";
+                    }
+
+                    @Override
+                    public List<String> extensions() {
+                        return List.of(".gz");
+                    }
+
+                    @Override
+                    public InputStream decompress(InputStream raw) {
+                        return raw;
+                    }
+                });
+            }
         };
 
         List<DataSourcePlugin> plugins = List.of(plugin);
@@ -3312,7 +3664,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String formatName,
         String extension,
         Map<String, List<Attribute>> schemasByPath,
-        Supplier<? extends RuntimeException> failure,
+        Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
@@ -3321,9 +3673,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
 
+            // Declares IOException so a suite can inject the checked storage/reader failure that the real
+            // readers raise (the shape FileSourceFactory types as client-caused), not only unchecked ones.
             @Override
-            public SourceMetadata metadata(StorageObject object) {
-                throw failure.get();
+            public SourceMetadata metadata(StorageObject object) throws IOException {
+                Exception e = failure.get();
+                if (e instanceof IOException io) {
+                    throw io;
+                }
+                throw (RuntimeException) e;
             }
 
             @Override
@@ -3631,7 +3989,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(e.getMessage(), containsString("Failed to resolve metadata"));
+            // Pins what the caller needs — which file aborted the fan-out and why — rather than the wrapper's
+            // boilerplate. The wrapper now keeps the reader's diagnosis instead of replacing it with a constant.
+            assertThat(e.getMessage(), containsString("simulated read failure"));
+            assertThat(e.getMessage(), containsString(failPath));
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
@@ -37,12 +38,9 @@ public final class PushdownInsertEmptyBucketsAndSetDefaultValues extends Optimiz
         return switch (insertEmptyBuckets.child()) {
             case Eval eval -> swapOrStop(insertEmptyBuckets, eval);
             case Project project -> swapOrStop(insertEmptyBuckets, project);
-            case UnpackDims unpackDims -> swapOrStop(insertEmptyBuckets, unpackDims);
+            case UnpackDims unpackDims -> setDefaultValues(insertEmptyBuckets, unpackDims);
             case Aggregate aggregate -> setDefaultValues(insertEmptyBuckets, aggregate);
-            default -> {
-                assert false : "Unexpected child class [" + insertEmptyBuckets.child().getClass() + "]";
-                yield insertEmptyBuckets;
-            }
+            default -> throw new IllegalStateException("Unexpected child class [" + insertEmptyBuckets.child().getClass() + "]");
         };
     }
 
@@ -55,15 +53,26 @@ public final class PushdownInsertEmptyBucketsAndSetDefaultValues extends Optimiz
         }
     }
 
-    private static LogicalPlan setDefaultValues(InsertEmptyBuckets insertEmptyBuckets, Aggregate aggregate) {
+    private static LogicalPlan setDefaultValues(InsertEmptyBuckets insertEmptyBuckets, UnaryPlan plan) {
+        // The node cannot be pushed any further down. This happens for time-series aggregations with an extra dimension, where
+        // TranslateTimeSeriesAggregate packs the dimension into a single grouping so the underlying Aggregate no longer exposes the
+        // dimension attribute (it is only unpacked again by UnpackDims), but we still must set the default values.
+        LogicalPlan aggregate = plan;
+        while (aggregate instanceof UnaryPlan && aggregate instanceof Aggregate == false) {
+            aggregate = ((UnaryPlan) aggregate).child();
+        }
+        if (aggregate instanceof Aggregate == false) {
+            throw new IllegalStateException("Cannot find aggregate expression [" + insertEmptyBuckets + "]");
+        }
         Map<Attribute, DefaultValue> defaultValues = new HashMap<>();
-        for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+        for (NamedExpression aggregateExpression : ((Aggregate) aggregate).aggregates()) {
             Attribute attribute = aggregateExpression.toAttribute();
             if (insertEmptyBuckets.buckets().containsKey(attribute) || insertEmptyBuckets.groups().contains(attribute)) {
                 // Grouping field: the operator sources its value/type from the bucket cursor / representative row, not a default.
                 continue;
             }
-            Object value = Alias.unwrap(aggregateExpression) instanceof Count ? 0L : null;
+            Object value = (Alias.unwrap(aggregateExpression) instanceof Count)
+                || (Alias.unwrap(aggregateExpression) instanceof CountDistinct) ? 0L : null;
             defaultValues.put(attribute, new DefaultValue(PlannerUtils.toElementType(attribute.dataType()), value));
         }
         return defaultValues.equals(insertEmptyBuckets.defaultValues())

@@ -39,8 +39,8 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
     private static final int MAX_PAGE_SIZE = 1000;
 
     // A 1000ms rounding over [0, 3000) generates exactly the boundaries {T0, T1, T2} on the fly.
-    private static InsertEmptyBucketsOperator.DateCursor dateCursor() {
-        return new InsertEmptyBucketsOperator.DateCursor(
+    private static InsertEmptyBucketsOperator.DateCursorFactory dateCursorFactory() {
+        return new InsertEmptyBucketsOperator.DateCursorFactory(
             Rounding.builder(TimeValue.timeValueMillis(1000)).build().prepareForUnknown(),
             0L,
             3000L,
@@ -53,7 +53,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         // A single (bucketless-grouping) STATS c = COUNT(*) BY b = BUCKET(...): a bucket key column and a zero-filled count.
         return new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(0, dateCursor());
+                put(0, dateCursorFactory());
             }
             // defaultValues holds only value columns (the zero-filled count), not the bucket key
         }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
@@ -125,7 +125,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("InsertEmptyBucketsOperator[bucketCursors=[0], groupChannels=[], defaultValues=[1]]");
+        return equalTo("InsertEmptyBucketsOperator[bucketCursorFactories=[0], groupChannels=[], defaultValues=[1]]");
     }
 
     @Override
@@ -175,7 +175,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
 
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(1, dateCursor());
+                put(1, dateCursorFactory());
             }
         }, List.of(0), Map.of(2, new DefaultValue(ElementType.LONG, 0L), 3, new DefaultValue(ElementType.DOUBLE, null)), MAX_PAGE_SIZE);
 
@@ -248,7 +248,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
 
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(1, dateCursor());
+                put(1, dateCursorFactory());
             }
         }, List.of(0), Map.of(2, new DefaultValue(ElementType.LONG, 0L), 3, new DefaultValue(ElementType.DOUBLE, null)), MAX_PAGE_SIZE);
 
@@ -305,7 +305,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         // roundTo=1.0 over [1.0, 4.0) generates the boundaries {1.0, 2.0, 3.0} on the fly.
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(0, new InsertEmptyBucketsOperator.NumericCursor(1.0, 1.0, 4.0));
+                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(1.0, 1.0, 4.0));
             }
         }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 
@@ -347,7 +347,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
             {
                 put(
                     0,
-                    new InsertEmptyBucketsOperator.DateCursor(
+                    new InsertEmptyBucketsOperator.DateCursorFactory(
                         Rounding.builder(TimeValue.timeValueMillis(1000)).build().prepareForUnknown(),
                         1000L,
                         1000L,
@@ -395,7 +395,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
 
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(1, dateCursor());
+                put(1, dateCursorFactory());
             }
         }, List.of(0), Map.of(2, new DefaultValue(ElementType.LONG, 0L)), smallPageSize);
 
@@ -451,8 +451,8 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         // Ordered map: channel 1 (day) is the outer, channel 2 (hour) the inner dimension of the cross product.
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(1, dateCursor());
-                put(2, dateCursor());
+                put(1, dateCursorFactory());
+                put(2, dateCursorFactory());
             }
         }, List.of(0), Map.of(3, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 
@@ -489,7 +489,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(0, dateCursor());
+                put(0, dateCursorFactory());
             }
         }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 
@@ -522,7 +522,7 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(1, dateCursor());
+                put(1, dateCursorFactory());
             }
         }, List.of(0), Map.of(2, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 
@@ -540,8 +540,8 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(0, dateCursor());
-                put(1, dateCursor());
+                put(0, dateCursorFactory());
+                put(1, dateCursorFactory());
             }
         }, List.of(), Map.of(2, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 

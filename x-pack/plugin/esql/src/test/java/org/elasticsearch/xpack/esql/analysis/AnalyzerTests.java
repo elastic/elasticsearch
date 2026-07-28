@@ -4624,6 +4624,12 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(oneYear, literal);
     }
 
+    public void testBucketInvalidNumberOfArguments() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, {"include_empty_buckets": true})
+            """, containsString("expects between two and four positional arguments"));
+    }
+
     public void testBucketInvalidOption() {
         basic().error("""
             FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"invalid_option": 42})

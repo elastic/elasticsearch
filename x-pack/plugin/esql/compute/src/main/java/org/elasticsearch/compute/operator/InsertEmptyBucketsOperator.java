@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
@@ -39,26 +41,28 @@ import java.util.SequencedMap;
 public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
     /**
-     * @param bucketCursors the grouping channels produced by include-empty {@code BUCKET}s, each mapped to its
-     *                      {@link BucketCursor} generating that bucket's boundaries.
-     * @param groupChannels the non-bucket grouping channels; a group is a distinct combination of their values.
-     * @param defaultValues the value (=not grouping) channel's default values for an empty bucket.
+     * @param bucketCursorFactories the grouping channels produced by include-empty {@code BUCKET}s, each mapped to a
+     *                              {@link BucketCursorFactory} that creates the {@link BucketCursor} generating that bucket's boundaries.
+     * @param groupChannels         the non-bucket grouping channels; a group is a distinct combination of their values.
+     * @param defaultValues         the value (=not grouping) channel's default values for an empty bucket.
      */
     public record Factory(
-        SequencedMap<Integer, BucketCursor> bucketCursors,
+        SequencedMap<Integer, BucketCursorFactory> bucketCursorFactories,
         List<Integer> groupChannels,
         Map<Integer, DefaultValue> defaultValues,
         int maxPageSize
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
+            SequencedMap<Integer, BucketCursor> bucketCursors = new LinkedHashMap<>();
+            bucketCursorFactories.forEach((channel, factory) -> bucketCursors.put(channel, factory.create()));
             return new InsertEmptyBucketsOperator(driverContext, bucketCursors, groupChannels, defaultValues, maxPageSize);
         }
 
         @Override
         public String describe() {
-            return "InsertEmptyBucketsOperator[bucketCursors="
-                + bucketCursors.keySet()
+            return "InsertEmptyBucketsOperator[bucketCursorFactories="
+                + bucketCursorFactories.keySet()
                 + ", groupChannels="
                 + groupChannels
                 + ", defaultValues="
@@ -71,6 +75,14 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
      * The default an empty bucket takes on a single output channel, plus that channel's element type.
      */
     public record DefaultValue(ElementType type, @Nullable Object value) {}
+
+    /**
+     * Creates fresh {@link BucketCursor} instances. Because cursors are stateful, each operator instance needs its own,
+     * so the {@link Factory} holds these (stateless) factories rather than the cursors themselves.
+     */
+    public interface BucketCursorFactory {
+        BucketCursor create();
+    }
 
     /**
      * Walks the bucket boundaries of a single group in ascending order, one at a time. The boundaries of a
@@ -89,6 +101,13 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
         /** Move to the next boundary. */
         void advance();
+    }
+
+    public record DateCursorFactory(Rounding.Prepared rounding, long from, long to, boolean nanos) implements BucketCursorFactory {
+        @Override
+        public BucketCursor create() {
+            return new DateCursor(rounding, from, to, nanos);
+        }
     }
 
     public static final class DateCursor implements BucketCursor {
@@ -130,16 +149,25 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
         }
     }
 
+    public record NumericCursorFactory(double roundTo, double from, double to) implements BucketCursorFactory {
+        @Override
+        public BucketCursor create() {
+            return new NumericCursor(roundTo, from, to);
+        }
+    }
+
     public static final class NumericCursor implements BucketCursor {
         private final double roundTo;
         private final double from;
         private final double to;
+        private final boolean alwaysExhausted;
         private long n;
 
         public NumericCursor(double roundTo, double from, double to) {
             this.roundTo = roundTo;
             this.from = from;
             this.to = to;
+            this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0;
         }
 
         @Override
@@ -154,7 +182,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
         @Override
         public boolean exhausted() {
-            return roundTo * n >= to;
+            return roundTo * n >= to || alwaysExhausted;
         }
 
         @Override
@@ -184,7 +212,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     // Instead of copying all data, pointers in `sortedRowPointers` to each (page, position) are sorted.
     // The pointers are long values: the high bits are the page index, the low bits are the position in that page.
     private Page[] pages;
-    private long[] sortedRowPointers;
+    private LongArray sortedRowPointers;
 
     // Walk state, over the sorted row pointers.
     private int nextRow;            // the next real input row to emit
@@ -235,12 +263,12 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             resetBucketCursor();
         }
 
-        sortedRowPointers = new long[rowCount];
+        sortedRowPointers = driverContext.bigArrays().newLongArray(rowCount, false);
         int idx = 0;
         for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
             int positions = pages[pageIndex].getPositionCount();
             for (int pos = 0; pos < positions; pos++) {
-                sortedRowPointers[idx++] = (((long) pageIndex) << Integer.SIZE) | pos;
+                sortedRowPointers.set(idx++, (((long) pageIndex) << Integer.SIZE) | pos);
             }
         }
 
@@ -249,24 +277,24 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
             @Override
             protected void setPivot(int i) {
-                pivot = sortedRowPointers[i];
+                pivot = sortedRowPointers.get(i);
             }
 
             @Override
             protected int comparePivot(int j) {
-                return compareRows(pivot, sortedRowPointers[j]);
+                return compareRows(pivot, sortedRowPointers.get(j));
             }
 
             @Override
             protected int compare(int i, int j) {
-                return compareRows(sortedRowPointers[i], sortedRowPointers[j]);
+                return compareRows(sortedRowPointers.get(i), sortedRowPointers.get(j));
             }
 
             @Override
             protected void swap(int i, int j) {
-                long tmp = sortedRowPointers[i];
-                sortedRowPointers[i] = sortedRowPointers[j];
-                sortedRowPointers[j] = tmp;
+                long tmp = sortedRowPointers.get(i);
+                sortedRowPointers.set(i, sortedRowPointers.get(j));
+                sortedRowPointers.set(j, tmp);
             }
         }.sort(0, rowCount);
     }
@@ -285,7 +313,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
     @Override
     protected boolean isOperatorFinished() {
-        return currentGroup == -1 && nextRow >= sortedRowPointers.length && inEmptyInputGroup == false;
+        return currentGroup == -1 && nextRow >= sortedRowPointers.size() && inEmptyInputGroup == false;
     }
 
     @Override
@@ -336,7 +364,9 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     }
 
     @Override
-    protected void onClose() {}
+    protected void onClose() {
+        Releasables.close(sortedRowPointers);
+    }
 
     @Override
     public String toString() {
@@ -369,7 +399,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
         while (true) {
             if (currentGroup == -1) {
                 // The previous group (if any) is completely processed.
-                if (nextRow >= sortedRowPointers.length) {
+                if (nextRow >= sortedRowPointers.size()) {
                     // All groups are finished.
                     return false;
                 } else {
@@ -379,7 +409,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
                 }
             }
 
-            if (nextRow < sortedRowPointers.length && compareGroupKeys(nextRow, currentGroup) == 0) {
+            if (nextRow < sortedRowPointers.size() && compareGroupKeys(nextRow, currentGroup) == 0) {
                 // The next input row is in the current group; insert either the next input bucket or the next cursor
                 // bucket, depending on which should go first.
                 int cmp = compareBucketCursorToRow(nextRow);
@@ -412,7 +442,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     }
 
     private void appendInputRow(Block.Builder[] builders, int row) {
-        long pointer = sortedRowPointers[row];
+        long pointer = sortedRowPointers.get(row);
         Page page = page(pointer);
         int pos = position(pointer);
         for (int c = 0; c < page.getBlockCount(); c++) {
@@ -422,8 +452,8 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
     private void appendEmptyBucket(Block.Builder[] builders) {
         // In the empty-input synthetic group there is no representative row (and no group channels), so no page is read.
-        Page page = inEmptyInputGroup ? null : page(sortedRowPointers[currentGroup]);
-        int pos = inEmptyInputGroup ? -1 : position(sortedRowPointers[currentGroup]);
+        Page page = inEmptyInputGroup ? null : page(sortedRowPointers.get(currentGroup));
+        int pos = inEmptyInputGroup ? -1 : position(sortedRowPointers.get(currentGroup));
         for (int c = 0; c < channelCount; c++) {
             Block.Builder builder = builders[c];
             if (groupChannels.contains(c)) {
@@ -450,8 +480,8 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     }
 
     private int compareGroupKeys(int rowA, int rowB) {
-        long a = sortedRowPointers[rowA];
-        long b = sortedRowPointers[rowB];
+        long a = sortedRowPointers.get(rowA);
+        long b = sortedRowPointers.get(rowB);
         return groupKeyComparator.compare(page(a), position(a), page(b), position(b));
     }
 
@@ -461,7 +491,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             // instead of the (non-existing) cursor bucket.
             return 1;
         }
-        long pointer = sortedRowPointers[row];
+        long pointer = sortedRowPointers.get(row);
         Page page = page(pointer);
         int pos = position(pointer);
         for (Map.Entry<Integer, BucketCursor> entry : bucketCursors.entrySet()) {

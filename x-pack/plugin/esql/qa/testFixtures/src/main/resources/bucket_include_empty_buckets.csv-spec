@@ -25,7 +25,6 @@ FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_month = COUNT(*), total_salary = SUM(salary)
   BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
-| SORT month
 ;
 
 hires_per_month:long | total_salary:long | month:date
@@ -51,7 +50,6 @@ FROM employees
 | WHERE salary > 55000 AND salary < 75000
 | STATS c = COUNT(*)
   BY b = BUCKET(salary, 25, 60000, 70000, {"include_empty_buckets": true})
-| SORT b
 ;
 
 // Generates the empty buckets between 60000 and 70000
@@ -256,7 +254,6 @@ FROM employees
 | EVAL empty = hires_per_month == 0
 | WHERE empty
 | KEEP month, hires_per_month, total_salary, empty
-| SORT month
 ;
 
 month:date               | hires_per_month:long | total_salary:long | empty:boolean
@@ -469,7 +466,6 @@ FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS expr1=COUNT()*10+7, expr2=SUM(salary)+COUNT(*)+42, avg_salary=AVG(salary)
   BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
-| SORT month
 ;
 
 expr1:long | expr2:long | avg_salary: double  | month:datetime
@@ -495,7 +491,6 @@ FROM employees
 | WHERE hire_date < "1900-01-01T00:00:00Z"
 | STATS c = COUNT(*)
   BY month = BUCKET(hire_date, 4, "2000-01-01T00:00:00Z", "2000-05-01T00:00:00Z", {"include_empty_buckets": true})
-| SORT month
 ;
 
 c:long | month:date
@@ -506,17 +501,98 @@ c:long | month:date
 ;
 
 
-Empty date range generates no buckets
+Where false generates empty buckets
 required_capability: bucket_include_empty_buckets
 
 FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1985-01-06T00:00:00Z"
-| STATS hires_per_month = COUNT(*)
-  BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1984-01-01T00:00:00Z", {"include_empty_buckets": true})
-| SORT bucket
+| WHERE false
+| STATS c = COUNT(*)
+  BY month = BUCKET(hire_date, 4, "2000-01-01T00:00:00Z", "2000-05-01T00:00:00Z", {"include_empty_buckets": true})
 ;
 
+c:long | month:date
+0      | 2000-01-01T00:00:00.000Z
+0      | 2000-02-01T00:00:00.000Z
+0      | 2000-03-01T00:00:00.000Z
+0      | 2000-04-01T00:00:00.000Z
+;
+
+
+Zero-width date range generates all non-empty buckets
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS hires_per_month = COUNT(*)
+  BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1985-01-01T00:00:00Z", {"include_empty_buckets": true})
+| LIMIT 5
+;
+
+// BUCKET produces no empty buckets, so expect the same result as with {"include_empty_buckets":false}
+
+hires_per_month:long | bucket:datetime
+1                    | 1985-02-18T00:00:00.000Z
+1                    | 1985-02-24T00:00:00.000Z
+1                    | 1985-05-13T00:00:00.000Z
+1                    | 1985-07-09T00:00:00.000Z
+1                    | 1985-09-17T00:00:00.000Z
+;
+
+
+Negative date range generates all non-empty buckets
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS hires_per_month = COUNT(*)
+  BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1984-01-01T00:00:00Z", {"include_empty_buckets": true})
+| LIMIT 5
+;
+
+// BUCKET produces no empty buckets, so expect the same result as with {"include_empty_buckets":false}
+
 hires_per_month:long | bucket:date
+1                    | 1985-02-18T00:00:00.000Z
+1                    | 1985-02-24T00:00:00.000Z
+1                    | 1985-05-13T00:00:00.000Z
+1                    | 1985-07-09T00:00:00.000Z
+1                    | 1985-09-17T00:00:00.000Z
+;
+
+
+Zero-width numeric range generates degenerate bucket
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS count = COUNT(*)
+  BY bucket = BUCKET(salary, 10, 100, 100, {"include_empty_buckets": true})
+| WHERE count > 0
+;
+
+// BUCKET produces no empty buckets, so expect the same result as with {"include_empty_buckets":false}
+
+warning:Line 3:13: evaluation of [BUCKET(salary, 10, 100, 100, {\"include_empty_buckets\": true})] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.ArithmeticException: / by zero
+
+count:long | bucket:double
+100        | null
+;
+
+
+Negative numeric range generates degenerate bucket
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS count = COUNT(*)
+  BY bucket = BUCKET(salary, 10, 100, -100, {"include_empty_buckets": true})
+| WHERE count > 0
+;
+
+// BUCKET produces no empty buckets, so expect the same result as with {"include_empty_buckets":false}
+
+warning:Line 3:13: evaluation of [BUCKET(salary, 10, 100, -100, {\"include_empty_buckets\": true})] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.ArithmeticException: not a finite double number: NaN
+
+count:long | bucket:double
+100        | null
 ;
 
 
@@ -569,7 +645,6 @@ required_capability: bucket_include_empty_buckets
 FROM sample_data
 | STATS min = MIN(@timestamp), max = MAX(@timestamp)
   BY bucket = TBUCKET(15, "2023-10-23T12:10:00.000", "2023-10-23T14:00:00.000", {"include_empty_buckets": true})
-| SORT bucket
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
@@ -593,7 +668,6 @@ required_capability: bucket_include_empty_buckets
 TS k8s
 | STATS max_cost = MAX(MAX_OVER_TIME(network.cost))
   BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
-| SORT time_bucket
 ;
 
 max_cost:double | time_bucket:datetime
@@ -613,7 +687,6 @@ required_capability: bucket_include_empty_buckets
 TS k8s
 | STATS max_cost = MAX(MAX_OVER_TIME(network.cost))
   BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true}), cluster
-| SORT cluster, time_bucket
 ;
 
 max_cost:double | time_bucket:datetime     | cluster:keyword
@@ -672,7 +745,6 @@ FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_month = COUNT(*)
   BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
-| SORT month
 ;
 
 hires_per_month:long | month:date

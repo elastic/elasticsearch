@@ -65,7 +65,7 @@ public class InsertEmptyBuckets extends UnaryPlan implements ExecutesOn.Coordina
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.builder().addAll(buckets.keySet()).addAll(groups).build();
+        return AttributeSet.builder().addAll(buckets.keySet()).addAll(groups).addAll(defaultValues.keySet()).build();
     }
 
     @Override

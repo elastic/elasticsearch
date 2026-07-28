@@ -2087,11 +2087,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(insertEmptyBuckets.child(), context);
 
-        SequencedMap<Integer, InsertEmptyBucketsOperator.BucketCursor> bucketChannels = new LinkedHashMap<>();
+        SequencedMap<Integer, InsertEmptyBucketsOperator.BucketCursorFactory> bucketChannels = new LinkedHashMap<>();
         insertEmptyBuckets.buckets().forEach((attribute, bucket) -> {
             Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
             if (channelAndType != null) {
-                bucketChannels.put(channelAndType.channel(), bucketCursor(bucket, context.foldCtx));
+                bucketChannels.put(channelAndType.channel(), bucketCursorFactory(bucket, context.foldCtx));
             }
         });
 
@@ -2136,15 +2136,15 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private static InsertEmptyBucketsOperator.BucketCursor bucketCursor(Bucket bucket, FoldContext foldCtx) {
+    private static InsertEmptyBucketsOperator.BucketCursorFactory bucketCursorFactory(Bucket bucket, FoldContext foldCtx) {
         return switch (bucket.dataType()) {
-            case DATETIME, DATE_NANOS -> new InsertEmptyBucketsOperator.DateCursor(
+            case DATETIME, DATE_NANOS -> new InsertEmptyBucketsOperator.DateCursorFactory(
                 bucket.getDateRoundingOrNull(foldCtx),
                 bucket.rangeFromMillis(foldCtx),
                 bucket.rangeToMillis(foldCtx),
                 bucket.dataType() == DataType.DATE_NANOS
             );
-            case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursor(
+            case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursorFactory(
                 bucket.getNumberRoundTo(foldCtx),
                 ((Number) Foldables.valueOf(foldCtx, bucket.from())).doubleValue(),
                 ((Number) Foldables.valueOf(foldCtx, bucket.to())).doubleValue()

@@ -535,7 +535,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to, Expression options) {
         List<Expression> list = new ArrayList<>(5);
         list.add(field);
-        list.add(buckets);
+        if (buckets != null) {
+            // Even though buckets is a required parameter, it can be null if the function called with two
+            // parameters of which the last is the options map, like BUCKET(field, {"include_enmpty_buckets":true})
+            // `resolveType` will catch this and return an error.
+            list.add(buckets);
+        }
         if (from != null) {
             list.add(from);
             if (to != null) {
@@ -706,6 +711,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        // Even though buckets is a required parameter, it can be null if the function called with two
+        // parameters of which the last is the options map, like BUCKET(field, {"include_enmpty_buckets":true})
+        // In that case, return an error.
+        if (buckets == null) {
+            return new TypeResolution(format(null, "function [{}] expects between two and four positional arguments", sourceText()));
+        }
         TypeResolution optionsResolution = Options.resolve(options, source(), FIFTH, ALLOWED_OPTIONS);
         if (optionsResolution.unresolved()) {
             return optionsResolution;
@@ -833,7 +844,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         int i = 0;
         Expression newField = newChildren.get(i++);
-        Expression newBuckets = newChildren.get(i++);
+        Expression newBuckets = buckets != null ? newChildren.get(i++) : null;
         Expression newFrom = from != null ? newChildren.get(i++) : null;
         Expression newTo = to != null ? newChildren.get(i++) : null;
         Expression newOptions = options != null ? newChildren.get(i++) : null;

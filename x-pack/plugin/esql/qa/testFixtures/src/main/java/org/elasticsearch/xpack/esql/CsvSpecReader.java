@@ -713,6 +713,19 @@ public final class CsvSpecReader {
 
             // Check each pair of adjacent data rows for ties on all sort key columns.
             List<String[]> dataRows = rows.subList(1, rows.size());
+            // If every data row is identical across all columns, any permutation of
+            // sort-key-tied rows produces the same output — not a flakiness risk.
+            String[] firstDataRow = dataRows.get(0);
+            boolean allRowsIdentical = true;
+            for (int i = 1; i < dataRows.size(); i++) {
+                if (Arrays.equals(firstDataRow, dataRows.get(i)) == false) {
+                    allRowsIdentical = false;
+                    break;
+                }
+            }
+            if (allRowsIdentical) {
+                return;
+            }
             for (int i = 0; i < dataRows.size() - 1; i++) {
                 String[] rowA = dataRows.get(i);
                 String[] rowB = dataRows.get(i + 1);

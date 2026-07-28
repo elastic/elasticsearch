@@ -592,7 +592,6 @@ FROM sample_data
   | SORT c
 ;
 
-ignoreOrder: true
 c:long
 1
 3

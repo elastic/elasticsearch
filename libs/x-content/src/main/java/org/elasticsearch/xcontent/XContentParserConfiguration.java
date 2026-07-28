@@ -81,4 +81,16 @@ public interface XContentParserConfiguration {
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     );
+
+    /**
+     * Like {@link #withFiltering(String, Set, Set, boolean)} but configures exclude-only streaming to match
+     * map-based source filtering when includes are empty (implicit include-all). Used by source bytes filtering
+     * in the server module.
+     */
+    XContentParserConfiguration withSourceFilterFiltering(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    );
 }

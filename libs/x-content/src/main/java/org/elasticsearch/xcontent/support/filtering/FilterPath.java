@@ -30,13 +30,25 @@ public class FilterPath {
     private final String pattern;
     private final boolean isDoubleWildcard;
     private final boolean isFinalNode;
+    /**
+     * When {@code true}, an incomplete suffix match on this node may still match at a deeper object nesting level. Set for nodes
+     * beneath a single-segment {@code *} wildcard (map parity); not set under {@code **}.
+     */
+    private final boolean deferSuffixAcrossObjects;
 
-    private FilterPath(String pattern, boolean isFinalNode, Map<String, FilterPath> termsChildren, FilterPath[] wildcardChildren) {
+    private FilterPath(
+        String pattern,
+        boolean isFinalNode,
+        Map<String, FilterPath> termsChildren,
+        FilterPath[] wildcardChildren,
+        boolean deferSuffixAcrossObjects
+    ) {
         this.pattern = pattern;
         this.isFinalNode = isFinalNode;
         this.termsChildren = Collections.unmodifiableMap(termsChildren);
         this.wildcardChildren = wildcardChildren;
         this.isDoubleWildcard = pattern.equals(DOUBLE_WILDCARD);
+        this.deferSuffixAcrossObjects = deferSuffixAcrossObjects;
     }
 
     public boolean hasDoubleWildcard() {
@@ -75,7 +87,14 @@ public class FilterPath {
      * @param matchFieldNamesWithDots support dot in field name or not
      * @return true if the name equal a final node, otherwise return false
      */
-    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) { // << here
+    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) {
+        return matches(name, nextFilters, matchFieldNamesWithDots, false);
+    }
+
+    /**
+     * @param deferIncompleteMatches when {@code true}, enable map-parity suffix backtracking for source filtering
+     */
+    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots, boolean deferIncompleteMatches) {
         if (nextFilters == null) {
             return false;
         }
@@ -85,9 +104,38 @@ public class FilterPath {
             // contains dot and not the first or last char
             int dotIndex = name.indexOf('.');
             if ((dotIndex != -1) && (dotIndex != 0) && (dotIndex != name.length() - 1)) {
-                return matchFieldNamesWithDots(name, dotIndex, nextFilters);
+                return matchFieldNamesWithDots(name, dotIndex, nextFilters, deferIncompleteMatches);
             }
         }
+        return matchSegment(name, nextFilters, deferIncompleteMatches);
+    }
+
+    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters, boolean deferIncompleteMatches) {
+        String prefixName = name.substring(0, dotIndex);
+        String suffixName = name.substring(dotIndex + 1);
+        List<FilterPath> prefixFilterPath = new ArrayList<>();
+        boolean prefixMatch = matches(prefixName, prefixFilterPath, true, false);
+        // if prefixMatch return true(because prefix is a final FilterPath node)
+        if (prefixMatch) {
+            return true;
+        }
+        // if has prefixNextFilter, use them to match suffix
+        for (FilterPath filter : prefixFilterPath) {
+            boolean matches = filter.matches(suffixName, nextFilters, true, false);
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Match one path segment against this node. When {@code deferIncompleteMatches} is {@code true}, keep this node active if
+     * the segment did not complete the pattern but the pattern suffix may still match at a deeper nesting level (map parity).
+     */
+    private boolean matchSegment(String name, List<FilterPath> nextFilters, boolean deferIncompleteMatches) {
+        int nextFiltersSizeBefore = nextFilters.size();
+
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {
@@ -110,28 +158,26 @@ public class FilterPath {
 
         if (isDoubleWildcard) {
             nextFilters.add(this);
-        }
+        } else if (deferIncompleteMatches
+            && WILDCARD.equals(pattern)
+            && isFinalNode == false
+            && hasPendingChildren()
+            && nextFilters.size() == nextFiltersSizeBefore) {
+                nextFilters.add(this);
+            } else if (deferIncompleteMatches
+                && deferSuffixAcrossObjects
+                && isFinalNode == false
+                && pattern.isEmpty() == false
+                && hasPendingChildren()
+                && nextFilters.size() == nextFiltersSizeBefore) {
+                    nextFilters.add(this);
+                }
 
         return false;
     }
 
-    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters) {
-        String prefixName = name.substring(0, dotIndex);
-        String suffixName = name.substring(dotIndex + 1);
-        List<FilterPath> prefixFilterPath = new ArrayList<>();
-        boolean prefixMatch = matches(prefixName, prefixFilterPath, true);
-        // if prefixMatch return true(because prefix is a final FilterPath node)
-        if (prefixMatch) {
-            return true;
-        }
-        // if has prefixNextFilter, use them to match suffix
-        for (FilterPath filter : prefixFilterPath) {
-            boolean matches = filter.matches(suffixName, nextFilters, true);
-            if (matches) {
-                return true;
-            }
-        }
-        return false;
+    private boolean hasPendingChildren() {
+        return termsChildren.isEmpty() == false || wildcardChildren.length > 0;
     }
 
     private static class FilterPathBuilder {
@@ -153,7 +199,7 @@ public class FilterPath {
         }
 
         FilterPath build() {
-            return buildPath("", root);
+            return buildPath("", root, false);
         }
 
         static void insertNode(String filter, BuildNode node, int depth) {
@@ -188,20 +234,32 @@ public class FilterPath {
             }
         }
 
-        static FilterPath buildPath(String segment, BuildNode node) {
+        static FilterPath buildPath(String segment, BuildNode node, boolean deferSuffixAcrossObjects) {
             Map<String, FilterPath> termsChildren = new HashMap<>();
             List<FilterPath> wildcardChildren = new ArrayList<>();
             for (Map.Entry<String, BuildNode> entry : node.children.entrySet()) {
                 String childName = entry.getKey();
                 BuildNode childNode = entry.getValue();
-                FilterPath childFilterPath = buildPath(childName, childNode);
+                boolean childDeferSuffixAcrossObjects = deferSuffixAcrossObjects;
+                if (WILDCARD.equals(childName)) {
+                    childDeferSuffixAcrossObjects = true;
+                } else if (DOUBLE_WILDCARD.equals(childName)) {
+                    childDeferSuffixAcrossObjects = false;
+                }
+                FilterPath childFilterPath = buildPath(childName, childNode, childDeferSuffixAcrossObjects);
                 if (childName.contains(WILDCARD)) {
                     wildcardChildren.add(childFilterPath);
                 } else {
                     termsChildren.put(childName, childFilterPath);
                 }
             }
-            return new FilterPath(segment, node.isFinalNode, termsChildren, wildcardChildren.toArray(new FilterPath[0]));
+            return new FilterPath(
+                segment,
+                node.isFinalNode,
+                termsChildren,
+                wildcardChildren.toArray(new FilterPath[0]),
+                deferSuffixAcrossObjects
+            );
         }
     }
 

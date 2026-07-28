@@ -47,13 +47,110 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     private final boolean matchFieldNamesWithDots;
 
+    /**
+     * When {@code true}, empty objects whose contents were fully excluded are still emitted so a
+     * downstream inclusive filter (or implicit match-all includes) can keep them if they match an
+     * include pattern (map-filter parity).
+     */
+    private final boolean preserveEmptyObjectsForDownstreamIncludes;
+
+    /**
+     * When {@code true}, {@link #includeEmptyObject(boolean)} applies to the object value of an array
+     * element. Map filtering drops empty array elements, but keeps empty object fields nested inside
+     * an array element when an include matches the object path.
+     */
+    private final boolean arrayElementRoot;
+
+    /**
+     * When {@code true}, empty arrays whose elements were fully excluded are still emitted. Used for
+     * source-filter exclude-only filtering where empty includes imply match-all (map-filter parity).
+     */
+    private final boolean preserveEmptyArraysForImplicitIncludeAll;
+
+    private final boolean deferIncompleteMatches;
+
     public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive, boolean matchFieldNamesWithDots) {
+        this(filters, inclusive, matchFieldNamesWithDots, false, false, false, false);
+    }
+
+    /**
+     * Creates an exclusive filter for parser-based streaming.
+     */
+    public static FilterPathBasedFilter createParserExclusiveFilter(FilterPath[] filters, boolean matchFieldNamesWithDots) {
+        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, false, false, false, false);
+    }
+
+    /**
+     * Creates an exclusive filter for source-filter bytes filtering with map parity for exclude-only patterns.
+     */
+    /**
+     * Map-parity exclude filter for source filtering when includes are configured.
+     */
+    public static FilterPathBasedFilter createSourceFilterExclusiveFilterWithIncludes(
+        FilterPath[] filters,
+        boolean matchFieldNamesWithDots
+    ) {
+        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, true, false, false, false);
+    }
+
+    /**
+     * Map-parity exclude filter for exclude-only source filtering without wildcard excludes.
+     */
+    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyLiteral(
+        FilterPath[] filters,
+        boolean matchFieldNamesWithDots,
+        boolean dottedPathExcludes
+    ) {
+        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, dottedPathExcludes, false, dottedPathExcludes, false);
+    }
+
+    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyLiteral(
+        FilterPath[] filters,
+        boolean matchFieldNamesWithDots
+    ) {
+        return createSourceFilterExclusiveFilterExcludeOnlyLiteral(filters, matchFieldNamesWithDots, true);
+    }
+
+    /**
+     * Map-parity exclude filter for exclude-only source filtering with wildcard excludes.
+     */
+    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyWildcard(
+        FilterPath[] filters,
+        boolean matchFieldNamesWithDots
+    ) {
+        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, true, false, true, true);
+    }
+
+    public static FilterPathBasedFilter createSourceFilterExclusiveFilter(
+        FilterPath[] filters,
+        boolean matchFieldNamesWithDots,
+        boolean wildcardExcludes
+    ) {
+        if (wildcardExcludes) {
+            return createSourceFilterExclusiveFilterExcludeOnlyWildcard(filters, matchFieldNamesWithDots);
+        }
+        return createSourceFilterExclusiveFilterExcludeOnlyLiteral(filters, matchFieldNamesWithDots);
+    }
+
+    private FilterPathBasedFilter(
+        FilterPath[] filters,
+        boolean inclusive,
+        boolean matchFieldNamesWithDots,
+        boolean preserveEmptyObjectsForDownstreamIncludes,
+        boolean arrayElementRoot,
+        boolean preserveEmptyArraysForImplicitIncludeAll,
+        boolean deferIncompleteMatches
+    ) {
         if (filters == null || filters.length == 0) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
         this.inclusive = inclusive;
         this.filters = filters;
         this.matchFieldNamesWithDots = matchFieldNamesWithDots;
+        this.preserveEmptyObjectsForDownstreamIncludes = preserveEmptyObjectsForDownstreamIncludes;
+        this.arrayElementRoot = arrayElementRoot;
+        this.preserveEmptyArraysForImplicitIncludeAll = preserveEmptyArraysForImplicitIncludeAll;
+        this.deferIncompleteMatches = deferIncompleteMatches;
     }
 
     public FilterPathBasedFilter(Set<String> filters, boolean inclusive) {
@@ -67,7 +164,7 @@ public class FilterPathBasedFilter extends TokenFilter {
         if (filterPaths != null) {
             List<FilterPath> nextFilters = new ArrayList<>();
             for (FilterPath filter : filterPaths) {
-                boolean matches = filter.matches(name, nextFilters, matchFieldNamesWithDots);
+                boolean matches = filter.matches(name, nextFilters, matchFieldNamesWithDots, deferIncompleteMatches);
                 if (matches) {
                     return MATCHING;
                 }
@@ -77,7 +174,11 @@ public class FilterPathBasedFilter extends TokenFilter {
                 return new FilterPathBasedFilter(
                     nextFilters.toArray(new FilterPath[nextFilters.size()]),
                     inclusive,
-                    matchFieldNamesWithDots
+                    matchFieldNamesWithDots,
+                    preserveEmptyObjectsForDownstreamIncludes,
+                    false,
+                    preserveEmptyArraysForImplicitIncludeAll,
+                    deferIncompleteMatches
                 );
             }
         }
@@ -94,6 +195,19 @@ public class FilterPathBasedFilter extends TokenFilter {
             return inclusive ? null : TokenFilter.INCLUDE_ALL;
         }
         return filter;
+    }
+
+    @Override
+    public TokenFilter includeElement(int index) {
+        return new FilterPathBasedFilter(
+            filters,
+            inclusive,
+            matchFieldNamesWithDots,
+            preserveEmptyObjectsForDownstreamIncludes,
+            true,
+            preserveEmptyArraysForImplicitIncludeAll,
+            deferIncompleteMatches
+        );
     }
 
     /**
@@ -118,17 +232,36 @@ public class FilterPathBasedFilter extends TokenFilter {
      */
     @Override
     public boolean includeEmptyArray(boolean contentsFiltered) {
-        return inclusive == false && contentsFiltered == false;
+        if (inclusive == false) {
+            if (contentsFiltered && preserveEmptyArraysForImplicitIncludeAll) {
+                return true;
+            }
+            return contentsFiltered == false;
+        }
+        return super.includeEmptyArray(contentsFiltered);
     }
 
     /**
      * This is overridden in order to keep empty objects in nested exclusions - see #109668.
      * <p>
-     * The same logic applies to this as to {@link #includeEmptyArray(boolean)}, only for nested objects instead of nested arrays.
+     * Map filtering keeps empty object fields when an include matches the object path, but drops
+     * empty objects from arrays when all of their properties are excluded.
      */
     @Override
     public boolean includeEmptyObject(boolean contentsFiltered) {
-        return inclusive == false && contentsFiltered == false;
+        if (inclusive == false) {
+            if (arrayElementRoot) {
+                return false;
+            }
+            if (contentsFiltered) {
+                if (preserveEmptyObjectsForDownstreamIncludes) {
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }
+        return super.includeEmptyObject(contentsFiltered);
     }
 
     @Override

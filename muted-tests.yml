@@ -772,3 +772,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCompletesWithMultipleHandlers
   issue: https://github.com/elastic/elasticsearch/issues/153747
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecSpatialIT
+  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/155125

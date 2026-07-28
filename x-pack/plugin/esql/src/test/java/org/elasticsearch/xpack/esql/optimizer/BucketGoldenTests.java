@@ -35,4 +35,11 @@ public class BucketGoldenTests extends GoldenTestCase {
                      BY TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
             """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_bucket_include_empty_buckets")));
     }
+
+    public void testIncludeEmptyBuckets_timeSeriesAndDimension() {
+        runGoldenTest("""
+            TS k8s | STATS COUNT(2*network.bytes_in+1)
+                     BY cluster, TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_bucket_include_empty_buckets")));
+    }
 }

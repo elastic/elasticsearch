@@ -687,6 +687,7 @@ required_capability: bucket_include_empty_buckets
 TS k8s
 | STATS max_cost = MAX(MAX_OVER_TIME(network.cost))
   BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true}), cluster
+| SORT cluster, time_bucket
 ;
 
 max_cost:double | time_bucket:datetime     | cluster:keyword
@@ -708,6 +709,37 @@ null            | 2024-05-10T00:25:00.000Z | qa
 11.5            | 2024-05-10T00:15:00.000Z | staging
 9.5             | 2024-05-10T00:20:00.000Z | staging
 null            | 2024-05-10T00:25:00.000Z | staging
+;
+
+
+Empty buckets with TS dimensions and aggregation expression
+required_capability: bucket_include_empty_buckets
+
+TS k8s
+| STATS c = COUNT(COUNT_OVER_TIME(network.cost)) * 10 + 7
+  BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true}), cluster
+| SORT cluster, time_bucket
+;
+
+c:long | time_bucket:datetime     | cluster:keyword
+37     | 2024-05-10T00:00:00.000Z | prod
+37     | 2024-05-10T00:05:00.000Z | prod
+37     | 2024-05-10T00:10:00.000Z | prod
+37     | 2024-05-10T00:15:00.000Z | prod
+37     | 2024-05-10T00:20:00.000Z | prod
+7      | 2024-05-10T00:25:00.000Z | prod
+37     | 2024-05-10T00:00:00.000Z | qa
+37     | 2024-05-10T00:05:00.000Z | qa
+37     | 2024-05-10T00:10:00.000Z | qa
+37     | 2024-05-10T00:15:00.000Z | qa
+37     | 2024-05-10T00:20:00.000Z | qa
+7      | 2024-05-10T00:25:00.000Z | qa
+37     | 2024-05-10T00:00:00.000Z | staging
+37     | 2024-05-10T00:05:00.000Z | staging
+37     | 2024-05-10T00:10:00.000Z | staging
+37     | 2024-05-10T00:15:00.000Z | staging
+37     | 2024-05-10T00:20:00.000Z | staging
+7      | 2024-05-10T00:25:00.000Z | staging
 ;
 
 

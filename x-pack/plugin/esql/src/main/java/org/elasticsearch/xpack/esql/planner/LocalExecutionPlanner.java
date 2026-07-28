@@ -2108,10 +2108,7 @@ public class LocalExecutionPlanner {
             .toList();
 
         // One entry per value channel (= every input channel that is neither a bucket nor a group).
-        // PushdownInsertEmptyBucketsAndSetDefaultValues determines the value an empty bucket takes per output attribute, but it
-        // works on the logical plan and cannot see internal input channels (e.g. the packed dimension of a time-series query),
-        // which the operator still needs an element type for. So enumerate the channels from the actual input layout here and
-        // null-fill any that the rule did not assign.
+        // PushdownInsertEmptyBucketsAndSetDefaultValues assigns defaults for aggregate outputs.
         Map<Integer, InsertEmptyBucketsOperator.DefaultValue> defaultValues = new HashMap<>();
         if (insertEmptyBuckets.defaultValues() != null) {
             insertEmptyBuckets.defaultValues().forEach((attribute, defaultValue) -> {

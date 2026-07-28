@@ -83,9 +83,9 @@ public final class QuerySettings {
         .build();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
-            Determines how unmapped fields are treated.
-            For a conceptual overview and use cases, including performance considerations, refer to
-            [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+        Determines how unmapped fields are treated.
+        For a conceptual overview and use cases, including performance considerations, refer to
+        [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
         Possible values are:
 

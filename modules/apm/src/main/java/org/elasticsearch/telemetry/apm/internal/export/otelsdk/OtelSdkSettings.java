@@ -111,6 +111,14 @@ public final class OtelSdkSettings {
 
     // --- Metrics
 
+    /** When {@code true}, also emit the OTel semantic-convention JVM metric names alongside the legacy APM-agent names,
+     * to support migrating dashboards to the semconv names (ES-14386). */
+    public static final Setting<Boolean> NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING = Setting.boolSetting(
+        "node.metrics.otel_semconv.enabled",
+        false,
+        NodeScope
+    );
+
     /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
     public static final Setting<ByteSizeValue> TELEMETRY_METRICS_BUFFER_DISK_SIZE = Setting.byteSizeSetting(
         "telemetry.metrics.buffer.disk_size",

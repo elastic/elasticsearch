@@ -265,13 +265,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                false,
-                DocValuesParameter.Values.Cardinality.HIGH,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
+            return DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
         }
 
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.

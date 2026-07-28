@@ -953,8 +953,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         return targetIORateBytesPerSec.get();
     }
 
-    // exposed for tests
-    int getMaxConcurrentMerges() {
+    public int getMaxConcurrentMerges() {
         return maxConcurrentMerges;
     }
 

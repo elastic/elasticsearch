@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -663,6 +664,10 @@ public final class CsvSpecReader {
      * Returns {@code true} when the processing command disrupts any sort order established by inner
      * commands, meaning the search for a top-level {@code SORT} should stop here.
      * Commands not listed here are treated as sort-preserving (the conservative assumption).
+     * <p>
+     * LOOKUP JOIN does not reorder rows, but its plan representation is a {@code BinaryPlan} that the
+     * sort-walk in {@link #validateSortDeterminesOrder} cannot traverse.  Treating it as disrupting is
+     * therefore the conservative choice: skip validation rather than silently produce a false negative.
      */
     private static boolean isSortDisruptingCommand(EsqlBaseParser.ProcessingCommandContext cmd) {
         return cmd.statsCommand() != null
@@ -675,7 +680,8 @@ public final class CsvSpecReader {
             || cmd.tsCollapseCommand() != null
             || cmd.highlightCommand() != null
             || cmd.metricsInfoCommand() != null
-            || cmd.tsInfoCommand() != null;
+            || cmd.tsInfoCommand() != null
+            || cmd.joinCommand() != null;
     }
 
     /**
@@ -711,8 +717,9 @@ public final class CsvSpecReader {
         try {
             LogicalPlan plan = SPEC_PARSER.parseQuery(testCase.query);
 
-            // Walk to the top-level OrderBy, skipping Limit and SortPreserving wrappers.
-            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename) {
+            // Walk to the top-level OrderBy, skipping Limit, SortPreserving, Rename, and Drop wrappers.
+            // Drop only removes fields; it does not reorder rows, so it is transparent to the sort walk.
+            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename || plan instanceof Drop) {
                 plan = ((UnaryPlan) plan).child();
             }
             if (plan instanceof OrderBy == false) {

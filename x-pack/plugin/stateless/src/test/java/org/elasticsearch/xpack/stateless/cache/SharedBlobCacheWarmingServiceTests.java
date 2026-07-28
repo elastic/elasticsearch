@@ -2115,10 +2115,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 return new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
+                    clusterSettings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     new DefaultEvictionPolicy<>(),
                     System::nanoTime,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
                     @Override
@@ -2192,10 +2194,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 return new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
+                    clusterSettings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
                     System::nanoTime,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};
             }

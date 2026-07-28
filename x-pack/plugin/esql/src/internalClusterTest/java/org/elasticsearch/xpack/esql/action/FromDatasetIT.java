@@ -352,6 +352,34 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetWhereMvLike() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        // mv_like is source-agnostic. Over a dataset there is no Lucene index, so the external-source pushdown layer
+        // (ParquetFilterPushdownSupport, which does not list mv_like) does not claim the filter and the compute-engine
+        // evaluator answers instead — the same evaluator the indexed path is proven to agree with by the differential
+        // in EsqlActionIT. "B*" keeps Bob only.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_like(first_name, \"B*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+        }
+        // The two-valued contract holds on the dataset path too: NOT returns the exact complement, never nulls.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE NOT mv_like(first_name, \"B*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+        // mv_rlike rides the same path.
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_rlike(first_name, \"C.*\") | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
     /**
      * The out-of-band request {@code filter} (Query DSL) is applied to a dataset: a {@code term} filter on emp_no=2
      * returns only Bob. Before the rewrite, the filter was dropped and all three rows came back.
@@ -1433,8 +1461,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
         // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
-        // loud at resolution with a clean IllegalArgumentException ("Cannot infer format from object name without
-        // extension") — propagated unwrapped as a 4xx, never an NPE-wrapped 500.
+        // loud at resolution with a clean IllegalArgumentException — the shared unreadable-object message, which
+        // names the object, why it cannot be read, and the [format] remedy — propagated unwrapped as a 4xx,
+        // never an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -1459,7 +1488,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString("without extension"));
+        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {

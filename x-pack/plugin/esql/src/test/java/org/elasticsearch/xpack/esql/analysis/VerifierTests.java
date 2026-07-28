@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1626,6 +1627,26 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
+    public void testDoubleRangeUnsupportedOperations() {
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V1.isEnabled());
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | STATS count(*) BY height_range",
+                containsString("cannot group by on [double_range] type for grouping [height_range]")
+            );
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .addLookupIndex("heights_lookup", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | LOOKUP JOIN heights_lookup ON height_range",
+                containsString("JOIN with right field [height_range] of type [DOUBLE_RANGE] is not supported")
+            );
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
@@ -2908,6 +2929,24 @@ public class VerifierTests extends ESTestCase {
             containsString("Invalid option [include_lower]")
         );
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
+        // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
+        // after constant folding, in postOptimizationVerification — see LogicalPlanOptimizerTests#testMvLike*.
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_like(first_name, 1)",
+            containsString("second argument of [mv_like(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
+    public void testMvRLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_rlike(first_name, \"Ann.*\")");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_rlike(first_name, 1)",
+            containsString("second argument of [mv_rlike(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
     }
 
     public void testCategorizeOptionOutputFormat() {
@@ -4724,7 +4763,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json")
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }

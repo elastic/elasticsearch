@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 154866
 pr: 154972
-summary: Addressing inference timeout issues on inference operator tests
+summary: Fixing a concurrency issue in InferenceOperator#pollNextRequest in case of a failed response
 type: bug

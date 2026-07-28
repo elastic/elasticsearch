@@ -83,11 +83,10 @@ public interface XContentParserConfiguration {
     );
 
     /**
-     * Like {@link #withFiltering(String, Set, Set, boolean)} but configures exclude-only streaming to match
-     * map-based source filtering when includes are empty (implicit include-all). Used by source bytes filtering
-     * in the server module.
+     * Configures exclude-only wildcard filtering that preserves map-based source-filter semantics for empty containers and wildcard suffix
+     * matching. This specialized mode is used only for safe wildcard patterns selected by the server's source filter.
      */
-    XContentParserConfiguration withSourceFilterFiltering(
+    XContentParserConfiguration withSourceFilterWildcardFiltering(
         String prefixPath,
         Set<String> includeStrings,
         Set<String> excludeStrings,

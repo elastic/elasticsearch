@@ -92,7 +92,13 @@ public class FilterPath {
     }
 
     /**
-     * @param deferIncompleteMatches when {@code true}, enable map-parity suffix backtracking for source filtering
+     * Matches a field name while optionally retaining incomplete wildcard matches across nested objects.
+     *
+     * @param name field name to match
+     * @param nextFilters receives filters that may match child fields
+     * @param matchFieldNamesWithDots whether dots in field names are treated as path separators
+     * @param deferIncompleteMatches whether to enable map-parity suffix backtracking across nested objects
+     * @return {@code true} if the field name completes this filter path
      */
     public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots, boolean deferIncompleteMatches) {
         if (nextFilters == null) {
@@ -104,16 +110,17 @@ public class FilterPath {
             // contains dot and not the first or last char
             int dotIndex = name.indexOf('.');
             if ((dotIndex != -1) && (dotIndex != 0) && (dotIndex != name.length() - 1)) {
-                return matchFieldNamesWithDots(name, dotIndex, nextFilters, deferIncompleteMatches);
+                return matchFieldNamesWithDots(name, dotIndex, nextFilters);
             }
         }
         return matchSegment(name, nextFilters, deferIncompleteMatches);
     }
 
-    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters, boolean deferIncompleteMatches) {
+    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters) {
         String prefixName = name.substring(0, dotIndex);
         String suffixName = name.substring(dotIndex + 1);
         List<FilterPath> prefixFilterPath = new ArrayList<>();
+        // Defer only across nested object fields, not across segments of one field name containing dots.
         boolean prefixMatch = matches(prefixName, prefixFilterPath, true, false);
         // if prefixMatch return true(because prefix is a final FilterPath node)
         if (prefixMatch) {
@@ -158,22 +165,30 @@ public class FilterPath {
 
         if (isDoubleWildcard) {
             nextFilters.add(this);
-        } else if (deferIncompleteMatches
+        } else if (shouldDeferWildcardMatch(nextFilters, nextFiltersSizeBefore, deferIncompleteMatches)) {
+            nextFilters.add(this);
+        } else if (shouldDeferSuffixMatch(nextFilters, nextFiltersSizeBefore, deferIncompleteMatches)) {
+            nextFilters.add(this);
+        }
+
+        return false;
+    }
+
+    private boolean shouldDeferWildcardMatch(List<FilterPath> nextFilters, int nextFiltersSizeBefore, boolean deferIncompleteMatches) {
+        return deferIncompleteMatches
             && WILDCARD.equals(pattern)
             && isFinalNode == false
             && hasPendingChildren()
-            && nextFilters.size() == nextFiltersSizeBefore) {
-                nextFilters.add(this);
-            } else if (deferIncompleteMatches
-                && deferSuffixAcrossObjects
-                && isFinalNode == false
-                && pattern.isEmpty() == false
-                && hasPendingChildren()
-                && nextFilters.size() == nextFiltersSizeBefore) {
-                    nextFilters.add(this);
-                }
+            && nextFilters.size() == nextFiltersSizeBefore;
+    }
 
-        return false;
+    private boolean shouldDeferSuffixMatch(List<FilterPath> nextFilters, int nextFiltersSizeBefore, boolean deferIncompleteMatches) {
+        return deferIncompleteMatches
+            && deferSuffixAcrossObjects
+            && isFinalNode == false
+            && pattern.isEmpty() == false
+            && hasPendingChildren()
+            && nextFilters.size() == nextFiltersSizeBefore;
     }
 
     private boolean hasPendingChildren() {

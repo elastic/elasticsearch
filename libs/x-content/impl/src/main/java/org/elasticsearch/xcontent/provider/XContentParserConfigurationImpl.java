@@ -33,8 +33,6 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         null,
         false,
         true,
-        false,
-        false,
         false
     );
 
@@ -45,9 +43,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
     final boolean includeSourceOnError;
-    final boolean sourceFilterSemantics;
-    final boolean wildcardExcludes;
-    final boolean dottedPathExcludes;
+    final boolean sourceFilterWildcardSemantics;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -57,9 +53,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         FilterPath[] excludes,
         boolean filtersMatchFieldNamesWithDots,
         boolean includeSourceOnError,
-        boolean sourceFilterSemantics,
-        boolean wildcardExcludes,
-        boolean dottedPathExcludes
+        boolean sourceFilterWildcardSemantics
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -68,9 +62,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
         this.includeSourceOnError = includeSourceOnError;
-        this.sourceFilterSemantics = sourceFilterSemantics;
-        this.wildcardExcludes = wildcardExcludes;
-        this.dottedPathExcludes = dottedPathExcludes;
+        this.sourceFilterWildcardSemantics = sourceFilterWildcardSemantics;
     }
 
     private XContentParserConfigurationImpl copy(boolean includeSourceOnError) {
@@ -82,9 +74,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludes,
             filtersMatchFieldNamesWithDots,
             includeSourceOnError,
-            sourceFilterSemantics,
-            wildcardExcludes,
-            dottedPathExcludes
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -111,9 +101,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludes,
             filtersMatchFieldNamesWithDots,
             includeSourceOnError,
-            sourceFilterSemantics,
-            wildcardExcludes,
-            dottedPathExcludes
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -130,9 +118,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludes,
             filtersMatchFieldNamesWithDots,
             includeSourceOnError,
-            sourceFilterSemantics,
-            wildcardExcludes,
-            dottedPathExcludes
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -149,9 +135,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludes,
             filtersMatchFieldNamesWithDots,
             includeSourceOnError,
-            sourceFilterSemantics,
-            wildcardExcludes,
-            dottedPathExcludes
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -177,12 +161,15 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     }
 
     @Override
-    public XContentParserConfiguration withSourceFilterFiltering(
+    public XContentParserConfiguration withSourceFilterWildcardFiltering(
         String prefixPath,
         Set<String> includeStrings,
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     ) {
+        if (includeStrings != null && includeStrings.isEmpty() == false) {
+            throw new IllegalArgumentException("source wildcard filtering only supports exclude-only patterns");
+        }
         return buildFilteringConfiguration(prefixPath, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots, true);
     }
 
@@ -191,22 +178,10 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         Set<String> includeStrings,
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots,
-        boolean sourceFilterSemantics
+        boolean sourceFilterWildcardSemantics
     ) {
         FilterPath[] includePaths = FilterPath.compile(includeStrings);
         FilterPath[] excludePaths = FilterPath.compile(excludeStrings);
-        boolean wildcardExcludes = false;
-        boolean dottedPathExcludes = false;
-        if (sourceFilterSemantics && excludeStrings != null) {
-            for (String exclude : excludeStrings) {
-                if (exclude != null && exclude.contains("*")) {
-                    wildcardExcludes = true;
-                }
-                if (exclude != null && exclude.contains(".")) {
-                    dottedPathExcludes = true;
-                }
-            }
-        }
 
         if (prefixPath != null) {
             if (includePaths != null) {
@@ -233,37 +208,16 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             excludePaths,
             filtersMatchFieldNamesWithDots,
             includeSourceOnError,
-            sourceFilterSemantics,
-            wildcardExcludes,
-            dottedPathExcludes
+            sourceFilterWildcardSemantics
         );
     }
 
     public JsonParser filter(JsonParser parser) {
         JsonParser filtered = parser;
         if (excludes != null) {
-            FilterPathBasedFilter excludeFilter;
-            if (sourceFilterSemantics) {
-                if (includes != null) {
-                    excludeFilter = FilterPathBasedFilter.createSourceFilterExclusiveFilterWithIncludes(
-                        excludes,
-                        filtersMatchFieldNamesWithDots
-                    );
-                } else if (wildcardExcludes) {
-                    excludeFilter = FilterPathBasedFilter.createSourceFilterExclusiveFilterExcludeOnlyWildcard(
-                        excludes,
-                        filtersMatchFieldNamesWithDots
-                    );
-                } else {
-                    excludeFilter = FilterPathBasedFilter.createSourceFilterExclusiveFilterExcludeOnlyLiteral(
-                        excludes,
-                        filtersMatchFieldNamesWithDots,
-                        dottedPathExcludes
-                    );
-                }
-            } else {
-                excludeFilter = new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots);
-            }
+            FilterPathBasedFilter excludeFilter = sourceFilterWildcardSemantics
+                ? FilterPathBasedFilter.createSourceFilterExclusiveWildcardFilter(excludes, filtersMatchFieldNamesWithDots)
+                : new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots);
             filtered = new FilteringParserDelegate(filtered, excludeFilter, true, true);
         }
         if (includes != null) {

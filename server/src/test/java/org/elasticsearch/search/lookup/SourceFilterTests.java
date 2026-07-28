@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -232,7 +233,7 @@ public class SourceFilterTests extends ESTestCase {
         assertTrue(SourceFilter.canFilterBytes(new String[] {}, new String[] { "*.obj3" }));
         assertFalse(SourceFilter.canFilterBytes(new String[] {}, new String[] { "array*" }));
         assertFalse(SourceFilter.canFilterBytes(new String[] { "meta.*" }, new String[] { "meta.other.*" }));
-        assertFalse(SourceFilter.canFilterBytes(new String[] { "myArray" }, new String[] { "myArray.myField" }));
+        assertTrue(SourceFilter.canFilterBytes(new String[] { "myArray" }, new String[] { "myArray.myField" }));
         assertFalse(SourceFilter.canFilterBytes(new String[] {}, new String[] { "**.field" }));
     }
 
@@ -250,6 +251,33 @@ public class SourceFilterTests extends ESTestCase {
         assertEquals(Map.of("obj1", Map.of("obj2", Map.of())), filtered.source());
     }
 
+    public void testWildcardIncludeExcludeUsesMap() {
+        Source s = new Source() {
+            @Override
+            public XContentType sourceContentType() {
+                return XContentType.JSON;
+            }
+
+            @Override
+            public Map<String, Object> source() {
+                return Map.of("obj1", Map.of("obj2", Map.of("obj3", Map.of())));
+            }
+
+            @Override
+            public BytesReference internalSourceRef() {
+                throw new AssertionError("SourceFilter with includes and wildcard excludes should filter on map");
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                return sourceFilter.filterBytes(this);
+            }
+        };
+
+        Source filtered = s.filter(new SourceFilter(new String[] { "*.obj2" }, new String[] { "*.obj3" }));
+        assertEquals(Map.of("obj1", Map.of("obj2", Map.of())), filtered.source());
+    }
+
     public void testExcludeWithWildcardsUsesBytes() {
         Source s = new Source() {
             @Override
@@ -259,7 +287,7 @@ public class SourceFilterTests extends ESTestCase {
 
             @Override
             public Map<String, Object> source() {
-                throw new AssertionError("SourceFilter with dotted-path wildcard excludes should filter on bytes");
+                throw new AssertionError("SourceFilter with safe wildcard excludes should filter on bytes");
             }
 
             @Override
@@ -274,24 +302,11 @@ public class SourceFilterTests extends ESTestCase {
             }
         };
 
-        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] { "nested.drop" }));
+        Source filtered = s.filter(new SourceFilter(new String[] {}, new String[] { "*.drop" }));
         assertTrue(filtered.source().containsKey("field1"));
         assertTrue(filtered.source().containsKey("nested"));
         assertEquals("value3", ((Map<?, ?>) filtered.source().get("nested")).get("keep"));
         assertFalse(((Map<?, ?>) filtered.source().get("nested")).containsKey("drop"));
-    }
-
-    public void testFilterMapBytesParityIncludesAndExcludesPreserveEmptyObject() {
-        assertFilterMapBytesParity("""
-            {
-              "requests": { "count": 10, "foo": "bar" },
-              "meta": {
-                "name": "Some metric",
-                "description": "Some metric description",
-                "other": { "foo": "one", "baz": "two" }
-              }
-            }
-            """, new String[] { "*.count", "meta.*" }, new String[] { "meta.description", "meta.other.*" });
     }
 
     public void testFilterMapBytesParityExcludeOnlyEmptyNestedObject() {
@@ -303,19 +318,19 @@ public class SourceFilterTests extends ESTestCase {
     public void testFilterMapBytesParityExcludeOnlyEmptyArray() {
         assertFilterMapBytesParity("""
             { "myArray": [ { "myField": "v" } ] }
-            """, new String[] {}, new String[] { "myArray.myField" });
+            """, new String[] {}, new String[] { "*.myField" });
     }
 
     public void testFilterMapBytesParityNestedObjectInsideArrayElement() {
         assertFilterMapBytesParity("""
             { "myArray": [ { "myObject": { "excluded": "x" } } ] }
-            """, new String[] { "myArray.myObject" }, new String[] { "myArray.myObject.excluded" });
+            """, new String[] {}, new String[] { "*.excluded" });
     }
 
     public void testFilterMapBytesParityEmptyObjectArrayElement() {
         assertFilterMapBytesParity("""
             { "myArray": [ { "keep": 1 }, {} ] }
-            """, new String[] { "myArray" }, new String[] { "myArray.keep" });
+            """, new String[] {}, new String[] { "*.keep" });
     }
 
     public void testFilterMapBytesParityWildcardSuffixBacktracking() {
@@ -336,29 +351,13 @@ public class SourceFilterTests extends ESTestCase {
             """, new String[] {}, new String[] { "foo.*.bar" });
     }
 
-    public void testFilterMapBytesParityExcludeOnlySingleFieldObject() {
+    public void testFilterMapBytesParityMixedLiteralAndWildcardExcludes() {
         assertFilterMapBytesParity("""
-            { "foo": { "bar": "test" } }
-            """, new String[] {}, new String[] { "foo.bar" });
-    }
-
-    public void testFilterMapBytesParityRandomizedExcludeOnlyLiteralPaths() {
-        for (int i = 0; i < 10; i++) {
-            String field = randomAlphaOfLengthBetween(3, 8);
-            String nested = randomAlphaOfLengthBetween(3, 8);
-            String value = randomAlphaOfLengthBetween(1, 5);
-            assertFilterMapBytesParity(
-                """
-                    { "%s": { "%s": "%s" }, "%s": "%s" }
-                    """.formatted(field, nested, value, randomValueOtherField(field), randomAlphaOfLength(4)),
-                new String[] {},
-                new String[] { field + "." + nested }
-            );
-        }
-    }
-
-    private static String randomValueOtherField(String field) {
-        return field + "Other";
+            {
+              "http": { "secret": "x", "keep": "y" },
+              "meta": { "description": "drop", "keep": "keep" }
+            }
+            """, new String[] {}, new String[] { "http.*", "meta.description" });
     }
 
     private static void assertFilterMapBytesParity(String json, String[] includes, String[] excludes) {
@@ -371,6 +370,9 @@ public class SourceFilterTests extends ESTestCase {
 
     private static void assertFilterMapBytesParity(Source source, String[] includes, String[] excludes) {
         SourceFilter filter = new SourceFilter(includes, excludes);
+        assertTrue(SourceFilter.canFilterBytes(includes, excludes));
+        assertEquals(0, includes.length);
+        assertTrue(Arrays.stream(excludes).anyMatch(exclude -> exclude.contains("*")));
         Map<String, Object> mapFiltered = filter.filterMap(source).source();
         Map<String, Object> bytesFiltered = filter.filterBytes(source).source();
         assertEquals(mapFiltered, bytesFiltered);

@@ -69,15 +69,14 @@ public final class SourceFilter {
         if (CollectionUtils.isEmpty(excludes)) {
             return true;
         }
-        if (includes.length > 0 && excludes.length > 0) {
-            return false;
-        }
         for (String exclude : excludes) {
             if (exclude.contains("**")) {
                 return false;
             }
-            if (exclude.contains("*") && exclude.contains(".") == false) {
-                return false;
+            if (exclude.contains("*")) {
+                if (includes.length > 0 || exclude.contains(".") == false) {
+                    return false;
+                }
             }
         }
         return true;
@@ -183,12 +182,12 @@ public final class SourceFilter {
         if (canFilterBytes == false) {
             return this::filterMap;
         }
-        final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withSourceFilterFiltering(
-            null,
-            Set.copyOf(Arrays.asList(includes)),
-            Set.copyOf(Arrays.asList(excludes)),
-            true
-        );
+        Set<String> includePaths = Set.copyOf(Arrays.asList(includes));
+        Set<String> excludePaths = Set.copyOf(Arrays.asList(excludes));
+        boolean hasWildcardExcludes = Arrays.stream(excludes).anyMatch(exclude -> exclude.contains("*"));
+        final XContentParserConfiguration parserConfig = hasWildcardExcludes
+            ? XContentParserConfiguration.EMPTY.withSourceFilterWildcardFiltering(null, includePaths, excludePaths, true)
+            : XContentParserConfiguration.EMPTY.withFiltering(null, includePaths, excludePaths, true);
         return in -> {
             try {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(1024);

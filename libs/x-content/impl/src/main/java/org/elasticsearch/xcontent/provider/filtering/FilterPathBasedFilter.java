@@ -48,11 +48,10 @@ public class FilterPathBasedFilter extends TokenFilter {
     private final boolean matchFieldNamesWithDots;
 
     /**
-     * When {@code true}, empty objects whose contents were fully excluded are still emitted so a
-     * downstream inclusive filter (or implicit match-all includes) can keep them if they match an
-     * include pattern (map-filter parity).
+     * When {@code true}, empty object fields whose contents were fully excluded are still emitted to
+     * match exclude-only map filtering.
      */
-    private final boolean preserveEmptyObjectsForDownstreamIncludes;
+    private final boolean preserveEmptyObjectsForMapParity;
 
     /**
      * When {@code true}, {@link #includeEmptyObject(boolean)} applies to the object value of an array
@@ -74,69 +73,24 @@ public class FilterPathBasedFilter extends TokenFilter {
     }
 
     /**
-     * Creates an exclusive filter for parser-based streaming.
-     */
-    public static FilterPathBasedFilter createParserExclusiveFilter(FilterPath[] filters, boolean matchFieldNamesWithDots) {
-        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, false, false, false, false);
-    }
-
-    /**
-     * Creates an exclusive filter for source-filter bytes filtering with map parity for exclude-only patterns.
-     */
-    /**
-     * Map-parity exclude filter for source filtering when includes are configured.
-     */
-    public static FilterPathBasedFilter createSourceFilterExclusiveFilterWithIncludes(
-        FilterPath[] filters,
-        boolean matchFieldNamesWithDots
-    ) {
-        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, true, false, false, false);
-    }
-
-    /**
-     * Map-parity exclude filter for exclude-only source filtering without wildcard excludes.
-     */
-    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyLiteral(
-        FilterPath[] filters,
-        boolean matchFieldNamesWithDots,
-        boolean dottedPathExcludes
-    ) {
-        return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, dottedPathExcludes, false, dottedPathExcludes, false);
-    }
-
-    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyLiteral(
-        FilterPath[] filters,
-        boolean matchFieldNamesWithDots
-    ) {
-        return createSourceFilterExclusiveFilterExcludeOnlyLiteral(filters, matchFieldNamesWithDots, true);
-    }
-
-    /**
      * Map-parity exclude filter for exclude-only source filtering with wildcard excludes.
+     *
+     * @param filters compiled exclude paths
+     * @param matchFieldNamesWithDots whether dots in field names are treated as path separators
+     * @return an exclusive filter with wildcard backtracking and empty-container preservation
      */
-    public static FilterPathBasedFilter createSourceFilterExclusiveFilterExcludeOnlyWildcard(
+    public static FilterPathBasedFilter createSourceFilterExclusiveWildcardFilter(
         FilterPath[] filters,
         boolean matchFieldNamesWithDots
     ) {
         return new FilterPathBasedFilter(filters, false, matchFieldNamesWithDots, true, false, true, true);
     }
 
-    public static FilterPathBasedFilter createSourceFilterExclusiveFilter(
-        FilterPath[] filters,
-        boolean matchFieldNamesWithDots,
-        boolean wildcardExcludes
-    ) {
-        if (wildcardExcludes) {
-            return createSourceFilterExclusiveFilterExcludeOnlyWildcard(filters, matchFieldNamesWithDots);
-        }
-        return createSourceFilterExclusiveFilterExcludeOnlyLiteral(filters, matchFieldNamesWithDots);
-    }
-
     private FilterPathBasedFilter(
         FilterPath[] filters,
         boolean inclusive,
         boolean matchFieldNamesWithDots,
-        boolean preserveEmptyObjectsForDownstreamIncludes,
+        boolean preserveEmptyObjectsForMapParity,
         boolean arrayElementRoot,
         boolean preserveEmptyArraysForImplicitIncludeAll,
         boolean deferIncompleteMatches
@@ -147,7 +101,7 @@ public class FilterPathBasedFilter extends TokenFilter {
         this.inclusive = inclusive;
         this.filters = filters;
         this.matchFieldNamesWithDots = matchFieldNamesWithDots;
-        this.preserveEmptyObjectsForDownstreamIncludes = preserveEmptyObjectsForDownstreamIncludes;
+        this.preserveEmptyObjectsForMapParity = preserveEmptyObjectsForMapParity;
         this.arrayElementRoot = arrayElementRoot;
         this.preserveEmptyArraysForImplicitIncludeAll = preserveEmptyArraysForImplicitIncludeAll;
         this.deferIncompleteMatches = deferIncompleteMatches;
@@ -175,7 +129,7 @@ public class FilterPathBasedFilter extends TokenFilter {
                     nextFilters.toArray(new FilterPath[nextFilters.size()]),
                     inclusive,
                     matchFieldNamesWithDots,
-                    preserveEmptyObjectsForDownstreamIncludes,
+                    preserveEmptyObjectsForMapParity,
                     false,
                     preserveEmptyArraysForImplicitIncludeAll,
                     deferIncompleteMatches
@@ -203,7 +157,7 @@ public class FilterPathBasedFilter extends TokenFilter {
             filters,
             inclusive,
             matchFieldNamesWithDots,
-            preserveEmptyObjectsForDownstreamIncludes,
+            preserveEmptyObjectsForMapParity,
             true,
             preserveEmptyArraysForImplicitIncludeAll,
             deferIncompleteMatches
@@ -254,7 +208,7 @@ public class FilterPathBasedFilter extends TokenFilter {
                 return false;
             }
             if (contentsFiltered) {
-                if (preserveEmptyObjectsForDownstreamIncludes) {
+                if (preserveEmptyObjectsForMapParity) {
                     return true;
                 }
                 return false;

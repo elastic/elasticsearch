@@ -104,7 +104,9 @@ The response includes an **access key ID** and a **secret access key**. The secr
 ::::::
 
 ::::::{step} Connect the data source and create a dataset
-Back in Elastic, connect the S3 data source with the **Access and Secret Keys** method:
+Back in Elastic:
+
+**Step 1.** Connect the S3 data source with the **Access and Secret Keys** method.
 
 ::::{tab-set}
 :group: surface
@@ -164,7 +166,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_static" \
 
 ::::
 
-Then [create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://private-bucket/some/sample.parquet` in **Parquet** format.
+**Step 2.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
 You can now query the remote data with {{esql}}.
 ::::::
@@ -176,18 +178,18 @@ You can now query the remote data with {{esql}}.
 The preceding steps explain each AWS resource on its own. The following is an end-to-end AWS example of that setup, using sample values for one scenario. It is illustrative, not a script to run as-is: replace the example bucket, file, and names with your own before you run it. As with the individual steps, AWS is the authoritative reference for these commands.
 
 :::{dropdown} Show the complete AWS CLI example
-This example grants read access to a single Parquet file at `s3://private-bucket/some/sample.parquet` and creates a long-lived access key for a dedicated IAM user. Run the commands in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured.
+This example grants read access to a single Parquet file at `s3://amzn-s3-demo-bucket/some/sample.parquet` and creates a long-lived access key for a dedicated IAM user. Run the commands in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured.
 
-Set the variables for your environment:
+**Step 1.** Set the variables for your environment:
 
 ```shell
-export BUCKET_NAME="private-bucket"
+export BUCKET_NAME="amzn-s3-demo-bucket"
 export FILE_NAME="some/sample.parquet"
 export POLICY_NAME="parquet-sample-policy"
 export IAM_USER="esql-user"
 ```
 
-Create a read-only IAM policy scoped to your objects, and capture the policy ARN it returns:
+**Step 2.** Create a read-only IAM policy scoped to your objects, and capture the policy ARN it returns:
 
 ```shell
 POLICY_ARN=$(aws iam create-policy \
@@ -213,13 +215,13 @@ EOF
   --query 'Policy.Arn' --output text)
 ```
 
-Create a dedicated IAM user for {{es}}:
+**Step 3.** Create a dedicated IAM user for {{es}}:
 
 ```shell
 aws iam create-user --user-name "${IAM_USER}"
 ```
 
-Attach the policy to the user:
+**Step 4.** Attach the policy to the user:
 
 ```shell
 aws iam attach-user-policy \
@@ -227,7 +229,7 @@ aws iam attach-user-policy \
   --policy-arn "${POLICY_ARN}"
 ```
 
-Generate a long-lived access key. Copy the access key ID and secret access key from the output, because the secret is shown only once:
+**Step 5.** Generate a long-lived access key. Copy the access key ID and secret access key from the output, because the secret is shown only once:
 
 ```shell
 aws iam create-access-key --user-name "${IAM_USER}"

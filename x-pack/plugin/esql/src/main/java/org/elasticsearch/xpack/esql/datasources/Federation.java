@@ -59,11 +59,10 @@ import java.util.function.Function;
  *   <li>Every node keeps a backstop at the physical external-source operator build
  *       ({@code LocalExecutionPlanner.planExternalSource}) that throws {@link #notAvailableException()}, which
  *       also covers plans built outside the data-node request path above. Coordinator-side work (the
- *       {@code FROM <dataset>} rewrite) is
- *       closed separately by the {@code DatasetResolver} gate above; the snapshot-only inline
- *       {@code EXTERNAL} command bypasses that gate and is only stopped here at operator build, so on a
- *       coordinator without federation its planning-time source resolution and split discovery can
- *       still touch external storage before this backstop fires.</li>
+ *       {@code FROM <dataset>} rewrite) is closed separately by the {@code DatasetResolver} gate above; the
+ *       snapshot-only inline {@code EXTERNAL} command bypasses that gate and is only stopped here at operator
+ *       build, so on a coordinator without federation its planning-time source resolution and split discovery
+ *       can still touch external storage before this backstop fires.</li>
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
@@ -127,10 +126,11 @@ public final class Federation {
     }
 
     /**
-     * Surfaces the effective state in the node log at startup so an operator can confirm both levers after
-     * a bounce, and warns when the setting is configured on a node where the feature is not registered and
-     * therefore cannot honor it. Federation being off is the default, so that state is logged at
-     * {@code DEBUG} to keep it out of every node's startup log.
+     * Surfaces the effective state in the node log at startup so an operator can confirm both levers after a
+     * bounce, and warns when the setting is configured on a node where the feature is not registered and
+     * therefore cannot honor it. Only a state an operator asked for reaches {@code INFO}: federation being off
+     * is the default on every node, so that one is logged at {@code DEBUG} and confirming it takes raising the
+     * level for this class.
      */
     public static void logEffectiveState(Settings settings) {
         logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));

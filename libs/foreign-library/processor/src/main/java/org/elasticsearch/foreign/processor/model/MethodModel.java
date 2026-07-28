@@ -159,12 +159,27 @@ public record MethodModel(
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
-        String fallbackAdapter = null;
+        final String fallbackAdapter;
         if (isCritical) {
-            fallbackAdapter = resolveAndValidateFallbackAdapter(method, paramTypes, returnType, messager, env.getTypeUtils());
-            if (fallbackAdapter == null) {
+            TypeElement adapterElement = resolveFallbackAdapter(method, messager, env.getTypeUtils());
+            if (adapterElement == null) {
                 return null;
             }
+            var isUnsupportedFallback = adapterElement.getQualifiedName()
+                .contentEquals(Critical.UnsupportedFallback.class.getCanonicalName());
+            if (isUnsupportedFallback) {
+                // For a critical binding, fallbackAdapter is null when the Critical.UnsupportedFallback sentinel is used.
+                fallbackAdapter = null;
+            } else {
+                if (validateFallbackAdapter(method, adapterElement, paramTypes, returnType, messager) == false) {
+                    return null;
+                }
+                // For a critical binding, fallbackAdapter is the FQN of the JDK 21 adapter
+                fallbackAdapter = adapterElement.getQualifiedName().toString();
+            }
+        } else {
+            // A non-critical binding does not need a fallbackAdapter
+            fallbackAdapter = null;
         }
 
         List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
@@ -281,18 +296,12 @@ public record MethodModel(
     }
 
     /**
-     * Resolves {@code @Critical.fallbackAdapter()} and verifies the adapter class declares a {@code public static}
-     * method with the same name as {@code method} and a parameter list of {@code (MethodHandle, …originalParams)}
-     * returning the same type as the annotated method. Returns the adapter's fully-qualified name on success,
-     * or {@code null} (with a {@link Kind#ERROR} emitted) on validation failure.
+     * Resolves {@code @Critical.fallbackAdapter()} to its adapter {@link TypeElement}. Returns {@code null}
+     * (with a {@link Kind#ERROR} emitted) when the attribute is missing or does not reference a class. The
+     * returned element may be the {@link Critical.UnsupportedFallback} sentinel; the caller detects that
+     * before validating a real adapter with {@link #validateFallbackAdapter}.
      */
-    private static String resolveAndValidateFallbackAdapter(
-        ExecutableElement method,
-        List<NativeType> paramTypes,
-        NativeType returnType,
-        Messager messager,
-        Types types
-    ) {
+    private static TypeElement resolveFallbackAdapter(ExecutableElement method, Messager messager, Types types) {
         AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
@@ -308,6 +317,23 @@ public record MethodModel(
             messager.printMessage(Kind.ERROR, "@Critical.fallbackAdapter must reference a class", method, criticalMirror);
             return null;
         }
+        return adapterElement;
+    }
+
+    /**
+     * Verifies that {@code adapterElement} declares a {@code public static} method with the same name as
+     * {@code method} and a parameter list of {@code (MethodHandle, …originalParams)} returning the same type
+     * as the annotated method. Returns {@code true} on success, or {@code false} (with a {@link Kind#ERROR}
+     * emitted) on validation failure.
+     */
+    private static boolean validateFallbackAdapter(
+        ExecutableElement method,
+        TypeElement adapterElement,
+        List<NativeType> paramTypes,
+        NativeType returnType,
+        Messager messager
+    ) {
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
         String methodName = method.getSimpleName().toString();
         String adapterFqn = adapterElement.getQualifiedName().toString();
 
@@ -319,7 +345,7 @@ public record MethodModel(
                 method,
                 criticalMirror
             );
-            return null;
+            return false;
         }
         if (signatureMatches(adapterMethod, paramTypes, returnType) == false) {
             messager.printMessage(
@@ -337,9 +363,9 @@ public record MethodModel(
                 method,
                 criticalMirror
             );
-            return null;
+            return false;
         }
-        return adapterFqn;
+        return true;
     }
 
     /**

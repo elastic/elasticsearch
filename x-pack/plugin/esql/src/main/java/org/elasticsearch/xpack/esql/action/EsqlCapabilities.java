@@ -1526,6 +1526,18 @@ public class EsqlCapabilities {
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
+         * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
+         * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
+         * (1) a view used inside a {@code TS} command now raises a clear verification exception
+         * instead of crashing; (2) a {@code TS} relation nested inside a {@code FROM} subquery and
+         * combined with standard sources (e.g. {@code FROM (TS k8s), (FROM emp)}) now correctly
+         * produces a plain {@code Aggregate} rather than a {@code TimeSeriesAggregate}.
+         * See https://github.com/elastic/elasticsearch/issues/153030 and
+         * https://github.com/elastic/elasticsearch/issues/149619.
+         */
+        FIX_TS_MIXED_WITH_NON_TS_SOURCES,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -3340,6 +3352,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_MATCHER_PARAMS,
 
         /**
+         * Support for identifier parameters in PromQL label lists:
+         * <a href="https://github.com/elastic/elasticsearch/issues/152500">#152500</a>
+         */
+        PROMQL_LABEL_LIST_IDENTIFIER_PARAMS,
+
+        /**
          * Fix for PromQL scalar integer division losing the fractional part.
          * Integer literals like {@code 4/6} were folded with integer division (result: 0)
          * instead of float64 division (result: ~0.667).
@@ -3509,6 +3527,12 @@ public class EsqlCapabilities {
          * Fix multi value unsigned long conversion to aggregate metric double
          */
         FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
+        /**
+         * Constant folding of logical operators ({@code AND}, {@code OR}, {@code NOT}) applied to multivalue
+         * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
+         */
+        FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

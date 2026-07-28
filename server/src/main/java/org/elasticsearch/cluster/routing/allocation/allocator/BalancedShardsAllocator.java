@@ -946,13 +946,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // If we deferred any canRemain: NO, canAllocate: NOT_PREFERRED movements, execute them now.
             if (nodeIdsWithDeferredMoves.isEmpty() == false) {
-                executeMovesThatMatchPredicate(
+                final var secondPassNodesWithDeferredMoves = executeMovesThatMatchPredicate(
                     shardMoved,
                     allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves),
                     bestNonPreferredShardMovementsTracker,
                     canAllocateDecision -> canAllocateDecision == AllocationDecision.YES
                         || canAllocateDecision == AllocationDecision.NOT_PREFERRED
                 );
+                assert secondPassNodesWithDeferredMoves.isEmpty() : "We shouldn't be deferring any moves on this pass";
             }
         }
 

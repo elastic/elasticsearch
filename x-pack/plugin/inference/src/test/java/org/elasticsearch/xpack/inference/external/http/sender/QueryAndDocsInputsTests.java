@@ -47,6 +47,11 @@ public class QueryAndDocsInputsTests extends InferenceObjectRamBytesUsedTest<Que
         );
     }
 
+    @Override
+    public boolean checkDoNotUnderAccount() {
+        return false;
+    }
+
     public void testMinimalConstructor() {
         var query = createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
         var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES));

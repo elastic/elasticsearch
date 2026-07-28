@@ -226,7 +226,7 @@ final class LongBlockHash extends BlockHash {
                     int[] partitionOf,
                     int[] counts
                 ) {
-                    LongBlock block = page.getBlock(channel);
+                    LongBlock block = (LongBlock) page.getBlock(channel);
                     LongVector vec = block.asVector();
                     if (vec == null) {
                         Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);

@@ -251,14 +251,11 @@ public class PartitionedHashMergeOperator implements Operator {
     private final List<Integer> groupChannels;
     private final List<BlockHash.GroupSpec> internalGroupSpecs;
     private final List<AggregatorSpec> aggregatorSpecs;
-    private final List<GroupingAggregator.Factory> noneAggFactories;
-    private final List<GroupingAggregator.Factory> workerAggFactories;
     private final int[] combinedChannelStart;
     private final int internalPageWidth;
     private final int partitionCount;
     private final int workerCount;
     private final int maxPageSize;
-    private final int aggregationBatchSize;
     private final DriverContext driverContext;
 
     private final Executor executor;
@@ -321,14 +318,11 @@ public class PartitionedHashMergeOperator implements Operator {
         this.groupChannels = groupChannels;
         this.internalGroupSpecs = internalGroupSpecs;
         this.aggregatorSpecs = aggregatorSpecs;
-        this.noneAggFactories = noneAggFactories;
-        this.workerAggFactories = workerAggFactories;
         this.combinedChannelStart = combinedChannelStart;
         this.internalPageWidth = internalPageWidth;
         this.partitionCount = partitionCount;
         this.workerCount = workerCount;
         this.maxPageSize = maxPageSize;
-        this.aggregationBatchSize = aggregationBatchSize;
         this.executor = executor;
         this.driverContext = driverContext;
 

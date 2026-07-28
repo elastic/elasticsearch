@@ -511,39 +511,12 @@ public class PartitionedHashAggregationOperator implements Operator {
     }
 
     /**
-     * Used to convert legacyOp to multiple partitions. Distributes a single
-     * intermediate page across {@code targets} by partition hash. Uses a
-     * single O(N+P) bucket-sort pass (count → prefix-sum → scatter) to collect each partition's
-     * positions, then creates a filtered sub-page per partition and merges it into that target
-     * via {@link #mergeIntermediateIntoTable}. The filtered sub-pages are physically reordered
-     * copies — sequential reads on the target table's BlockHash improve cache utilisation
-     * compared to a scatter-gather approach.
+     * Used to convert legacyOp to multiple partitions. Distributes a single intermediate page
+     * across {@code targets} by partition hash, folding each slice into the target via
+     * {@link #mergeIntermediateIntoTable}.
      */
     private void distributeIntermediatePage(Page intermediatePage, HashAggregationOperator[] targets) {
-        int positions = intermediatePage.getPositionCount();
-        int keyCount = groupChannels.size();
-        BlockHash.Router probeRouter = probeHash.router();
-        int[] partitionOf = new int[positions];
-        int[] counts = new int[targets.length];
-        probeRouter.fillPartitions(intermediatePage, positions, keyCount, targets.length, NULL_PARTITION, partitionOf, counts);
-        int[] offsets = new int[targets.length + 1];
-        for (int p = 0; p < targets.length; p++) {
-            offsets[p + 1] = offsets[p] + counts[p];
-        }
-        int[] cursor = offsets.clone();
-        int[] sortedPositions = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            sortedPositions[cursor[partitionOf[i]]++] = i;
-        }
-        for (int p = 0; p < targets.length; p++) {
-            int start = offsets[p], end = offsets[p + 1];
-            if (start == end) {
-                continue;
-            }
-            try (Page subPage = intermediatePage.filter(false, sortedPositions, start, end - start)) {
-                mergeIntermediateIntoTable(targets[p], subPage);
-            }
-        }
+        splitByPartitionAndDispatch(intermediatePage, targets.length, (p, subPage) -> mergeIntermediateIntoTable(targets[p], subPage));
     }
 
     /**
@@ -572,47 +545,9 @@ public class PartitionedHashAggregationOperator implements Operator {
 
     // ---- steady-state partitioned processing ----
 
-    /**
-     * Routes each row to its owning partition, then bucket-sorts positions so each partition's rows
-     * are contiguous before insertion. For each partition we:
-     * <ol>
-     *   <li>Compute a partition ID per row. When no key column has nulls,
-     *       {@link BlockHash.Router#fillPartitions} is used: implementations can hoist
-     *       {@link Page#getBlock} calls outside the inner loop (O(1) per page instead of O(N)).
-     *       Rows with a null key land in {@link #NULL_PARTITION} regardless.</li>
-     *   <li>Bucket-sort positions into a per-partition contiguous range in O(N+P) time.</li>
-     *   <li>Create a filtered sub-page via {@link Page#filter(boolean, int[], int, int)},
-     *       passing the pre-sorted positions array with an offset and length to avoid a
-     *       per-partition {@link java.util.Arrays#copyOfRange} allocation.</li>
-     *   <li>Feed the sub-page to {@code partitions[p].blockHash.add()} — the fastest available
-     *       hash for this schema (typically {@code LongIntAdaptiveBlockHash}).</li>
-     * </ol>
-     */
+    /** Routes each row to its owning partition and feeds each partition's sub-page to its own table. */
     private void addToPartitions(Page page) {
-        int positions = page.getPositionCount();
-        int keyCount = groupChannels.size();
-        BlockHash.Router probeRouter = probeHash.router();
-        int[] partitionOf = new int[positions];
-        int[] counts = new int[partitionCount];
-        probeRouter.fillPartitions(page, positions, keyCount, partitionCount, NULL_PARTITION, partitionOf, counts);
-        int[] offsets = new int[partitionCount + 1];
-        for (int p = 0; p < partitionCount; p++) {
-            offsets[p + 1] = offsets[p] + counts[p];
-        }
-        int[] cursor = offsets.clone();
-        int[] sortedPositions = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            sortedPositions[cursor[partitionOf[i]]++] = i;
-        }
-        for (int p = 0; p < partitionCount; p++) {
-            int start = offsets[p], end = offsets[p + 1];
-            if (start == end) {
-                continue;
-            }
-            try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
-                partitionOps[p].processPage(subPage);
-            }
-        }
+        splitByPartitionAndDispatch(page, partitionCount, (p, subPage) -> partitionOps[p].processPage(subPage));
     }
 
     private boolean hasMultiValuedKeys(Page page) {
@@ -814,10 +749,52 @@ public class PartitionedHashAggregationOperator implements Operator {
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 
+    /**
+     * Splits {@code page} into per-partition sub-pages via an O(N+P) bucket-sort pass
+     * (count → prefix-sum → scatter) and calls {@code action} for each non-empty partition.
+     * Sub-pages are physically contiguous copies of the relevant rows, improving sequential
+     * access patterns on the target {@link BlockHash} compared to scatter-gather.
+     * <p>
+     * Null grouping-key rows are routed to {@link #NULL_PARTITION}. {@link BlockHash.Router#fillPartitions}
+     * hoists per-page {@link Page#getBlock} calls outside the inner loop when no key column has nulls.
+     * </p>
+     */
+    private void splitByPartitionAndDispatch(Page page, int nPartitions, PartitionAction action) {
+        int positions = page.getPositionCount();
+        int keyCount = groupChannels.size();
+        BlockHash.Router router = probeHash.router();
+        int[] partitionOf = new int[positions];
+        int[] counts = new int[nPartitions];
+        router.fillPartitions(page, positions, keyCount, nPartitions, NULL_PARTITION, partitionOf, counts);
+        int[] offsets = new int[nPartitions + 1];
+        for (int p = 0; p < nPartitions; p++) {
+            offsets[p + 1] = offsets[p] + counts[p];
+        }
+        int[] cursor = offsets.clone();
+        int[] sortedPositions = new int[positions];
+        for (int i = 0; i < positions; i++) {
+            sortedPositions[cursor[partitionOf[i]]++] = i;
+        }
+        for (int p = 0; p < nPartitions; p++) {
+            int start = offsets[p], end = offsets[p + 1];
+            if (start == end) {
+                continue;
+            }
+            try (Page subPage = page.filter(false, sortedPositions, start, end - start)) {
+                action.accept(p, subPage);
+            }
+        }
+    }
+
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
+    }
+
+    @FunctionalInterface
+    private interface PartitionAction {
+        void accept(int partition, Page subPage);
     }
 
     /** Fans a single group-id batch out to every prepared aggregator's {@code AddInput}. */

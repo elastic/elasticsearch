@@ -46,9 +46,7 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
 
         // Valid base64, but decoded bytes are not well-formed UTF-8 → null + warning
         helper().expectNullAndWarningsFromString(
-            encoded -> List.of(
-                "Line 1:1: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet"
-            )
+            encoded -> List.of("Line 1:1: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet")
         )
             .strings("truncated lead byte", () -> encode(new byte[] { 'a', (byte) 0xF0 }))
             .strings("lone lead byte", () -> encode(new byte[] { (byte) 0xF0 }))

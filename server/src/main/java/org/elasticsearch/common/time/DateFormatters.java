@@ -196,7 +196,7 @@ public class DateFormatters {
     /*
      * The literal date patterns for which we provide a fast {@link Iso8601Parser}-based parser instead of the slower,
      * allocation-heavy generic java.time parsing. These are not registered format names, so without these they would
-     * otherwise fall through to the generic path in {@link #forPattern(String)}. See {@link #fastDateFieldFormatterOrNull(String)}.
+     * otherwise fall through to the generic path in {@link #forPattern(String)}.
      */
     private static final String ISO_LOCAL_DATE_TIME_NO_T_PATTERN = "yyyy-MM-dd HH:mm:ss";
     private static final String FAST_DATE_PATTERN = "yyyy-MM-dd";
@@ -1941,24 +1941,6 @@ public class DateFormatters {
     //
     /////////////////////////////////////////
 
-    /**
-     * Returns a fast {@link Iso8601Parser}-backed formatter for one of the specially-optimized date-field layouts
-     * ({@code "yyyy-MM-dd HH:mm:ss"} or {@code "yyyy-MM-dd"}), or {@code null} if {@code pattern} is not one of them.
-     * <p>
-     * These literal patterns are not registered format names, so {@link #forPattern(String)} parses them via the generic,
-     * allocation-heavy {@code java.time} path. Routing is intentionally caller-driven (currently only
-     * {@link org.elasticsearch.index.mapper.DateFieldMapper}) so the behavior of {@link #forPattern(String)} is unchanged.
-     */
-    public static DateFormatter fastDateFieldFormatterOrNull(String pattern) {
-        if (ISO_LOCAL_DATE_TIME_NO_T_PATTERN.equals(pattern)) {
-            return ISO_LOCAL_DATE_TIME_NO_T;
-        }
-        if (FAST_DATE_PATTERN.equals(pattern)) {
-            return FAST_DATE;
-        }
-        return null;
-    }
-
     static DateFormatter forPattern(String input) {
         if (Strings.hasLength(input)) {
             input = input.trim();
@@ -2128,6 +2110,10 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
+        } else if (ISO_LOCAL_DATE_TIME_NO_T_PATTERN.equals(input)) { // fast formatter/parser for yyyy-MM-dd HH:mm:ss
+            return ISO_LOCAL_DATE_TIME_NO_T;
+        } else if (FAST_DATE_PATTERN.equals(input)) { // fast formatter/parser for yyyy-MM-dd
+            return FAST_DATE;
         } else {
             try {
                 return newDateFormatter(

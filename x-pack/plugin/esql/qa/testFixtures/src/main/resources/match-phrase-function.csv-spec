@@ -979,15 +979,15 @@ required_capability: fn_match_phrase_runtime_options
 FROM books
 | EVAL new_title = to_text(concat("TITLE: ", title))
 | WHERE match_phrase(new_title, "Lord of Rings", {"slop": 5})
-| KEEP book_no
+| KEEP book_no, new_title
 ;
 ignoreOrder:true
 
-book_no:keyword
-2714
-2675
-4023
-7140
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
 matchPhraseOnRuntimeTextWithIndexAndZeroTermsQueryAll
@@ -998,14 +998,14 @@ FROM books
 | EVAL new_title = to_text(concat("TITLE: ", title))
 | WHERE match_phrase(new_title, "", {"zero_terms_query": "all"})
 | SORT book_no
-| KEEP book_no
+| KEEP book_no, new_title
 | LIMIT 5
 ;
 
-book_no:keyword
-1211
-1463
-1502
-1937
-1985
+book_no:keyword | new_title:text
+1211            | TITLE: The brothers Karamazov
+1463            | TITLE: Realms of Tolkien: Images of Middle-earth
+1502            | TITLE: Selected Passages from Correspondence with Friends
+1937            | TITLE: The Best Short Stories of Dostoevsky (Modern Library)
+1985            | TITLE: Brothers Karamazov
 ;

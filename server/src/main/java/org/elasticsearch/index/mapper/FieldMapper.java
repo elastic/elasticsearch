@@ -1670,6 +1670,21 @@ public abstract class FieldMapper extends Mapper {
             return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
         }
 
+        /**
+         * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
+         * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
+         * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.
+         */
+        public static Values defaultValues(IndexSettings indexSettings, Values nonColumnarDefault, Values.Cardinality columnarCardinality) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+            boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
+        }
+
         private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
             this(() -> defaultValue, defaultValue, initializer, supportsExtendedDocValues);
         }

@@ -445,8 +445,7 @@ public class MetadataCreateIndexService {
         if (descriptorForIndex == null) {
             return null;
         }
-        // There may be no descriptor on the request, in which case return the latest descriptor and the assertion should fail
-        // with an appropriate message. Also, unmanaged indices have no mappings or version.
+        // If the request has a managed system index descriptor on it, use the mapping version from that
         final var requestDescriptor = request.systemIndexDescriptor();
         return requestDescriptor != null && requestDescriptor.isAutomaticallyManaged()
             ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())

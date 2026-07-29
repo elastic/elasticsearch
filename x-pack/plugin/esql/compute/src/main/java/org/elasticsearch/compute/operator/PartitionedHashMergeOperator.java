@@ -39,6 +39,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.BucketSort;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.buildInternalGroupSpecs;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.checkState;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.closeOpOnClose;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.evaluateOp;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.fillPartitionAssignments;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.sortPositionsByPartition;
 
 /**
  * Coordinator-side merge operator for partitioned hash aggregation.
@@ -63,7 +70,7 @@ import static java.util.stream.Collectors.joining;
  * {@link PendingTasks} / {@link SubscribableListener} / {@link ExchangeBuffer} machinery
  * as {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}.
  */
-public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggregationOperator {
+public class PartitionedHashMergeOperator implements Operator {
 
     /**
      * Aggregator specification: supplier plus the <em>external</em> intermediate-state channels
@@ -142,7 +149,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         private final Executor executor;
 
         private Factory(Builder builder) {
-            this.internalGroupSpecs = AbstractPartitionedHashAggregationOperator.buildInternalGroupSpecs(builder.groupSpecs);
+            this.internalGroupSpecs = buildInternalGroupSpecs(builder.groupSpecs);
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> noneFactories = new ArrayList<>(aggregatorSpecs.size());
@@ -222,6 +229,16 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
 
     // ---- Instance fields ----
 
+    private final int keyCount;
+    private final int partitionCount;
+    private final int maxPageSize;
+    private final DriverContext driverContext;
+    /** Routing-only hash used to compute partition IDs; never used for aggregation. */
+    private BlockHash probeHash;
+    /** Iterator of output pages; non-null while the operator has output to drain. */
+    private ReleasableIterator<Page> output;
+    private boolean finishCalled;
+
     private final int workerCount;
     private final Executor executor;
     private final ExchangeBuffer[] workerBuffers;
@@ -275,7 +292,10 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         Executor executor,
         DriverContext driverContext
     ) {
-        super(internalGroupSpecs.size(), partitionCount, maxPageSize, driverContext);
+        this.keyCount = internalGroupSpecs.size();
+        this.partitionCount = partitionCount;
+        this.maxPageSize = maxPageSize;
+        this.driverContext = driverContext;
         this.workerCount = workerCount;
         this.executor = executor;
 
@@ -339,6 +359,11 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
     }
 
     // ---- Operator interface ----
+
+    @Override
+    public boolean needsInput() {
+        return output == null && finishCalled == false;
+    }
 
     @Override
     public void addInput(Page page) {
@@ -587,7 +612,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             noneOp = null;
             return;
         }
-        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp, maxPageSize)) {
+        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp, maxPageSize, driverContext)) {
             while (nonePages.hasNext()) {
                 try (Page p = nonePages.next()) {
                     distributeIntermediatePageToBuffers(p);
@@ -644,7 +669,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
                     savedHashNanos += s.hashNanos();
                     savedAggNanos += s.aggregationNanos();
                     if (worker.blockHash.numKeys() > 0) {
-                        parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize), worker));
+                        parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize, driverContext), worker));
                     } else {
                         worker.close();
                     }

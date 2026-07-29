@@ -17,13 +17,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.operator.PartitionedAggregation.BucketSort;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.sortPositionsByPartition;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link PartitionedHashAggregationOperator#canPartition},
- * {@link AbstractPartitionedHashAggregationOperator#sortPositionsByPartition}, and
+ * {@link PartitionedAggregation#sortPositionsByPartition}, and
  * {@link DriverContext#withBlockFactory}.
  */
 public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends ESTestCase {
@@ -110,11 +112,7 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
     public void testSortPositionsByPartitionAllInOnePartition() {
         int[] partitionOf = { 0, 0, 0, 0 };
         int[] counts = { 4, 0 };
-        AbstractPartitionedHashAggregationOperator.BucketSort result = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            2
-        );
+        BucketSort result = sortPositionsByPartition(partitionOf, counts, 2);
 
         assertThat(result.sortedPositions(), equalTo(new int[] { 0, 1, 2, 3 }));
         assertThat(result.offsets()[0], equalTo(0));
@@ -126,11 +124,7 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
         // rows 0,2 → partition 0; rows 1,3 → partition 1
         int[] partitionOf = { 0, 1, 0, 1 };
         int[] counts = { 2, 2 };
-        AbstractPartitionedHashAggregationOperator.BucketSort result = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            2
-        );
+        BucketSort result = sortPositionsByPartition(partitionOf, counts, 2);
 
         int[] sorted = result.sortedPositions();
         assertThat(sorted.length, equalTo(4));
@@ -147,11 +141,7 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
     public void testSortPositionsByPartitionSingleRow() {
         int[] partitionOf = { 0 };
         int[] counts = { 1 };
-        AbstractPartitionedHashAggregationOperator.BucketSort result = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            1
-        );
+        BucketSort result = sortPositionsByPartition(partitionOf, counts, 1);
 
         assertThat(result.sortedPositions(), equalTo(new int[] { 0 }));
         assertThat(result.offsets()[0], equalTo(0));
@@ -162,11 +152,7 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
         // rows assigned to 3 partitions in a mixed pattern; within each partition, original row order must be preserved
         int[] partitionOf = { 2, 0, 1, 0, 2, 1 };
         int[] counts = { 2, 2, 2 };
-        AbstractPartitionedHashAggregationOperator.BucketSort result = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            3
-        );
+        BucketSort result = sortPositionsByPartition(partitionOf, counts, 3);
 
         int[] sorted = result.sortedPositions();
         // partition 0: rows 1, 3 (in that order)
@@ -197,11 +183,7 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
         partitionOf[6] = 3;
         partitionOf[7] = 3;
         partitionOf[8] = 3;
-        AbstractPartitionedHashAggregationOperator.BucketSort result = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            nPartitions
-        );
+        BucketSort result = sortPositionsByPartition(partitionOf, counts, nPartitions);
 
         int[] offsets = result.offsets();
         assertThat(offsets.length, equalTo(nPartitions + 1));

@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.BucketSort;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.fillPartitionAssignments;
+import static org.elasticsearch.compute.operator.PartitionedAggregation.sortPositionsByPartition;
 
 /**
  * Aggregates raw input {@link Page}s into partitioned intermediate output using a single hash table.
@@ -366,19 +369,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         int positions = intermediatePage.getPositionCount();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        AbstractPartitionedHashAggregationOperator.fillPartitionAssignments(
-            probeHash,
-            keyCount,
-            intermediatePage,
-            partitionCount,
-            partitionOf,
-            counts
-        );
-        AbstractPartitionedHashAggregationOperator.BucketSort sorted = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
-            partitionOf,
-            counts,
-            partitionCount
-        );
+        fillPartitionAssignments(probeHash, keyCount, intermediatePage, partitionCount, partitionOf, counts);
+        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
         for (int p = 0; p < partitionCount; p++) {
             int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
             if (start == end) {

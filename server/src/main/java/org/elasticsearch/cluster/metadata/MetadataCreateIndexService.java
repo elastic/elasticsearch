@@ -447,8 +447,9 @@ public class MetadataCreateIndexService {
         }
         // There may be no descriptor on the request, in which case return the latest descriptor and the assertion should fail
         // with an appropriate message
-        return request.systemIndexDescriptor() != null
-            ? descriptorForIndex.getDescriptorCompatibleWith(request.systemIndexDescriptor().getMappingsVersion())
+        final var requestDescriptor = request.systemIndexDescriptor();
+        return requestDescriptor != null
+            ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())
             : descriptorForIndex;
     }
 

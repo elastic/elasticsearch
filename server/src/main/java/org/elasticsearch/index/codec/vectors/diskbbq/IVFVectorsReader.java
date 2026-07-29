@@ -532,7 +532,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * @return the boost multiplier (>= 1.0)
      */
     static float computeSmallSegmentBoost(int k, int numVectors) {
-        if (numVectors >= BOOST_REF_SIZE) {
+        // numVectors <= 0 is already guarded at the call site (search returns early on an empty
+        // segment); handle it defensively here too, mirroring computeSegmentSizeCap, so the
+        // division below can never see a zero divisor. Returning 1.0f means "no boost".
+        if (numVectors <= 0 || numVectors >= BOOST_REF_SIZE) {
             return 1.0f;
         }
         double sizeScale = Math.pow((double) BOOST_REF_SIZE / numVectors, BOOST_EXPONENT);

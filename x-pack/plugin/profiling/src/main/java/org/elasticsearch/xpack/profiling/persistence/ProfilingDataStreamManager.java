@@ -61,9 +61,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
                 .map(n -> ProfilingDataStream.withoutPreCreation(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
                 .toList()
         );
-        otel.add(
-            ProfilingDataStream.withoutPreCreation("profiling-otel-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION)
-        );
+        otel.add(ProfilingDataStream.withoutPreCreation("profiling-otel-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
         otel.add(
             ProfilingDataStream.withoutPreCreation(
                 "profiling-otel-executables",
@@ -322,11 +320,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         }
     }
 
-    public static boolean isAllResourcesCreated(
-        ClusterState state,
-        IndexStateResolver indexStateResolver,
-        boolean stateless
-    ) {
+    public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver, boolean stateless) {
         List<ProfilingDataStream> streams = stateless ? OTEL_DATASTREAMS : PROFILING_DATASTREAMS;
         for (ProfilingDataStream profilingDataStream : streams) {
             IndexStatus status = indexStateResolver.getIndexState(state, profilingDataStream).getStatus();
@@ -342,11 +336,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         return true;
     }
 
-    public static boolean isAnyResourceTooOld(
-        ClusterState state,
-        IndexStateResolver indexStateResolver,
-        boolean stateless
-    ) {
+    public static boolean isAnyResourceTooOld(ClusterState state, IndexStateResolver indexStateResolver, boolean stateless) {
         List<ProfilingDataStream> streams = stateless ? OTEL_DATASTREAMS : PROFILING_DATASTREAMS;
         for (ProfilingDataStream profilingDataStream : streams) {
             if (indexStateResolver.getIndexState(state, profilingDataStream).getStatus() == IndexStatus.TOO_OLD) {

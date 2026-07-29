@@ -17,7 +17,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,56 +39,68 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Creates all data streams that are required for using Elastic Universal Profiling.
  */
 public class ProfilingDataStreamManager extends AbstractProfilingPersistenceManager<ProfilingDataStreamManager.ProfilingDataStream> {
+    public static final List<ProfilingDataStream> LEGACY_DATASTREAMS;
+    public static final List<ProfilingDataStream> OTEL_DATASTREAMS;
     public static final List<ProfilingDataStream> PROFILING_DATASTREAMS;
 
     static {
-        List<ProfilingDataStream> dataStreams = new ArrayList<>(
+        List<ProfilingDataStream> legacy = new ArrayList<>(
             EventsIndex.indexNames()
                 .stream()
                 .map(n -> ProfilingDataStream.withoutPreCreation(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
                 .toList()
         );
-        dataStreams.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
-        dataStreams.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
+        legacy.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
+        legacy.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
+        LEGACY_DATASTREAMS = Collections.unmodifiableList(legacy);
+
         // OTel data streams are auto-created on first ingest and managed here for rollover and mapping migrations.
-        dataStreams.addAll(
+        List<ProfilingDataStream> otel = new ArrayList<>(
             EventsIndex.otelIndexNames()
                 .stream()
                 .map(n -> ProfilingDataStream.withoutPreCreation(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
                 .toList()
         );
-        dataStreams.add(
+        otel.add(
             ProfilingDataStream.withoutPreCreation("profiling-otel-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION)
         );
-        dataStreams.add(
+        otel.add(
             ProfilingDataStream.withoutPreCreation(
                 "profiling-otel-executables",
                 ProfilingIndexTemplateRegistry.PROFILING_EXECUTABLES_VERSION
             )
         );
-        dataStreams.add(
+        otel.add(
             ProfilingDataStream.withoutPreCreation(
                 "profiling-otel-stacktraces",
                 ProfilingIndexTemplateRegistry.PROFILING_STACKTRACES_VERSION
             )
         );
-        dataStreams.add(
+        otel.add(
             ProfilingDataStream.withoutPreCreation(
                 "profiling-otel-stackframes",
                 ProfilingIndexTemplateRegistry.PROFILING_STACKFRAMES_VERSION
             )
         );
-        PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
+        OTEL_DATASTREAMS = Collections.unmodifiableList(otel);
+
+        List<ProfilingDataStream> all = new ArrayList<>(LEGACY_DATASTREAMS);
+        all.addAll(OTEL_DATASTREAMS);
+        PROFILING_DATASTREAMS = Collections.unmodifiableList(all);
     }
+
+    private final boolean stateless;
 
     public ProfilingDataStreamManager(
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
         IndexStateResolver indexStateResolver,
-        ProfilingIndexTemplateRegistry templateRegistry
+        ProfilingIndexTemplateRegistry templateRegistry,
+        Settings settings
     ) {
         super(threadPool, client, clusterService, indexStateResolver, templateRegistry);
+        this.stateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -116,7 +130,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
     @Override
     protected Iterable<ProfilingDataStream> getManagedIndices() {
-        return PROFILING_DATASTREAMS;
+        return stateless ? OTEL_DATASTREAMS : PROFILING_DATASTREAMS;
     }
 
     private void onDataStreamFailure(ProfilingDataStream dataStream, Exception ex) {
@@ -308,8 +322,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         }
     }
 
-    public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver) {
-        for (ProfilingDataStream profilingDataStream : PROFILING_DATASTREAMS) {
+    public static boolean isAllResourcesCreated(
+        ClusterState state,
+        IndexStateResolver indexStateResolver,
+        boolean stateless
+    ) {
+        List<ProfilingDataStream> streams = stateless ? OTEL_DATASTREAMS : PROFILING_DATASTREAMS;
+        for (ProfilingDataStream profilingDataStream : streams) {
             IndexStatus status = indexStateResolver.getIndexState(state, profilingDataStream).getStatus();
             if (status == IndexStatus.UP_TO_DATE) {
                 continue;
@@ -323,8 +342,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         return true;
     }
 
-    public static boolean isAnyResourceTooOld(ClusterState state, IndexStateResolver indexStateResolver) {
-        for (ProfilingDataStream profilingDataStream : PROFILING_DATASTREAMS) {
+    public static boolean isAnyResourceTooOld(
+        ClusterState state,
+        IndexStateResolver indexStateResolver,
+        boolean stateless
+    ) {
+        List<ProfilingDataStream> streams = stateless ? OTEL_DATASTREAMS : PROFILING_DATASTREAMS;
+        for (ProfilingDataStream profilingDataStream : streams) {
             if (indexStateResolver.getIndexState(state, profilingDataStream).getStatus() == IndexStatus.TOO_OLD) {
                 return true;
             }

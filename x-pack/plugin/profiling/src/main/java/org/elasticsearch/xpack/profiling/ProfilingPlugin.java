@@ -97,7 +97,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
-        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get(), settings));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);

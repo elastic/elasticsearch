@@ -147,17 +147,19 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         }
 
         private boolean isResourcesCreated(ClusterState state) {
+            boolean stateless = DiscoveryNode.isStateless(clusterService.getSettings());
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
-            boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
+            boolean indicesCreated = stateless || ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
+            boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver, stateless);
             return templatesCreated && indicesCreated && dataStreamsCreated;
         }
 
         private boolean isAnyPre891Data(ClusterState state) {
+            boolean stateless = DiscoveryNode.isStateless(clusterService.getSettings());
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
-            boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
+            boolean indicesPre891 = stateless == false && ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
+            boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver, stateless);
             return indicesPre891 || dataStreamsPre891;
         }
 

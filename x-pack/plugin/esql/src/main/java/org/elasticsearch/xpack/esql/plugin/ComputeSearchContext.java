@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,6 +42,7 @@ import java.util.Objects;
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
+    @Nullable
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 

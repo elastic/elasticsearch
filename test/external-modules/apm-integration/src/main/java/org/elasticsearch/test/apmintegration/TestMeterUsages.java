@@ -27,13 +27,15 @@ public class TestMeterUsages {
     private static final Logger logger = LogManager.getLogger(TestMeterUsages.class);
 
     public static final String CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME = "es.test.long_hist_custom_bounds.histogram";
-    public static final List<Long> CUSTOM_LONG_BOUNDARIES = List.of(0L, 10L, 20L, 30L, 40L, 50L, 60L, 70L, 80L, 90L, 100L);
+    public static final String CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME = "es.test.double_hist_custom_bounds.histogram";
+    public static final List<Long> CUSTOM_BOUNDARIES = List.of(0L, 10L, 20L, 30L, 40L, 50L, 60L, 70L, 80L, 90L, 100L);
 
     private final DoubleCounter doubleCounter;
     private final DoubleCounter longCounter;
     private final DoubleHistogram doubleHistogram;
     private final LongHistogram longHistogram;
     private final LongHistogram longHistogramCustomBoundaries;
+    private final DoubleHistogram doubleHistogramCustomBoundaries;
     private final AtomicReference<DoubleWithAttributes> doubleWithAttributes = new AtomicReference<>();
     private final AtomicReference<LongWithAttributes> longWithAttributes = new AtomicReference<>();
     private final AtomicReference<DoubleWithAttributes> asyncDoubleWithAttributes = new AtomicReference<>();
@@ -48,7 +50,13 @@ public class TestMeterUsages {
             CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
             "test",
             "unit",
-            CUSTOM_LONG_BOUNDARIES
+            CUSTOM_BOUNDARIES
+        );
+        this.doubleHistogramCustomBoundaries = meterRegistry.registerDoubleHistogram(
+            CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME,
+            "test",
+            "unit",
+            CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList()
         );
         meterRegistry.registerDoubleGauge("es.test.double_gauge.current", "test", "unit", () -> {
             var value = doubleWithAttributes.get();
@@ -72,9 +80,11 @@ public class TestMeterUsages {
         });
     }
 
-    public void recordMetric(String metricName, long value) {
+    public void recordMetric(String metricName, String metricValue) {
         if (CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME.equals(metricName)) {
-            longHistogramCustomBoundaries.record(value);
+            longHistogramCustomBoundaries.record(Long.parseLong(metricValue));
+        } else if (CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME.equals(metricName)) {
+            doubleHistogramCustomBoundaries.record(Double.parseDouble(metricValue));
         } else {
             logger.warn("recordMetric: unknown metric [{}]", metricName);
         }

@@ -43,7 +43,7 @@ public class TestApmIntegrationRestHandler extends BaseRestHandler {
         String valueParam = request.param("value");
         return channel -> {
             if (metric != null && valueParam != null) {
-                testMeterUsages.get().recordMetric(metric, Long.parseLong(valueParam));
+                testMeterUsages.get().recordMetric(metric, valueParam);
             } else {
                 testMeterUsages.get().testUponRequest();
             }

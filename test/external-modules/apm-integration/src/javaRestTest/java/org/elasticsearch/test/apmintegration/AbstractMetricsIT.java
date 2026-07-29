@@ -135,15 +135,15 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
         for (int i = 0; i < recordedValues.length; i++) {
             // Let's not cover the bucket midpoint reporting logic for underflow or overflow buckets
             recordedValues[i] = randomLongBetween(
-                TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(0) + 1,
-                TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size() - 1)
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(0) + 1,
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(TestMeterUsages.CUSTOM_BOUNDARIES.size() - 1)
             );
         }
         // Assign each value to its OTel explicit-bucket index
         Map<Integer, Integer> bucketCountMap = new TreeMap<>();
         for (long v : recordedValues) {
-            for (int i = 0; i < TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size(); i++) {
-                if (v <= TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(i)) {
+            for (int i = 0; i < TestMeterUsages.CUSTOM_BOUNDARIES.size(); i++) {
+                if (v <= TestMeterUsages.CUSTOM_BOUNDARIES.get(i)) {
                     bucketCountMap.merge(i, 1, Integer::sum);
                     break;
                 }
@@ -154,34 +154,34 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
         List<Integer> expectedCounts = new ArrayList<>();
         for (var entry : bucketCountMap.entrySet()) {
             var bucketIndex = entry.getKey();
-            double lower = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(bucketIndex - 1);
-            double upper = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(bucketIndex);
+            double lower = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex - 1);
+            double upper = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex);
             expectedMidpoints.add(lower + (upper - lower) / 2.0);
             expectedCounts.add(entry.getValue());
         }
         // OTLP path: full bounds list + all bucket counts including zeros
-        List<Double> expectedBounds = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.stream().map(Long::doubleValue).toList();
-        int numBuckets = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size() + 1;
+        List<Double> expectedBounds = TestMeterUsages.CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList();
+        int numBuckets = TestMeterUsages.CUSTOM_BOUNDARIES.size() + 1;
         List<Integer> expectedAllCounts = new ArrayList<>();
         for (int i = 0; i < numBuckets; i++) {
             expectedAllCounts.add(bucketCountMap.getOrDefault(i, 0));
         }
 
-        CountDownLatch finished = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(2);
         apmServer().addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
                 && "elasticsearch".equals(m.instrumentationScopeName())) {
-                var sample = m.samples().get(TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME);
-                if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
-                    if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
-                        || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
-                        logger.info(
-                            "{} assertion PASSED (midpoints={}, counts={})",
-                            TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
-                            midpoints,
-                            counts
-                        );
-                        finished.countDown();
+                for (String name : List.of(
+                    TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
+                    TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME
+                )) {
+                    var sample = m.samples().get(name);
+                    if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
+                        if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
+                            || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
+                            logger.info("{} assertion PASSED (midpoints={}, counts={})", name, midpoints, counts);
+                            finished.countDown();
+                        }
                     }
                 }
             }
@@ -191,6 +191,12 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
             for (long v : recordedValues) {
                 client().performRequest(
                     new Request("GET", "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME + "&value=" + v)
+                );
+                client().performRequest(
+                    new Request(
+                        "GET",
+                        "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME + "&value=" + v
+                    )
                 );
             }
             client().performRequest(new Request("GET", "/_flush_telemetry"));

@@ -41,7 +41,7 @@ public class CustomResponseHandler extends BaseResponseHandler {
     @Override
     public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         try {
-            return parseFunction.apply(outboundRequest, result);
+            return nonStreamingResponseParseFunction.apply(outboundRequest, result);
         } catch (Exception e) {
             // if we get a parse failure it's probably an incorrect configuration of the service so report the error back to the user
             // immediately without retrying

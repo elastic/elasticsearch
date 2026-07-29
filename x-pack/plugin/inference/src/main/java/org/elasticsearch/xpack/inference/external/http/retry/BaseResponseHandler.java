@@ -37,22 +37,26 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
 
     protected final String requestType;
-    protected final ResponseParser parseFunction;
+    protected final ResponseParser nonStreamingResponseParseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 
-    public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
-        this(requestType, parseFunction, errorParseFunction, false);
+    public BaseResponseHandler(
+        String requestType,
+        ResponseParser nonStreamingResponseParseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
+        this(requestType, nonStreamingResponseParseFunction, errorParseFunction, false);
     }
 
     public BaseResponseHandler(
         String requestType,
-        ResponseParser parseFunction,
+        ResponseParser nonStreamingResponseParseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         this.requestType = Objects.requireNonNull(requestType);
-        this.parseFunction = Objects.requireNonNull(parseFunction);
+        this.nonStreamingResponseParseFunction = Objects.requireNonNull(nonStreamingResponseParseFunction);
         this.errorParseFunction = Objects.requireNonNull(errorParseFunction);
         this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
@@ -65,7 +69,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     @Override
     public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         try {
-            return parseFunction.apply(outboundRequest, result);
+            return nonStreamingResponseParseFunction.apply(outboundRequest, result);
         } catch (Exception e) {
             throw new RetryException(true, e);
         }
@@ -84,7 +88,13 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
     }
 
-    protected abstract void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result);
+    /**
+     * By default, we'll return a generic failure that won't be retried.
+     * Child classes should override this to provide more specific handling of failure status codes.
+     */
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
+        throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+    }
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);

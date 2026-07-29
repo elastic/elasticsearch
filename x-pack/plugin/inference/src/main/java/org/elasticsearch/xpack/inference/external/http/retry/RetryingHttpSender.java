@@ -94,6 +94,8 @@ public class RetryingHttpSender implements RequestSender {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
+        private static final String EXPECTED_EXCEPTION_MESSAGE = "Expected response validation to throw an exception";
+
         private OutboundRequest outboundRequest;
         private final ResponseHandler responseHandler;
         private final Logger logger;
@@ -191,7 +193,7 @@ public class RetryingHttpSender implements RequestSender {
                     } else {
                         r.readFullResponse(
                             l.delegateFailureAndWrap(
-                                (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
+                                (delegateListener, httpResult) -> handleInitialStreamFailure(httpResult, delegateListener)
                             )
                         );
                     }
@@ -204,6 +206,24 @@ public class RetryingHttpSender implements RequestSender {
                         (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
                     )
                 );
+            }
+        }
+
+        /**
+         * This method should only be called if {@link HttpResult#isSuccessfulResponse()} returns false. It is used to determine the
+         * appropriate error message and whether to retry the request.
+         * <p>
+         * If this method is called when {@link HttpResult#isSuccessfulResponse()} returns true, it will throw an
+         * {@link IllegalStateException}.
+         */
+        private void handleInitialStreamFailure(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {
+            try {
+                responseHandler.validateResponse(throttlerManager, logger, outboundRequest, httpResult);
+
+                assert false : EXPECTED_EXCEPTION_MESSAGE;
+                listener.onFailure(new SenderException(httpResult, new IllegalStateException(EXPECTED_EXCEPTION_MESSAGE)));
+            } catch (Exception e) {
+                listener.onFailure(new SenderException(httpResult, e));
             }
         }
 

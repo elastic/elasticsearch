@@ -1583,7 +1583,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case BINARY -> matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom");
+            // binary defaults doc_values to whether synthetic source is enabled: with doc values it loads columnar from
+            // BytesCustom; otherwise (standard/lookup/vectordb_document) it falls back to the base64 _source reader.
+            case BINARY -> syntheticSourceByDefault()
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+                : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Base64Bytes");
             case DENSE_VECTOR -> indexMode.isStrictColumnar()
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");

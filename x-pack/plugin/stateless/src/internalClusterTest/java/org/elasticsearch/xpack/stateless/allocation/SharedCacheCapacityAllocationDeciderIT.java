@@ -53,7 +53,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         return CACHE_SIZE_IN_BYTES * percent / 100;
     }
 
-    public void testCanAllocateDeprioritizesOversubscribedNode() throws Exception {
+    public void testCanAllocateDeprioritizesOversubscribedNode() {
         startMasterOnlyNode();
         startIndexNode();
         final var overSubscribedSearchNode = startSearchNode();
@@ -179,7 +179,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         });
     }
 
-    public void testCanAllocateNotPreferredWhenShardRequirementWouldExceedWatermark() throws Exception {
+    public void testCanAllocateNotPreferredWhenShardRequirementWouldExceedWatermark() {
         startMasterOnlyNode();
         startIndexNode();
         final var tippedNode = startSearchNode();
@@ -245,7 +245,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
-    public void testCanUpdateAccountingModeDynamically() throws Exception {
+    public void testCanUpdateAccountingModeDynamically() {
         startMasterOnlyNode();
         startIndexNode();
         final var divergentNode = startSearchNode();
@@ -385,7 +385,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         });
     }
 
-    public void testCanRemainNotPreferredButShardStaysAssignedWithNoAlternativeNode() throws Exception {
+    public void testCanRemainNotPreferredButShardStaysAssignedWithNoAlternativeNode() {
         startMasterOnlyNode();
         startIndexNode();
         final var soleSearchNode = startSearchNode();

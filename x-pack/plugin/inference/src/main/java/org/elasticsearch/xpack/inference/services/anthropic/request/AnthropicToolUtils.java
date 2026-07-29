@@ -115,21 +115,39 @@ public final class AnthropicToolUtils {
     public static void writeMessages(XContentBuilder builder, List<Message> messages) throws IOException {
         builder.startArray(MESSAGES_FIELD);
         for (var message : messages) {
-            var toolCalls = message.toolCalls();
-            if (toolCalls != null && toolCalls.isEmpty() == false) {
-                writeAssistantToolCalls(builder, message, toolCalls);
+            if (USER_ROLE.equals(message.role())) {
+                writeUserMessage(builder, message);
+            } else if (ASSISTANT_ROLE.equals(message.role())) {
+                writeAssistantToolCalls(builder, message);
             } else if (TOOL_ROLE.equals(message.role())) {
                 writeToolResult(builder, message);
-            } else if (message.content() instanceof ContentObjects(List<ContentObject> contentObjects)) {
-                writeContentObjectsMessage(builder, message.role(), contentObjects);
             } else {
-                message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                throw new ElasticsearchStatusException(
+                    Strings.format("Unsupported role [%s] for the Anthropic chat completion API.", message.role()),
+                    RestStatus.BAD_REQUEST
+                );
             }
         }
         builder.endArray();
     }
 
-    private static void writeAssistantToolCalls(XContentBuilder builder, Message message, List<ToolCall> toolCalls) throws IOException {
+    private static void writeUserMessage(XContentBuilder builder, Message message) throws IOException {
+        if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
+            message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }  else if (message.content() instanceof ContentObjects(List<ContentObject> contentObjects) && contentObjects.isEmpty() == false) {
+            writeContentObjectsMessage(builder, message.role(), contentObjects);
+        } else {
+            writeTextBlock(builder, "");
+        }
+    }
+
+    private static void writeAssistantToolCalls(XContentBuilder builder, Message message) throws IOException {
+        var toolCalls = message.toolCalls();
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return;
+        }
+
         builder.startObject();
         builder.field(ROLE_FIELD, ASSISTANT_ROLE);
         builder.startArray(CONTENT_FIELD);

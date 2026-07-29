@@ -24,11 +24,6 @@ restResources {
   }
 }
 
-interface Injected {
-  @Inject
-  FileSystemOperations getFs()
-}
-
 // Disable the default yamlRestTest task — per-version tasks below drive the suite
 tasks.named("yamlRestTest") {
   enabled = false
@@ -48,14 +43,6 @@ for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath
     usesDefaultDistribution("Tests use x-pack security, searchable snapshots, and source-only repository features")
-    def injected = project.objects.newInstance(Injected)
-
-    doFirst {
-      injected.getFs().delete { d ->
-        d.delete(repoLocation)
-      }
-      new File(repoLocation).mkdirs()
-    }
 
     systemProperty 'tests.es.version', version.toString()
     nonInputProperties.systemProperty "tests.repo.location", repoLocation

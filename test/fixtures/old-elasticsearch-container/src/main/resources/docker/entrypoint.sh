@@ -4,8 +4,11 @@ printf 'path.repo: %s\n' "$ES_PATH_REPO" >> /usr/share/elasticsearch/config/elas
 if [ -n "${ES_EXTRA_CONFIG:-}" ]; then
     printf '%s\n' "$ES_EXTRA_CONFIG" >> /usr/share/elasticsearch/config/elasticsearch.yml
 fi
-# Make the bind-mounted repo directory fully accessible to both the old ES process and the
-# host-side new cluster. The entrypoint runs as root so it can chmod regardless of ownership.
+# The entrypoint runs as root, so it can manage the bind-mounted repo directory regardless
+# of who owns it on the host. Ensure it exists, clear stale data from previous runs, then
+# make it fully accessible to both the old ES process and the host-side new cluster.
+mkdir -p "$ES_PATH_REPO"
+find "$ES_PATH_REPO" -mindepth 1 -depth -delete 2>/dev/null || true
 chmod 777 "$ES_PATH_REPO"
 # Ensure files and directories created by old ES inside the repo are world-accessible
 # so the host-side new cluster can write to them for repository verification and restore.

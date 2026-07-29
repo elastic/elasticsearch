@@ -32,7 +32,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.view.RestPutViewAction;
@@ -40,12 +43,16 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +60,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -65,8 +73,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -89,255 +95,14 @@ public class CsvTestsDataLoader {
         )
         .build();
 
-    public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
-        new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
-        new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
-        new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
-        new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
-        new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
-            removeFields("first_name", "last_name")
-        ).withDynamic("false").noSubfields(),
-        new TestDataset("employees_gender_text", "mapping-default.json", "employees.csv").withTypeMapping(Map.of("gender", "text"))
-            .noSubfields(),
-        new TestDataset("employees_no_gender", "mapping-default.json", "employees.csv").withTypeMapping(removeFields("gender"))
-            .withDynamic("false")
-            .noSubfields(),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
-        new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
-            .withDynamic("false"),
-        new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
-        new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
-        new TestDataset("hosts"),
-        new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
-        new TestDataset("apps"),
-        new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),
-        new TestDataset("languages"),
-        new TestDataset("languages").withIndex("languages_lookup").withSetting("lookup-settings.json"),
-        new TestDataset("languages").withIndex("languages_lookup_non_unique_key")
-            .withSetting("lookup-settings.json")
-            .withData("languages_non_unique_key.csv")
-            .withDynamicTypeMapping(Map.of("country", "text")),
-        new TestDataset(
-            "languages_nested_fields",
-            "mapping-languages_nested_fields.json",
-            "languages_nested_fields.csv",
-            "lookup-settings.json"
-        ),
-        new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
-        new TestDataset(
-            "keyword_languages_lookup",
-            "mapping-keyword_languages_lookup.json",
-            "keyword_languages_lookup.csv",
-            "lookup-settings.json"
-        ),
-        new TestDataset("ul_logs"),
-        new TestDataset("sample_data"),
-        new TestDataset("sample_data").withIndex("cloned_sample_data"),
-        new TestDataset("partial_mapping_sample_data"),
-        new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
-        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
-        new TestDataset(
-            "partial_mapping_mv_no_source_sample_data",
-            "mapping-partial_mapping_no_source_sample_data.json",
-            "partial_mapping_mv_sample_data.csv"
-        ),
-        new TestDataset(
-            "partial_message_types_lookup",
-            "mapping-partial_message_types_lookup.json",
-            "partial_message_types_lookup.csv",
-            "lookup-settings.json"
-        ),
-        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
-        new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
-            .withDynamic("false"),
-        new TestDataset(
-            "partial_mapping_no_source_sample_data",
-            "mapping-partial_mapping_no_source_sample_data.json",
-            "partial_mapping_sample_data.csv"
-        ),
-        new TestDataset(
-            "partial_mapping_excluded_source_sample_data",
-            "mapping-partial_mapping_excluded_source_sample_data.json",
-            "partial_mapping_sample_data.csv"
-        ),
-        new TestDataset("mv_sample_data"),
-        new TestDataset("event_alerts"),
-        new TestDataset("event_logs"),
-        new TestDataset("event_empty").noData(),
-        new TestDataset("alerts"),
-        new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
-        new TestDataset("sample_data").withIndex("sample_data_ts_long")
-            .withData("sample_data_ts_long.csv")
-            .withTypeMapping(Map.of("@timestamp", "long")),
-        new TestDataset("sample_data").withIndex("sample_data_ts_nanos")
-            .withData("sample_data_ts_nanos.csv")
-            .withTypeMapping(Map.of("@timestamp", "date_nanos")),
-        new TestDataset("sample_data").withIndex("sample__data_ts_nanos_lookup")
-            .withData("sample_data_ts_nanos.csv")
-            .withTypeMapping(Map.of("@timestamp", "date_nanos"))
-            .withSetting("lookup-settings.json"),
-        new TestDataset("missing_ip_sample_data"),
-        new TestDataset("clientips"),
-        new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
-        new TestDataset("message_types"),
-        new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
-        new TestDataset("hash_algorithms"),
-        new TestDataset("firewall_logs").noData(),
-        new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
-        new TestDataset("app_logs").noData(),
-        new TestDataset("service_owners").withSetting("lookup-settings.json").noData(),
-        new TestDataset("system_metrics").noData(),
-        new TestDataset("host_inventory").withSetting("lookup-settings.json").noData(),
-        new TestDataset("ownerships").withSetting("lookup-settings.json").noData(),
-        new TestDataset("client_cidr"),
-        new TestDataset("ages"),
-        new TestDataset("heights"),
-        new TestDataset("decades"),
-        new TestDataset("mv_decades"),
-        new TestDataset("airports"),
-        new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
-        new TestDataset("airports_no_doc_values").withData("airports.csv"),
-        new TestDataset("airports_not_indexed").withData("airports.csv"),
-        new TestDataset("airports_not_indexed_nor_doc_values").withData("airports.csv"),
-        new TestDataset("airports_web"),
-        new TestDataset("countries_bbox"),
-        new TestDataset("countries_bbox_web"),
-        new TestDataset("airport_city_boundaries").withSetting("lookup-settings.json"),
-        new TestDataset("cartesian_multipolygons"),
-        new TestDataset("cartesian_multipolygons_no_doc_values").withData("cartesian_multipolygons.csv"),
-        new TestDataset("multivalue_geometries"),
-        new TestDataset("multivalue_points"),
-        new TestDataset("date_nanos"),
-        new TestDataset("date_nanos_union_types"),
-        new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
-        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
-            .withDynamic("false"),
-        new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
-            .withDynamic("false"),
-        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
-        new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
-        new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
-        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
-        new TestDataset(
-            "promql_classic_histogram",
-            "mapping-promql-classic-histogram-passthrough.json",
-            "promql_classic_histogram.csv",
-            "promql_classic_histogram-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
-        new TestDataset(
-            "promql_histogram_no_le",
-            "mapping-promql-histogram-no-le-passthrough.json",
-            "promql_histogram_no_le.csv",
-            "promql_histogram_no_le-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
-        new TestDataset("otel-metrics", "otel-metrics-mappings.json", "k8s-otel.csv", "otel-metrics-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
-        new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
-        new TestDataset("distances"),
-        new TestDataset("addresses"),
-        new TestDataset("addresses").withIndex("addresses_no_continent")
-            .withTypeMapping(removeFields("city.country.continent"))
-            .withDynamic("false"),
-        new TestDataset("addresses").withIndex("addresses_text")
-            .withTypeMapping(
-                Map.of(
-                    "street",
-                    "text",
-                    "number",
-                    "text",
-                    "zip_code",
-                    "text",
-                    "city.name",
-                    "text",
-                    "city.country.name",
-                    "text",
-                    "city.country.continent.name",
-                    "text",
-                    "city.country.continent.planet.name",
-                    "text",
-                    "city.country.continent.planet.galaxy",
-                    "text"
-                )
-            ),
-        new TestDataset("books").withSetting("books-settings.json"),
-        new TestDataset("text_state_mapped"),
-        new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
-            removeFields("txt")
-        ).withDynamic("false"),
-        new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
-            removeFields("txt")
-        ).withDynamic("false"),
-        new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
-        new TestDataset("logs"),
-        new TestDataset("dense_vector_text"),
-        new TestDataset("mv_text"),
-        new TestDataset("dense_vector"),
-        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
-            .withDynamic("false")
-            .withTypeMapping(removeFields("float_vector")),
-        new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
-        new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
-        new TestDataset("dense_vector_arithmetic"),
-        new TestDataset("web_logs"),
-        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
-        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
-        new TestDataset("colors"),
-        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
-        new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
-            .withDynamic("false"),
-        new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
-        new TestDataset("base_conversion"),
-        new TestDataset("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
-        new TestDataset(
-            "multi_column_joinable_lookup",
-            "mapping-multi_column_joinable_lookup.json",
-            "multi_column_joinable_lookup.csv",
-            "lookup-settings.json"
-        ),
-        new TestDataset("exp_histo_sample", "exp_histo_sample-mappings.json", "exp_histo_sample.csv", "exp_histo_sample-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW),
-        new TestDataset("tdigest_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW),
-        new TestDataset("histogram_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset(
-            "tdigest_timeseries_index",
-            "tdigest_timeseries_index-mappings.json",
-            "tdigest_standard_index.csv",
-            "tdigest_timeseries_index-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC),
-        new TestDataset(
-            "histogram_timeseries_index",
-            "mapping-histogram_time_series_index.json",
-            "histogram_standard_index.csv",
-            "settings-histogram_time_series_index.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
-        new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs"),
-        new TestDataset("flattened_otel_logs"),
-        new TestDataset("flattened_many"),
-        new TestDataset("flattened_keyed"),
-        new TestDataset("path_lookup").withSetting("lookup-settings.json"),
-        new TestDataset("flattened_typed").withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_DATATYPE),
-        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
-        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
-        new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
-        new TestDataset(
-            "metric_temporality",
-            "metric_temporality-mappings.json",
-            "metric_temporality.csv",
-            "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
-            .withTypeMapping(Map.of("@timestamp", "date_nanos")),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
-        new TestDataset("trim_test")
-    ).collect(toMap(TestDataset::indexName, Function.identity()));
+    /**
+     * All test data definitions (indices, enrich policies, inference endpoints and views) are loaded from the
+     * {@code spec_data.yml} manifest resource, which is the source of truth. Edit that file to add or change data.
+     * The {@code --dump-manifest} developer tool in {@link #main} can regenerate the manifest if needed.
+     */
+    private static final Map<String, Object> MANIFEST = readManifest();
+
+    public static final Map<String, TestDataset> CSV_DATASET = parseManifestDatasets(MANIFEST);
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
     // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
@@ -347,62 +112,43 @@ public class CsvTestsDataLoader {
     @Nullable
     private static final Set<String> specEnrichPolicies = parseSetProperty("tests.spec_enrich_policies");
 
-    public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
-        new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
-        new EnrichConfig("clientip_policy", "enrich-policy-clientips.json", "clientips"),
-        new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json", "client_cidr"),
-        new EnrichConfig("ages_policy", "enrich-policy-ages.json", "ages"),
-        new EnrichConfig("heights_policy", "enrich-policy-heights.json", "heights"),
-        new EnrichConfig("decades_policy", "enrich-policy-decades.json", "decades"),
-        new EnrichConfig("city_names", "enrich-policy-city_names.json", "airport_city_boundaries"),
-        new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json", "airport_city_boundaries"),
-        new EnrichConfig("city_airports", "enrich-policy-city_airports.json", "airport_city_boundaries"),
-        new EnrichConfig("city_locations", "enrich-policy-city_locations.json", "airport_city_boundaries"),
-        new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk")
-    ).collect(toMap(EnrichConfig::policyName, Function.identity()));
+    public static final Map<String, EnrichConfig> ENRICH_POLICIES = parseManifestEnrich(MANIFEST);
 
-    public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
-        new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
-        new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
-        new InferenceConfig("test_embedding_inference", TaskType.EMBEDDING),
-        new InferenceConfig("test_reranker", TaskType.RERANK),
-        new InferenceConfig("test_completion", TaskType.COMPLETION)
-    ).collect(toMap(InferenceConfig::id, Function.identity()));
+    public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = parseManifestInference(MANIFEST);
 
-    public static final Map<String, ViewConfig> VIEW_CONFIGS = Stream.of(
-        new ViewConfig("country_addresses"),
-        new ViewConfig("country_airports"),
-        new ViewConfig("country_languages"),
-        new ViewConfig("airports_mp_filtered"),
-        new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired"),
-        new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra"),
-        new ViewConfig("employees_via_alias"),
-        new ViewConfig("partial_mapping_view"),
-        new ViewConfig("partial_mapping_view_message_wildcard"),
-        new ViewConfig("partial_mapping_mv_view"),
-        new ViewConfig("view_with_subquery"),
-        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
-        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
-    ).collect(toMap(ViewConfig::name, Function.identity()));
+    public static final Map<String, ViewConfig> VIEW_CONFIGS = parseManifestViews(MANIFEST);
+
+    /**
+     * Categories group csv-spec files by the data they need, so a test suite can load only that data. Each
+     * category loads a fixed set of indices (or all of them) plus enrich policies, and either loads views or
+     * not. This is what lets some {@code FROM *} tests see views while others do not: view presence is decided
+     * by the file's category, never by the wildcard resolution itself.
+     */
+    public static final Map<String, Category> CATEGORIES = parseManifestCategories(MANIFEST);
+
+    /** Maps a csv-spec file (its group name, i.e. file name without the {@code .csv-spec} extension) to a category name. */
+    public static final Map<String, String> FILE_CATEGORY = parseManifestFiles(MANIFEST);
+
+    /** Returns the category a csv-spec file belongs to. Accepts either {@code "stats"} or {@code "stats.csv-spec"}. */
+    public static Category categoryFor(String specFileNameOrGroup) {
+        String group = specFileNameOrGroup.endsWith(".csv-spec")
+            ? specFileNameOrGroup.substring(0, specFileNameOrGroup.length() - ".csv-spec".length())
+            : specFileNameOrGroup;
+        String categoryName = FILE_CATEGORY.get(group);
+        if (categoryName == null) {
+            throw new IllegalArgumentException("No category mapping for csv-spec file [" + group + "] in " + MANIFEST_RESOURCE);
+        }
+        return dataForCategory(categoryName);
+    }
+
+    /** Returns the definition of a named category. */
+    public static Category dataForCategory(String name) {
+        Category category = CATEGORIES.get(name);
+        if (category == null) {
+            throw new IllegalStateException("Category [" + name + "] is not defined in " + MANIFEST_RESOURCE);
+        }
+        return category;
+    }
 
     /**
      * Index aliases created unconditionally alongside the main test indices. These are not tied
@@ -432,6 +178,17 @@ public class CsvTestsDataLoader {
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
         LogConfigurator.configureESLogging();
+
+        // Developer tool: rewrite the spec-data manifest in the canonical, sorted format from the in-memory maps.
+        // Usage: ... loadCsvSpecData --args="--dump-manifest /abs/path/spec_data.yml"
+        // Since the maps are themselves loaded from the manifest, this is effectively a normalizer/formatter for
+        // the indices/enrich/inference/views sections. It does NOT emit the hand-maintained categories/files
+        // sections, so only run it against a scratch path and merge, never overwrite the checked-in manifest.
+        if (args.length == 2 && "--dump-manifest".equals(args[0])) {
+            dumpManifestDefinitions(Path.of(args[1]));
+            return;
+        }
+
         boolean indexes = false;
         boolean policies = false;
         boolean views = false;
@@ -541,6 +298,223 @@ public class CsvTestsDataLoader {
                 }
             }
         }
+    }
+
+    /**
+     * Serializes the (currently hardcoded) dataset/enrich/inference/view definitions to a YAML manifest.
+     * Entries are sorted by name for a stable, reviewable diff. Every non-default field is emitted explicitly
+     * so the output round-trips losslessly through the manifest reader.
+     */
+    static void dumpManifestDefinitions(Path path) throws IOException {
+        try (OutputStream out = Files.newOutputStream(path); XContentBuilder b = XContentFactory.yamlBuilder(out)) {
+            b.startObject();
+
+            // "indices" = real Elasticsearch indices (the CSV_DATASET / TestDataset entries). This is distinct from
+            // the external "dataset:" sources (parquet/csv/sql) declared inline in csv-spec files, which are
+            // registered by the esql-datasource-* plugins and are intentionally NOT part of this manifest.
+            b.startArray("indices");
+            List<TestDataset> datasets = new ArrayList<>(CSV_DATASET.values());
+            datasets.sort(Comparator.comparing(TestDataset::indexName));
+            for (TestDataset d : datasets) {
+                b.startObject();
+                b.field("index", d.indexName());
+                if (d.mappingFileName() != null) {
+                    b.field("mapping", d.mappingFileName());
+                }
+                if (d.dataFileName() != null) {
+                    b.field("data", d.dataFileName());
+                }
+                if (d.settingFileName() != null) {
+                    b.field("settings", d.settingFileName());
+                }
+                if (d.allowSubFields() == false) {
+                    b.field("subfields", false);
+                }
+                if (d.dynamic() != null) {
+                    b.field("dynamic", d.dynamic());
+                }
+                writeStringMap(b, "type_mapping", d.typeMapping());
+                writeStringMap(b, "dynamic_type_mapping", d.dynamicTypeMapping());
+                if (d.inferenceEndpoints().isEmpty() == false) {
+                    b.field("inference", d.inferenceEndpoints());
+                }
+                writeCapabilities(b, d.requiredCapabilities());
+                b.endObject();
+            }
+            b.endArray();
+
+            b.startArray("enrich");
+            List<EnrichConfig> policies = new ArrayList<>(ENRICH_POLICIES.values());
+            policies.sort(Comparator.comparing(EnrichConfig::policyName));
+            for (EnrichConfig p : policies) {
+                b.startObject();
+                b.field("policy", p.policyName());
+                b.field("file", p.policyFileName());
+                b.field("index", p.index());
+                b.endObject();
+            }
+            b.endArray();
+
+            b.startArray("inference");
+            List<InferenceConfig> inferences = new ArrayList<>(INFERENCE_CONFIGS.values());
+            inferences.sort(Comparator.comparing(InferenceConfig::id));
+            for (InferenceConfig i : inferences) {
+                b.startObject();
+                b.field("id", i.id());
+                b.field("task_type", i.type().name());
+                b.endObject();
+            }
+            b.endArray();
+
+            b.startArray("views");
+            List<ViewConfig> views = new ArrayList<>(VIEW_CONFIGS.values());
+            views.sort(Comparator.comparing(ViewConfig::name));
+            for (ViewConfig v : views) {
+                b.startObject();
+                b.field("name", v.name());
+                writeCapabilities(b, v.requiredCapabilities());
+                b.endObject();
+            }
+            b.endArray();
+
+            b.endObject();
+        }
+        logger.info("Wrote spec-data manifest definitions to [{}]", path);
+    }
+
+    private static void writeStringMap(XContentBuilder b, String field, @Nullable Map<String, String> map) throws IOException {
+        if (map == null || map.isEmpty()) {
+            return;
+        }
+        b.startObject(field);
+        // sort keys for a stable diff; a null value means "remove this field from the mapping"
+        for (Map.Entry<String, String> e : new TreeMap<>(map).entrySet()) {
+            if (e.getValue() == null) {
+                b.nullField(e.getKey());
+            } else {
+                b.field(e.getKey(), e.getValue());
+            }
+        }
+        b.endObject();
+    }
+
+    private static void writeCapabilities(XContentBuilder b, List<EsqlCapabilities.Cap> capabilities) throws IOException {
+        if (capabilities.isEmpty()) {
+            return;
+        }
+        List<String> names = new ArrayList<>(capabilities.size());
+        for (EsqlCapabilities.Cap cap : capabilities) {
+            names.add(cap.capabilityName());
+        }
+        b.field("capabilities", names);
+    }
+
+    static final String MANIFEST_RESOURCE = "/spec_data.yml";
+
+    /** Reads the spec-data manifest resource into a nested map. */
+    static Map<String, Object> readManifest() {
+        try (InputStream in = getResourceStream(MANIFEST_RESOURCE)) {
+            return XContentHelper.convertToMap(YamlXContent.yamlXContent, in, false);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, TestDataset> parseManifestDatasets(Map<String, Object> root) {
+        Map<String, TestDataset> out = new HashMap<>();
+        for (Map<String, Object> m : (List<Map<String, Object>>) root.get("indices")) {
+            String index = (String) m.get("index");
+            boolean subfields = m.containsKey("subfields") == false || (Boolean) m.get("subfields");
+            List<String> inference = m.containsKey("inference") ? (List<String>) m.get("inference") : List.of();
+            out.put(
+                index,
+                new TestDataset(
+                    index,
+                    (String) m.get("mapping"),
+                    (String) m.get("data"),
+                    (String) m.get("settings"),
+                    subfields,
+                    parseStringMap(m.get("type_mapping")),
+                    parseStringMap(m.get("dynamic_type_mapping")),
+                    (String) m.get("dynamic"),
+                    inference,
+                    parseCapabilities(m.get("capabilities"))
+                )
+            );
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, EnrichConfig> parseManifestEnrich(Map<String, Object> root) {
+        Map<String, EnrichConfig> out = new HashMap<>();
+        for (Map<String, Object> m : (List<Map<String, Object>>) root.get("enrich")) {
+            out.put((String) m.get("policy"), new EnrichConfig((String) m.get("policy"), (String) m.get("file"), (String) m.get("index")));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, InferenceConfig> parseManifestInference(Map<String, Object> root) {
+        Map<String, InferenceConfig> out = new HashMap<>();
+        for (Map<String, Object> m : (List<Map<String, Object>>) root.get("inference")) {
+            out.put((String) m.get("id"), new InferenceConfig((String) m.get("id"), TaskType.fromString((String) m.get("task_type"))));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, ViewConfig> parseManifestViews(Map<String, Object> root) {
+        Map<String, ViewConfig> out = new HashMap<>();
+        for (Map<String, Object> m : (List<Map<String, Object>>) root.get("views")) {
+            out.put((String) m.get("name"), new ViewConfig((String) m.get("name"), parseCapabilities(m.get("capabilities"))));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Category> parseManifestCategories(Map<String, Object> root) {
+        Map<String, Category> out = new HashMap<>();
+        for (Map.Entry<String, Object> e : ((Map<String, Object>) root.get("categories")).entrySet()) {
+            Map<String, Object> m = (Map<String, Object>) e.getValue();
+            List<String> indices = m.containsKey("indices") ? (List<String>) m.get("indices") : List.of();
+            List<String> enrich = m.containsKey("enrich") ? (List<String>) m.get("enrich") : List.of();
+            List<String> views = m.containsKey("views") ? (List<String>) m.get("views") : List.of();
+            out.put(e.getKey(), new Category(e.getKey(), List.copyOf(indices), List.copyOf(enrich), List.copyOf(views)));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, String> parseManifestFiles(Map<String, Object> root) {
+        return Map.copyOf((Map<String, String>) root.get("files"));
+    }
+
+    /** A null value means the field should be removed from the mapping (see {@link TestDataset#withTypeMapping}). */
+    @SuppressWarnings("unchecked")
+    @Nullable
+    private static Map<String, String> parseStringMap(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        Map<String, String> out = new HashMap<>();
+        for (Map.Entry<String, Object> e : ((Map<String, Object>) value).entrySet()) {
+            out.put(e.getKey(), (String) e.getValue());
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<EsqlCapabilities.Cap> parseCapabilities(@Nullable Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        List<EsqlCapabilities.Cap> out = new ArrayList<>();
+        for (String name : (List<String>) value) {
+            out.add(EsqlCapabilities.Cap.valueOf(name.toUpperCase(Locale.ROOT)));
+        }
+        return out;
     }
 
     public static Set<TestDataset> availableDatasetsForEs(
@@ -653,9 +627,28 @@ public class CsvTestsDataLoader {
             return;
         }
         if (indicesToLoad != null) {
-            loadDatasetsIntoEs(client, indicesToLoad);
+            // Restrict the requested indices to those actually supported on this cluster (inference, lookup mode,
+            // source mapping, time-series, capabilities), mirroring the "load all" path. E.g. semantic_text is
+            // skipped when the cluster has no inference test service; its tests skip too (required_capability).
+            Set<String> available = new HashSet<>();
+            for (TestDataset dataset : availableDatasetsForEs(
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck
+            )) {
+                available.add(dataset.indexName());
+            }
+            List<String> supportedIndices = new ArrayList<>();
+            for (String indexName : indicesToLoad) {
+                if (available.contains(indexName)) {
+                    supportedIndices.add(indexName);
+                }
+            }
+            loadDatasetsIntoEs(client, supportedIndices);
             if (timeSeriesOnly == false) {
-                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+                loadEnrichPoliciesForLoadedSourceIndices(client, supportedIndices);
             }
         } else {
             loadDataSets(
@@ -755,9 +748,22 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
+        loadViewsIntoEs(client, capabilityCheck, VIEW_CONFIGS.keySet());
+    }
+
+    /**
+     * Loads exactly the named views (skipping any whose required capabilities are not enabled). Used by the
+     * per-category test runners, which load only the views their category declares.
+     */
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck, Collection<String> viewNames)
+        throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.info("Loading views");
-            for (var view : VIEW_CONFIGS.values()) {
+            logger.info("Loading views {}", viewNames);
+            for (String name : viewNames) {
+                ViewConfig view = VIEW_CONFIGS.get(name);
+                if (view == null) {
+                    throw new IllegalArgumentException("View [" + name + "] not found in " + MANIFEST_RESOURCE);
+                }
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
                     logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
                     continue;
@@ -801,13 +807,143 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
+        deleteViews(client, VIEW_CONFIGS.keySet());
+    }
+
+    /** Deletes exactly the named views (used by the per-category delta on a category switch). No-op if absent. */
+    public static void deleteViews(RestClient client, Collection<String> viewNames) throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
+            logger.debug("Deleting views {}", viewNames);
+            for (String name : viewNames) {
+                deleteView(client, name);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
+        }
+    }
+
+    /**
+     * Moves the cluster's loaded index and enrich-policy data from the {@code currentIndices} set to the
+     * {@code targetIndices} set by applying only the delta: deletes the indices/policies no longer needed, creates the
+     * ones newly needed, and leaves shared ones untouched. Index data is fixed per index name, so a kept index is
+     * already correct. This avoids the wipe-and-reload cost of {@link #deleteAllData} while leaving the loaded set
+     * exactly equal to {@code targetIndices}, so a bare {@code FROM *} stays scoped to the loaded set.
+     *
+     * <p>The sets are the <em>requested</em> index names (e.g. a category's indices, or a suite's fixed override), not
+     * pre-filtered; availability filtering happens here, mirroring {@link #loadDataSetIntoEs}: datasets unsupported on
+     * this cluster (e.g. {@code semantic_text} without an inference service) are neither created nor counted, and
+     * deleting an absent index is a no-op. Enrich policies are taken from the caller's declared lists
+     * ({@code currentEnrich}/{@code targetEnrich}) rather than auto-derived from source indices, and are skipped
+     * entirely on time-series-only clusters. Views are handled separately by the caller because they load through the
+     * admin client and honour a capability check. Pass empty collections when nothing is loaded yet (every target index
+     * and policy is then a create).
+     */
+    public static void syncIndicesAndEnrich(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        Collection<String> currentIndices,
+        Collection<String> targetIndices,
+        Collection<String> currentEnrich,
+        Collection<String> targetEnrich
+    ) throws IOException {
+        Set<String> available = new HashSet<>();
+        for (TestDataset dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            capabilityCheck
+        )) {
+            available.add(dataset.indexName());
+        }
+
+        Set<String> current = availableSubset(currentIndices, available);
+        Set<String> target = availableSubset(targetIndices, available);
+        Set<String> currentEnrichSet = timeSeriesOnly ? Set.of() : applyEnrichFilter(currentEnrich);
+        Set<String> targetEnrichSet = timeSeriesOnly ? Set.of() : applyEnrichFilter(targetEnrich);
+
+        // Delete what is no longer needed: enrich policies first (they reference source indices), then indices.
+        for (String policy : currentEnrichSet) {
+            if (targetEnrichSet.contains(policy) == false) {
+                deleteEnrichPolicy(client, policy);
+            }
+        }
+        List<String> indicesToDelete = new ArrayList<>();
+        for (String index : current) {
+            if (target.contains(index) == false) {
+                indicesToDelete.add(index);
+            }
+        }
+        for (String index : indicesToDelete) {
+            deleteIndex(client, index);
+        }
+
+        // Create what is newly needed: indices first (enrich executes against them), then enrich policies.
+        List<String> indicesToCreate = new ArrayList<>();
+        for (String index : target) {
+            if (current.contains(index) == false) {
+                indicesToCreate.add(index);
+            }
+        }
+        loadDatasetsIntoEs(client, indicesToCreate);
+        for (String policy : targetEnrichSet) {
+            if (currentEnrichSet.contains(policy) == false) {
+                loadEnrichPolicy(client, ENRICH_POLICIES.get(policy));
+            }
+        }
+        // Create aliases for all target indices that have a matching ALIAS_CONFIG.
+        // Aliases are automatically dropped when their backing index is deleted, so no explicit cleanup is needed.
+        loadAliasesIntoEs(client, new ArrayList<>(target));
+    }
+
+    private static Set<String> availableSubset(Collection<String> names, Set<String> available) {
+        Set<String> out = new HashSet<>();
+        for (String name : names) {
+            if (available.contains(name)) {
+                out.add(name);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Returns the subset of {@code declared} enrich policies that pass the {@code tests.spec_enrich_policies} filter
+     * (if set). When no filter is active, all declared policies are returned unchanged.
+     */
+    private static Set<String> applyEnrichFilter(Collection<String> declared) {
+        if (specEnrichPolicies == null) {
+            return new HashSet<>(declared);
+        }
+        Set<String> result = new HashSet<>();
+        for (String policy : declared) {
+            if (specEnrichPolicies.contains(policy)) {
+                result.add(policy);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Wipes ALL test data (views, enrich policies, indices) from the cluster so the next category can be loaded into a
+     * clean slate. Deleting an absent resource is ignored, so this is safe regardless of which subset was actually
+     * loaded.
+     *
+     * <p>A full wipe — rather than deleting only the leaving category's declared indices — is required because
+     * categories share indices, and because a load pulls in dependencies that are not listed in a category's own index
+     * set (enrich source indices, and the indices queried by view definitions). A subset delete leaves those behind, so
+     * the next category's load collides with {@code resource_already_exists_exception}. This mirrors CsvIT's unload-all
+     * behaviour on a category switch and makes teardown independent of which category was previously loaded (including
+     * across the per-variant test classes that share one cluster within a single JVM).
+     */
+    public static void deleteAllData(RestClient client) throws IOException {
+        deleteViews(client);
+        deleteEnrichPolicies(client);
+        for (TestDataset dataset : CSV_DATASET.values()) {
+            deleteIndex(client, dataset.indexName());
         }
     }
 
@@ -993,18 +1129,6 @@ public class CsvTestsDataLoader {
         if (dataset.dataFileName != null) {
             loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields);
         }
-    }
-
-    /**
-     * Creates a type mapping that removes the given fields from the mapping.
-     * For use with {@link TestDataset#withTypeMapping}.
-     */
-    private static Map<String, String> removeFields(String... fields) {
-        var map = new HashMap<String, String>();
-        for (String field : fields) {
-            map.put(field, null);
-        }
-        return map;
     }
 
     public static String readMappingFile(TestDataset dataset) throws IOException {
@@ -1581,6 +1705,22 @@ public class CsvTestsDataLoader {
 
         public InputStream streamData() {
             return getResourceStream("/data/" + dataFileName);
+        }
+    }
+
+    /**
+     * A group of csv-spec files that share the same data needs: an explicit set of indices to load, the enrich
+     * policies to load, and an explicit (possibly empty) set of views to load.
+     * <p>
+     * There is deliberately no "all indices" mode. A bare {@code FROM *} in a csv-spec file is category-scoped —
+     * it matches exactly the indices this category loads — and a prefix wildcard like {@code employees*} resolves
+     * the same as in production because {@link #indices} already includes every index that matches it. Views are
+     * loaded only for the files that reference a view by name (the {@code views} category); this is what lets some
+     * {@code FROM *} tests see views while others do not.
+     */
+    public record Category(String name, List<String> indices, List<String> enrich, List<String> views) {
+        public boolean loadsViews() {
+            return views.isEmpty() == false;
         }
     }
 

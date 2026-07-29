@@ -864,10 +864,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return baseUri.endsWith("/") ? baseUri + suffix : baseUri + "/" + suffix;
     }
 
+    // The external-source suites are not category-scoped: they load a fixed set of indices and no views.
     @Override
     protected List<String> indicesToLoad() {
         // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
         return List.of("languages", "languages_lookup");
+    }
+
+    @Override
+    protected java.util.Collection<String> viewsToLoad() {
+        return List.of();
     }
 
     @Override

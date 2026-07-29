@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.esql.EsqlCsvSpecTestsPlugin;
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
@@ -89,12 +88,15 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
             });
         });
 
-        project.getPlugins().withType(EsqlCsvSpecTestsPlugin.class, esqlPlugin -> {
-            NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(EsqlCsvSpecTestsPlugin.SOURCE_SET_NAME);
-            setupTaskForSourceSet(project, sourceSet, t -> {
-                t.getSuffixes().convention(List.of("IT"));
-                t.getBaseClasses().convention(List.of("org.elasticsearch.test.rest.ESRestTestCase"));
-            });
+        // Wire the csvSpecTest source set when present (created inline in each module's build.gradle).
+        sourceSets.all(ss -> {
+            if ("csvSpecTest".equals(ss.getName())) {
+                NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named("csvSpecTest");
+                setupTaskForSourceSet(project, sourceSet, t -> {
+                    t.getSuffixes().convention(List.of("IT"));
+                    t.getBaseClasses().convention(List.of("org.elasticsearch.test.rest.ESRestTestCase"));
+                });
+            }
         });
 
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):

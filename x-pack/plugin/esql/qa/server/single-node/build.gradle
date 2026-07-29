@@ -11,8 +11,6 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPreco
 apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
-
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
@@ -33,13 +31,15 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-s3'))
 }
 
-esqlCsvSpecTests {
-    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-    packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
-    variant 'EsqlSpec', 'AbstractEsqlSpecIT'
-    variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
-    variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
-    variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite. Shares the javaRestTest
+// cluster dependencies but runs in a separate csvSpecTests task against its own cluster.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 restResources {
@@ -57,20 +57,21 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+// The whole csv-spec suite runs in ONE JVM against ONE shared cluster. EsqlSpecTestCase groups execution by
+// category and swaps the cluster's data when the category changes, so a bare "FROM *" is scoped to a category
+// and views exist only for the views category — without paying for a cluster per category.
+// Granularity: run one file with --tests "*<File>IT", one test by adding -Dtests.method="test {csv-spec:<file>.<test>}".
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
-  dependsOn generateEsqlSpecTests
 }
 tasks.named('check').configure { dependsOn csvSpecTests }
 
-// Second rest-test variant: runs EsqlSpecIT against a cluster with xpack security enabled and
-// the REST client authenticated as a superuser. The cluster reads the tests.cluster.security.enabled
-// system property (see Clusters.java); ESRestTestCase.restClientSettings() reads the two auth
-// system properties. No test classes are modified.
+// Security variant: the same suite against a cluster with xpack security enabled and the REST client
+// authenticated as a superuser (see Clusters.java / ESRestTestCase.restClientSettings()). Not wired to check.
 tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
@@ -78,8 +79,7 @@ tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   filter {
-    // Runs the generated per-csv-spec-file classes with security enabled.
-    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpec*IT'
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.*'
   }
   systemProperty 'tests.cluster.security.enabled', 'true'
   systemProperty 'tests.rest.cluster.username', 'test-admin'

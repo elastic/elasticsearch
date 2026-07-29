@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
@@ -45,10 +44,14 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
-esqlCsvSpecTests {
-    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-    packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
-    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlSpecIT'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 // ESQL is available in 8.11 or later
@@ -74,7 +77,6 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {

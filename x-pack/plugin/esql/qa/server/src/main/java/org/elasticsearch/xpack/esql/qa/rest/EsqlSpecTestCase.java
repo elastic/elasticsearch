@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.qa.rest;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
@@ -46,10 +45,14 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.Callable;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,8 +68,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -82,8 +83,8 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPar
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
 
-// Each class covers one csv-spec file and should complete well within 10 minutes;
-// monolithic subclasses that run all spec files must add their own longer annotation.
+// Each generated variant class runs all csv-spec files in one category-sorted pass; that single-class suite completes
+// well within 10 minutes (the whole multi-class run is the sum of these). This is a per-suite (per-class) timeout.
 @TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
@@ -109,16 +110,40 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         "TRACE"
     );
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
-    public static List<Object[]> readScriptSpec() throws Exception {
+    /**
+     * All csv-spec test cases, ordered by category so the whole suite runs one category at a time in a single JVM.
+     * The category-grouped order is essential: it lets the cluster's per-category data be set up once per category
+     * rather than thrashing (see {@link #ensureCategoryLoaded}); the generated {@code @ParametersFactory} passes
+     * {@code shuffle = false} so this order is preserved (the default shuffles it).
+     *
+     * <p>Categories are ordered by ascending declared index count (so the empty {@code norows} category runs first and
+     * the large {@code core} category runs last). Combined with the delta loader in {@link #ensureCategoryLoaded}, this
+     * makes most category switches additive — indices are mostly created as later categories need them, with few
+     * deletes — and avoids tearing everything down for the empty category in the middle of the run.
+     *
+     * <p>This is the shared parameter source (a "hook", not itself a {@code @ParametersFactory}). Each generated
+     * variant class declares a {@code @ParametersFactory readScriptSpec()} whose body calls this method by its
+     * <em>unqualified</em> name, so Java static-method hiding lets a variant base (e.g.
+     * {@code AbstractEsqlSpecForceStoredLoadingIT}) substitute a filtered version transparently.
+     */
+    public static List<Object[]> csvSpecParameters() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        List<Object[]> specs = new ArrayList<>(SpecReader.readScriptSpec(urls, CsvSpecReader::specParser));
+        // Group tests so every category is contiguous, ordered by ascending declared index count (then category name
+        // for a stable order, then file and line). The declared count is used (not the availability-filtered count) so
+        // the order is identical across suites. See categoryFor: every file maps to exactly one category.
+        specs.sort(
+            Comparator.<Object[]>comparingInt(spec -> CsvTestsDataLoader.categoryFor((String) spec[1]).indices().size())
+                .thenComparing(spec -> CsvTestsDataLoader.categoryFor((String) spec[1]).name())
+                .thenComparing(spec -> (String) spec[1])
+                .thenComparingInt(spec -> (Integer) spec[3])
+        );
+        return specs;
     }
 
     /**
      * Load test cases from a single named CSV spec file, e.g. {@code "/stats.csv-spec"}.
-     * Intended for use by generated per-spec-file test classes.
      */
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
         URL url = classpathResource(specFile);
@@ -143,96 +168,94 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.mode = randomFrom(Mode.values());
     }
 
-    private static class Protected {
-        private final String description;
-        private volatile boolean completed = false;
-        private volatile boolean started = false;
-        private volatile Throwable failure = null;
-
-        Protected(String description) {
-            this.description = description;
-        }
-
-        private void protectedBlock(Callable<Void> callable) {
-            if (completed) {
-                LOGGER.debug("Skipping [{}]: already completed", description);
-                return;
-            }
-            // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
-            synchronized (this) {
-                if (completed) {
-                    LOGGER.debug("Skipping [{}]: already completed", description);
-                    return;
-                }
-                if (started) {
-                    // Should only happen if a previous test setup failed, possibly with partial setup, let's fail fast the current test
-                    if (failure != null) {
-                        fail(failure, "Previous test setup failed: " + failure.getMessage());
-                    }
-                    fail("Previous test setup failed with unknown error");
-                }
-                started = true;
-                LOGGER.info("Starting [{}]", description);
-                try {
-                    callable.call();
-                    completed = true;
-                    LOGGER.info("Completed [{}]", description);
-                } catch (Throwable t) {
-                    failure = t;
-                    fail(failure, "Current test setup failed: " + failure.getMessage());
-                }
-            }
-        }
-
-        private synchronized void reset() {
-            completed = false;
-            started = false;
-            failure = null;
-        }
-    }
-
-    private static final Protected INGEST = new Protected("test data ingestion");
-    private static final Protected VIEWS = new Protected("view loading");
     protected static boolean testClustersOk = true;
+
+    // The whole csv-spec suite runs in one JVM against one cluster. Tests are grouped by category (see the
+    // category-sorted parameter source {@link #csvSpecParameters()}); when the running test's category differs from
+    // the one the cluster currently holds, we tear down the previous category's data and load the new category's.
+    // This keeps "FROM *" scoped to a category and views present only for the views category, without one cluster
+    // per category.
+    private static final Object CATEGORY_LOCK = new Object();
+    private static volatile CsvTestsDataLoader.Category loadedCategory = null;
+    // The index and view names currently loaded (the requested sets, before availability filtering), tracked so a
+    // category switch only applies the delta rather than wiping and reloading. Mutated only under CATEGORY_LOCK.
+    private static Set<String> loadedIndices = Set.of();
+    private static Set<String> loadedViews = Set.of();
 
     @Before
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
-        INGEST.protectedBlock(() -> {
-            // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
-            // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
+        ensureCategoryLoaded(category());
+        // Skip tests entirely when the cluster cannot support the views their category needs: views are not loaded,
+        // so running them would fail with "index not found" rather than giving a meaningful skip.
+        if (viewsToLoad().isEmpty() == false) {
+            assumeTrue(
+                "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
+                supportsViews()
+            );
+        }
+    }
+
+    /**
+     * Ensures the cluster holds exactly this test's required data, switching from the previously loaded category if
+     * needed by applying only the delta (create newly needed indices/views/enrich, delete no-longer-needed ones, leave
+     * shared ones in place). No-op if the category is already loaded.
+     *
+     * <p>The delta is driven by {@link #indicesToLoad()}/{@link #viewsToLoad()} (the overridable requested sets), so
+     * suites that opt out of category scoping (external-source, generative) work unchanged. Because the suite runs in
+     * ascending index-count order (see {@link #csvSpecParameters()}), switches are mostly additive.
+     */
+    private void ensureCategoryLoaded(CsvTestsDataLoader.Category category) throws IOException {
+        if (category.equals(loadedCategory)) {
+            return;
+        }
+        synchronized (CATEGORY_LOCK) {
+            if (category.equals(loadedCategory)) {
+                return;
+            }
+            if (loadedCategory == null) {
+                // First load in this JVM: one cluster is shared across the per-variant test classes, so start from a
+                // known-clean slate. The subsequent delta then creates this category's data from empty.
+                LOGGER.info("Loading first category [{}]: wiping any pre-existing data", category.name());
+                CsvTestsDataLoader.deleteAllData(adminClient());
+            } else {
+                LOGGER.info("Category switch [{}] -> [{}]: applying data delta", loadedCategory.name(), category.name());
+            }
+            // Inference endpoints must exist before ingesting datasets that rely on them; creation is idempotent and
+            // endpoints are not torn down between categories.
             createInferenceEndpointsIfSupported();
-            loadDataSetIntoEs(
+
+            Set<String> targetIndices = new HashSet<>(indicesToLoad());
+            List<String> currentEnrich = loadedCategory != null ? loadedCategory.enrich() : List.of();
+            CsvTestsDataLoader.syncIndicesAndEnrich(
                 client(),
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
                 this::clusterHasCapability,
-                indicesToLoad()
+                loadedIndices,
+                targetIndices,
+                currentEnrich,
+                category.enrich()
             );
-            return null;
-        });
-        // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
-        // Only load views for groups that reference them (see shouldLoadViews) to avoid issues with wildcards like "FROM *".
-        if (shouldLoadViews()) {
-            VIEWS.protectedBlock(() -> {
-                if (supportsViews()) {
-                    loadViewsIntoEs(adminClient(), this::clusterHasCapability);
+
+            // Views delta (only the views category declares any; loaded through the admin client with a cap check).
+            Set<String> targetViews = new HashSet<>(viewsToLoad());
+            if (supportsViews()) {
+                List<String> viewsToDelete = loadedViews.stream().filter(v -> targetViews.contains(v) == false).toList();
+                if (viewsToDelete.isEmpty() == false) {
+                    CsvTestsDataLoader.deleteViews(adminClient(), viewsToDelete);
                 }
-                return null;
-            });
-            // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
-            // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
-                assumeTrue(
-                    "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
-                    supportsViews()
-                );
+                List<String> viewsToCreate = targetViews.stream().filter(v -> loadedViews.contains(v) == false).toList();
+                if (viewsToCreate.isEmpty() == false) {
+                    loadViewsIntoEs(adminClient(), this::clusterHasCapability, viewsToCreate);
+                }
             }
-        } else {
-            deleteViews(adminClient());
-            VIEWS.reset();
+
+            loadedIndices = targetIndices;
+            loadedViews = targetViews;
+            loadedCategory = category;
         }
     }
 
@@ -262,18 +285,28 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    // Load views only for groups whose tests reference view fixtures
-    protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+    /**
+     * The category (from the spec_data.yml manifest) this csv-spec file belongs to. Every file has exactly one
+     * category (an unmapped file fails fast in {@link CsvTestsDataLoader#categoryFor}). Because the suite runs
+     * category-sorted (see {@link #csvSpecParameters()}), all files of a category run contiguously, and the cluster is
+     * loaded once per category as execution crosses category boundaries (see {@link #ensureCategoryLoaded}). Suites
+     * that are not category-scoped (external-source, generative) override {@link #indicesToLoad()}/{@link #viewsToLoad()}.
+     */
+    protected CsvTestsDataLoader.Category category() {
+        return CsvTestsDataLoader.categoryFor(groupName);
     }
 
     /**
-     * Indices to load during setup. Override to control which indices are loaded.
-     *
-     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     * Indices to load during setup: exactly the ones this file's category declares. Non-category-scoped suites
+     * override this. Return {@code null} to load all indices, an empty list for none.
      */
     protected List<String> indicesToLoad() {
-        return null;
+        return category().indices();
+    }
+
+    /** Views to load during setup: exactly the ones this file's category declares (empty for non-view categories). */
+    protected Collection<String> viewsToLoad() {
+        return category().views();
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

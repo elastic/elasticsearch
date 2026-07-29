@@ -9,7 +9,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
@@ -30,10 +29,14 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
-esqlCsvSpecTests {
-    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
-    packageName = 'org.elasticsearch.xpack.esql.ccq'
-    variant 'MultiClusterSpec', 'AbstractMultiClusterSpecIT'
+// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
+sourceSets {
+    csvSpecTest
+}
+configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
+configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
+dependencies {
+    csvSpecTestImplementation(sourceSets.javaRestTest.output)
 }
 
 def currentVersion = buildParams.bwcVersions.currentVersion
@@ -44,7 +47,6 @@ def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", Standal
   maxParallelForks = 1
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
-  dependsOn generateEsqlSpecTests
 }
 
 tasks.named("bwcTest").configure {
@@ -98,7 +100,6 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
   }
 
   def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
@@ -108,7 +109,6 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
   }
 
   // One csvSpecTests per version; both cross-cluster directions run under it.

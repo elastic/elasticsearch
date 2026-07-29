@@ -18,11 +18,11 @@ import java.util.List;
  * Abstract base for per-csv-spec-file test classes that run with
  * {@link MappedFieldType.FieldExtractPreference#STORED} forced on every query.
  * <p>
- * The static {@link #readScriptSpec(String)} method hides
- * {@link EsqlSpecTestCase#readScriptSpec(String)} and applies the stored-loading
+ * The static {@link #csvSpecParameters()} method hides
+ * {@link EsqlSpecTestCase#csvSpecParameters()} and applies the stored-loading
  * filter: cases tagged {@code requestStored=SKIP} are dropped, and cases tagged
  * {@code requestStored=IGNORE_ORDER} have {@code ignoreOrder} set to {@code true}.
- * Generated subclasses call this method from their {@code @ParametersFactory}
+ * Generated subclasses call {@code csvSpecParameters()} from their {@code @ParametersFactory}
  * factory via the unqualified name, so Java's static-method hiding ensures the
  * filtering version is always used.
  */
@@ -55,11 +55,12 @@ public abstract class AbstractEsqlSpecForceStoredLoadingIT extends AbstractEsqlS
     }
 
     /**
-     * Loads the single spec file and filters out cases that cannot run with forced
-     * stored-field loading. Hides {@link EsqlSpecTestCase#readScriptSpec(String)}.
+     * All csv-spec cases (category-ordered, as {@link EsqlSpecTestCase#csvSpecParameters()}), with cases that cannot
+     * run under forced stored-field loading filtered out. Hides {@link EsqlSpecTestCase#csvSpecParameters()} so the
+     * generated variant class picks up this filtering version through its unqualified {@code csvSpecParameters()} call.
      */
-    protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
-        List<Object[]> orig = EsqlSpecTestCase.readScriptSpec(specFile);
+    public static List<Object[]> csvSpecParameters() throws Exception {
+        List<Object[]> orig = EsqlSpecTestCase.csvSpecParameters();
         List<Object[]> specs = new ArrayList<>(orig.size());
         for (Object[] s : orig) {
             CsvTestCase testCase = (CsvTestCase) s[4];

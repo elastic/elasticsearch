@@ -115,7 +115,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -565,7 +564,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         CircuitBreaker breaker = createCircuitBreakerService();
         SearchExecutionContext contextA = new SearchExecutionContext(createSearchExecutionContext(), breaker);
         SearchExecutionContext contextB = new SearchExecutionContext(createSearchExecutionContext(), breaker);
-        CyclicBarrier built = new CyclicBarrier(3);
+
+        CountDownLatch built = new CountDownLatch(2);
         CountDownLatch release = new CountDownLatch(1);
         AtomicLong retainedA = new AtomicLong();
         AtomicLong retainedB = new AtomicLong();
@@ -582,15 +582,22 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
             @Override
             public void run() {
+                boolean signaledBuilt = false;
                 try {
                     Query query = queryBuilder.apply(context);
                     retained.set(((Accountable) query).ramBytesUsed());
-                    built.await(30, TimeUnit.SECONDS);
-                    release.await(30, TimeUnit.SECONDS);
+
+                    built.countDown();
+                    signaledBuilt = true;
+                    if (release.await(30, TimeUnit.SECONDS) == false) {
+                        workerFailure.compareAndSet(null, new IllegalStateException("worker timed out awaiting release signal"));
+                    }
                 } catch (Exception e) {
                     workerFailure.compareAndSet(null, e);
-                    built.reset();
                 } finally {
+                    if (signaledBuilt == false) {
+                        built.countDown();
+                    }
                     context.releaseQueryConstructionMemory();
                 }
             }
@@ -601,12 +608,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         a.start();
         b.start();
         try {
-            built.await(30, TimeUnit.SECONDS);
-            assertThat(
-                "breaker used must cover both live automata (no release-before-commit dip)",
-                breaker.getUsed(),
-                greaterThanOrEqualTo(retainedA.get() + retainedB.get())
-            );
+            assertTrue("workers did not finish building within timeout", built.await(30, TimeUnit.SECONDS));
+            if (workerFailure.get() == null) {
+                assertThat(
+                    "breaker used must cover both live automata (no release-before-commit dip)",
+                    breaker.getUsed(),
+                    greaterThanOrEqualTo(retainedA.get() + retainedB.get())
+                );
+            }
         } catch (Exception e) {
             workerFailure.compareAndSet(null, e);
         } finally {
@@ -614,6 +623,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
         a.join(TimeUnit.SECONDS.toMillis(30));
         b.join(TimeUnit.SECONDS.toMillis(30));
+        assertFalse("worker A did not terminate within timeout", a.isAlive());
+        assertFalse("worker B did not terminate within timeout", b.isAlive());
         if (workerFailure.get() != null) {
             throw workerFailure.get();
         }

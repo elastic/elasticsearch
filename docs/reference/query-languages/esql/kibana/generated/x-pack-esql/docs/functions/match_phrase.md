@@ -2,7 +2,7 @@
 
 ### MATCH PHRASE
 Use `MATCH_PHRASE` to perform a [`match_phrase`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query-phrase) on the
-specified field.
+specified field or expression.
 Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
 
 ```esql

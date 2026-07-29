@@ -4818,33 +4818,4 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     private static TestCacheKey randomTestCacheKey(ShardId shardId) {
         return new TestCacheKey(shardId, randomAlphaOfLength(5));
     }
-
-    // Following methods are helpers to call package private methods on SharedBlobCacheService for testing purposes
-    public static <K extends SharedBlobCacheService.KeyBase> int freeRegionCountFromCacheService(SharedBlobCacheService<K> cacheService) {
-        return cacheService.freeRegionCount();
-    }
-
-    public static <K extends SharedBlobCacheService.KeyBase> CacheFileRegion<K> getFromCacheService(
-        SharedBlobCacheService<K> cacheService,
-        K cacheKey,
-        long fileLength,
-        int region
-    ) {
-        return cacheService.get(cacheKey, fileLength, region);
-    }
-
-    public static <K extends SharedBlobCacheService.KeyBase> boolean maybeEvictLeastUsedFromCacheService(
-        SharedBlobCacheService<K> cacheService,
-        K cacheKey,
-        long length,
-        int region
-    ) {
-        return cacheService.maybeEvictLeastUsed(cacheKey, length, region);
-    }
-
-    public static <K extends SharedBlobCacheService.KeyBase> void maybeScheduleDecayAndNewEpochForCacheService(
-        SharedBlobCacheService<K> cacheService
-    ) {
-        cacheService.maybeScheduleDecayAndNewEpoch();
-    }
 }

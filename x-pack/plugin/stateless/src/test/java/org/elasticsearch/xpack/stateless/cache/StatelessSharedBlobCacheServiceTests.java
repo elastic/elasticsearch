@@ -41,10 +41,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests.freeRegionCountFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests.getFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests.maybeEvictLeastUsedFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests.maybeScheduleDecayAndNewEpochForCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.freeRegionCountFromCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.getFromCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeEvictLeastUsedFromCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpochForCacheService;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.hamcrest.Matchers.equalTo;

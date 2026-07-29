@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1624,6 +1625,26 @@ public class VerifierTests extends ESTestCase {
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
+    }
+
+    public void testDoubleRangeUnsupportedOperations() {
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V2.isEnabled());
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | STATS count(*) BY height_range",
+                containsString("cannot group by on [double_range] type for grouping [height_range]")
+            );
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .addLookupIndex("heights_lookup", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | LOOKUP JOIN heights_lookup ON height_range",
+                containsString("JOIN with right field [height_range] of type [DOUBLE_RANGE] is not supported")
+            );
     }
 
     public void testFieldExtractFirstArgumentMustBeFlattened() {
@@ -4742,7 +4763,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json")
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }

@@ -214,6 +214,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             import org.elasticsearch.foreign.Variadic;
             @LibrarySpecification(symbolResolver = ErrnoLib.FakeResolver.class)
@@ -229,9 +230,9 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
                 class FakeResolver implements SymbolResolver {
                     public FakeResolver() {}
-                    public MemorySegment resolve(String name, SymbolLookup lookup) {
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
                         // downcallHandle validates the address is non-NULL; any positive value works.
-                        return MemorySegment.ofAddress(1L);
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
                     }
                 }
             }
@@ -328,6 +329,87 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> driver = result.loadClass("test.BufDriver");
         Object buf = driver.getMethod("create", short.class).invoke(null, (short) 42);
         assertNotNull("BufDriver.create must return a non-null Buf", buf);
+    }
+
+    /**
+     * End-to-end test: a library whose {@code @LibrarySpecification} names a custom
+     * {@link org.elasticsearch.foreign.MethodHandleResolver} that ignores the native symbol and
+     * returns a constant-returning handle. When the generated {@code $Impl} is invoked, the
+     * transformation from the custom resolver must be visible — proving the processor routes
+     * method-handle creation through {@code MethodHandleResolver.resolve} rather than directly
+     * calling {@code Linker.downcallHandle}.
+     *
+     * <p>The custom resolver returns {@code MethodHandles.constant(int.class, 99)} so the
+     * generated method always yields {@code 99}, regardless of what native symbol was resolved.
+     * Both a custom {@link org.elasticsearch.foreign.SymbolResolver} (returning a fake address so
+     * {@code defaultLookup()} is never consulted) and the custom {@code MethodHandleResolver} are
+     * specified in the same {@code @LibrarySpecification}.
+     */
+    public void testCustomMethodHandleResolverIsInvokedByGeneratedClinit() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.FunctionDescriptor;
+            import java.lang.foreign.Linker;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import java.lang.invoke.MethodHandle;
+            import java.lang.invoke.MethodHandles;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.MethodHandleResolver;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            @LibrarySpecification(
+                symbolResolver = ConstLib.FakeSymbolResolver.class,
+                methodHandleResolver = ConstLib.ConstantResolver.class
+            )
+            public interface ConstLib {
+                @Function("getpid")
+                int getpid();
+
+                class FakeSymbolResolver implements SymbolResolver {
+                    public FakeSymbolResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+
+                class ConstantResolver implements MethodHandleResolver {
+                    public ConstantResolver() {}
+                    public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor,
+                                                Linker linker, Linker.Option... options) {
+                        // Return a handle that always yields the constant 99, ignoring the native symbol.
+                        return MethodHandles.constant(int.class, 99);
+                    }
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            public final class ConstLibDriver {
+                public static int call() throws Throwable {
+                    ConstLib lib = new ConstLib$Impl();
+                    return lib.getpid();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.ConstLib", source);
+        sources.put("test.ConstLibDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // Loading the $Impl triggers <clinit>: the custom ConstantResolver.resolve() is called and
+        // returns MethodHandles.constant(int.class, 99), which is stored in the getpid$mh field.
+        Class<?> implClass = result.loadClass("test.ConstLib$Impl");
+        assertNotNull("Generated ConstLib$Impl class not found", implClass);
+
+        // Drive the generated method: it must return 99 (the constant from ConstantResolver),
+        // not the real pid, proving the custom MethodHandleResolver was used.
+        Class<?> driver = result.loadClass("test.ConstLibDriver");
+        Object returnVal = driver.getMethod("call").invoke(null);
+        assertEquals("getpid() must return the constant 99 from ConstantResolver", 99, returnVal);
     }
 
     /**
@@ -442,6 +524,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.StructSpecification;
             import org.elasticsearch.foreign.SymbolResolver;
             @LibrarySpecification(symbolResolver = StructParamLib.FakeResolver.class)
@@ -457,8 +540,8 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
                 class FakeResolver implements SymbolResolver {
                     public FakeResolver() {}
-                    public MemorySegment resolve(String name, SymbolLookup lookup) {
-                        return MemorySegment.ofAddress(1L);
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
                     }
                 }
             }
@@ -870,6 +953,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
             import org.elasticsearch.foreign.Variadic;
             @LibrarySpecification(symbolResolver = OpenLib.FakeResolver.class)
@@ -882,8 +966,8 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
                 class FakeResolver implements SymbolResolver {
                     public FakeResolver() {}
-                    public MemorySegment resolve(String name, SymbolLookup lookup) {
-                        return MemorySegment.ofAddress(1L);
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
                     }
                 }
             }

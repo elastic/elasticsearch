@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -152,7 +153,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             ClusterService clusterService,
             IndicesService indicesService
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            return new CapturingCacheService(nodeEnvironment, settings, clusterService.getClusterSettings(), threadPool, blobCacheMetrics);
         }
     }
 
@@ -160,13 +161,20 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
 
         private final TimestampCapturingEvictionPolicy capturingPolicy;
 
-        CapturingCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, BlobCacheMetrics blobCacheMetrics) {
-            this(environment, settings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+        CapturingCacheService(
+            NodeEnvironment environment,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics
+        ) {
+            this(environment, settings, clusterSettings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
         }
 
         private CapturingCacheService(
             NodeEnvironment environment,
             Settings settings,
+            ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             TimestampCapturingEvictionPolicy capturingPolicy
@@ -174,9 +182,12 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             super(
                 environment,
                 settings,
+                clusterSettings,
                 threadPool,
                 blobCacheMetrics,
                 capturingPolicy,
+                System::nanoTime,
+                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
             this.capturingPolicy = capturingPolicy;

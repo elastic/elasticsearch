@@ -25,6 +25,7 @@ import java.lang.invoke.MethodType;
 import java.util.List;
 
 import static java.lang.invoke.MethodHandles.Lookup;
+import static org.elasticsearch.painless.WriterConstants.CHARGE_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.CTOR_METHOD_NAME;
 import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
@@ -161,6 +162,24 @@ public final class LambdaBootstrap {
      */
     private static final String LAMBDA_FACTORY_METHOD_NAME = "create$lambda";
 
+    /** {@code invokedynamic} name for the per-invocation allocation charge (linked by {@link #chargeBootstrap}). */
+    private static final String CHARGE_METHOD_NAME = "$chargeAllocation";
+
+    /** {@code AllocationGuard.sanitizeEstimate(long) -> long}, used to normalize an estimator result before charging. */
+    private static final MethodHandle SANITIZE_ESTIMATE;
+    /** {@code PainlessScript.$checkAllocBytes(long) -> void}, the per-instance charge-and-check on the script. */
+    private static final MethodHandle CHECK_ALLOC_BYTES;
+
+    static {
+        try {
+            Lookup lookup = MethodHandles.lookup();
+            SANITIZE_ESTIMATE = lookup.findStatic(AllocationGuard.class, "sanitizeEstimate", MethodType.methodType(long.class, long.class));
+            CHECK_ALLOC_BYTES = lookup.findVirtual(PainlessScript.class, "$checkAllocBytes", MethodType.methodType(void.class, long.class));
+        } catch (ReflectiveOperationException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
+    }
+
     /**
      * Generates a lambda class for a lambda function/method reference
      * within a Painless script.  Variables with the prefix interface are considered
@@ -201,6 +220,85 @@ public final class LambdaBootstrap {
         int isDelegateAugmented,
         Object... injections
     ) throws LambdaConversionException {
+        return doLambdaBootstrap(
+            lookup,
+            interfaceMethodName,
+            factoryMethodType,
+            interfaceMethodType,
+            delegateClassName,
+            delegateInvokeType,
+            delegateMethodName,
+            delegateMethodType,
+            isDelegateInterface,
+            isDelegateAugmented,
+            false,
+            0,
+            null,
+            injections
+        );
+    }
+
+    /**
+     * Allocation-charging variant of {@link #lambdaBootstrap}: the leading capture is the script, which the generated
+     * interface method drops before delegating and, when an estimator is supplied (owner/name/descriptor non-null), charges
+     * against via a {@link #chargeBootstrap} call site. The typed path (compile-time indy) always supplies an estimator; the
+     * def path (runtime, {@code Def.lookupReferenceInternal}) may supply nulls when the resolved target is not annotated —
+     * then the script capture is still dropped but nothing is charged. Only charge-capable references link through here.
+     */
+    public static CallSite lambdaBootstrapWithAllocation(
+        Lookup lookup,
+        String interfaceMethodName,
+        MethodType factoryMethodType,
+        MethodType interfaceMethodType,
+        String delegateClassName,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType,
+        int isDelegateInterface,
+        int isDelegateAugmented,
+        int scriptCaptureIndex,
+        String estimatorOwner,
+        String estimatorName,
+        String estimatorDescriptor,
+        Object... injections
+    ) throws LambdaConversionException {
+        Handle estimatorHandle = estimatorOwner == null
+            ? null
+            : new Handle(H_INVOKESTATIC, estimatorOwner, estimatorName, estimatorDescriptor, false);
+        return doLambdaBootstrap(
+            lookup,
+            interfaceMethodName,
+            factoryMethodType,
+            interfaceMethodType,
+            delegateClassName,
+            delegateInvokeType,
+            delegateMethodName,
+            delegateMethodType,
+            isDelegateInterface,
+            isDelegateAugmented,
+            true,
+            scriptCaptureIndex,
+            estimatorHandle,
+            injections
+        );
+    }
+
+    private static CallSite doLambdaBootstrap(
+        Lookup lookup,
+        String interfaceMethodName,
+        MethodType factoryMethodType,
+        MethodType interfaceMethodType,
+        String delegateClassName,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType,
+        int isDelegateInterface,
+        int isDelegateAugmented,
+        boolean chargeScriptCapture,
+        int scriptCaptureIndex,
+        Handle estimatorHandle,
+        Object... injections
+    ) throws LambdaConversionException {
         Compiler.Loader loader = (Compiler.Loader) lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
@@ -235,6 +333,9 @@ public final class LambdaBootstrap {
             isDelegateInterface == 1,
             isDelegateAugmented == 1,
             captures,
+            chargeScriptCapture,
+            scriptCaptureIndex,
+            estimatorHandle,
             injections
         );
 
@@ -383,6 +484,9 @@ public final class LambdaBootstrap {
         boolean isDelegateInterface,
         boolean isDelegateAugmented,
         Capture[] captures,
+        boolean chargeScriptCapture,
+        int scriptCaptureIndex,
+        Handle estimatorHandle,
         Object... injections
     ) throws LambdaConversionException {
 
@@ -396,6 +500,51 @@ public final class LambdaBootstrap {
             cw.visitMethod(modifiers, interfaceMethodName, lamDesc, null, null)
         );
         iface.visitCode();
+
+        // Allocation charge (only via lambdaBootstrapWithAllocation): one capture is the synthetic script, at
+        // scriptCaptureIndex (0 for the common script-first case; after the receiver for a dynamic bound reference whose
+        // runtime dispatch needs the receiver as capture 0). When an estimator is supplied, charge the delegate's estimated
+        // allocation against the script. Then drop that capture so the delegate call below runs exactly as an uncharged
+        // reference. The drop happens even with no estimator (a def reference to an unannotated runtime target still
+        // captures the script but does not charge).
+        if (chargeScriptCapture) {
+            if (estimatorHandle != null) {
+                // chargeType spans every capture (in field order, script included) then the interface-method arguments. The
+                // charge bootstrap drops the script and passes the rest to the estimator receiver-first — so a bound
+                // reference's receiver (a capture) and an unbound reference's receiver (the first interface argument) both
+                // land where the instance estimator expects them.
+                int captureCount = factoryMethodType.parameterCount();
+                Class<?>[] chargeParameters = new Class<?>[captureCount + interfaceMethodType.parameterCount()];
+                System.arraycopy(factoryMethodType.parameterArray(), 0, chargeParameters, 0, captureCount);
+                System.arraycopy(
+                    interfaceMethodType.parameterArray(),
+                    0,
+                    chargeParameters,
+                    captureCount,
+                    interfaceMethodType.parameterCount()
+                );
+                MethodType chargeType = MethodType.methodType(void.class, chargeParameters);
+
+                for (Capture capture : captures) {
+                    iface.loadThis();
+                    iface.getField(lambdaClassType, capture.name, capture.type);
+                }
+                iface.loadArgs();
+                iface.invokeDynamic(
+                    CHARGE_METHOD_NAME,
+                    chargeType.toMethodDescriptorString(),
+                    CHARGE_BOOTSTRAP_HANDLE,
+                    scriptCaptureIndex,
+                    estimatorHandle
+                );
+            }
+
+            Capture[] remaining = new Capture[captures.length - 1];
+            System.arraycopy(captures, 0, remaining, 0, scriptCaptureIndex);
+            System.arraycopy(captures, scriptCaptureIndex + 1, remaining, scriptCaptureIndex, captures.length - scriptCaptureIndex - 1);
+            captures = remaining;
+            factoryMethodType = factoryMethodType.dropParameterTypes(scriptCaptureIndex, scriptCaptureIndex + 1);
+        }
 
         // Loads any captured variables onto the stack.
         for (Capture capture : captures) {
@@ -552,5 +701,48 @@ public final class LambdaBootstrap {
         }
 
         return new ConstantCallSite(delegateMethodHandle.asType(interfaceMethodType));
+    }
+
+    /**
+     * Links the per-invocation allocation charge. The call-site type is {@code (captures..., samArgs...) -> void} with the
+     * script capture at {@code scriptCaptureIndex}; every other parameter (the remaining captures and the interface-method
+     * arguments) feeds the estimator, in order. The estimator result is normalized via
+     * {@link AllocationGuard#sanitizeEstimate(long)} and charged through {@link PainlessScript#$checkAllocBytes(long)} on the
+     * script — tripping the limit before the delegate runs. {@code scriptCaptureIndex} is 0 for the common script-first case
+     * and after the receiver for a dynamic bound reference (whose runtime dispatch needs the receiver as capture 0).
+     */
+    public static CallSite chargeBootstrap(
+        Lookup lookup,
+        String name,
+        MethodType chargeType,
+        int scriptCaptureIndex,
+        MethodHandle estimator
+    ) {
+        Class<?> scriptType = chargeType.parameterType(scriptCaptureIndex);
+        // The estimator takes every call-site parameter except the script, in order (explicit casts handle erased Object
+        // arguments -> concrete estimator parameter types).
+        MethodType estimatorType = chargeType.dropParameterTypes(scriptCaptureIndex, scriptCaptureIndex + 1).changeReturnType(long.class);
+        MethodHandle sizedEstimator = MethodHandles.explicitCastArguments(estimator, estimatorType);
+        MethodHandle sanitizedEstimator = MethodHandles.filterReturnValue(sizedEstimator, SANITIZE_ESTIMATE);
+        // $checkAllocBytes on the captured script (cast from its captured type to the PainlessScript interface)
+        MethodHandle check = MethodHandles.explicitCastArguments(
+            CHECK_ALLOC_BYTES,
+            MethodType.methodType(void.class, scriptType, long.class)
+        );
+        // (script, non-script args...) -> void = check(script, sanitize(estimator(non-script args...)))
+        MethodHandle scriptFirst = MethodHandles.collectArguments(check, 1, sanitizedEstimator);
+        // Reorder to the call-site parameter order: the script moves from position 0 back to scriptCaptureIndex, and the
+        // non-script parameters fill the remaining positions in order. For scriptCaptureIndex == 0 this is the identity.
+        int parameterCount = chargeType.parameterCount();
+        int[] reorder = new int[parameterCount];
+        reorder[0] = scriptCaptureIndex;
+        int next = 1;
+        for (int parameter = 0; parameter < parameterCount; ++parameter) {
+            if (parameter != scriptCaptureIndex) {
+                reorder[next++] = parameter;
+            }
+        }
+        MethodHandle charge = MethodHandles.permuteArguments(scriptFirst, chargeType, reorder);
+        return new ConstantCallSite(charge);
     }
 }

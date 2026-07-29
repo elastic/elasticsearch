@@ -41,7 +41,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class).binary(Repeat::new).name("repeat");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class)
+        .binary(Repeat::new)
+        .capabilities(
+            // Empty input used to loop `count` times; int length*count overflow used to bypass the size guard.
+            "fix_size_guard"
+        )
+        .name("repeat");
 
     private final Expression str;
     private final Expression number;
@@ -125,14 +131,19 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     }
 
     static BytesRef processInner(BreakingBytesRefBuilder scratch, BytesRef str, int number) {
-        int repeatedLen = str.length * number;
+        scratch.clear();
+        // Empty input always yields an empty result; skip the loop so large counts cannot burn CPU.
+        if (str.length == 0 || number == 0) {
+            return scratch.bytesRefView();
+        }
+        // Use long so large length*count cannot overflow int and bypass the size guard.
+        long repeatedLen = (long) str.length * number;
         if (repeatedLen > MAX_BYTES_REF_RESULT_SIZE) {
             throw new IllegalArgumentException(
                 "Creating repeated strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
             );
         }
-        scratch.grow(repeatedLen);
-        scratch.clear();
+        scratch.grow((int) repeatedLen);
         for (int i = 0; i < number; ++i) {
             scratch.append(str);
         }

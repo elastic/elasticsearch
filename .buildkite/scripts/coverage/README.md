@@ -11,6 +11,12 @@ reports, so there is nothing coupled to test-task internals.
 
 ## Running it
 
+**Apply the `test-coverage` label before opening the PR, or re-trigger afterwards.** CI starts
+within seconds of a PR being opened and the pipeline generator reads the PR's labels at that
+moment. A label applied later is not seen by a build that has already started, and the coverage
+step will simply not appear. Re-trigger with a comment (`@elasticmachine run
+elasticsearch-ci/test-coverage`) or by pushing a commit.
+
 Locally:
 
 ```bash

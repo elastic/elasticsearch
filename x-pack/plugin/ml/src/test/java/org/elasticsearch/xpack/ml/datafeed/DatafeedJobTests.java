@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -13,6 +14,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
@@ -24,6 +27,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -49,6 +55,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
@@ -66,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -83,6 +91,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -430,6 +439,30 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushJobRequests.getValue().getAdvanceTime(), is(nullValue()));
     }
 
+    public void testExtractionProblemWhenProjectRoutingMatchesNoProjectShouldIncludeActionableMessage() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new NoMatchingProjectException("_alias:missing-*"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "my-datafeed",
+            "_alias:missing-*"
+        );
+        DatafeedJob.ExtractionProblemException extractionProblem = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            () -> datafeedJob.runLookBack(0L, 1000L)
+        );
+        assertThat(extractionProblem.getCause().getMessage(), containsString("my-datafeed"));
+        assertThat(extractionProblem.getCause().getMessage(), containsString("_alias:missing-*"));
+        assertThat(extractionProblem.getCause().getMessage(), containsString("matched no linked projects at run time"));
+    }
+
     public void testExtractionProblem() throws Exception {
         when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenThrow(new IOException());
@@ -449,6 +482,93 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testCloudCredentialFailureShouldAuditOncePerFailureEpisode() throws Exception {
+        currentTime = 3001;
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+        IOException extractionFailure = new IOException(securityFailure);
+        when(dataExtractor.hasNext()).thenReturn(true, true);
+        doThrow(extractionFailure).doThrow(extractionFailure).when(dataExtractor).next();
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "key-abc"
+        );
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+        String enrichedMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc");
+
+        DatafeedJob.ExtractionProblemException firstFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(firstFailure);
+        currentTime = 6001;
+        DatafeedJob.ExtractionProblemException secondFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(secondFailure);
+        problemTracker.finishReport();
+
+        verify(auditor, times(1)).error(
+            eq(jobId),
+            eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, enrichedMessage))
+        );
+    }
+
+    public void testCloudCredentialFailureShouldReAuditAfterSuccessfulExtraction() throws Exception {
+        currentTime = 3001;
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+        IOException extractionFailure = new IOException(securityFailure);
+        byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
+        InputStream inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true, true, false, true);
+        doThrow(extractionFailure).doAnswer(
+            invocation -> new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        ).doThrow(extractionFailure).when(dataExtractor).next();
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "key-abc"
+        );
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+        String enrichedMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc");
+
+        DatafeedJob.ExtractionProblemException firstFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(firstFailure);
+        problemTracker.finishReport();
+        currentTime = 6001;
+        datafeedJob.runRealtime();
+        problemTracker.reportNonEmptyDataCount();
+        problemTracker.finishReport();
+        currentTime = 9001;
+        DatafeedJob.ExtractionProblemException secondFailure = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            datafeedJob::runRealtime
+        );
+        problemTracker.reportExtractionProblem(secondFailure);
+        problemTracker.finishReport();
+
+        verify(auditor, times(2)).error(
+            eq(jobId),
+            eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, enrichedMessage))
+        );
     }
 
     public void testPostAnalysisProblem() {
@@ -616,6 +736,44 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(bucketsRequest.getJobId(), equalTo(jobId));
         assertThat(bucketsRequest.isExcludeInterim(), is(true));
         assertThat(bucketsRequest.getAnomalyScore(), equalTo(75.0));
+    }
+
+    public void testScopeChangeWithTimeFieldConflictExcludesProjectBeforeRunLookBackReturns() throws Exception {
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        List<LinkedClusterState> baseline = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
+        List<LinkedClusterState> withNewProject = List.of(
+            new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
+            new LinkedClusterState("new_project", LinkedClusterState.Status.AVAILABLE, null, 20)
+        );
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(withNewProject);
+        }
+        currentTime += 30_000;
+
+        dataDescription.setTimeField("@timestamp");
+        ScrollDataExtractorFactory scrollFactory = mock(ScrollDataExtractorFactory.class);
+        Job scrollJob = mock(Job.class);
+        when(scrollJob.allInputFields()).thenReturn(List.of("@timestamp"));
+        when(scrollFactory.job()).thenReturn(scrollJob);
+        when(scrollFactory.fetchFieldCapabilities()).thenReturn(timeFieldConflictResponse());
+        dataExtractorFactory = scrollFactory;
+        resetExtractorForCcsTest(withNewProject);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        GetBucketsAction.Response emptyResponse = new GetBucketsAction.Response(new QueryPage<>(List.of(), 0, Bucket.RESULTS_FIELD));
+        when(getBucketsFuture.actionGet()).thenReturn(emptyResponse);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(scrollFactory).excludeProject("new_project");
+        verify(auditor).error(eq(jobId), argThat(msg -> msg.contains("excluded project [new_project]")));
     }
 
     public void testScopeChangeNoAnomaliesEmitsOnlyOneWarning() throws Exception {
@@ -937,6 +1095,36 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(GetBucketsAction.INSTANCE), any());
     }
 
+    private static FieldCapabilitiesResponse timeFieldConflictResponse() {
+        return new FieldCapabilitiesResponse(
+            new String[] { "logs-*" },
+            Map.of(
+                "@timestamp",
+                Map.of("date", fieldCaps("@timestamp", "date", "logs-*"), "long", fieldCaps("@timestamp", "long", "new_project:logs-*"))
+            )
+        );
+    }
+
+    private static FieldCapabilities fieldCaps(String field, String type, String index) {
+        return new FieldCapabilities(
+            field,
+            type,
+            false,
+            true,
+            true,
+            null,
+            false,
+            null,
+            new String[] { index },
+            null,
+            null,
+            null,
+            null,
+            null,
+            Map.of()
+        );
+    }
+
     @SuppressWarnings("unchecked")
     private void resetExtractorForCcsTest(List<LinkedClusterState> linkedClusterStates) throws IOException {
         dataExtractor = mock(DataExtractor.class);
@@ -1021,9 +1209,87 @@ public class DatafeedJobTests extends ESTestCase {
         long delayedDataFreq,
         CrossClusterSearchStats crossClusterSearchStats
     ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            "test-datafeed",
+            null,
+            null
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String cloudCredentialId
+    ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            "datafeed-" + jobId,
+            null,
+            cloudCredentialId
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting
+    ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            datafeedId,
+            projectRouting,
+            null
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting,
+        String cloudCredentialId
+    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
+            datafeedId,
+            projectRouting,
             jobId,
+            cloudCredentialId,
             dataDescription.build(),
             frequencyMs,
             queryDelayMs,

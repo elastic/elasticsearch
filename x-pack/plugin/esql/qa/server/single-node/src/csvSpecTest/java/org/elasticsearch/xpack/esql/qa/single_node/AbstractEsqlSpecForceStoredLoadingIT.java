@@ -60,7 +60,20 @@ public abstract class AbstractEsqlSpecForceStoredLoadingIT extends AbstractEsqlS
      * generated variant class picks up this filtering version through its unqualified {@code csvSpecParameters()} call.
      */
     public static List<Object[]> csvSpecParameters() throws Exception {
-        List<Object[]> orig = EsqlSpecTestCase.csvSpecParameters();
+        return applyStoredFilter(EsqlSpecTestCase.csvSpecParameters());
+    }
+
+    /**
+     * Single-file variant of {@link #csvSpecParameters()}: reads the given spec file and applies the same
+     * stored-loading filter. Hides {@link EsqlSpecTestCase#readScriptSpec(String)} so that generated per-file
+     * classes (which call {@code readScriptSpec("/file.csv-spec")} without qualification) pick up this filtered
+     * version through Java's static-method hiding.
+     */
+    public static List<Object[]> readScriptSpec(String specFile) throws Exception {
+        return applyStoredFilter(EsqlSpecTestCase.readScriptSpec(specFile));
+    }
+
+    private static List<Object[]> applyStoredFilter(List<Object[]> orig) {
         List<Object[]> specs = new ArrayList<>(orig.size());
         for (Object[] s : orig) {
             CsvTestCase testCase = (CsvTestCase) s[4];

@@ -23,7 +23,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 
 /**
- * Abstract base for {@link EsqlSpecIT} in the multi-node suite.
+ * Abstract base for the multi-node csv-spec IT variants (e.g. {@code EsqlSpecAbsentIT}).
  * The cluster is shared via {@code shared(true)} in {@link Clusters#testCluster},
  * so it starts once for the whole JVM. Data is loaded per-category and swapped on
  * category change (see {@link EsqlSpecTestCase#ensureCategoryLoaded}).

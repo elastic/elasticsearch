@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
- * Abstract base for {@link MixedClusterEsqlSpecIT}. The cluster is shared via
+ * Abstract base for the mixed-cluster csv-spec IT variants (e.g. {@code MixedClusterEsqlSpecAbsentIT}). The cluster is shared via
  * {@code shared(true)} in {@link Clusters#mixedVersionCluster}, so it starts once for the
  * whole JVM. Data is loaded per-category and swapped on category change (see
  * {@link EsqlSpecTestCase#ensureCategoryLoaded}).

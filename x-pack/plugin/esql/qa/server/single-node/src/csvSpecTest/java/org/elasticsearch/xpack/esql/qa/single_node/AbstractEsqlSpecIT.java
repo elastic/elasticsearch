@@ -29,8 +29,8 @@ import java.nio.file.Path;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 
 /**
- * Abstract base for the single-node csv-spec IT variants ({@link EsqlSpecIT},
- * {@link EsqlSpecForceStoredLoadingIT}, {@link EsqlSpecForkIT}).
+ * Abstract base for the single-node csv-spec IT variants (generated per-file classes such as
+ * {@code EsqlSpecAbsentIT}, as well as the ForceStoredLoading and Fork variants).
  * The cluster is shared across all concrete subclasses via {@code shared(true)} in
  * {@link Clusters#testCluster}, so it starts once for the whole JVM. Data is loaded
  * per-category and swapped on category change (see {@link EsqlSpecTestCase#ensureCategoryLoaded}).

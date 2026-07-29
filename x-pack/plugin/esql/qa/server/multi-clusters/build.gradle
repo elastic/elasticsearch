@@ -29,14 +29,14 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
-// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
-sourceSets {
-    csvSpecTest
-}
-configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
-configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
-dependencies {
-    csvSpecTestImplementation(sourceSets.javaRestTest.output)
+// Generates one JUnit class per csv-spec file plus a Suite class per variant in category-execution order.
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
+
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  specDataYml  = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/spec_data.yml')
+  packageName  = 'org.elasticsearch.xpack.esql.ccq'
+  variant 'MultiClusterSpec', 'AbstractMultiClusterSpecIT'
 }
 
 def currentVersion = buildParams.bwcVersions.currentVersion
@@ -45,8 +45,12 @@ def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", Standal
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
+  forkEvery = 0
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
+  filter {
+    includeTestsMatching '*.*SuiteIT'
+  }
 }
 
 tasks.named("bwcTest").configure {
@@ -98,8 +102,12 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
+    forkEvery = 0
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
+    filter {
+      includeTestsMatching '*.*SuiteIT'
+    }
   }
 
   def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
@@ -107,8 +115,12 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
+    forkEvery = 0
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
+    filter {
+      includeTestsMatching '*.*SuiteIT'
+    }
   }
 
   // One csvSpecTests per version; both cross-cluster directions run under it.

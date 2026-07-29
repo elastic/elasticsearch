@@ -41,14 +41,15 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
-// csvSpecTest: hand-coded IT classes for the csv-spec test suite.
-sourceSets {
-    csvSpecTest
-}
-configurations.csvSpecTestCompileClasspath.extendsFrom(configurations.javaRestTestCompileClasspath)
-configurations.csvSpecTestRuntimeClasspath.extendsFrom(configurations.javaRestTestRuntimeClasspath)
-dependencies {
-    csvSpecTestImplementation(sourceSets.javaRestTest.output)
+// Generates one JUnit class per csv-spec file (EsqlSpec<PascalName>IT) plus a Suite class
+// (EsqlSpecSuiteIT) that runs all per-file classes in category-execution order.
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
+
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  specDataYml  = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/spec_data.yml')
+  packageName  = 'org.elasticsearch.xpack.esql.qa.multi_node'
+  variant 'EsqlSpec', 'AbstractEsqlSpecIT'
 }
 
 tasks.named('javaRestTestTestingConventions').configure {
@@ -116,15 +117,20 @@ tasks.named('javaRestTest') {
   systemProperty 'tests.rest.socket_timeout', '60'
 }
 
-// The whole csv-spec suite runs in one JVM against one cluster; EsqlSpecTestCase groups execution by category and
-// swaps the cluster's data on category change.
+// The whole csv-spec suite runs in ONE JVM against ONE shared cluster. EsqlSpecTestCase groups execution
+// by category and swaps data on category change. Each spec file has its own generated IT class for muting
+// granularity; the Suite class drives execution order.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  forkEvery = 0
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
+  filter {
+    includeTestsMatching '*.*SuiteIT'
+  }
 }
 tasks.named('check').configure { dependsOn csvSpecTests }
 

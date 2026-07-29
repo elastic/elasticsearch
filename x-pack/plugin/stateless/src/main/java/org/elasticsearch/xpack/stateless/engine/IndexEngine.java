@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -62,7 +63,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
-import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -522,12 +522,13 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        List<Index> operations = engineBatch.operations();
         for (Index operation : operations) {
             documentParsingReporter.onParsingCompleted(operation.parsedDoc());
         }
-        List<IndexResult> results = super.indexBatch(operations, batch);
+        List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
                 documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
@@ -1013,6 +1014,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
         return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+            private volatile boolean isComplete = false;
+
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 return oneMerge.wrapForMerge(reader);
@@ -1024,12 +1027,23 @@ public class IndexEngine extends InternalEngine {
                     return true;
                 }
 
+                // No need to check if the merge should be skipped if it's already finished.
+                if (isComplete) {
+                    return super.isAborted();
+                }
+
                 if (shouldSkipMerge()) {
                     // If a merge is considered to be aborted due to running relocation, we want to keep that for
                     // the entire merge lifecycle even if the relocation is canceled to avoid any inconsistencies.
                     setAborted();
                 }
                 return super.isAborted();
+            }
+
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                isComplete = true;
+                super.mergeFinished(success, segmentDropped);
             }
         });
     }

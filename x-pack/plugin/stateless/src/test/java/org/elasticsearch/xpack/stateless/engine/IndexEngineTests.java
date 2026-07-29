@@ -24,6 +24,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
@@ -470,7 +471,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         ) {
             // Success case: all docs in the batch succeed.
             List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
-            List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEscfBatch(ops));
+            List<Engine.IndexResult> results = engine.indexBatch(new EngineBatch(ops, encodeAsEscfBatch(ops)));
             for (int i = 0; i < results.size(); i++) {
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 verify(documentSizeReporter).onParsingCompleted(eq(ops.get(i).parsedDoc()));
@@ -480,7 +481,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             // Failure case: a version-conflicting op does not get onIndexingCompleted.
             Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
             List<Engine.Index> failOps = List.of(conflictingOp);
-            List<Engine.IndexResult> failResults = engine.indexBatch(failOps, encodeAsEscfBatch(failOps));
+            List<Engine.IndexResult> failResults = engine.indexBatch(new EngineBatch(failOps, encodeAsEscfBatch(failOps)));
             assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
             verify(documentSizeReporter).onParsingCompleted(eq(conflictingOp.parsedDoc()));
             verify(documentSizeReporter, never()).onIndexingCompleted(eq(conflictingOp.parsedDoc()));
@@ -497,7 +498,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             final var maxSeqNo = engine.getMaxSeqNo();
 
             List<Engine.Index> batchOps = List.of(randomDoc(String.valueOf(1)));
-            expectThrows(IllegalStateException.class, () -> engine.indexBatch(batchOps, encodeAsEscfBatch(batchOps)));
+            expectThrows(IllegalStateException.class, () -> engine.indexBatch(new EngineBatch(batchOps, encodeAsEscfBatch(batchOps))));
             assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
         }
     }

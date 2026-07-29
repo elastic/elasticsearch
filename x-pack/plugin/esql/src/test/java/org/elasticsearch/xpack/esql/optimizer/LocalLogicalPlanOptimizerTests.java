@@ -640,8 +640,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     // InferIsNotNull
 
     public void testIsNotNullOnIsNullField() {
-        EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
+        EsRelation relation = relation(fieldA);
         Expression inn = isNotNull(fieldA);
         Filter f = new Filter(EMPTY, relation, inn);
 
@@ -649,8 +649,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testIsNotNullOnOperatorWithOneField() {
-        EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
+        EsRelation relation = relation(fieldA);
         Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE, TEST_CFG));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
@@ -659,9 +659,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testIsNotNullOnOperatorWithTwoFields() {
-        EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var fieldB = getFieldAttribute("b");
+        EsRelation relation = relation(fieldA, fieldB);
         Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB, TEST_CFG));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
@@ -670,9 +670,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testIsNotNullOnFunctionWithOneField() {
-        EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var pattern = L("abc");
+        EsRelation relation = relation(fieldA);
         Expression inn = isNotNull(new StartsWith(EMPTY, fieldA, pattern));
 
         Filter f = new Filter(EMPTY, relation, inn);
@@ -682,9 +682,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testIsNotNullOnFunctionWithTwoFields() {
-        EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");
         var fieldB = getFieldAttribute("b");
+        EsRelation relation = relation(fieldA, fieldB);
         Expression inn = isNotNull(new StartsWith(EMPTY, fieldA, fieldB));
 
         Filter f = new Filter(EMPTY, relation, inn);
@@ -1796,6 +1796,18 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.availableModes()));
+    }
+
+    public static EsRelation relation(Attribute... attrs) {
+        return new EsRelation(
+            EMPTY,
+            randomIdentifier(),
+            randomFrom(IndexMode.availableModes()),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            List.of(attrs)
+        );
     }
 
     private static Analyzer analyzerWithNullifyMode() {

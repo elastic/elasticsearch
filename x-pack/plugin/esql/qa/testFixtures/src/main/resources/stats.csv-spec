@@ -4769,6 +4769,7 @@ c:long
 ;
 
 isNotNullInferenceNotAppliedThroughIsNotNull3
+required_capability: fix_infer_is_not_null_allowlist
 FROM employees
 | WHERE (salary + COALESCE(languages, 0)) IS NOT NULL
 | STATS c = COUNT(*)
@@ -4779,4 +4780,22 @@ FROM employees
 // so every row is counted
 c:long
 100
+;
+
+isNotNullInference
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| EVAL money = 2 * salary
+| DROP salary
+| MV_EXPAND job_positions
+| EVAL x = money IS NOT NULL
+| WHERE x
+| KEEP x
+| LIMIT 3
+;
+
+x:boolean
+true
+true
+true
 ;

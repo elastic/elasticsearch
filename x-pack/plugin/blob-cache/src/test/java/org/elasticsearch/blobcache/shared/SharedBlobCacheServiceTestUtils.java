@@ -27,28 +27,32 @@ public final class SharedBlobCacheServiceTestUtils {
     /**
      * Ensures a cache region is present for the given key, file length, and region index by calling
      * {@link SharedBlobCacheService#get(SharedBlobCacheService.KeyBase, long, int)}.
+     *
+     * @return
      */
-    public static <K extends SharedBlobCacheService.KeyBase> void cacheRegion(
+    public static <K extends SharedBlobCacheService.KeyBase> SharedBlobCacheService.CacheFileRegion<K> cacheRegion(
         SharedBlobCacheService<K> cacheService,
         K cacheKey,
         long fileLength,
         int region
     ) {
-        cacheService.get(cacheKey, fileLength, region);
+        return cacheService.get(cacheKey, fileLength, region);
     }
 
     /**
      * Ensures a cache region is present for the given key, file length, region index, and timestamp by calling
      * {@link SharedBlobCacheService#get(SharedBlobCacheService.KeyBase, long, int, long)}.
+     *
+     * @return
      */
-    public static <K extends SharedBlobCacheService.KeyBase> void cacheRegion(
+    public static <K extends SharedBlobCacheService.KeyBase> SharedBlobCacheService.CacheFileRegion<K> cacheRegion(
         SharedBlobCacheService<K> cacheService,
         K cacheKey,
         long fileLength,
         int region,
         long timestampMillis
     ) {
-        cacheService.get(cacheKey, fileLength, region, timestampMillis);
+        return cacheService.get(cacheKey, fileLength, region, timestampMillis);
     }
 
     /**
@@ -75,5 +79,18 @@ public final class SharedBlobCacheServiceTestUtils {
 
     public static <K extends SharedBlobCacheService.KeyBase> EvictionPolicy<K> getEvictionPolicy(SharedBlobCacheService<K> cacheService) {
         return cacheService.getEvictionPolicy();
+    }
+
+    public static <K extends SharedBlobCacheService.KeyBase> boolean maybeEvictLeastUsed(
+        SharedBlobCacheService<K> cacheService,
+        K cacheKey,
+        long length,
+        int region
+    ) {
+        return cacheService.maybeEvictLeastUsed(cacheKey, length, region);
+    }
+
+    public static <K extends SharedBlobCacheService.KeyBase> void maybeScheduleDecayAndNewEpoch(SharedBlobCacheService<K> cacheService) {
+        cacheService.maybeScheduleDecayAndNewEpoch();
     }
 }

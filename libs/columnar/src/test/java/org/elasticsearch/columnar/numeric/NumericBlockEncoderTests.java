@@ -184,9 +184,15 @@ public class NumericBlockEncoderTests extends ESTestCase {
     public void testSplitDeltaRegistryRebuildRoundTrip() throws IOException {
         long[] block = new long[BLOCK];
         long ts = 1_700_000_000_000L;
-        for (int i = 0; i < BLOCK / 2; i++) { block[i] = ts; ts -= 500; }
+        for (int i = 0; i < BLOCK / 2; i++) {
+            block[i] = ts;
+            ts -= 500;
+        }
         ts += 100_000;
-        for (int i = BLOCK / 2; i < BLOCK; i++) { block[i] = ts; ts += 500; }
+        for (int i = BLOCK / 2; i < BLOCK; i++) {
+            block[i] = ts;
+            ts += 500;
+        }
         NumericPipeline write = new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, new ForTerminal(BLOCK));
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         new NumericBlockEncoder(write, BLOCK).encode(block.clone(), BLOCK, out);

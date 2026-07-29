@@ -75,7 +75,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         if (randomBoolean()) {
             settingBuilder.put(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(),
-                "95%"
+                STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(Settings.EMPTY)
             );
         }
         if (randomBoolean()) {

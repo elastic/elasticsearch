@@ -385,44 +385,42 @@ public class SplitSourceService {
             shardsPreparingForHandoff.add(sourceShard.shardId());
             engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
-        }))
-            .<Releasable>andThen(acquiredPermits -> {
-                // Mark task as uncancellable before acquiring permits. Cancellation is for relocation, and once we've
-                // reached this point it is better to proceed to the end, in particular because it would complicate
-                // HandoffConvergenceObserver's logic. In principal we could remain cancellable all the way until
-                // we're about to actually send the handoff message but once we're acquiring permits we expect to
-                // be fairly quick anyway and prefer not to waste the work.
-                if (currentSplit.setUncancellable()) {
-                    stateMachine.split().withPermits(acquiredPermits);
-                } else {
-                    throw new TaskCancelledException("Split request was cancelled");
-                }
-            })
-            .andThen((afterSecondFlush, permits) -> {
-                // withEngine and flush can throw, and we don't want to leak permits if it does
-                try {
-                    sourceShard.withEngine(engine -> {
-                        logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
-                        // Don't stop copying commits until anything outstanding has been flushed.
-                        engine.flush(/* force */ false, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
-                            // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
-                            // commits spontaneously even though indexing permits are held. These are harmless to copy.
-                            logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
-                            stopCopyingNewCommits(targetShardId);
-                            shardsPreparingForHandoff.remove(sourceShard.shardId());
-                            activeTargetRequests.remove(sourceShard);
-                            afterSecondFlush.onResponse(permits);
-                        }, e -> {
-                            permits.close();
-                            afterSecondFlush.onFailure(e);
-                        }));
-                        return null;
-                    });
-                } catch (Exception e) {
-                    permits.close();
-                    afterSecondFlush.onFailure(e);
-                }
-            });
+        })).<Releasable>andThen(acquiredPermits -> {
+            // Mark task as uncancellable before acquiring permits. Cancellation is for relocation, and once we've
+            // reached this point it is better to proceed to the end, in particular because it would complicate
+            // HandoffConvergenceObserver's logic. In principal we could remain cancellable all the way until
+            // we're about to actually send the handoff message but once we're acquiring permits we expect to
+            // be fairly quick anyway and prefer not to waste the work.
+            if (currentSplit.setUncancellable()) {
+                stateMachine.split().withPermits(acquiredPermits);
+            } else {
+                throw new TaskCancelledException("Split request was cancelled");
+            }
+        }).andThen((afterSecondFlush, permits) -> {
+            // withEngine and flush can throw, and we don't want to leak permits if it does
+            try {
+                sourceShard.withEngine(engine -> {
+                    logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
+                    // Don't stop copying commits until anything outstanding has been flushed.
+                    engine.flush(/* force */ false, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
+                        // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
+                        // commits spontaneously even though indexing permits are held. These are harmless to copy.
+                        logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
+                        stopCopyingNewCommits(targetShardId);
+                        shardsPreparingForHandoff.remove(sourceShard.shardId());
+                        activeTargetRequests.remove(sourceShard);
+                        afterSecondFlush.onResponse(permits);
+                    }, e -> {
+                        permits.close();
+                        afterSecondFlush.onFailure(e);
+                    }));
+                    return null;
+                });
+            } catch (Exception e) {
+                permits.close();
+                afterSecondFlush.onFailure(e);
+            }
+        });
         withPermits.addListener(handoffListener);
     }
 

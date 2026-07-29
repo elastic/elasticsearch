@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
@@ -50,9 +48,12 @@ import java.util.function.Supplier;
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
 ///
-/// Dispatch is also subject to the node's [RecoveryGates]: while they block, no queued recovery is dispatched. [#fillSlots] consults
-/// them on every dispatch attempt and re-runs when a gate signals a change.
-public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
+/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#onDecisionChange]
+/// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
+public final class ThrottlingRecoveryService extends AbstractLifecycleComponent
+    implements
+        ClusterStateListener,
+        RecoveryGateMonitor.DecisionChangeListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
@@ -73,9 +74,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final ProjectResolver projectResolver;
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
-    private final Supplier<Collection<RecoveryGate>> gatesSupplier;
-    private final LongSupplier relativeTimeInMillisSupplier;
-    private RecoveryGates recoveryGates;
+    private final RecoveryGateMonitor recoveryGateMonitor;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -86,52 +85,43 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
-    /// Convenience constructor with no recovery gates (every recovery may start as soon as a slot is free).
-    public ThrottlingRecoveryService(
-        ThreadPool threadPool,
-        ProjectResolver projectResolver,
-        ClusterService clusterService,
-        RecoverySchedulingListener schedulingListener
-    ) {
-        this(threadPool, projectResolver, clusterService, schedulingListener, () -> List.of());
-    }
-
-    /// @param gatesSupplier resolves the node's recovery gates; called once at [#doStart], so it may depend on components created later
-    ///                      in node construction.
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         ClusterService clusterService,
         RecoverySchedulingListener schedulingListener,
-        Supplier<Collection<RecoveryGate>> gatesSupplier
+        RecoveryGateMonitor recoveryGateMonitor
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.projectResolver = projectResolver;
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
-        this.gatesSupplier = gatesSupplier;
-        this.relativeTimeInMillisSupplier = threadPool::relativeTimeInMillis;
+        this.recoveryGateMonitor = recoveryGateMonitor;
     }
 
     @Override
     protected void doStart() {
-        recoveryGates = new RecoveryGates(gatesSupplier.get(), this::fillSlots, this::onGatesDecisionChanged, relativeTimeInMillisSupplier);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
-    private void onGatesDecisionChanged(RecoveryGate.Decision previous, RecoveryGate.Decision current, long previousStateDurationMillis) {
-        if (previous.mayRun() == false && current.mayRun()) {
+    /// Reports gate-decision transitions to the log and the [RecoverySchedulingListener], and on a block registers the retry that
+    /// resumes dispatch once the gates allow recoveries again.
+    @Override
+    public void onDecisionChange(RecoveryGate.Decision previous, RecoveryGate.Decision current, long previousStateDurationMillis) {
+        if (current.mayRun()) {
             logger.info(
                 "resuming recoveries held for [{}] by gate [{}]",
                 TimeValue.timeValueMillis(previousStateDurationMillis),
                 previous.gateName()
             );
             schedulingListener.onRecoveriesUnblocked(previous.gateName(), previousStateDurationMillis);
-        } else if (previous.mayRun() && current.mayRun() == false) {
+        } else {
             logger.info("recovery dispatch blocked by gate [{}]: {}", current.gateName(), current.reason());
+            // register a listener on decision to promptly resume recovery
+            recoveryGateMonitor.addListener(RecoveryGate.Outcome.RUN, "fill-slots", this::fillSlots);
             schedulingListener.onRecoveriesBlocked(current.gateName());
         }
     }
@@ -325,13 +315,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return lifecycle.stoppedOrClosed();
     }
 
-    /// Consults the recovery gates via [RecoveryGates#check] (off this service's lock) and drains the pending queue up to the max slot
-    /// capacity. Called on every enqueue, slot release, and gate change.
+    /// Checks the recovery gates and drains the pending queue up to the max slot capacity. Called on every
+    /// enqueue and slot release, and by the listener [#onDecisionChange] registers while the gates block.
     private void fillSlots() {
-        if (lifecycle.started() == false) {
-            return;
-        }
-        final RecoveryGate.Decision decision = recoveryGates.check();
+        final RecoveryGate.Decision decision = recoveryGateMonitor.check();
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (isClosed()) {
@@ -341,7 +328,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 logger.debug(
                     "recovery dispatch still blocked by gate [{}] for [{}]: {}",
                     decision.gateName(),
-                    TimeValue.timeValueMillis(recoveryGates.blockedDurationMillis()),
+                    TimeValue.timeValueMillis(recoveryGateMonitor.blockedDurationMillis()),
                     decision.reason()
                 );
                 return;

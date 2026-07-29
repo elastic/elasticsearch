@@ -157,6 +157,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
@@ -935,14 +936,21 @@ class NodeConstruction {
         };
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
-        // Recovery gates may be contributed by plugins and resolved once when the service starts, by which point plugin components exist.
+        // Use a holder to break circular dependency
+        final SetOnce<ThrottlingRecoveryService> throttlingRecoveryServiceReference = new SetOnce<>();
+        final RecoveryGateMonitor recoveryGateMonitor = new RecoveryGateMonitor(
+            () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList(),
+            throttlingRecoveryServiceReference::get,
+            threadPool
+        );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
-            () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList()
+            recoveryGateMonitor
         );
+        throttlingRecoveryServiceReference.set(throttlingRecoveryService);
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)

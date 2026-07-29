@@ -13,7 +13,7 @@ import java.util.Objects;
 
 /// Decides whether this data node may start new recoveries right now, on top of the concurrency bound enforced by
 /// [ThrottlingRecoveryService]. The decision is node-wide (see [Decision]): a gate lets all new recoveries start or holds them all back.
-/// The node's gates are combined most-restrictive-wins by [RecoveryGates].
+/// The node's gates are combined most-restrictive-wins by [RecoveryGateMonitor].
 ///
 /// [#evaluate] is on the recovery dispatch path: it must be fast, non-blocking, and must not call back into recovery scheduling.
 public interface RecoveryGate {
@@ -21,9 +21,10 @@ public interface RecoveryGate {
     /// Evaluates whether new recoveries may start now on this node.
     Decision evaluate();
 
-    /// Registers a handler the gate must invoke when its [#evaluate] decision may have changed, so the scheduler re-checks promptly (a
-    /// gate whose decision never changes on its own need never invoke it). Must not be invoked from within [#evaluate].
-    void setGateChangeHandler(Runnable gateChangeHandler);
+    enum Outcome {
+        RUN,   // new recoveries may start
+        BLOCK  // new recoveries are all blocked
+    }
 
     /// The outcome of evaluating a [RecoveryGate].
     ///
@@ -31,13 +32,6 @@ public interface RecoveryGate {
     /// @param gateName the blocking gate; `"ALL"` for a run decision. Safe as a metric attribute (low cardinality)
     /// @param reason   human-readable explanation, for logging only; never a metric attribute (high cardinality)
     record Decision(Outcome outcome, String gateName, String reason) {
-
-        /// Whether new recoveries may all start ({@code RUN}) or are all held back ({@code BLOCK}).
-        enum Outcome {
-            RUN,
-            BLOCK
-        }
-
         /// Shared "may start now" decision
         public static final Decision RUN = new Decision(Outcome.RUN, "ALL", "All gates pass");
 

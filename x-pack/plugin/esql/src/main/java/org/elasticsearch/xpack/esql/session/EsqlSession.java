@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -946,7 +947,7 @@ public class EsqlSession {
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
 
-        // Find the first (bottom-up) SemiJoin or InlineJoin that needs subplan execution.
+        // Find the first (bottom-up) SemiJoin/InnerJoin/InlineJoin that needs subplan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
@@ -970,6 +971,17 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+            }
+        } else if (firstJoin instanceof InnerJoin) {
+            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
+            if (subPlans != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
+                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
                 }, () -> releaseLocalRelationBlocks(localRelationPage), true);
             }
         } else if (firstJoin instanceof InlineJoin) {
@@ -1005,23 +1017,30 @@ public class EsqlSession {
     }
 
     /**
-     * Finds the first (bottom-up) SemiJoin or InlineJoin in the plan that has an unresolved subplan.
+     * Finds the first (bottom-up) SemiJoin, InnerJoin or InlineJoin in the plan that has an unresolved subplan.
      * Returns the join node itself, or null if none found.
      */
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
-        // Evaluate the right hand side of a SemiJoin or InlineJoin, unless it is a LocalRelation and registered in subPlansResults already
+        // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
+        // already
         plan.forEachUp(p -> {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
+            // for
             // joins whose right child haven't been evaluated yet
             if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
                 result.set(sj);
+            } else if (p instanceof InnerJoin ej) {
+                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+                    return; // already processed
+                }
+                result.set(ej);
             } else if (p instanceof InlineJoin ij) {
                 if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
                     result.set(ij);

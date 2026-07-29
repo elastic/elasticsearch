@@ -39,13 +39,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * foldable to a string. Any node that survives to post-optimization verification is reported as
  * an error via {@link #postOptimizationVerification}.
  * <p>
- * Naming: {@code Deferred} because its resolution is deferred to the optimizer — deliberately
- * neither an analyzer {@code Unresolved*} node (it does not implement {@code Unresolvable} and is
- * not rejected by the {@code Verifier}; it is fully resolved after analysis and intentionally
- * survives to the optimizer) nor a {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}
- * (that mechanism runs in the substitutions batch, before {@code ConstantFolding}, and its
- * {@code surrogate()} gets no fold context — so it could not fold the pattern; the dedicated
- * {@code ReplaceDeferredRegex} rule, placed after {@code ConstantFolding}, does the replacement).
  */
 public class DeferredRegexExpression extends Expression implements PostOptimizationVerificationAware {
 

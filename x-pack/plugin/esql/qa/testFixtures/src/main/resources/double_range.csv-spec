@@ -1,0 +1,16 @@
+doubleRangeBlockLoader
+required_capability: double_range_field_type_development_v2
+
+FROM heights
+| WHERE height_range IS NOT NULL
+| KEEP height_range, description
+| SORT description
+;
+
+height_range:double_range | description:keyword
+1.6..1.8                 | Medium Height
+1.5..1.6                 | Short
+1.8..2.0                 | Tall
+0.0..1.5                 | Very Short
+2.0..5.0                 | Very Tall
+;

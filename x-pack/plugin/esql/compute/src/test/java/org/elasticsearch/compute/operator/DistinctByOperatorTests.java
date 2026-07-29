@@ -130,6 +130,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
+                assertSame(input, output);
                 assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(3));
                 output.releaseBlocks();
             }

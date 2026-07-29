@@ -199,6 +199,17 @@ public class OrdinalDistinctByOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testDedupTransfersUnchangedPage() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = ordinal(0)) {
+            Page input = intPage(blockFactory, 0, 1, 2);
+            op.addInput(input);
+            Page output = op.getOutput();
+            assertSame(input, output);
+            Objects.requireNonNull(output).releaseBlocks();
+        }
+    }
+
     public void testDedupKeepsValuesAfterRejectedFirstPosition() {
         BlockFactory blockFactory = driverContext().blockFactory();
         try (DistinctByOperator op = ordinal(0)) {

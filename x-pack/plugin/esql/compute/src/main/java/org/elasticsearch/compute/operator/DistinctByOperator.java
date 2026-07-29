@@ -113,10 +113,72 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
 
     private sealed interface Processor extends Releasable permits BytesRefProcessor, BytesRefFailOnDuplicateProcessor, IntOrdinalProcessor,
         IntOrdinalFailOnDuplicateProcessor {
+
         Page process(Page page);
 
         static void throwOnDuplicate() {
-            throw new IllegalArgumentException("input channel cannot emit duplicate keys when [failOnDuplicate] is [true]");
+            throw new IllegalArgumentException("input must not have duplicates when [failOnDuplicate] set to [true]");
+        }
+
+        static int[] selectPositionsBefore(int[] selectedPositions, int positionCount, int untilPosition) {
+            // Before the first rejection, the input page is the selection.
+            if (selectedPositions.length < positionCount) {
+                selectedPositions = new int[positionCount];
+            }
+            for (int p = 0; p < untilPosition; p++) {
+                selectedPositions[p] = p;
+            }
+            return selectedPositions;
+        }
+
+        static Page finish(Page page) {
+            return page;
+        }
+
+        static Page finish(Page page, Page output) {
+            page.releaseBlocks();
+            return output;
+        }
+
+        static Page finish(Page page, int[] positions, int selectedCount) {
+            if (page.getPositionCount() == 0) {
+                return finish(page, null);
+            }
+            // No buffer means nothing changed. Hand the input page to the caller as-is.
+            if (positions == null) {
+                return finish(page);
+            }
+            if (selectedCount == 0) {
+                return finish(page, null);
+            }
+            // Build the replacement before releasing the input. Exceptions leave ownership with the operator.
+            return finish(page, page.filter(false, positions, 0, selectedCount));
+        }
+
+        static Page finish(Page page, int position) {
+            return finish(page, page.filter(false, position));
+        }
+
+        static boolean getAndSetOrdinal(BitArray seen, int ordinal) {
+            if (ordinal < 0) {
+                throw new IllegalArgumentException("ordinal key must be non-negative but was [" + ordinal + "]");
+            }
+            return seen.getAndSet(ordinal);
+        }
+
+        static long addOrdinalKey(
+            BitArray pageLocalSeenOrdinals,
+            BytesRefHashTable seenKeys,
+            BytesRefVector dictionary,
+            int ordinal,
+            BytesRef scratch
+        ) {
+            // Ordinals are page-local. Hash each referenced dictionary entry once, then clear the bits.
+            boolean alreadySeen = pageLocalSeenOrdinals.getAndSet(ordinal);
+            if (alreadySeen) {
+                return -1;
+            }
+            return seenKeys.add(dictionary.getBytesRef(ordinal, scratch));
         }
     }
 
@@ -124,7 +186,7 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
         final int keyChannel;
         final BytesRefHashTable seenKeys;
         final BytesRef scratch = new BytesRef();
-        final BitArray pageSeenOrdinals;
+        final BitArray pageLocalSeenOrdinals;
         int[] selectedPositions = new int[0];
 
         BytesRefProcessor(int keyChannel, DriverContext driverContext) {
@@ -136,7 +198,7 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
             boolean success = false;
             try {
-                pageSeenOrdinals = new BitArray(1, blockFactory.bigArrays());
+                pageLocalSeenOrdinals = new BitArray(1, blockFactory.bigArrays());
                 success = true;
             } finally {
                 if (success == false) {
@@ -147,38 +209,45 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
 
         @Override
         public Page process(Page page) {
-            Page result = doProcess(page);
-            page.releaseBlocks();
-            return result;
-        }
-
-        private Page doProcess(Page page) {
             BytesRefBlock keyBlock = page.getBlock(keyChannel);
             BytesRefVector vector = keyBlock.asVector();
             if (vector != null) {
+                // Constant vector: one key decides whether the page is dropped, passed through, or collapsed to one row.
                 if (vector.isConstant()) {
-                    return processConstantVector(page, vector);
+                    int positionCount = page.getPositionCount();
+                    if (positionCount == 0) {
+                        return Processor.finish(page, null);
+                    }
+                    long groupId = seenKeys.add(vector.getBytesRef(0, scratch));
+                    if (groupId < 0) {
+                        return Processor.finish(page, null);
+                    }
+                    if (positionCount == 1) {
+                        // no duplicates
+                        return Processor.finish(page);
+                    }
+
+                    return Processor.finish(page, 0);
                 }
+
                 OrdinalBytesRefVector ordinals = vector.asOrdinals();
-                return ordinals == null ? processVector(page, vector) : processOrdinalsVector(page, ordinals);
+                if (ordinals == null) {
+                    // Plain vector path: each position contributes exactly one key.
+                    return processVector(page, vector);
+                }
+
+                // Ordinal vector path: page-local ordinals avoid repeated dictionary hashing.
+                return processOrdinalsVector(page, ordinals);
             }
 
             OrdinalBytesRefBlock ordinals = keyBlock.asOrdinals();
+            // Dedup keys a position by its first value; multivalued ordinal blocks must take the generic path.
             if (ordinals != null && ordinals.mayHaveMultivaluedFields() == false) {
+                // Ordinal block path: single-valued ordinals with null checks and page-local dictionary deduplication.
                 return processOrdinalsBlock(page, ordinals);
             }
+            // Generic block path: handles nulls and multivalued positions using each position's first value.
             return processBlock(page, keyBlock);
-        }
-
-        private Page processConstantVector(Page page, BytesRefVector vector) {
-            int positionCount = page.getPositionCount();
-            if (positionCount == 0) {
-                return null;
-            }
-            if (seenKeys.add(vector.getBytesRef(0, scratch)) < 0) {
-                return null;
-            }
-            return positionCount == 1 ? page.shallowCopy() : page.filter(false, 0);
         }
 
         private Page processVector(Page page, BytesRefVector vector) {
@@ -187,31 +256,18 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             int selectedCount = 0;
 
             for (int p = 0; p < positionCount; p++) {
-                if (seenKeys.add(vector.getBytesRef(p, scratch)) >= 0) {
+                long groupId = seenKeys.add(vector.getBytesRef(p, scratch));
+                if (groupId >= 0) {
                     if (positions != null) {
                         positions[selectedCount++] = p;
                     }
                 } else if (positions == null) {
-                    if (selectedPositions.length < positionCount) {
-                        selectedPositions = new int[positionCount];
-                    }
-                    for (int p1 = 0; p1 < p; p1++) {
-                        selectedPositions[p1] = p1;
-                    }
+                    selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
                     positions = selectedPositions;
                     selectedCount = p;
                 }
             }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
+            return Processor.finish(page, positions, selectedCount);
         }
 
         private Page processBlock(Page page, BytesRefBlock block) {
@@ -220,32 +276,23 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             int selectedCount = 0;
 
             for (int p = 0; p < positionCount; p++) {
-                boolean keep = block.isNull(p) == false && seenKeys.add(block.getBytesRef(block.getFirstValueIndex(p), scratch)) >= 0;
+                boolean keep = false;
+                if (block.isNull(p) == false) {
+                    int valueIndex = block.getFirstValueIndex(p);
+                    long groupId = seenKeys.add(block.getBytesRef(valueIndex, scratch));
+                    keep = groupId >= 0;
+                }
                 if (keep) {
                     if (positions != null) {
                         positions[selectedCount++] = p;
                     }
                 } else if (positions == null) {
-                    if (selectedPositions.length < positionCount) {
-                        selectedPositions = new int[positionCount];
-                    }
-                    for (int p1 = 0; p1 < p; p1++) {
-                        selectedPositions[p1] = p1;
-                    }
+                    selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
                     positions = selectedPositions;
                     selectedCount = p;
                 }
             }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
+            return Processor.finish(page, positions, selectedCount);
         }
 
         private Page processOrdinalsVector(Page page, OrdinalBytesRefVector ordinals) {
@@ -254,42 +301,24 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             int positionCount = ordinalVector.getPositionCount();
             int[] positions = null;
             int selectedCount = 0;
-            int dictionarySize = dictionary.getPositionCount();
             try {
                 for (int p = 0; p < positionCount; p++) {
                     int ord = ordinalVector.getInt(p);
-                    boolean keep = false;
-                    if (pageSeenOrdinals.getAndSet(ord) == false) {
-                        keep = seenKeys.add(dictionary.getBytesRef(ord, scratch)) >= 0;
-                    }
-                    if (keep) {
+                    long groupId = Processor.addOrdinalKey(pageLocalSeenOrdinals, seenKeys, dictionary, ord, scratch);
+                    if (groupId >= 0) {
                         if (positions != null) {
                             positions[selectedCount++] = p;
                         }
                     } else if (positions == null) {
-                        if (selectedPositions.length < positionCount) {
-                            selectedPositions = new int[positionCount];
-                        }
-                        for (int p1 = 0; p1 < p; p1++) {
-                            selectedPositions[p1] = p1;
-                        }
+                        selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
                         positions = selectedPositions;
                         selectedCount = p;
                     }
                 }
             } finally {
-                clearPageSeenOrdinals(dictionarySize);
+                pageLocalSeenOrdinals.fill(0, dictionary.getPositionCount(), false);
             }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
+            return Processor.finish(page, positions, selectedCount);
         }
 
         private Page processOrdinalsBlock(Page page, OrdinalBytesRefBlock ordinals) {
@@ -304,38 +333,23 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
                     boolean keep = false;
                     if (ordinalBlock.isNull(p) == false) {
                         int ord = ordinalBlock.getInt(ordinalBlock.getFirstValueIndex(p));
-                        if (pageSeenOrdinals.getAndSet(ord) == false) {
-                            keep = seenKeys.add(dictionary.getBytesRef(ord, scratch)) >= 0;
-                        }
+                        long groupId = Processor.addOrdinalKey(pageLocalSeenOrdinals, seenKeys, dictionary, ord, scratch);
+                        keep = groupId >= 0;
                     }
                     if (keep) {
                         if (positions != null) {
                             positions[selectedCount++] = p;
                         }
                     } else if (positions == null) {
-                        if (selectedPositions.length < positionCount) {
-                            selectedPositions = new int[positionCount];
-                        }
-                        for (int p1 = 0; p1 < p; p1++) {
-                            selectedPositions[p1] = p1;
-                        }
+                        selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
                         positions = selectedPositions;
                         selectedCount = p;
                     }
                 }
             } finally {
-                clearPageSeenOrdinals(dictionarySize);
+                pageLocalSeenOrdinals.fill(0, dictionarySize, false);
             }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
+            return Processor.finish(page, positions, selectedCount);
         }
 
         @Override
@@ -345,11 +359,7 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
 
         @Override
         public void close() {
-            Releasables.close(seenKeys, pageSeenOrdinals);
-        }
-
-        private void clearPageSeenOrdinals(int dictionarySize) {
-            pageSeenOrdinals.fill(0, dictionarySize, false);
+            Releasables.close(seenKeys, pageLocalSeenOrdinals);
         }
     }
 
@@ -357,7 +367,7 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
         private final int keyChannel;
         private final BytesRefHashTable seenKeys;
         private final BytesRef scratch = new BytesRef();
-        private final BitArray pageSeenOrdinals;
+        private final BitArray pageLocalSeenOrdinals;
 
         BytesRefFailOnDuplicateProcessor(int keyChannel, DriverContext driverContext) {
             this(keyChannel, driverContext.blockFactory());
@@ -368,7 +378,7 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
             boolean success = false;
             try {
-                pageSeenOrdinals = new BitArray(1, blockFactory.bigArrays());
+                pageLocalSeenOrdinals = new BitArray(1, blockFactory.bigArrays());
                 success = true;
             } finally {
                 if (success == false) {
@@ -382,55 +392,79 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             BytesRefBlock keyBlock = page.getBlock(keyChannel);
             BytesRefVector vector = keyBlock.asVector();
             if (vector != null) {
+                // Constant vector: any page with more than one position is a duplicate.
                 if (vector.isConstant()) {
-                    guardConstantVector(vector);
-                    return page;
+                    int positionCount = vector.getPositionCount();
+                    if (positionCount != 0) {
+                        long groupId = seenKeys.add(vector.getBytesRef(0, scratch));
+                        if (groupId < 0 || positionCount > 1) {
+                            Processor.throwOnDuplicate();
+                        }
+                    }
+                    return Processor.finish(page);
                 }
                 OrdinalBytesRefVector ordinals = vector.asOrdinals();
                 if (ordinals == null) {
+                    // Plain vector path: every position contributes exactly one key.
                     guardVector(vector);
                 } else {
+                    // Ordinal vector path: check page-local ordinal repeats before hashing dictionary values.
                     guardOrdinalsVector(ordinals);
                 }
             } else {
                 OrdinalBytesRefBlock ordinals = keyBlock.asOrdinals();
+                // Keep these block loops separate to avoid callback or branch overhead in the innermost hot path.
                 if (ordinals == null) {
-                    guardBlock(keyBlock);
+                    // Generic block path: every non-null value in every position must be globally unique.
+                    int positionCount = keyBlock.getPositionCount();
+                    // Duplicate values inside one multivalued position are still duplicates.
+                    for (int p = 0; p < positionCount; p++) {
+                        int first = keyBlock.getFirstValueIndex(p);
+                        int end = first + keyBlock.getValueCount(p);
+                        for (int valueIndex = first; valueIndex < end; valueIndex++) {
+                            long groupId = seenKeys.add(keyBlock.getBytesRef(valueIndex, scratch));
+                            if (groupId < 0) {
+                                Processor.throwOnDuplicate();
+                            }
+                        }
+                    }
                 } else {
-                    guardOrdinalsBlock(ordinals);
+                    // Ordinal block path: every ordinal value must be unique after dictionary lookup.
+                    IntBlock ordinalBlock = ordinals.getOrdinalsBlock();
+                    BytesRefVector dictionary = ordinals.getDictionaryVector();
+                    int dictionarySize = dictionary.getPositionCount();
+                    try {
+                        int positionCount = ordinalBlock.getPositionCount();
+                        for (int p = 0; p < positionCount; p++) {
+                            int first = ordinalBlock.getFirstValueIndex(p);
+                            int end = first + ordinalBlock.getValueCount(p);
+                            for (int valueIndex = first; valueIndex < end; valueIndex++) {
+                                long groupId = Processor.addOrdinalKey(
+                                    pageLocalSeenOrdinals,
+                                    seenKeys,
+                                    dictionary,
+                                    ordinalBlock.getInt(valueIndex),
+                                    scratch
+                                );
+                                if (groupId < 0) {
+                                    Processor.throwOnDuplicate();
+                                }
+                            }
+                        }
+                    } finally {
+                        pageLocalSeenOrdinals.fill(0, dictionarySize, false);
+                    }
                 }
             }
-            return page;
-        }
-
-        private void guardConstantVector(BytesRefVector vector) {
-            int positionCount = vector.getPositionCount();
-            if (positionCount == 0) {
-                return;
-            }
-            if (seenKeys.add(vector.getBytesRef(0, scratch)) < 0 || positionCount > 1) {
-                Processor.throwOnDuplicate();
-            }
+            return Processor.finish(page);
         }
 
         private void guardVector(BytesRefVector vector) {
             int positionCount = vector.getPositionCount();
             for (int p = 0; p < positionCount; p++) {
-                if (seenKeys.add(vector.getBytesRef(p, scratch)) < 0) {
+                long groupId = seenKeys.add(vector.getBytesRef(p, scratch));
+                if (groupId < 0) {
                     Processor.throwOnDuplicate();
-                }
-            }
-        }
-
-        private void guardBlock(BytesRefBlock block) {
-            int positionCount = block.getPositionCount();
-            for (int p = 0; p < positionCount; p++) {
-                int first = block.getFirstValueIndex(p);
-                int end = first + block.getValueCount(p);
-                for (int valueIndex = first; valueIndex < end; valueIndex++) {
-                    if (seenKeys.add(block.getBytesRef(valueIndex, scratch)) < 0) {
-                        Processor.throwOnDuplicate();
-                    }
                 }
             }
         }
@@ -442,47 +476,19 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             try {
                 int positionCount = ordinalVector.getPositionCount();
                 for (int p = 0; p < positionCount; p++) {
-                    guardOrdinal(dictionary, ordinalVector.getInt(p));
-                }
-            } finally {
-                clearPageSeenOrdinals(dictionarySize);
-            }
-        }
-
-        private void guardOrdinalsBlock(OrdinalBytesRefBlock ordinals) {
-            IntBlock ordinalBlock = ordinals.getOrdinalsBlock();
-            BytesRefVector dictionary = ordinals.getDictionaryVector();
-            int dictionarySize = dictionary.getPositionCount();
-            try {
-                int positionCount = ordinalBlock.getPositionCount();
-                for (int p = 0; p < positionCount; p++) {
-                    int first = ordinalBlock.getFirstValueIndex(p);
-                    int end = first + ordinalBlock.getValueCount(p);
-                    for (int valueIndex = first; valueIndex < end; valueIndex++) {
-                        guardOrdinal(dictionary, ordinalBlock.getInt(valueIndex));
+                    long groupId = Processor.addOrdinalKey(pageLocalSeenOrdinals, seenKeys, dictionary, ordinalVector.getInt(p), scratch);
+                    if (groupId < 0) {
+                        Processor.throwOnDuplicate();
                     }
                 }
             } finally {
-                clearPageSeenOrdinals(dictionarySize);
-            }
-        }
-
-        private void guardOrdinal(BytesRefVector dictionary, int ord) {
-            if (pageSeenOrdinals.getAndSet(ord)) {
-                Processor.throwOnDuplicate();
-            }
-            if (seenKeys.add(dictionary.getBytesRef(ord, scratch)) < 0) {
-                Processor.throwOnDuplicate();
+                pageLocalSeenOrdinals.fill(0, dictionarySize, false);
             }
         }
 
         @Override
         public void close() {
-            Releasables.close(seenKeys, pageSeenOrdinals);
-        }
-
-        private void clearPageSeenOrdinals(int dictionarySize) {
-            pageSeenOrdinals.fill(0, dictionarySize, false);
+            Releasables.close(seenKeys, pageLocalSeenOrdinals);
         }
     }
 
@@ -504,88 +510,71 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
         public Page process(Page page) {
             IntBlock ordinalBlock = page.getBlock(keyChannel);
             IntVector vector = ordinalBlock.asVector();
-            Page result = vector == null ? processBlock(page, ordinalBlock) : processVector(page, vector);
-            page.releaseBlocks();
-            return result;
-        }
+            if (vector == null) {
+                // Block path: handles nulls and multivalued positions using each position's first ordinal.
+                int positionCount = ordinalBlock.getPositionCount();
+                int[] positions = null;
+                int selectedCount = 0;
 
-        private Page processVector(Page page, IntVector vector) {
-            int positionCount = vector.getPositionCount();
-            int[] positions = null;
-            int selectedCount = 0;
-
-            for (int p = 0; p < positionCount; p++) {
-                if (getAndSetOrdinal(vector.getInt(p)) == false) {
-                    if (positions != null) {
-                        positions[selectedCount++] = p;
+                for (int p = 0; p < positionCount; p++) {
+                    boolean keep = false;
+                    if (ordinalBlock.isNull(p) == false) {
+                        boolean alreadySeen = Processor.getAndSetOrdinal(seen, ordinalBlock.getInt(ordinalBlock.getFirstValueIndex(p)));
+                        keep = alreadySeen == false;
                     }
-                } else if (positions == null) {
-                    if (selectedPositions.length < positionCount) {
-                        selectedPositions = new int[positionCount];
+                    if (keep) {
+                        if (positions != null) {
+                            positions[selectedCount++] = p;
+                        }
+                    } else if (positions == null) {
+                        selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
+                        positions = selectedPositions;
+                        selectedCount = p;
                     }
-                    for (int p1 = 0; p1 < p; p1++) {
-                        selectedPositions[p1] = p1;
-                    }
-                    positions = selectedPositions;
-                    selectedCount = p;
                 }
-            }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
-        }
-
-        private Page processBlock(Page page, IntBlock block) {
-            int positionCount = block.getPositionCount();
-            int[] positions = null;
-            int selectedCount = 0;
-
-            for (int p = 0; p < positionCount; p++) {
-                boolean keep = block.isNull(p) == false && getAndSetOrdinal(block.getInt(block.getFirstValueIndex(p))) == false;
-                if (keep) {
-                    if (positions != null) {
-                        positions[selectedCount++] = p;
-                    }
-                } else if (positions == null) {
-                    if (selectedPositions.length < positionCount) {
-                        selectedPositions = new int[positionCount];
-                    }
-                    for (int p1 = 0; p1 < p; p1++) {
-                        selectedPositions[p1] = p1;
-                    }
-                    positions = selectedPositions;
-                    selectedCount = p;
+                return Processor.finish(page, positions, selectedCount);
+            } else if (vector.isConstant()) {
+                // Constant vector: one ordinal decides whether the page is dropped, passed through, or collapsed to one row.
+                int positionCount = page.getPositionCount();
+                if (positionCount == 0) {
+                    return Processor.finish(page, null);
                 }
+                boolean alreadySeen = Processor.getAndSetOrdinal(seen, vector.getInt(0));
+                if (alreadySeen) {
+                    return Processor.finish(page, null);
+                }
+
+                if (positionCount == 1) {
+                    return Processor.finish(page);
+                }
+
+                return Processor.finish(page, 0);
+            } else {
+                // Plain vector path: every position contributes exactly one ordinal.
+                int positionCount = vector.getPositionCount();
+                int[] positions = null;
+                int selectedCount = 0;
+
+                for (int p = 0; p < positionCount; p++) {
+                    boolean alreadySeen = Processor.getAndSetOrdinal(seen, vector.getInt(p));
+                    if (alreadySeen == false) {
+                        if (positions != null) {
+                            positions[selectedCount++] = p;
+                        }
+                    } else if (positions == null) {
+                        selectedPositions = Processor.selectPositionsBefore(selectedPositions, positionCount, p);
+                        positions = selectedPositions;
+                        selectedCount = p;
+                    }
+                }
+
+                return Processor.finish(page, positions, selectedCount);
             }
-            if (page.getPositionCount() == 0) {
-                return null;
-            }
-            if (positions == null) {
-                return page.shallowCopy();
-            }
-            if (selectedCount == 0) {
-                return null;
-            }
-            return page.filter(false, positions, 0, selectedCount);
         }
 
         @Override
         public void close() {
             seen.close();
-        }
-
-        private boolean getAndSetOrdinal(int ordinal) {
-            if (ordinal < 0) {
-                throw new IllegalArgumentException("ordinal key must be non-negative but was [" + ordinal + "]");
-            }
-            return seen.getAndSet(ordinal);
         }
     }
 
@@ -603,46 +592,43 @@ public final class DistinctByOperator extends AbstractPageMappingOperator {
             IntBlock ordinals = page.getBlock(keyChannel);
             IntVector vector = ordinals.asVector();
             if (vector == null) {
-                guardBlock(ordinals);
-            } else {
-                guardVector(vector);
-            }
-            return page;
-        }
-
-        private void guardVector(IntVector vector) {
-            int positionCount = vector.getPositionCount();
-            for (int p = 0; p < positionCount; p++) {
-                if (getAndSetOrdinal(vector.getInt(p))) {
-                    Processor.throwOnDuplicate();
+                // Block path: every non-null ordinal value in every position must be unique.
+                int positionCount = ordinals.getPositionCount();
+                for (int p = 0; p < positionCount; p++) {
+                    int first = ordinals.getFirstValueIndex(p);
+                    int end = first + ordinals.getValueCount(p);
+                    for (int valueIndex = first; valueIndex < end; valueIndex++) {
+                        boolean alreadySeen = Processor.getAndSetOrdinal(seen, ordinals.getInt(valueIndex));
+                        if (alreadySeen) {
+                            Processor.throwOnDuplicate();
+                        }
+                    }
                 }
-            }
-        }
-
-        private void guardBlock(IntBlock ordinals) {
-            int positionCount = ordinals.getPositionCount();
-            for (int p = 0; p < positionCount; p++) {
-                int first = ordinals.getFirstValueIndex(p);
-                int end = first + ordinals.getValueCount(p);
-                for (int valueIndex = first; valueIndex < end; valueIndex++) {
-                    if (getAndSetOrdinal(ordinals.getInt(valueIndex))) {
+            } else if (vector.isConstant()) {
+                // Constant vector: any page with more than one position is a duplicate.
+                int positionCount = vector.getPositionCount();
+                if (positionCount != 0) {
+                    boolean alreadySeen = Processor.getAndSetOrdinal(seen, vector.getInt(0));
+                    if (alreadySeen || positionCount > 1) {
+                        Processor.throwOnDuplicate();
+                    }
+                }
+            } else {
+                // Plain vector path: every position contributes exactly one ordinal.
+                int positionCount = vector.getPositionCount();
+                for (int p = 0; p < positionCount; p++) {
+                    boolean alreadySeen = Processor.getAndSetOrdinal(seen, vector.getInt(p));
+                    if (alreadySeen) {
                         Processor.throwOnDuplicate();
                     }
                 }
             }
+            return Processor.finish(page);
         }
 
         @Override
         public void close() {
             seen.close();
         }
-
-        private boolean getAndSetOrdinal(int ordinal) {
-            if (ordinal < 0) {
-                throw new IllegalArgumentException("ordinal key must be non-negative but was [" + ordinal + "]");
-            }
-            return seen.getAndSet(ordinal);
-        }
     }
-
 }

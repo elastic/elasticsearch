@@ -9,9 +9,13 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.opentelemetry.proto.common.v1.ArrayValue;
+
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,13 +23,18 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.util.HexFormat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Verifies that audit events emitted by {@code LoggingAuditTrail} flow out via the OTel SDK as
@@ -36,9 +45,9 @@ import java.util.function.Consumer;
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
 @ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
-public class OtelAuditLogsIT extends AbstractTelemetryIT {
+public class OtelLoggingIT extends AbstractTelemetryIT {
 
-    private static final Logger logger = LogManager.getLogger(OtelAuditLogsIT.class);
+    private static final Logger logger = LogManager.getLogger(OtelLoggingIT.class);
 
     private static final String API_USER = "api_user";
 
@@ -62,6 +71,7 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.logs.audit.enabled", "true")
+        .setting("telemetry.logs.querylog.enabled", "true")
         // OTLP/gRPC endpoint: scheme https for mTLS, no path (different shape than HTTP-protobuf endpoint).
         .setting("telemetry.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         // mTLS: ES node verifies the recording server's cert and presents a client cert.
@@ -69,6 +79,7 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("telemetry.logs.ssl.certificate_authorities", () -> recordingApmServer.getMtlsServerCaCertPath())
         .setting("telemetry.logs.ssl.certificate", () -> recordingApmServer.getMtlsClientCertPath())
         .setting("telemetry.logs.ssl.key", () -> recordingApmServer.getMtlsClientKeyPath())
+        .setting("elasticsearch.querylog.enabled", "true")
         .user(API_USER, "api-password", "superuser", false)
         .build();
 
@@ -89,6 +100,11 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(API_USER, new SecureString("api-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    @Before
+    void checkFIPS() {
+        assumeFalse("Disabled for FIPS mode: https://github.com/elastic/elasticsearch/issues/154330", inFipsJvm());
     }
 
     public void testAuditEventArrivesAsOtlpLogRecord() throws Exception {
@@ -115,17 +131,52 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         ReceivedTelemetry.ReceivedLog log = firstAuditLog.get();
         assertNotNull(log);
         assertNotNull(log.attributes());
-        // PR 1 intentionally asserts on the log4j.map_message. prefix: the OpenTelemetryAppender
-        // captures StringMapMessage entries as prefixed attributes when
-        // setCaptureMapMessageAttributes(true) is set. Stripping the prefix is tracked in #4183.
-        assertNotNull("audit log should carry event.action", log.attributes().get("log4j.map_message.event.action"));
-        assertNotNull("audit log should carry event.type", log.attributes().get("log4j.map_message.event.type"));
+        assertNotNull("audit log should carry event.action", log.attributes().get("event.action"));
+        assertNotNull("audit log should carry event.type", log.attributes().get("event.type"));
         // R6: cluster and node identity fields must not be present on records that ship via OTLP.
         // The four EMIT_*_SETTING gates are off (see cluster setup above), which suppresses the
         // fields at the StringMapMessage source so the OpenTelemetryAppender doesn't capture them.
+        assertNull("cluster.name must not be on OTel records", log.attributes().get("cluster.name"));
+        assertNull("cluster.uuid must not be on OTel records", log.attributes().get("cluster.uuid"));
+        assertNull("node.name must not be on OTel records", log.attributes().get("node.name"));
+        assertNull("node.id must not be on OTel records", log.attributes().get("node.id"));
         assertNull("cluster.name must not be on OTel records", log.attributes().get("log4j.map_message.cluster.name"));
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
+    }
+
+    public void testOtelLoggingOnSearch() throws Exception {
+        CountDownLatch arrived = new CountDownLatch(1);
+        AtomicReference<ReceivedTelemetry.ReceivedLog> queryLogMessage = new AtomicReference<>();
+
+        createIndex("test_index");
+
+        Consumer<ReceivedTelemetry> consumer = msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
+                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
+                if (queryLogMessage.compareAndSet(null, log)) {
+                    arrived.countDown();
+                }
+            }
+        };
+        recordingApmServer.addMessageConsumer(consumer);
+        var search = new Request("GET", "/test_index/_search");
+        var randomId = HexFormat.of().formatHex(randomByteArrayOfLength(16));
+        var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
+        search.setOptions(options);
+        client().performRequest(search);
+        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+        assertTrue("Timeout waiting for an OTLP log record", got);
+        ReceivedTelemetry.ReceivedLog log = queryLogMessage.get();
+        assertNotNull(log);
+        assertNotNull(log.attributes());
+        assertThat(log.traceId().get(), equalTo(randomId));
+        var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
+        assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
     }
 }

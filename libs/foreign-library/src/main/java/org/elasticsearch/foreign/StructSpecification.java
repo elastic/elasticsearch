@@ -29,4 +29,14 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface StructSpecification {
+    /**
+     * When {@code true}, the struct is in sparse mode: every field must declare an {@link Offset
+     * @Offset}, and the type must declare a {@link StructSize @StructSize}. Fields are placed at
+     * their resolved offsets; unmodeled bytes become padding in the layout.
+     *
+     * <p>When {@code false} (the default), the struct is in dense mode: fields lay out sequentially
+     * in declaration order. {@link Padding @Padding} is allowed; {@link Offset @Offset} and
+     * {@link StructSize @StructSize} are compile errors.
+     */
+    boolean sparse() default false;
 }

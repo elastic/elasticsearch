@@ -16,8 +16,7 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
-import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
-import org.elasticsearch.foreign.processor.model.StructModel;
+import org.elasticsearch.foreign.processor.model.StructVariants;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -41,6 +40,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_allocate_layout;
@@ -48,21 +48,21 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_asSlice;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_byteSize;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_groupElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceElement;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_structLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleSequenceWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.LayoutField;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.computeLayout;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLayoutArray;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.fieldSize;
 
 /**
  * Generates the {@code $Impl} class for a {@code @StructSpecification} interface. The class
  * implements the interface and {@link org.elasticsearch.foreign.Addressable}, wraps a native
  * {@link java.lang.foreign.MemorySegment}, and exposes VarHandle-backed accessors for scalar
  * fields plus indexed accessors for {@code @ArrayField} methods.
+ *
+ * <p>Layout comes fully resolved from the {@link StructVariants} model. When a struct's layout is
+ * identical across platforms (the common case), a single {@code LAYOUT} is emitted and inline-string
+ * offsets are baked as constants. When it differs, a per-platform {@code <clinit>} selects
+ * {@code LAYOUT} and inline-string offsets are read from static fields derived from it.
  */
 final class StructImplWriter {
 
@@ -88,14 +88,17 @@ final class StructImplWriter {
     }
 
     /** Generates and writes the {@code $Impl} class for an interface struct. */
-    void generate(LibraryModel model, StructInterfaceModel struct, TypeElement sourceElement) throws Exception {
+    void generate(LibraryModel model, StructVariants variants, TypeElement sourceElement) throws Exception {
         String prefix = qualifiedPrefix(model);
-        String structImplQualifiedName = prefix + "$" + struct.simpleName() + "$Impl";
+        String structImplQualifiedName = prefix + "$" + variants.simpleName() + "$Impl";
         ClassDesc structImplDesc = ClassDesc.of(structImplQualifiedName);
-        ClassDesc structInterfaceDesc = ClassDesc.of(prefix + "$" + struct.simpleName());
+        ClassDesc structInterfaceDesc = ClassDesc.of(prefix + "$" + variants.simpleName());
 
-        List<StructFieldModel> fields = struct.fields();
-        List<LayoutField> layout = computeLayout(fields);
+        List<PerPlatformClinit.Group> groups = PerPlatformClinit.group(variants.byPlatform());
+        boolean perPlatform = PerPlatformClinit.isPerPlatform(groups);
+        // Field shape is identical across platforms; for the single-layout case each field's offset
+        // is also final, so inline-string offsets can be baked as constants.
+        List<StructFieldModel> fields = variants.any().fields();
 
         byte[] classBytes = ClassFile.of().build(structImplDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
@@ -103,11 +106,11 @@ final class StructImplWriter {
             cb.withSuperclass(CD_Object);
             cb.withInterfaceSymbols(structInterfaceDesc, CD_Addressable);
 
-            declareFields(cb, fields);
-            emitClinit(cb, structImplDesc, fields, layout);
+            declareFields(cb, fields, perPlatform);
+            emitClinit(cb, structImplDesc, fields, groups, perPlatform);
             emitConstructor(cb, structImplDesc);
             emitSegmentAccessor(cb, structImplDesc);
-            emitFieldAccessors(cb, structImplDesc, model, prefix, fields, layout);
+            emitFieldAccessors(cb, structImplDesc, model, prefix, fields, perPlatform);
         });
 
         try (var os = filer.createClassFile(structImplQualifiedName, sourceElement).openOutputStream()) {
@@ -115,26 +118,46 @@ final class StructImplWriter {
         }
     }
 
-    /** Declares {@code LAYOUT}, one VarHandle per field (except InlineStringField), and the instance {@code segment} field. */
-    private static void declareFields(ClassBuilder cb, List<StructFieldModel> fields) {
+    /**
+     * Declares {@code LAYOUT}, one VarHandle per field (except {@link InlineStringFieldModel}), and
+     * the instance {@code segment} field. In per-platform mode an inline-string field additionally
+     * gets a {@code static final long <name>$offset} caching the offset resolved for the running
+     * platform in {@code <clinit>}; otherwise its offset is a compile-time constant baked into the
+     * accessor and no field is needed.
+     */
+    private static void declareFields(ClassBuilder cb, List<StructFieldModel> fields, boolean perPlatform) {
         cb.withField("LAYOUT", CD_StructLayout, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
         for (StructFieldModel field : fields) {
-            if (field instanceof InlineStringFieldModel == false) {
+            if (field instanceof InlineStringFieldModel inlineStr) {
+                if (perPlatform) {
+                    cb.withField(inlineStr.name() + "$offset", CD_long, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
+                }
+            } else {
                 cb.withField(varHandleFieldName(field), CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
             }
         }
         cb.withField("segment", CD_MemorySegment, fb -> fb.withFlags(AccessFlag.FINAL));
     }
 
-    /** Emits {@code <clinit>}: initialize {@code LAYOUT} and every VarHandle. */
-    private static void emitClinit(ClassBuilder cb, ClassDesc structImplDesc, List<StructFieldModel> fields, List<LayoutField> layout) {
+    /**
+     * Emits {@code <clinit>}: initialize {@code LAYOUT} (single or per-platform via
+     * {@link PerPlatformClinit}), then every VarHandle, plus per-platform inline-string offsets.
+     */
+    private static void emitClinit(
+        ClassBuilder cb,
+        ClassDesc structImplDesc,
+        List<StructFieldModel> fields,
+        List<PerPlatformClinit.Group> groups,
+        boolean perPlatform
+    ) {
         cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
-            emitStructLayoutArray(clinit, layout);
-            clinit.invokestatic(CD_MemoryLayout, "structLayout", MTD_structLayout, true);
-            clinit.putstatic(structImplDesc, "LAYOUT", CD_StructLayout);
+            PerPlatformClinit.emitLayoutInit(clinit, structImplDesc, groups);
 
             for (StructFieldModel field : fields) {
-                if (field instanceof InlineStringFieldModel) {
+                if (field instanceof InlineStringFieldModel inlineStr) {
+                    if (perPlatform) {
+                        emitInlineStringOffsetInit(clinit, structImplDesc, inlineStr);
+                    }
                     continue;
                 }
                 clinit.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
@@ -150,6 +173,20 @@ final class StructImplWriter {
             }
             clinit.return_();
         });
+    }
+
+    /** Initializes {@code <name>$offset} to {@code LAYOUT.byteOffset(groupElement(name))} for a per-platform inline string. */
+    private static void emitInlineStringOffsetInit(CodeBuilder clinit, ClassDesc structImplDesc, InlineStringFieldModel field) {
+        clinit.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
+        clinit.loadConstant(1);
+        clinit.anewarray(CD_MemoryLayoutPathElement);
+        clinit.dup();
+        clinit.loadConstant(0);
+        clinit.ldc(field.name());
+        clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
+        clinit.aastore();
+        clinit.invokeinterface(CD_MemoryLayout, "byteOffset", MethodTypeDesc.of(CD_long, CD_MemoryLayoutPathElement.arrayType()));
+        clinit.putstatic(structImplDesc, field.name() + "$offset", CD_long);
     }
 
     /** Package-private no-arg constructor: {@code this.segment = Arena.ofAuto().allocate(LAYOUT);}. */
@@ -182,7 +219,7 @@ final class StructImplWriter {
         LibraryModel model,
         String packPrefix,
         List<StructFieldModel> fields,
-        List<LayoutField> layout
+        boolean perPlatform
     ) {
         for (StructFieldModel field : fields) {
             switch (field) {
@@ -208,10 +245,10 @@ final class StructImplWriter {
                 }
                 case InlineStringFieldModel inlineString -> {
                     if (inlineString.hasGetter()) {
-                        emitInlineStringFieldGetter(cb, structImplDesc, inlineString, layout);
+                        emitInlineStringFieldGetter(cb, structImplDesc, inlineString, perPlatform);
                     }
                     if (inlineString.hasSetter()) {
-                        emitInlineStringFieldSetter(cb, structImplDesc, inlineString, layout);
+                        emitInlineStringFieldSetter(cb, structImplDesc, inlineString, perPlatform);
                     }
                 }
             }
@@ -375,14 +412,13 @@ final class StructImplWriter {
         ClassBuilder cb,
         ClassDesc structImplDesc,
         InlineStringFieldModel field,
-        List<LayoutField> layout
+        boolean perPlatform
     ) {
-        long offset = fieldByteOffset(field, layout);
         MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_String);
         cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
-            code.loadConstant(offset);
+            emitInlineStringOffset(code, structImplDesc, field, perPlatform);
             code.invokestatic(
                 CD_MemorySegmentAdapter,
                 "getString",
@@ -400,14 +436,13 @@ final class StructImplWriter {
         ClassBuilder cb,
         ClassDesc structImplDesc,
         InlineStringFieldModel field,
-        List<LayoutField> layout
+        boolean perPlatform
     ) {
-        long offset = fieldByteOffset(field, layout);
         MethodTypeDesc methodDesc = MethodTypeDesc.of(CD_void, CD_String);
         cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
-            code.loadConstant(offset);
+            emitInlineStringOffset(code, structImplDesc, field, perPlatform);
             code.aload(1);
             code.invokestatic(
                 CD_MemorySegmentAdapter,
@@ -418,17 +453,22 @@ final class StructImplWriter {
         });
     }
 
-    /** Computes the byte offset of a field within the struct layout. */
-    private static long fieldByteOffset(StructFieldModel target, List<LayoutField> layout) {
-        long offset = 0;
-        for (LayoutField lf : layout) {
-            offset += lf.paddingBefore();
-            if (lf.field() == target) {
-                return offset;
-            }
-            offset += fieldSize(lf.field());
+    /**
+     * Pushes an inline-string field's byte offset onto the stack: a compile-time constant when the
+     * layout is identical across platforms, or the {@code <name>$offset} static field (resolved for
+     * the running platform in {@code <clinit>}) when it is per-platform.
+     */
+    private static void emitInlineStringOffset(
+        CodeBuilder code,
+        ClassDesc structImplDesc,
+        InlineStringFieldModel field,
+        boolean perPlatform
+    ) {
+        if (perPlatform) {
+            code.getstatic(structImplDesc, field.name() + "$offset", CD_long);
+        } else {
+            code.loadConstant(field.offset());
         }
-        throw new AssertionError("field not found in layout: " + target.name());
     }
 
     /** Emits the appropriate typed return instruction for a scalar field. */
@@ -445,9 +485,9 @@ final class StructImplWriter {
 
     /** Looks up the field list of a nested struct in the same library by simple name. */
     private static List<StructFieldModel> resolveElementFields(LibraryModel model, String simpleName) {
-        for (StructModel s : model.structs()) {
+        for (StructVariants s : model.structs()) {
             if (s.simpleName().equals(simpleName)) {
-                return s.fields();
+                return s.any().fields();
             }
         }
         throw new AssertionError("no struct model for element type: " + simpleName);

@@ -17,11 +17,16 @@ package org.elasticsearch.foreign.processor.model;
  *
  * <p>A field may have a getter, a setter, or both — but at least one must be present.
  */
-public record InlineArrayFieldModel(String name, NativeType elementType, int length, boolean hasGetter, boolean hasSetter)
+public record InlineArrayFieldModel(String name, NativeType elementType, int length, boolean hasGetter, boolean hasSetter, long offset)
     implements
         StructFieldModel {
     @Override
     public NativeType type() {
         return elementType;
+    }
+
+    @Override
+    public InlineArrayFieldModel withOffset(long offset) {
+        return new InlineArrayFieldModel(name, elementType, length, hasGetter, hasSetter, offset);
     }
 }

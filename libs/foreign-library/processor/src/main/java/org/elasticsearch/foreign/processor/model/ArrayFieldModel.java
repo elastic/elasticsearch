@@ -14,9 +14,14 @@ package org.elasticsearch.foreign.processor.model;
  * array of element records. Every array field carries the simple name of the element type and the
  * name of the sibling scalar length field on the same struct.
  */
-public record ArrayFieldModel(String name, String elementSimpleName, String lengthFieldName) implements StructFieldModel {
+public record ArrayFieldModel(String name, String elementSimpleName, String lengthFieldName, long offset) implements StructFieldModel {
     @Override
     public NativeType type() {
         return NativeType.ADDRESS;
+    }
+
+    @Override
+    public ArrayFieldModel withOffset(long offset) {
+        return new ArrayFieldModel(name, elementSimpleName, lengthFieldName, offset);
     }
 }

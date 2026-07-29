@@ -23,6 +23,9 @@ public sealed interface StructModel permits StructRecordModel, StructInterfaceMo
     /** The simple name of the struct type. */
     String simpleName();
 
-    /** Field models in declaration order. */
+    /** Field models in declaration order, each carrying its resolved absolute byte offset. */
     List<StructFieldModel> fields();
+
+    /** Total struct size in bytes (computed from fields in dense mode, or {@code @StructSize} in sparse mode). */
+    long byteSize();
 }

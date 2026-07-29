@@ -20,4 +20,30 @@ public sealed interface StructFieldModel permits ScalarFieldModel, ArrayFieldMod
 
     /** The native layout type used to read or write this field. */
     NativeType type();
+
+    /** Absolute byte offset of this field within the struct, resolved for one platform. */
+    long offset();
+
+    /** Returns a copy of this field placed at the given absolute byte offset. */
+    StructFieldModel withOffset(long offset);
+
+    /** Total size in bytes this field occupies in the struct layout (a 64-bit ABI). */
+    default long byteSize() {
+        return switch (this) {
+            case ScalarFieldModel scalar -> scalar.type().byteSize();
+            case ArrayFieldModel array -> array.type().byteSize();
+            case InlineArrayFieldModel inlineArray -> (long) inlineArray.length() * inlineArray.elementType().byteSize();
+            case InlineStringFieldModel inlineString -> inlineString.length();
+        };
+    }
+
+    /** Natural alignment in bytes of this field in the struct layout (a 64-bit ABI). */
+    default long alignment() {
+        return switch (this) {
+            case ScalarFieldModel scalar -> scalar.type().byteSize();
+            case ArrayFieldModel array -> array.type().byteSize();
+            case InlineArrayFieldModel inlineArray -> inlineArray.elementType().byteSize();
+            case InlineStringFieldModel ignored -> 1;
+        };
+    }
 }

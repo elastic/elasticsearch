@@ -13,6 +13,7 @@ import org.elasticsearch.foreign.processor.model.InlineArrayFieldModel;
 import org.elasticsearch.foreign.processor.model.InlineStringFieldModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
+import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.lang.classfile.CodeBuilder;
 import java.lang.constant.MethodTypeDesc;
@@ -27,8 +28,9 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceLa
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 
 /**
- * Computes C natural-alignment struct layouts from a {@link StructFieldModel} list, and emits the
- * matching {@code MemoryLayout.structLayout(...)} argument array as bytecode.
+ * Derives the emit-time {@code MemoryLayout.structLayout(...)} shape (named field layouts plus the
+ * padding gaps between them) from a struct model whose fields already carry their resolved absolute
+ * offsets, and emits that argument array as bytecode. Offset computation itself lives in the parser.
  */
 final class StructLayoutUtil {
 
@@ -42,54 +44,27 @@ final class StructLayoutUtil {
     record LayoutField(StructFieldModel field, long paddingBefore) {}
 
     /**
-     * Computes per-field padding using C natural-alignment rules, assuming a 64-bit ADDRESS
-     * (8 bytes). Every field is aligned to its own size; padding is inserted before any field
-     * whose alignment isn't satisfied by the running offset.
+     * Derives the per-field layout entries (each with the padding gap that precedes it) from a
+     * model whose fields carry absolute offsets. The gap before field {@code i} is
+     * {@code offset(i) - end(i-1)}.
      */
-    static List<LayoutField> computeLayout(List<StructFieldModel> fields) {
+    static List<LayoutField> deriveLayout(List<StructFieldModel> fields) {
         List<LayoutField> result = new ArrayList<>();
-        long offset = 0;
+        long cursor = 0;
         for (StructFieldModel field : fields) {
-            long align = fieldAlignment(field);
-            long padding = (offset % align == 0) ? 0 : (align - offset % align);
-            result.add(new LayoutField(field, padding));
-            offset += padding + fieldSize(field);
+            result.add(new LayoutField(field, field.offset() - cursor));
+            cursor = field.offset() + field.byteSize();
         }
         return result;
     }
 
-    /** Total byte size of a field in the struct layout. */
-    static long fieldSize(StructFieldModel field) {
-        return switch (field) {
-            case InlineArrayFieldModel inlineArray -> (long) inlineArray.length() * sizeOf(inlineArray.elementType());
-            case InlineStringFieldModel inlineString -> inlineString.length();
-            default -> sizeOf(field.type());
-        };
-    }
-
-    /** Natural alignment of a field in the struct layout. */
-    static long fieldAlignment(StructFieldModel field) {
-        return switch (field) {
-            case InlineArrayFieldModel inlineArray -> sizeOf(inlineArray.elementType());
-            case InlineStringFieldModel ignored -> 1;
-            default -> sizeOf(field.type());
-        };
-    }
-
-    /** Static byte size for a native type, assuming a 64-bit ABI. */
-    static long sizeOf(NativeType type) {
-        return switch (type) {
-            case BOOLEAN, BYTE -> 1;
-            case SHORT -> 2;
-            case INT, FLOAT -> 4;
-            case LONG, DOUBLE, ADDRESS -> 8;
-            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("no size for type: " + type);
-        };
-    }
-
-    /** Natural alignment for a native type, equal to its size for all supported types. */
-    static long alignmentOf(NativeType type) {
-        return sizeOf(type);
+    /** Trailing padding between the end of the last field and {@code model.byteSize()}. */
+    static long trailingPadding(StructModel model) {
+        long end = 0;
+        for (StructFieldModel field : model.fields()) {
+            end = field.offset() + field.byteSize();
+        }
+        return model.byteSize() - end;
     }
 
     /**
@@ -98,11 +73,25 @@ final class StructLayoutUtil {
      * padding layouts. The array is left on the operand stack.
      */
     static void emitStructLayoutArray(CodeBuilder cb, List<LayoutField> layout) {
+        emitStructLayoutArray(cb, layout, 0);
+    }
+
+    /**
+     * Emits bytecode that constructs the {@code MemoryLayout[]} array for
+     * {@code MemoryLayout.structLayout(...)}, including named field layouts, any inline padding
+     * layouts before fields, and optional trailing padding. The array is left on the operand stack.
+     *
+     * @param trailingPadding bytes of padding to emit after the last named field (0 = none)
+     */
+    static void emitStructLayoutArray(CodeBuilder cb, List<LayoutField> layout, long trailingPadding) {
         int arraySize = layout.size();
         for (LayoutField lf : layout) {
             if (lf.paddingBefore() > 0) {
                 arraySize++;
             }
+        }
+        if (trailingPadding > 0) {
+            arraySize++;
         }
         cb.loadConstant(arraySize);
         cb.anewarray(CD_MemoryLayout);
@@ -120,6 +109,13 @@ final class StructLayoutUtil {
             emitFieldLayout(cb, lf.field());
             cb.ldc(lf.field().name());
             cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
+            cb.aastore();
+        }
+        if (trailingPadding > 0) {
+            cb.dup();
+            cb.loadConstant(arrayIndex);
+            cb.loadConstant(trailingPadding);
+            cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
             cb.aastore();
         }
     }

@@ -43,4 +43,20 @@ public enum NativeType {
             default -> this;
         };
     }
+
+    /**
+     * Size in bytes of this type when it occupies a struct field, assuming a 64-bit ABI. Also its
+     * natural alignment (equal to its size for every sized type). {@link #VOID}, {@link #STRING},
+     * and {@link #ADDRESSABLE} are marshaling-only and never occupy a raw struct field, so they
+     * have no size.
+     */
+    public long byteSize() {
+        return switch (this) {
+            case BOOLEAN, BYTE -> 1;
+            case SHORT -> 2;
+            case INT, FLOAT -> 4;
+            case LONG, DOUBLE, ADDRESS -> 8;
+            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("no size for type: " + this);
+        };
+    }
 }

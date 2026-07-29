@@ -282,6 +282,10 @@ When the target is not an indexed field, `MATCH` evaluates by scanning values
 row by row instead of using the inverted index, which is slower on large
 datasets. For best performance, prefer searching indexed fields when possible.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+`MATCH_PHRASE` can target `text` and `keyword` expressions in the same way,
+with the same performance characteristics.
+
 :::{tip}
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 :::

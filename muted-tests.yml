@@ -233,6 +233,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/180_update_dense_vector_type/Test create and update dense vector mapping to int4 with per-doc indexing and flush}
   issue: https://github.com/elastic/elasticsearch/issues/155334
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/155421
 
 # Examples:
 #

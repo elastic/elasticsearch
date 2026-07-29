@@ -68,8 +68,11 @@ steps:
           COVERAGE_LAYERS: "unit"
         timeout_in_minutes: 240
         artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
           - "build/coverage/exec/**/*.exec"
-          - "build/coverage/report/**/*"
           - "build/coverage/summary.txt"
         agents:
           provider: gcp
@@ -102,8 +105,11 @@ steps:
           COVERAGE_LAYERS: "internal-cluster"
         timeout_in_minutes: 240
         artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
           - "build/coverage/exec/**/*.exec"
-          - "build/coverage/report/**/*"
           - "build/coverage/summary.txt"
         agents:
           provider: gcp
@@ -136,8 +142,11 @@ steps:
           COVERAGE_LAYERS: "cluster"
         timeout_in_minutes: 240
         artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
           - "build/coverage/exec/**/*.exec"
-          - "build/coverage/report/**/*"
           - "build/coverage/summary.txt"
         agents:
           provider: gcp

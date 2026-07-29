@@ -39,12 +39,27 @@ done
 OUT="${OUT:-$ROOT/build/coverage}"
 [[ -n "$PR" || -n "$BUILD" ]] || usage
 
-TOKEN="${BUILDKITE_API_TOKEN:-}"
-if [[ -z "$TOKEN" && -f "$HOME/.config/bk.yaml" ]]; then
-  TOKEN=$(grep -oE '[A-Za-z0-9_-]{30,}' "$HOME/.config/bk.yaml" | head -1)
-fi
+# The bk CLI keeps a token in two places and they are not interchangeable: `bk configure` writes an
+# API token to ~/.config/bk.yaml, while `bk auth login` stores an OAuth token in the keychain that
+# the REST API does not accept as a bearer. Rather than encode which one is right - it has changed
+# between bk versions - try each and keep the first that actually authenticates.
+TOKEN=""
+for candidate in \
+  "${BUILDKITE_API_TOKEN:-}" \
+  "$(grep -oE '[A-Za-z0-9_-]{30,}' "$HOME/.config/bk.yaml" 2>/dev/null | head -1)" \
+  "$(security find-generic-password -s buildkite-cli -w 2>/dev/null || true)"
+do
+  [[ -n "$candidate" ]] || continue
+  if [[ "$(curl -sS -o /dev/null -w '%{http_code}' \
+        -H "Authorization: Bearer $candidate" https://api.buildkite.com/v2/user)" == "200" ]]; then
+    TOKEN="$candidate"
+    break
+  fi
+done
 if [[ -z "$TOKEN" ]]; then
-  echo "no Buildkite API token: set BUILDKITE_API_TOKEN or log in with the bk CLI" >&2
+  echo "no working Buildkite API token." >&2
+  echo "Re-authenticate with:" >&2
+  echo "  bk auth logout && bk auth login --scopes \"read_user read_organizations read_pipelines read_builds read_build_logs read_artifacts write_builds read_agents\"" >&2
   exit 1
 fi
 api() { curl -sSfL -H "Authorization: Bearer $TOKEN" "$@"; }

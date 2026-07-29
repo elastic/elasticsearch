@@ -42,9 +42,9 @@ public class HistogramAdapterTests extends ESTestCase {
     public void testLongHistogramUsesCustomBoundaries() {
         List<Long> customBoundaries = List.of(10L, 100L, 1_000L, 10_000L, 100_000L);
         String name = "es.test.custom.long.histogram";
-        registry.registerLongHistogram(name, "desc", "ms", customBoundaries).record(500L);
+        registry.registerLongHistogram(name, "desc", "ms", customBoundaries).record(randomNonNegativeLong());
 
-        List<Double> actual = reader.collectAllMetrics()
+        List<Double> actualBoundaries = reader.collectAllMetrics()
             .stream()
             .filter(m -> m.getName().equals(name))
             .findFirst()
@@ -55,7 +55,7 @@ public class HistogramAdapterTests extends ESTestCase {
             .next()
             .getBoundaries();
 
-        assertThat(actual, equalTo(customBoundaries.stream().map(Long::doubleValue).toList()));
+        assertThat(actualBoundaries, equalTo(customBoundaries.stream().map(Long::doubleValue).toList()));
     }
 
     public void testHistogramsUseApmDefaultBoundaries() {

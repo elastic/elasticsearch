@@ -481,6 +481,7 @@ public class Node implements Closeable {
 
         stopIfStarted(SnapshotsService.class);
         stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RecoveryDirectCancellationService.class);
         stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
         stopIfStarted(IndicesClusterStateService.class);

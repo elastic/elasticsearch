@@ -59,17 +59,6 @@ public final class BatchMappingContext {
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
-    BatchMappingContext(IndexOperationBatch batch, IndexSettings indexSettings) {
-        this.batch = batch;
-        this.mappingLookup = null;
-        this.indexSettings = indexSettings;
-        this.fieldNamesFieldMapper = null;
-    }
-
-    public MappingLookup mappingLookup() {
-        return mappingLookup;
-    }
-
     public IndexSettings indexSettings() {
         return indexSettings;
     }

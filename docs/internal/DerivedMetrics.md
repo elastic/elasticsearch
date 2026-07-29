@@ -14,7 +14,7 @@ The V1 metadata model supports:
 - gauge aggregations including `first_value` and `last_value`
 - script-free predicates and values
 
-Runtime collection and TSDS emission are separate follow-up work. The metadata model is intentionally shaped so runtime code can create managed destination streams and internal dimensions without exposing error-prone destination settings to users.
+Counter and gauge metrics, along with the built-in ingest metrics, are collected and emitted at runtime. Histogram metrics are configurable but not emitted yet.
 
 ## Data Stream Option
 
@@ -108,33 +108,72 @@ Supported predicates are intentionally limited to deterministic, script-free for
 
 `or` and `not` are also supported.
 
-## Runtime Model
+## Runtime
 
-The planned runtime service should:
+The runtime lives in the `data-streams` module, under `org.elasticsearch.datastreams.derivedmetrics`.
 
-- observe write successes and failures for source data streams
-- evaluate built-in and user metric definitions on the write path
-- buffer node-local partial state per source stream, interval, metric, and dimension set
-- flush one compact metric document per active series and interval
-- emit no documents for intervals with no observations
-- index into a managed TSDS destination derived from the source stream
+`DerivedMetricsIndexingListener` observes writes through `IndexingOperationListener`. Only operations whose origin is the primary are
+observed, so a document is counted exactly once regardless of how many replicas it is written to. Resolving an index to its data stream
+configuration is cached per cluster state version, so the steady-state per-document cost is one volatile read and a comparison.
 
-Distributed writes should not require a cluster-wide hot counter. Each writing node can emit partial series with an internal node dimension. Queries that want source-level values sum or reduce across that internal dimension.
+`CompiledDerivedMetrics` is the write-path form of the configuration: predicates are compiled once, built-in selectors are expanded, and
+the set of source paths any metric needs is known up front. When that set is empty — the common case for a stream that only asks for the
+built-in ingest metrics without dimensions — the write path never parses `_source` at all. When it is not empty, only those paths are
+parsed, using the same filtered-parsing technique `IndexRouting` uses for routing fields.
+
+`DerivedMetricsBuffer` holds one accumulator per series and interval bucket. Buckets are aligned to the epoch, so every node agrees on
+boundaries without coordination. `DerivedMetricsService` flushes buckets whose interval ended more than a grace period ago, emitting one
+document per bucket, and emits nothing at all for intervals with no observations.
+
+Nothing is coordinated across nodes. Each node emits partial series carrying its own `derived_metrics.node` dimension, and queries reduce
+across that dimension to get stream-wide values. This is what avoids a cluster-wide hot counter on the write path.
+
+Series count is the one thing that grows with the data, because dimension values come from documents. It is capped per node by
+`data_streams.derived_metrics.max_series_per_node`; once the cap is reached, observations that would create a new series are dropped and
+a warning names the setting.
+
+Histogram metrics are accepted and validated by the configuration model but are not emitted yet. Compilation reports them and the runtime
+logs them once per data stream. Emitting them needs a histogram representation this module cannot map today.
+
+### Settings
+
+| setting | default | meaning |
+|---|---|---|
+| `data_streams.derived_metrics.flush_interval` | `1s` | how often closed buckets are emitted |
+| `data_streams.derived_metrics.flush_grace_period` | `5s` | how long a bucket stays open past the end of its interval |
+| `data_streams.derived_metrics.max_series_per_node` | `10000` | per-node series cap |
+| `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
 
 ## Managed Destination
 
-The destination should be opaque to users. A source data stream such as `logs-my_app-default` can map to a managed TSDS such as `.metrics-derived.logs-my_app-default` or another reserved internal naming scheme.
+Each source data stream writes to its own hidden time series data stream, `derived-metrics-<source data stream>`. It is created on demand
+by the first metric document written to it, backed by the managed `derived-metrics@template` index template that Elasticsearch installs
+in every project. `derived-metrics-*` is therefore a reserved namespace: a user data stream with that prefix would be captured by the
+managed template.
 
-Elasticsearch controls required TSDS dimensions:
+The destination is hidden rather than dot-prefixed, so it stays out of ordinary wildcard expressions while remaining directly queryable.
 
-- source data stream identity
-- interval
-- metric name
-- emitting node or shard identity
-- user global dimensions
-- user per-metric dimensions
+Emitted documents look like this:
 
-Users should not configure `data_stream.dataset`, `data_stream.namespace`, destination index mode, routing path, or internal dimension fields directly. Those fields are either constant for a one-source destination or managed internally for compatibility and future multi-source policies.
+| field | type | meaning |
+|---|---|---|
+| `@timestamp` | `date` | start of the interval bucket |
+| `metric.name` | keyword dimension | the metric name |
+| `metric.value` | `double`, gauge | this node's partial value for the interval |
+| `derived_metrics.source` | keyword dimension | the source data stream |
+| `derived_metrics.interval` | keyword dimension | the configured interval, for example `10s` |
+| `derived_metrics.node` | keyword dimension | the emitting node |
+| `dimensions.*` | keyword dimensions | user dimensions, dynamically mapped |
+
+A user dimension `service.name` is written as `dimensions.service.name`. Dimensions a document does not have are simply absent, rather
+than filled with a placeholder value.
+
+`metric.value` is a gauge even for counter metrics, because what is emitted is a per-interval partial with no counter reset semantics to
+preserve. Counters are summed at query time.
+
+Elasticsearch controls the destination entirely. Users do not configure `data_stream.dataset`, `data_stream.namespace`, the destination
+index mode, the routing path, or any internal dimension field. Those are either constant for a one-source destination or managed
+internally for compatibility and future multi-source policies.
 
 ## Built-In Ingest Metrics
 
@@ -147,7 +186,12 @@ Users should not configure `data_stream.dataset`, `data_stream.namespace`, desti
 - `ingest.failures.count`
 - `ingest.failures.rate`
 
-Counts are emitted as counter-style values. Rates can either be emitted directly from interval state or derived at query time from counts and interval duration. Query-time rate derivation avoids conflicting partial rates from many nodes.
+Counts are emitted as the sum of what the node observed during the interval. Rates are that same sum divided by the interval length in
+seconds. Both are partials: a stream-wide value is the sum across the emitting-node dimension, which for a rate is meaningful because
+every partial covers the same interval.
+
+`ingest.docs.*` and `ingest.bytes.*` count successful writes; `ingest.failures.*` counts failed ones. Byte counts come from the size of
+the document's source. Global dimensions apply to the built-ins as well as to user metrics.
 
 ## Query Examples
 

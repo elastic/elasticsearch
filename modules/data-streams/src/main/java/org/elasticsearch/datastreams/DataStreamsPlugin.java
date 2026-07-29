@@ -28,6 +28,7 @@ import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleActi
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,9 @@ import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreation
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsIndexingListener;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsTemplateRegistry;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -84,6 +88,7 @@ import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -151,6 +156,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<DerivedMetricsService> derivedMetricsService = new SetOnce<>();
+    private final SetOnce<DerivedMetricsTemplateRegistry> derivedMetricsTemplateRegistry = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
@@ -204,6 +212,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
+        pluginSettings.add(DerivedMetricsService.FLUSH_INTERVAL);
+        pluginSettings.add(DerivedMetricsService.FLUSH_GRACE_PERIOD);
+        pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_NODE);
+        pluginSettings.add(DerivedMetricsService.BULK_SIZE);
         return pluginSettings;
     }
 
@@ -211,6 +223,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     public Collection<?> createComponents(PluginServices services) {
 
         Collection<Object> components = new ArrayList<>();
+        clusterService.set(services.clusterService());
         var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(
             services.environment().settings(),
             services.threadPool(),
@@ -246,7 +259,26 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+
+        derivedMetricsService.set(
+            new DerivedMetricsService(settings, services.client(), services.threadPool(), services.clusterService().getNodeName())
+        );
+        derivedMetricsService.get().init();
+        derivedMetricsTemplateRegistry.set(new DerivedMetricsTemplateRegistry(services.client(), services.clusterService()));
+        derivedMetricsTemplateRegistry.get().init();
+        components.add(derivedMetricsService.get());
+        components.add(derivedMetricsTemplateRegistry.get());
         return components;
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        DerivedMetricsService service = derivedMetricsService.get();
+        if (service != null) {
+            indexModule.addIndexOperationListener(
+                new DerivedMetricsIndexingListener(clusterService.get(), service, indexModule.getIndex())
+            );
+        }
     }
 
     @Override
@@ -315,8 +347,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public void close() throws IOException {
+        DerivedMetricsTemplateRegistry templateRegistry = derivedMetricsTemplateRegistry.get();
+        if (templateRegistry != null) {
+            templateRegistry.close();
+        }
         try {
-            IOUtils.close(dataLifecycleInitialisationService.get());
+            IOUtils.close(dataLifecycleInitialisationService.get(), derivedMetricsService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close the data stream lifecycle service", e);
         }

@@ -23,6 +23,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGet
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
 import static org.elasticsearch.action.termvectors.EnsureDocsSearchableAction.ENSURE_DOCS_SEARCHABLE_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
@@ -174,6 +175,7 @@ public final class AuthorizationUtils {
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
             case ESQL_ORIGIN:
+            case DERIVED_METRICS_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

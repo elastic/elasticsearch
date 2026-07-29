@@ -45,6 +45,12 @@ public record DataStreamDerivedMetrics(
     List<Metric> metrics
 ) implements Writeable, ToXContentObject {
 
+    /**
+     * Origin used for every request Elasticsearch makes on behalf of derived metrics, such as installing the destination index template
+     * or writing the derived documents themselves.
+     */
+    public static final String DERIVED_METRICS_ORIGIN = "derived_metrics";
+
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField BUILTIN_FIELD = new ParseField("builtin");
     public static final ParseField INTERVALS_FIELD = new ParseField("intervals");

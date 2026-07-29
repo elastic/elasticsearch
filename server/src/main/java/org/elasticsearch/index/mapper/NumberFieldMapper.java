@@ -113,17 +113,6 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
-        }
-
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
-    }
-
     /**
      * Encodes an integer into the term used by the {@code index_terms} inverted index, such that
      * unsigned byte-wise (lexicographic) term order matches numeric order.
@@ -234,7 +223,11 @@ public class NumberFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(compiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.docValuesParameters = DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.LOW
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -329,7 +322,13 @@ public class NumberFieldMapper extends FieldMapper {
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
+                hasDocValues
+                    ? DocValuesParameter.defaultValues(
+                        indexSettings,
+                        DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                        DocValuesParameter.Values.Cardinality.LOW
+                    )
+                    : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }

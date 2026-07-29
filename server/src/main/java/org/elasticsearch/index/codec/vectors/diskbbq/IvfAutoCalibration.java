@@ -351,33 +351,33 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code realNumVectors}
+     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code totalNumVectors}
      * as the corpus size for the recall model rather than {@code floatVectorValues.size()}. Used when
      * {@code floatVectorValues} is a reservoir-sampled subset of a larger merged corpus.
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors
+        int totalNumVectors
     ) throws IOException {
-        return calibrate(floatVectorValues, similarityFunction, realNumVectors, CalibrationMode.FAST);
+        return calibrate(floatVectorValues, similarityFunction, totalNumVectors, CalibrationMode.FAST);
     }
 
     /**
      * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int)} but selects
      * the calibration strategy via {@code mode}:
      * <ul>
-     *   <li>{@link CalibrationMode#FAST} — single k-means plus manifold invers dimension.</li>
+     *   <li>{@link CalibrationMode#FAST} — single k-means plus manifold inverse dimension.</li>
      *   <li>{@link CalibrationMode#FULL} — k-means, per-cluster NN assignment, and OLS regression.</li>
      * </ul>
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors,
+        int totalNumVectors,
         CalibrationMode mode
     ) throws IOException {
-        CalibrationSource calibrationSource = prepareCalibration(floatVectorValues, similarityFunction, realNumVectors);
+        CalibrationSource calibrationSource = prepareCalibration(floatVectorValues, similarityFunction, totalNumVectors);
         logger.debug("Calibrating quantization parameters");
 
         SweepOutcome outcome = runCalibrationPipeline(calibrationSource, similarityFunction, mode);

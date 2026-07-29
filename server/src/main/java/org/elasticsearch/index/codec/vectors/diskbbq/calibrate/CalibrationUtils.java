@@ -272,7 +272,7 @@ public final class CalibrationUtils {
      * tracked via a {@link HashMap} keyed on the swapped positions. This is O(totalSample) time and
      * space with no rejection retries and no boxing beyond the map entries.
      */
-    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) throws IOException {
+    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) {
         int n = vectorValues.size();
         Random rng = new Random(CALIBRATION_SEED);
         int nQueries = Math.min(maxQuerySample, n / 2);

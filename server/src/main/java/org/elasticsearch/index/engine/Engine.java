@@ -102,7 +102,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -511,7 +510,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["
@@ -744,9 +743,9 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index index : operations) {
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        ArrayList<IndexResult> results = new ArrayList<>(batch.operations().size());
+        for (Index index : batch.operations()) {
             results.add(index(index));
         }
         return results;

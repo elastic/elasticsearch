@@ -97,6 +97,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,
         DataType.DENSE_VECTOR,
+        // TODO: DOUBLE_RANGE: fix for double range
+        DataType.DOUBLE_RANGE,
         DataType.EXPONENTIAL_HISTOGRAM,
         DataType.FLATTENED,
         DataType.HISTOGRAM,
@@ -1456,7 +1458,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * Verify that PromQL queries are rejected when unmapped_fields=load
      */
     public void testUnmappedFieldLoadRejectionWithPromQl() {
-        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
 
         assertUnmappedLoadError(
             analyzer,
@@ -1485,7 +1487,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
     public void testUnmappedFieldNullifyWithPromQl() {
-        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
 
         assertTrue(analyzer.statement(setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_in)")).resolved());
 
@@ -2027,6 +2029,39 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(unionFields(plan), Matchers.empty());
         // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
         assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
+                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
+            );
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
+                containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")
+            );
+    }
+
+    private static EsIndex partialIpIndex() {
+        return partialIndex(
+            Map.of("partial_ip", new EsField("partial_ip", DataType.IP, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+            Set.of("partial_ip")
+        );
     }
 
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(

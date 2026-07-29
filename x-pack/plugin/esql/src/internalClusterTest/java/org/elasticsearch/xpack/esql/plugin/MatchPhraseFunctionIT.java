@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -27,14 +26,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndices(this::ensureYellow);
-    }
-
-    /**
-     * Runtime match_phrase is gated behind a snapshot-only capability; in release builds the queries these tests
-     * run are rejected by the verifier instead.
-     */
-    private static void assumeRuntimeMatchPhraseEnabled() {
-        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
     }
 
     public void testSimpleWhereMatchPhrase() {
@@ -217,7 +208,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchPhraseEvalColumn() {
-        assumeRuntimeMatchPhraseEnabled();
         // to_upper produces a keyword, so runtime match_phrase compares the whole value exactly: the phrase-like
         // "BROWN FOX" query matches nothing, only the complete value does.
         var query = """
@@ -248,7 +238,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchPhraseOverWrittenColumn() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | DROP content
@@ -305,7 +294,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchPhraseWithRow() {
-        assumeRuntimeMatchPhraseEnabled();
         // A ROW string literal is a keyword: runtime match_phrase requires the exact value, not a phrase within it.
         var query = """
             ROW content = "a brown fox"
@@ -377,7 +365,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseAfterMvExpand() {
-        assumeRuntimeMatchPhraseEnabled();
         // After MV_EXPAND on the searched field, the expanded attribute is no longer a direct index field, so
         // runtime search takes over: the MV_EXPAND restriction is bypassed and the phrase is evaluated per row.
         var query = """
@@ -396,7 +383,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseAfterMvExpandWithIntermediateCommands() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | MV_EXPAND content
@@ -456,7 +442,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     // ---- runtime match_phrase: searching text expressions that are not index-mapped fields ----
 
     public void testSimpleWhereRuntimeMatchPhrase() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
@@ -472,7 +457,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRuntimeMatchPhraseOrderMatters() {
-        assumeRuntimeMatchPhraseEnabled();
         // Both tokens exist in ids 1 and 6, but never adjacent in this order, so a runtime phrase matches nothing.
         var query = """
             FROM test
@@ -489,7 +473,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereRuntimeMatchPhraseEvalTextColumn() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | EVAL text_content = content
@@ -506,7 +489,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereRuntimeMatchPhraseWithRow() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             ROW content = to_text("a brown fox")
             | WHERE match_phrase(content, "brown fox")
@@ -520,7 +502,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereRuntimeMatchPhraseKeyword() {
-        assumeRuntimeMatchPhraseEnabled();
         // concat produces a keyword: runtime match_phrase preserves the pushed-down term-query semantics and
         // matches on the exact value.
         var query = """
@@ -537,8 +518,62 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testUnmappedWithIndexedKeyword() {
+        // The field is keyword on test_keyword and unmapped (loaded from _source) on test_unmapped: the phrase must
+        // not be pushed down as a Lucene query, which would silently miss the rows of the unmapped index. Runtime
+        // evaluation matches the exact value on both.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped METADATA _index
+            | WHERE match_phrase(content, "There is also a white cat")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(5, "test_keyword"), List.of(5, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedText() {
+        // to_text over a partially unmapped field is evaluated as a runtime expression.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match_phrase(content, "quick brown fox")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_unmapped")));
+        }
+    }
+
+    public void testUnmappedWithIndexedTextAndKeyword() {
+        // to_text over a partially unmapped field is evaluated as a runtime expression.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_keyword, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match_phrase(content, "quick brown fox")
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(6, "test"), List.of(6, "test_keyword"), List.of(6, "test_unmapped")));
+        }
+    }
+
     public void testSimpleWhereRuntimeMatchPhraseWithScore() {
-        assumeRuntimeMatchPhraseEnabled();
         // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.
         var query = """
             FROM test METADATA _score
@@ -555,7 +590,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseRuntimeEvalWithOptionsThrowsError() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " extra"))
@@ -570,7 +604,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchPhraseRuntimeRowWithOptionsThrowsError() {
-        assumeRuntimeMatchPhraseEnabled();
         var query = """
             ROW content = to_text("a brown fox")
             | WHERE match_phrase(content, "brown fox", {"analyzer": "standard"})

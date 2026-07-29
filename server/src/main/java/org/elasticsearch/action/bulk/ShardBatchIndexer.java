@@ -131,6 +131,7 @@ public final class ShardBatchIndexer {
             }
 
             final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
+            logger.trace("batch indexed [{}] operations on primary shard [{}]", results.size(), primary.shardId());
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
@@ -138,6 +139,7 @@ public final class ShardBatchIndexer {
                 context.markBatchOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
             }
+
         }
     }
 

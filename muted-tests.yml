@@ -697,9 +697,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
   method: testConcurrentSnapshotDeleteAndDeleteIndex
   issue: https://github.com/elastic/elasticsearch/issues/154784
-- class: org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramTDigestConverterAccuracyTests
-  method: testUniformDistribution
-  issue: https://github.com/elastic/elasticsearch/issues/154819
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-load.loadViewWithSubqueryBody_EvalNonExistent}
   issue: https://github.com/elastic/elasticsearch/issues/154921

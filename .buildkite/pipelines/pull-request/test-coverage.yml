@@ -53,7 +53,7 @@ steps:
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-              | buildkite-agent annotate --style info --context "coverage-unit"
+              | buildkite-agent annotate --style info --context "coverage-unit" || true
             SUMMARY_LINE=$$(grep -m1 '^unit' build/coverage/summary.txt || echo "unit measured")
           else
             SUMMARY_LINE="no coverage produced"
@@ -87,7 +87,7 @@ steps:
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-              | buildkite-agent annotate --style info --context "coverage-internal-cluster"
+              | buildkite-agent annotate --style info --context "coverage-internal-cluster" || true
             SUMMARY_LINE=$$(grep -m1 '^internal-cluster' build/coverage/summary.txt || echo "internal-cluster measured")
           else
             SUMMARY_LINE="no coverage produced"
@@ -121,7 +121,7 @@ steps:
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-              | buildkite-agent annotate --style info --context "coverage-cluster"
+              | buildkite-agent annotate --style info --context "coverage-cluster" || true
             SUMMARY_LINE=$$(grep -m1 '^cluster' build/coverage/summary.txt || echo "cluster measured")
           else
             SUMMARY_LINE="no coverage produced"
@@ -162,7 +162,7 @@ steps:
           .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-              | buildkite-agent annotate --style info --context coverage-merged
+              | buildkite-agent annotate --style info --context coverage-merged || true
           fi
           if [[ $$rc -eq 0 ]]; then
             .buildkite/scripts/coverage/status.sh merged success "$$(grep -m1 '^merged' build/coverage/summary.txt || echo merged)"

@@ -133,22 +133,42 @@ fi
 # control, and coverage steps are not in it - so the annotation above is only visible after
 # clicking into the build. A comment puts the numbers on the PR itself, which is where anyone
 # looking for them will actually look.
+#
+# Auth is the same story as status.sh: the ambient GH_TOKEN is a GitHub App token that cannot
+# write ("403 Resource not accessible by integration"), so on failure retry with the
+# SAML-authorized token in Vault. Never fails the step - the report is already published, the
+# comment is reporting on top of it.
 if [[ -n "${BUILDKITE_PULL_REQUEST:-}" && "${BUILDKITE_PULL_REQUEST}" != "false" ]] \
    && command -v gh >/dev/null 2>&1; then
   MARKER="<!-- coverage-report -->"
-  SLUG="${BUILDKITE_REPO_SLUG:-elastic/elasticsearch}"
+  SLUG="${BUILDKITE_REPO:-}"   # checkout URL; no BUILDKITE_* variable carries the bare slug
+  SLUG="${SLUG##*github.com?}"
+  SLUG="${SLUG%.git}"
+  [[ "$SLUG" == ?*/?* && "$SLUG" != *:* && "$SLUG" != */*/* ]] || SLUG="elastic/elasticsearch"
   BODY=$(printf '%s\n## Coverage\n\n```\n%s\n```\n\n%s\n' "$MARKER" "$SUMMARY" "$LINK")
 
-  EXISTING=$(gh api "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" \
-    --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" 2>/dev/null | head -1)
+  post_comment() {
+    local existing
+    existing=$(gh api --paginate "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" \
+      --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" 2>/dev/null) || return 1
+    existing="${existing%%$'\n'*}"
+    if [[ -n "$existing" ]]; then
+      gh api --method PATCH "repos/$SLUG/issues/comments/$existing" -f body="$BODY" >/dev/null 2>&1 \
+        && echo "--- updated coverage comment on PR ${BUILDKITE_PULL_REQUEST}"
+    else
+      gh api --method POST "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" -f body="$BODY" >/dev/null 2>&1 \
+        && echo "--- posted coverage comment on PR ${BUILDKITE_PULL_REQUEST}"
+    fi
+  }
 
-  if [[ -n "$EXISTING" ]]; then
-    gh api --method PATCH "repos/$SLUG/issues/comments/$EXISTING" -f body="$BODY" >/dev/null 2>&1 \
-      && echo "--- updated coverage comment on PR ${BUILDKITE_PULL_REQUEST}" \
-      || echo "--- could not update coverage comment"
+  if post_comment; then
+    :
+  elif command -v vault >/dev/null 2>&1 \
+       && GH_TOKEN=$(vault read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows 2>/dev/null) \
+       && [[ -n "$GH_TOKEN" ]] \
+       && export GH_TOKEN && post_comment; then
+    echo "    (via vault token)"
   else
-    gh api --method POST "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" -f body="$BODY" >/dev/null 2>&1 \
-      && echo "--- posted coverage comment on PR ${BUILDKITE_PULL_REQUEST}" \
-      || echo "--- could not post coverage comment"
+    echo "--- could not post coverage comment on PR ${BUILDKITE_PULL_REQUEST} (non-fatal)"
   fi
 fi

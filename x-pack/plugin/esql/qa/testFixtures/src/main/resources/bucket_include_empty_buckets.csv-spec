@@ -632,6 +632,86 @@ count:long | bucket:double
 ;
 
 
+Chained empty buckets with bucket
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date
+;
+
+hires_per_month:long | salary:long | hire_date:datetime
+1                    | null        | 1985-01-01T00:00:00.000Z
+1                    | 92610       | 1985-02-01T00:00:00.000Z
+1                    | null        | 1985-03-01T00:00:00.000Z
+1                    | null        | 1985-04-01T00:00:00.000Z
+1                    | 44817       | 1985-05-01T00:00:00.000Z
+1                    | null        | 1985-06-01T00:00:00.000Z
+1                    | 62405       | 1985-07-01T00:00:00.000Z
+1                    | null        | 1985-08-01T00:00:00.000Z
+1                    | 49095       | 1985-09-01T00:00:00.000Z
+1                    | 103064      | 1985-10-01T00:00:00.000Z
+1                    | 218159      | 1985-11-01T00:00:00.000Z
+1                    | null        | 1985-12-01T00:00:00.000Z
+;
+
+
+Chained empty buckets with same empty bucket
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+;
+
+hires_per_month:long | salary:long | hire_date:datetime
+1                    | null        | 1985-01-01T00:00:00.000Z
+1                    | 92610       | 1985-02-01T00:00:00.000Z
+1                    | null        | 1985-03-01T00:00:00.000Z
+1                    | null        | 1985-04-01T00:00:00.000Z
+1                    | 44817       | 1985-05-01T00:00:00.000Z
+1                    | null        | 1985-06-01T00:00:00.000Z
+1                    | 62405       | 1985-07-01T00:00:00.000Z
+1                    | null        | 1985-08-01T00:00:00.000Z
+1                    | 49095       | 1985-09-01T00:00:00.000Z
+1                    | 103064      | 1985-10-01T00:00:00.000Z
+1                    | 218159      | 1985-11-01T00:00:00.000Z
+1                    | null        | 1985-12-01T00:00:00.000Z
+;
+
+
+Chained empty buckets with narrower empty bucket
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+| STATS hires_per_month = COUNT(*), salary = SUM(salary)
+  BY hire_date = BUCKET(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})
+| LIMIT 10
+;
+
+hires_per_month:long | salary:long | hire_date:datetime
+1                    | null        | 1984-12-31T00:00:00.000Z
+0                    | null        | 1985-01-07T00:00:00.000Z
+0                    | null        | 1985-01-14T00:00:00.000Z
+0                    | null        | 1985-01-21T00:00:00.000Z
+1                    | 92610       | 1985-01-28T00:00:00.000Z
+0                    | null        | 1985-02-04T00:00:00.000Z
+0                    | null        | 1985-02-11T00:00:00.000Z
+0                    | null        | 1985-02-18T00:00:00.000Z
+1                    | null        | 1985-02-25T00:00:00.000Z
+0                    | null        | 1985-03-04T00:00:00.000Z
+;
+
+
 Large number of buckets doesn't OOM - results
 required_capability: bucket_include_empty_buckets
 

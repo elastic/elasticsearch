@@ -14,8 +14,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<UnaryPlan> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(UnaryPlan plan) {

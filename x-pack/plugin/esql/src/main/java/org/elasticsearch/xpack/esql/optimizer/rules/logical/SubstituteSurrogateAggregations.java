@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule<Aggregate> implements MandatoryRule {
     public SubstituteSurrogateAggregations() {
         super(OptimizerRules.TransformDirection.UP);
     }

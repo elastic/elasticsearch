@@ -11,11 +11,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * Replace {@link TransportVersionAware}s with their backwards-compatible replacements.
  */
-public final class SubstituteTransportVersionAwareExpressions extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class SubstituteTransportVersionAwareExpressions extends OptimizerRules.OptimizerExpressionRule<Expression>
+    implements
+        MandatoryRule {
 
     public SubstituteTransportVersionAwareExpressions() {
         super(OptimizerRules.TransformDirection.UP);

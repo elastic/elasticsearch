@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * or
  *     Subquery - CombineProjections may remove the EsqlProject on top of the subquery
  */
-public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
+public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     private static final String UNIONALL = "unionall";
 

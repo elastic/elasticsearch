@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class ReplaceRowAsLocalRelation extends OptimizerRules.ParameterizedOptimizerRule<Row, LogicalOptimizerContext> {
+public final class ReplaceRowAsLocalRelation extends OptimizerRules.ParameterizedOptimizerRule<Row, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
     public ReplaceRowAsLocalRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

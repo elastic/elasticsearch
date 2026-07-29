@@ -12,8 +12,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext> {
+public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
     public SkipQueryOnLimitZero() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

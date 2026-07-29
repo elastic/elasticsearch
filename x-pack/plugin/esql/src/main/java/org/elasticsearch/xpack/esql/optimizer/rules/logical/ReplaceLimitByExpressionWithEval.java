@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * <p>
  * Foldable groupings are pruned separately by {@link PruneLiteralsInLimitBy} in the operators batch.
  */
-public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.OptimizerRule<LimitBy> {
+public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.OptimizerRule<LimitBy> implements MandatoryRule {
     private static int counter = 0;
 
     @Override

@@ -12,11 +12,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.OptimizerExpressionRule;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * This rule should not be needed - the substitute infrastructure should be enough.
  */
-public class SubstituteFilteredExpression extends OptimizerExpressionRule<FilteredExpression> {
+public class SubstituteFilteredExpression extends OptimizerExpressionRule<FilteredExpression> implements MandatoryRule {
     public SubstituteFilteredExpression() {
         super(TransformDirection.UP);
     }

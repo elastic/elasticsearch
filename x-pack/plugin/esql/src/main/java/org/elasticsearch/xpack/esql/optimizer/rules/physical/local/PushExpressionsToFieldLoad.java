@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -75,7 +76,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  *     nodes that create the appropriate block loaders.
  * </p>
  */
-public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, PhysicalPlan, LocalPhysicalOptimizerContext> {
+public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, PhysicalPlan, LocalPhysicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * becomes
  * {@code STATS max($x + 1) BY $x = a + b}
  */
-public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggregate> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {

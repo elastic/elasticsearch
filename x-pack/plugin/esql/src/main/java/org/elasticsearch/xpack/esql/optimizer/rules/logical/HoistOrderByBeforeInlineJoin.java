@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +37,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryName
  */
 public final class HoistOrderByBeforeInlineJoin extends OptimizerRules.OptimizerRule<LogicalPlan>
     implements
-        OptimizerRules.CoordinatorOnly {
+        OptimizerRules.CoordinatorOnly,
+        MandatoryRule {
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {

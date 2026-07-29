@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
+public final class PushDownEval extends OptimizerRules.OptimizerRule<Eval> implements MandatoryRule {
     @Override
     protected LogicalPlan rule(Eval eval) {
         return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(eval);

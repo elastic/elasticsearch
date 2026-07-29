@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * Pushes down the SAMPLE operator. SAMPLE can be pushed down through an
@@ -50,7 +51,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  *      </li>
  *  </ul>
  */
-public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimizerRule<Sample, LogicalOptimizerContext> {
+public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimizerRule<Sample, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     public PushDownAndCombineSample() {
         super(OptimizerRules.TransformDirection.DOWN);

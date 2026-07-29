@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * Replace {@link SurrogateExpression}s with their {@link SurrogateExpression#surrogate surrogates}.
  */
-public final class SubstituteSurrogateExpressions extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class SubstituteSurrogateExpressions extends OptimizerRules.OptimizerExpressionRule<Expression> implements MandatoryRule {
 
     public SubstituteSurrogateExpressions() {
         super(OptimizerRules.TransformDirection.UP);

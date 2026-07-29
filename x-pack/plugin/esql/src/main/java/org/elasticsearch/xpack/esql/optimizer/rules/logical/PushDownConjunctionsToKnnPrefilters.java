@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,7 @@ import java.util.Stack;
  *  Given an expression tree like {@code (A OR B) AND (C AND knn())} this rule will rewrite it to
  *     {@code (A OR B) AND (C AND knn(filterExpressions = [(A OR B), C]))}
 */
-public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.OptimizerRule<Filter> {
+public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.OptimizerRule<Filter> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(Filter filter) {

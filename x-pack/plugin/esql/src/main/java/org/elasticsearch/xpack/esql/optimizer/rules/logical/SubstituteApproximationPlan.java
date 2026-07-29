@@ -12,13 +12,16 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 /**
  * If query approximation is enabled, this rule substitutes the original plan
  * with an approximation plan.
  */
-public final class SubstituteApproximationPlan extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
+public final class SubstituteApproximationPlan extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan, LogicalOptimizerContext context) {

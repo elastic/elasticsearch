@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
  * or {@link Alias} nodes wrapping the expression (introduced by {@link ReplaceChangePointByExpressionWithEval}).
  * {@link Alias#foldable()} is always {@code false}, so we unwrap to check the child.
  */
-public final class PruneLiteralsInChangePointBy extends OptimizerRules.OptimizerRule<ChangePoint> {
+public final class PruneLiteralsInChangePointBy extends OptimizerRules.OptimizerRule<ChangePoint> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(ChangePoint changePoint) {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ import static java.util.Collections.singletonList;
  * This is done here to localize the project close to the data source and simplify the upcoming field
  * extraction.
  */
-public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> implements MandatoryRule {
     public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
 
     @Override

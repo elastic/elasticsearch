@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> implements MandatoryRule {
 
     public ConstantFolding() {
         super(OptimizerRules.TransformDirection.DOWN);

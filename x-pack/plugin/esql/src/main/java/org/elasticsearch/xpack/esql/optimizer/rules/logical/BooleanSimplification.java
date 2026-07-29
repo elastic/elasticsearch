@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.List;
 
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.subtract;
 
-public final class BooleanSimplification extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
+public final class BooleanSimplification extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> implements MandatoryRule {
 
     public BooleanSimplification() {
         super(OptimizerRules.TransformDirection.UP);

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,7 +29,8 @@ import java.util.Set;
  */
 public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext>
     implements
-        OptimizerRules.CoordinatorOnly {
+        OptimizerRules.CoordinatorOnly,
+        MandatoryRule {
 
     public HoistRemoteEnrichLimit() {
         super(OptimizerRules.TransformDirection.UP);

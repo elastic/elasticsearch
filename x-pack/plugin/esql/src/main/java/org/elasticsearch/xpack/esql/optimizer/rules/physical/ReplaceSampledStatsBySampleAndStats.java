@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,9 @@ import java.util.stream.Collectors;
  * {@code FROM data | SAMPLE prob | commands | STATS aggs | EVAL sample_correction}
  * </pre>
  */
-public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec> {
+public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec>
+    implements
+        MandatoryRule {
 
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {

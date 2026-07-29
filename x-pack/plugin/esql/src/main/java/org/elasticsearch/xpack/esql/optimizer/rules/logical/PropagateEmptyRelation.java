@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -37,7 +38,8 @@ import java.util.List;
 @SuppressWarnings("removal")
 public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext>
     implements
-        OptimizerRules.LocalAware<LogicalPlan> {
+        OptimizerRules.LocalAware<LogicalPlan>,
+        MandatoryRule {
     public PropagateEmptyRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

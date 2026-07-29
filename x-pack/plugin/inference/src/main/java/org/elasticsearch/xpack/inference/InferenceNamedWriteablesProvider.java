@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionRes
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
@@ -206,6 +208,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(SageMakerModel.namedWriteables());
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
+
+        namedWriteables.add(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, SemanticTextField.NAME, SemanticTextField::new));
 
         return namedWriteables;
     }

@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -65,7 +70,12 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject, DenseVectorSupplier {
+) implements GenericNamedWriteable, ToXContentObject, DenseVectorSupplier {
+
+    public static final String NAME = "semantic_text_field";
+    private static final TransportVersion SEMANTIC_TEXT_FIELD_GENERIC_WRITEABLE = TransportVersion.fromName(
+        "semantic_text_field_generic_writeable"
+    );
 
     static final String TEXT_FIELD = "text";
     static final String INPUT_FIELD = "input";
@@ -87,14 +97,37 @@ public record SemanticTextField(
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
-    ) {}
+    ) implements Writeable {
+        public InferenceResult(StreamInput in) throws IOException {
+            this(
+                in.readString(),
+                in.readOptionalWriteable(MinimalServiceSettings::new),
+                in.readOptionalNamedWriteable(ChunkingSettings.class),
+                in.readMapOfLists(Chunk::new)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(SEMANTIC_TEXT_FIELD_GENERIC_WRITEABLE) == false) {
+                throw new IllegalStateException(
+                    "[" + getClass() + "] doesn't support serialization with transport version [" + out.getTransportVersion() + "]"
+                );
+            }
+
+            out.writeString(inferenceId);
+            out.writeOptionalWriteable(modelSettings);
+            out.writeOptionalNamedWriteable(chunkingSettings);
+            out.writeMap(chunks, StreamOutput::writeCollection);
+        }
+    }
 
     /**
      * A single chunk of a semantic (text) field. Exactly one of the three forms is populated:
      * text (legacy format), character offsets, or an input index. Each form has its own
      * public constructor; there is no mixed-form constructor.
      */
-    public static final class Chunk {
+    public static final class Chunk implements Writeable {
         private static final int NO_OFFSET = -1;
 
         @Nullable
@@ -126,6 +159,25 @@ public record SemanticTextField(
             this.endOffset = endOffset;
             this.inputIndex = inputIndex;
             this.rawEmbeddings = rawEmbeddings;
+        }
+
+        public Chunk(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readInt(), in.readInt(), in.readOptionalInt(), in.readBytesReference());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(SEMANTIC_TEXT_FIELD_GENERIC_WRITEABLE) == false) {
+                throw new IllegalStateException(
+                    "[" + getClass() + "] doesn't support serialization with transport version [" + out.getTransportVersion() + "]"
+                );
+            }
+
+            out.writeOptionalString(text);
+            out.writeInt(startOffset);
+            out.writeInt(endOffset);
+            out.writeOptionalInt(inputIndex);
+            out.writeBytesReference(rawEmbeddings);
         }
 
         @Nullable
@@ -290,6 +342,35 @@ public record SemanticTextField(
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    public SemanticTextField(StreamInput in) throws IOException {
+        this(
+            in.readBoolean(),
+            in.readString(),
+            in.readOptionalStringCollectionAsList(),
+            new InferenceResult(in),
+            XContentType.ofOrdinal(in.readByte())
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(useLegacyFormat);
+        out.writeString(fieldName);
+        out.writeOptionalStringCollection(originalValues);
+        inference.writeTo(out);
+        XContentHelper.writeTo(out, contentType);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return SEMANTIC_TEXT_FIELD_GENERIC_WRITEABLE;
     }
 
     @SuppressWarnings("unchecked")

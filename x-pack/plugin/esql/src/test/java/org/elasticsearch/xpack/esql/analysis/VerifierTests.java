@@ -3658,6 +3658,17 @@ public class VerifierTests extends ESTestCase {
             """, containsString("[include_empty_buckets] is only supported when [TBUCKET] is used directly as a grouping key"));
     }
 
+    public void testBucketOptionInsertEmptyBuckets_inlineStatsRejected() {
+        defaultAnalyzer().error("""
+            FROM test | INLINE STATS c = COUNT(*) BY b = BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true})
+            """, containsString("[include_empty_buckets] is not supported with [INLINE STATS]"));
+
+        tsdb().error("""
+            TS test | INLINE STATS c = COUNT(*)
+                      BY b = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
+            """, containsString("[include_empty_buckets] is not supported with [INLINE STATS]"));
+    }
+
     public void testFuse() {
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true) | limit 100";
 

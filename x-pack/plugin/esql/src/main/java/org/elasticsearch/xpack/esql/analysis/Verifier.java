@@ -158,6 +158,7 @@ public class Verifier {
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
             checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
+            checkBucketIncludeEmptyBucketsNotInInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -371,6 +372,24 @@ public class Verifier {
                             Bucket.INCLUDE_EMPTY_BUCKETS
                         )
                     );
+                }
+            });
+        }
+    }
+
+    /**
+     * {@code include_empty_buckets} fills missing histogram rows after aggregation. That does not fit {@link InlineStats},
+     * which left-joins aggregate results back onto the input rows: synthesizing empty buckets would invent join keys that
+     * have no matching input rows (or change join cardinality in surprising ways). Reject the option on INLINE STATS.
+     */
+    private static void checkBucketIncludeEmptyBucketsNotInInlineStats(LogicalPlan p, Failures failures) {
+        if (p instanceof InlineStats inlineStats) {
+            inlineStats.aggregate().forEachExpression(e -> {
+                if (e instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(fail(bucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+                if (e instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(fail(tBucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
                 }
             });
         }

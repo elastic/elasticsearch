@@ -22,14 +22,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Physical counterpart of {@link org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery}. Executes coordinator-only:
- * the {@code LocalExecutionPlanner} turns it into a source operator that calls the EQL search endpoint and streams the
- * response back as pages.
- * <p>
- * The optional {@code limit} is the ES|QL {@code LIMIT} pushed down onto the source; it is forwarded to the EQL request
- * as {@code size}. Because the whole command is snapshot-gated ({@code Cap.EQL_QUERY}) and brand new, {@code limit} is
- * serialized alongside the other fields without a dedicated {@code TransportVersion}; a version gate must be added before
- * the feature is released/backported (see {@code AGENTS.md} "Backwards compatibility").
+ * Physical counterpart of {@link org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery}; executes coordinator-only as
+ * a source operator over the EQL search endpoint. The optional {@code limit} is forwarded to the EQL request as
+ * {@code size}. It is serialized without a dedicated {@code TransportVersion} because the whole command is snapshot-
+ * gated ({@code Cap.EQL_QUERY}); a version gate is required before release/backport (see {@code AGENTS.md}).
  */
 public class EqlQueryExec extends LeafExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

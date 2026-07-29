@@ -29,13 +29,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Source operator that materializes the result of an EQL search into a single {@link Page}.
- * <p>
- * On the first poll it fires the async EQL request through {@link EqlQueryService} and reports itself blocked; when the
- * response arrives the events (or sequences/samples) are flattened into rows on the transport thread and the operator
- * unblocks. The driver then builds the columnar page. Because EQL results are bounded and assembled on the coordinator,
- * a single page is sufficient. Columns, in output order: {@code _sequence} (long, the 0-based sequence/sample ordinal,
- * null for event queries), {@code _index}, {@code _id}, {@code _source} (all keyword).
+ * Source operator that materializes an EQL search into a single {@link Page}. On the first poll it fires the async
+ * request via {@link EqlQueryService} and reports blocked; the response is flattened into rows on the transport thread
+ * and the operator unblocks. A single page suffices since EQL results are bounded and coordinator-assembled. Columns:
+ * {@code _sequence} (long, the 0-based sequence/sample ordinal, null for event queries), {@code _index}, {@code _id},
+ * {@code _source} (all keyword).
  */
 public class EqlQuerySourceOperator extends SourceOperator {
 
@@ -102,9 +100,8 @@ public class EqlQuerySourceOperator extends SourceOperator {
             SubscribableListener<Void> listener = new SubscribableListener<>();
             blocked = new IsBlockedResult(listener, "waiting for EQL response");
             service.query(index, query, options, size, parentTask, ActionListener.wrap(response -> {
-                // The row data is copied into owned BytesRefs (see toRow), so we must finish reading the response
-                // synchronously here: the transport layer owns the ref-counted response and releases it once this
-                // listener returns, so the operator must NOT decRef it itself.
+                // Read the response synchronously here (row data is copied into owned BytesRefs in toRow): the transport
+                // layer owns the ref-counted response and releases it once this listener returns.
                 if (closed == false) {
                     rows = flatten(response);
                 }

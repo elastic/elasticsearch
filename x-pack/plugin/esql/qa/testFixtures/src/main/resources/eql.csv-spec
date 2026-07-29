@@ -1,27 +1,16 @@
-// Tests for the EQL source command (EQL <index-pattern> | "<eql query>" | ...), which delegates to the
-// EQL search transport action and flattens the response into the fixed schema _sequence, _index, _id, _source.
+// Tests for the EQL source command, which delegates to the EQL search transport action and flattens the response
+// into the fixed schema _sequence, _index, _id, _source. Snapshot-only, so every test gates on
+// required_capability: eql_query; they run only on the live QA REST suites (the in-JVM CsvIT skips them).
 //
-// The command is snapshot-only (capability eql_query), so every test gates on required_capability: eql_query.
-// These run only on the live-cluster QA REST suites (single-node, multi-node, mixed-cluster); the in-JVM CsvIT
-// skips them because it does not wire in the EQL plugin/transport action.
+// Dataset endgame-140 is the EQL project's corpus ported to ES|QL: serial_event_id is indexed as _id and
+// event.category aliases event_type so "process where ..." resolves with the EQL defaults (event.category /
+// @timestamp). Order-independent tests SORT by id; order-sensitive ones (head / tail / sequence) pass
+// WITH {"tiebreaker_field": "serial_event_id"} and assert the order verbatim. Expected ids come from test_queries.toml.
 //
-// The dataset (endgame-140) is the EQL project's corpus ported to ES|QL: each document's serial_event_id is
-// indexed as its _id, and event.category is an alias to event_type so plain "process where ..." queries resolve
-// with the EQL defaults this command sends (event.category / @timestamp). The endgame data has many events that
-// share a @timestamp, so EQL's own spec suite (EqlSpecTestCase) sets tiebreaker_field = serial_event_id to make
-// head / tail / sequence ordering deterministic. The event/filter tests below take no tiebreaker and defensively
-// SORT by the numeric id (their assertion is order-independent); the order-sensitive tests (head / tail /
-// sequence) pass WITH {"tiebreaker_field": "serial_event_id"} and assert the EQL result order verbatim, matching
-// the expected_event_ids the EQL project records for the same query. Expected ids are copied from
-// x-pack/plugin/eql/qa/common/src/main/resources/test_queries.toml.
-//
-// Sample queries run over a separate corpus (sample1 / sample2 / sample3), the EQL project's sample dataset ported
-// to ES|QL. The three indices deliberately use heterogeneous field names (os vs op_sys, ip vs host_ip) so `sample`
-// can correlate events across them by join keys. Each index is single-shard so the sample ordering is
-// deterministic. Only fully deterministic queries from test_sample.toml are ported (those the EQL project records
-// with a single expected_event_ids array); `_sequence` carries the 0-based sample ordinal and, within a sample,
-// events appear in stage order. Expected ids are copied from
-// x-pack/plugin/eql/qa/common/src/main/resources/test_sample.toml.
+// Sample queries use a separate corpus (sample1 / sample2 / sample3) with heterogeneous fields (os vs op_sys, ip vs
+// host_ip) so `sample` correlates across them by join keys. Single-shard for deterministic ordering; only the
+// single-result queries from test_sample.toml are ported. _sequence carries the 0-based sample ordinal, events
+// appear in stage order.
 
 eventQueryEqual
 required_capability: eql_query
@@ -81,8 +70,7 @@ id:long
 75303
 ;
 
-// Matches more events than EQL's default size (10); the LIMIT sits directly above the EQL source so
-// PushDownLimitToEqlQuery forwards it as the EQL request size, otherwise the result would be truncated to 10.
+// LIMIT directly above the source is pushed as the EQL request size, lifting the default of 10.
 eventQueryLimitPushedAsSize
 required_capability: eql_query
 EQL endgame-140 | "process where serial_event_id <= 12" | LIMIT 100 | EVAL id = TO_LONG(_id) | SORT id | KEEP id;
@@ -102,10 +90,7 @@ id:long
 12
 ;
 
-// Order-sensitive ports below: a tiebreaker (serial_event_id) is supplied via WITH so EQL's ordering is
-// deterministic, and the ES|QL pipeline preserves the EQL response order (no SORT), asserting it verbatim.
-// A LIMIT sits directly above the source so PushDownLimitToEqlQuery raises the EQL request size (default 10)
-// well above the result size; it does not change the head/tail/sequence ordering.
+// Order-sensitive ports below: WITH supplies the tiebreaker so EQL ordering is deterministic and asserted verbatim.
 
 // EQL test_queries.toml: simpleQueryHeadSix -> [1, 2, 3, 4, 5, 6]
 eventQueryHeadSix
@@ -122,7 +107,6 @@ id:long
 ;
 
 // EQL test_queries.toml: nullEqualityWithGtAndHead -> [1, 2, 3, 4, 5, 6, 7]
-// Exercises EQL null-comparison semantics (null == (exit_code > -1)) followed by head 7.
 eventQueryNullEqualityHeadSeven
 required_capability: eql_query
 EQL endgame-140 | "process where null == (exit_code > -1) | head 7" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP id;
@@ -149,7 +133,6 @@ id:long
 ;
 
 // EQL test_queries.toml: doubleSameSequence -> [1,2, 2,3, 3,4] (three 2-event sequences).
-// _sequence carries the 0-based ordinal of the matched sequence each event belongs to.
 sequenceDoubleSameProcess
 required_capability: eql_query
 EQL endgame-140 | "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | EVAL seq = _sequence, id = TO_LONG(_id) | KEEP seq, id;
@@ -163,8 +146,7 @@ seq:long |id:long
 2        |4
 ;
 
-// EQL test_queries.toml: sequencesOnDifferentEventTypes1 -> [75273, 75304]
-// A join-key ("by unique_pid") sequence spanning a process event and a network event.
+// EQL test_queries.toml: sequencesOnDifferentEventTypes1 -> [75273, 75304] (sequence by unique_pid, process + network).
 sequenceByUniquePidProcessNetwork
 required_capability: eql_query
 EQL endgame-140 | "sequence by unique_pid [process where opcode == 1 and process_name : \"MSBuild.exe\"] [network where true]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | EVAL seq = _sequence, id = TO_LONG(_id) | KEEP seq, id;
@@ -174,13 +156,10 @@ seq:long |id:long
 0        |75304
 ;
 
-// Sample ports below run over sample1,sample2,sample3. Each query returns a single deterministic sample, so
-// _sequence is 0 for every row and the events appear in stage order (first stage, second stage, ...), matching the
-// flattened expected_event_ids the EQL project records for the same query.
+// Sample ports below (sample1,sample2,sample3). Each returns a single sample, so _sequence is 0 and events follow
+// stage order.
 
 // EQL test_sample.toml: complexFilters -> [17, 26, 16], join_keys ["doom", "redhat"].
-// Correlates a redhat host=doom event across sample1 (os) and sample2 (op_sys): stage1 os=redhat (17), stage2
-// op_sys=redhat (26), stage3 os=redhat with bool==true (16).
 sampleComplexFilters
 required_capability: eql_query
 EQL sample1,sample2,sample3 | "sample by host [any where uptime > 0 and host == \"doom\" and (uptime > 15 or bool == true)] by os [any where port > 100 and ip == \"10.0.0.5\" or op_sys : \"REDHAT\"] by op_sys [any where bool == true] by os" | LIMIT 100 | EVAL seq = _sequence, id = TO_LONG(_id) | KEEP seq, id;
@@ -191,9 +170,7 @@ seq:long |id:long
 0        |16
 ;
 
-// EQL test_sample.toml: simpleIpAsKey -> [28, 31], join_keys ["10.0.0.1"].
-// Joins sample2.ip (stage1) to sample3.host_ip (stage2): stage1 success ip=10.0.0.1 (28), stage2 alert
-// os startsWith "win" host_ip=10.0.0.1 (31).
+// EQL test_sample.toml: simpleIpAsKey -> [28, 31], join_keys ["10.0.0.1"] (sample2.ip joined to sample3.host_ip).
 sampleSimpleIpAsKey
 required_capability: eql_query
 EQL sample1,sample2,sample3 | "sample [success where true] by ip [alert where startsWith~(os,\"win\")] by host_ip" | LIMIT 100 | EVAL seq = _sequence, id = TO_LONG(_id) | KEEP seq, id;
@@ -203,9 +180,7 @@ seq:long |id:long
 0        |31
 ;
 
-// EQL test_sample.toml: keywordAsKey -> [18, 37], join_keys ["test", "doom"].
-// Global key missing_keyword plus per-stage host: stage1 success missing_keyword=test host=doom (18), stage2
-// failure missing_keyword=test host=doom (37).
+// EQL test_sample.toml: keywordAsKey -> [18, 37], join_keys ["test", "doom"] (global key missing_keyword + per-stage host).
 sampleKeywordAsKey
 required_capability: eql_query
 EQL sample1,sample2,sample3 | "sample by missing_keyword [success where true] by host [failure where host == \"doom\"] by host" | LIMIT 100 | EVAL seq = _sequence, id = TO_LONG(_id) | KEEP seq, id;

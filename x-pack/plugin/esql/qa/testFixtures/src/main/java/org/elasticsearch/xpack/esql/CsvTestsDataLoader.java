@@ -337,14 +337,11 @@ public class CsvTestsDataLoader {
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("trim_test"),
-        // EQL source command corpus: the EQL project's endgame-140 dataset ported to ES|QL. Only loaded on
-        // snapshot clusters that advertise the (snapshot-only) EQL command capability; see eql.csv-spec.
+        // EQL source command corpora (endgame-140 + sample1/2/3), ported from the EQL project. Gated on the
+        // snapshot-only EQL capability; see eql.csv-spec.
         new TestDataset("endgame-140", "mapping-endgame-140.json", "endgame-140.csv", "endgame-140-settings.json").withRequiredCapabilities(
             EsqlCapabilities.Cap.EQL_QUERY
         ),
-        // EQL sample corpus: the EQL project's sample1/sample2/sample3 indices ported to ES|QL. The three indices
-        // have heterogeneous fields (os vs op_sys, ip vs host_ip) on purpose so `sample` can correlate events
-        // across them by join keys. Single-shard for deterministic sample ordering; gated on the EQL capability.
         new TestDataset("sample1", "mapping-sample1.json", "sample1.csv", "sample-settings.json").withRequiredCapabilities(
             EsqlCapabilities.Cap.EQL_QUERY
         ),

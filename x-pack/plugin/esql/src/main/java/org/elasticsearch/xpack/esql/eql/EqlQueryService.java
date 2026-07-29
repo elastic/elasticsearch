@@ -20,11 +20,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 /**
- * Thin adapter that lets the ES|QL {@code EQL} source command delegate to the EQL search transport action.
- * <p>
- * The EQL plugin owns query planning and execution; this service simply forwards the (index, query) pair and
- * hands the raw {@link EqlSearchResponse} back to the caller. It runs on the coordinating node only, mirroring how
- * {@code InferenceService} wraps a {@link Client} to reach another plugin's transport action.
+ * Thin coordinator-only adapter that forwards the ES|QL {@code EQL} source command to the EQL search transport action
+ * and returns the raw {@link EqlSearchResponse}, mirroring how {@code InferenceService} wraps a {@link Client}.
  */
 public class EqlQueryService {
 
@@ -37,14 +34,9 @@ public class EqlQueryService {
     }
 
     /**
-     * Runs the EQL search and delivers the raw response.
-     *
-     * @param options    optional EQL search overrides (tiebreaker / timestamp / event-category field) from the command's
-     *                   {@code WITH} map; each {@code null} field leaves the corresponding EQL default in place.
-     * @param size       optional row limit pushed down from a following ES|QL {@code LIMIT}, forwarded as the EQL request
-     *                   {@code size} (number of events / sequences); {@code null} leaves the EQL default in place.
-     * @param parentTask the running ES|QL task; set as the EQL request's parent so cancelling the ES|QL query cancels the
-     *                   EQL child action.
+     * Runs the EQL search and delivers the raw response. {@code options} carries the {@code WITH}-map overrides
+     * (tiebreaker / timestamp / event-category field; each {@code null} keeps the EQL default), {@code size} the
+     * pushed-down {@code LIMIT} (null keeps EQL's default), and {@code parentTask} ties cancellation to the ES|QL task.
      */
     public void query(
         String index,
@@ -55,8 +47,7 @@ public class EqlQueryService {
         ActionListener<EqlSearchResponse> listener
     ) {
         EqlSearchRequest request = new EqlSearchRequest();
-        // The parser assembles a comma-joined pattern (FROM-style); split it into separate expressions here, the
-        // same way RestEqlSearchAction does, so a multi-index pattern reaches the EQL endpoint as distinct indices.
+        // Split the FROM-style comma-joined pattern into distinct indices, as RestEqlSearchAction does.
         request.indices(Strings.splitStringByCommaToArray(index));
         request.query(query);
         if (options.tiebreakerField() != null) {

@@ -32,10 +32,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end integration tests for the {@code EQL} source command, which delegates to the EQL search transport action
- * and flattens the {@link org.elasticsearch.xpack.eql.action.EqlSearchResponse} into the fixed ES|QL schema
- * {@code _sequence, _index, _id, _source}. The cluster loads the EQL plugin (see build.gradle) so the delegation path
- * runs for real. The command is snapshot-only, so every test bails out on release builds.
+ * End-to-end tests for the {@code EQL} source command: it delegates to the EQL search transport action (the cluster
+ * loads the EQL plugin) and flattens the response into the fixed schema {@code _sequence, _index, _id, _source}. The
+ * command is snapshot-only, so every test bails out on release builds.
  */
 public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
 
@@ -131,9 +130,8 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTiebreakerMakesHeadDeterministic() {
-        // All events share a single @timestamp, so their relative order is decided purely by the tiebreaker. With
-        // WITH {"tiebreaker_field": "value"} EQL sorts ties by value ascending; `head 3` then returns the three
-        // smallest values deterministically and the ES|QL pipeline preserves that order (no SORT).
+        // All events share one @timestamp, so the tiebreaker (value, ascending) alone decides order; `head 3` then
+        // deterministically returns the three smallest values, preserved by the ES|QL pipeline (no SORT).
         String index = "eql_tiebreaker";
         assertAcked(indicesAdmin().prepareCreate(index).setMapping("@timestamp", "type=date", "value", "type=long"));
         List<IndexRequestBuilder> docs = List.of(

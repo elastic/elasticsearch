@@ -26,30 +26,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
- * Source command that delegates to the EQL search endpoint.
+ * Source command that delegates to the EQL search endpoint instead of the ES|QL compute engine: it forwards the
+ * (index-pattern, EQL-query) pair to the EQL transport action and flattens the {@code EqlSearchResponse} into rows.
+ * Because EQL assembles results on the coordinator, this node is coordinator-only.
  * <p>
- * Unlike {@code FROM}, this command does not read from Elasticsearch indices through the ES|QL
- * compute engine. Instead it forwards the (index-pattern, EQL-query) pair to the EQL transport
- * action at execution time, then flattens the {@code EqlSearchResponse} into ES|QL rows. Because
- * EQL results are assembled on the coordinator (EQL has no compute engine) this node executes
- * coordinator-only and is never shipped to data nodes.
+ * The output schema is fixed (known at planning time) regardless of the EQL query: {@code _sequence} (long, the
+ * 0-based sequence/sample ordinal, null for plain event queries), {@code _index}, {@code _id} and {@code _source}
+ * (all keyword). Downstream pipes can extract typed fields from {@code _source} (e.g. {@code DISSECT}/{@code GROK}).
  * <p>
- * The output schema is <b>fixed</b> and does not depend on the fields matched by the EQL query, so
- * that it is known at analysis/planning time (a hard requirement for the ES|QL planner):
- * <ul>
- *   <li>{@code _sequence} ({@code long}) &mdash; 0-based ordinal of the matched sequence or sample (both are
- *       returned as sequences by the EQL response); {@code null} for plain event queries.</li>
- *   <li>{@code _index} ({@code keyword}) &mdash; the source index of the event.</li>
- *   <li>{@code _id} ({@code keyword}) &mdash; the {@code _id} of the event.</li>
- *   <li>{@code _source} ({@code keyword}) &mdash; the raw {@code _source} JSON of the event.</li>
- * </ul>
- * Typed per-field projection is intentionally out of scope for this initial version; downstream
- * pipes can extract fields from {@code _source} (e.g. via {@code DISSECT}/{@code GROK}).
- * <p>
- * An optional {@code limit} carries an ES|QL {@code LIMIT} that sits directly above this source
- * (see {@code PushDownLimitToEqlQuery}); it is forwarded to the EQL request as {@code size} so the
- * EQL endpoint can bound the number of returned events/sequences. It is only a hint: the downstream
- * {@code Limit} still enforces the exact ES|QL row count.
+ * The optional {@code limit} carries a directly-following ES|QL {@code LIMIT} (see {@code PushDownLimitToEqlQuery}),
+ * forwarded to the EQL request as {@code size}; it is only a hint, the downstream {@code Limit} still enforces the
+ * exact row count.
  */
 public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coordinator {
 
@@ -82,11 +69,7 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
         this.limit = limit;
     }
 
-    /**
-     * Builds the fixed output schema. Fresh {@link org.elasticsearch.xpack.esql.core.expression.NameId}s are
-     * minted per instance; the list is carried across plan copies (see {@link #info()}) so downstream
-     * attribute references stay bound to the same ids.
-     */
+    /** Builds the fixed output schema with fresh NameIds, carried across plan copies (see {@link #info()}). */
     private static List<Attribute> defaultOutput(Source source) {
         return List.of(
             new ReferenceAttribute(source, null, SEQUENCE_FIELD, LONG, Nullability.TRUE, null, false),
@@ -108,10 +91,7 @@ public class EqlQuery extends LeafPlan implements TelemetryAware, ExecutesOn.Coo
         return options;
     }
 
-    /**
-     * The row limit pushed down from a directly-following ES|QL {@code LIMIT}, forwarded to the EQL request as
-     * {@code size}; {@code null} when no limit was pushed (EQL then applies its own default size).
-     */
+    /** Row limit pushed down from a directly-following {@code LIMIT}, forwarded to EQL as {@code size}; {@code null} if none. */
     @Nullable
     public Integer limit() {
         return limit;

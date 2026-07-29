@@ -30,11 +30,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Unit tests for {@link EqlQuerySourceOperator}: they drive the operator against a stub {@link EqlQueryService} that
- * returns a canned {@link EqlSearchResponse} (or a failure) synchronously, and assert that the response is flattened
- * into the fixed {@code _sequence, _index, _id, _source} columns. A real {@link EqlSearchResponse} is used (it is
- * ref-counted with a leak tracker); the stub service releases it after delivery, mirroring the transport layer, and
- * the operator must not release it itself.
+ * Unit tests for {@link EqlQuerySourceOperator}: drive it against a stub {@link EqlQueryService} returning a canned
+ * {@link EqlSearchResponse} (or failure) and assert the response is flattened into the fixed
+ * {@code _sequence, _index, _id, _source} columns. A real ref-counted response is used; the stub releases it after
+ * delivery (mirroring the transport layer), and the operator must not release it itself.
  */
 public class EqlQuerySourceOperatorTests extends ESTestCase {
 

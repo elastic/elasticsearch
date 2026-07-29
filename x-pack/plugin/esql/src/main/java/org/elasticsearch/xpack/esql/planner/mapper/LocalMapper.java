@@ -96,9 +96,7 @@ public class LocalMapper {
             return external.toPhysicalExec();
         }
 
-        // EqlQuery is coordinator-only (delegates to the EQL search endpoint, which has no compute engine) and is never
-        // shipped inside a FragmentExec, so it must not reach the data-node mapper. Reject it here as defense-in-depth;
-        // the coordinator path keeps mapping it via MapperUtils.mapLeaf.
+        // EqlQuery is coordinator-only and never shipped in a FragmentExec, so it must not reach the data-node mapper.
         if (leaf instanceof EqlQuery) {
             return MapperUtils.unsupported(leaf);
         }

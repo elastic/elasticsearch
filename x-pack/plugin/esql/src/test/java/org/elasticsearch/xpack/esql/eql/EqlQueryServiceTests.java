@@ -30,8 +30,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link EqlQueryService}: verify the (index, query) pair plus the pushed-down {@code size} and the ES|QL
- * parent task are stamped onto the {@link EqlSearchRequest} before it is dispatched to the EQL search transport action.
+ * Unit tests for {@link EqlQueryService}: verify the (index, query) pair, {@code WITH} overrides, pushed-down
+ * {@code size} and parent task are stamped onto the {@link EqlSearchRequest} before dispatch.
  */
 public class EqlQueryServiceTests extends ESTestCase {
 

@@ -13,22 +13,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
 
 /**
- * Pushes an ES|QL {@code LIMIT} that sits <b>directly</b> above an {@link EqlQuery} source onto that source, where it is
- * later forwarded to the EQL request as {@code size}. This lets the EQL endpoint stop early instead of always returning
- * its default {@code size} (10) events/sequences.
+ * Pushes a {@code LIMIT} sitting <b>directly</b> above an {@link EqlQuery} onto the source, forwarded to the EQL request
+ * as {@code size} so the endpoint stops early instead of returning its default of 10. The match is restricted to the
+ * immediate child so a limit never crosses a cardinality/order-changing command; the {@link Limit} node stays in place
+ * (the pushed value is only an upper bound). For sequence queries EQL {@code size} counts sequences, so this never
+ * under-fetches rows. A folded limit of {@code 0} is left for {@code SkipQueryOnLimitZero}.
  * <p>
- * The match is intentionally restricted to the <b>immediate</b> child so we never push a limit through a
- * cardinality- or order-changing command (e.g. {@code WHERE}, {@code STATS}, {@code SORT}→{@code TopN}, {@code MV_EXPAND}):
- * for those the pushed {@code size} could drop rows that the query actually needs. The {@link Limit} node is kept in place
- * so the downstream {@code Limit} operator still enforces the exact ES|QL row count; the pushed value is only an upper
- * bound. For sequence queries EQL {@code size} counts sequences (each expands to several rows), so pushing the row limit
- * as {@code size} never under-fetches rows.
- * <p>
- * A folded limit of {@code 0} (or less) is left untouched so that {@code SkipQueryOnLimitZero} can short-circuit the whole
- * plan; we never send {@code size <= 0} to EQL.
- * <p>
- * {@link EqlQuery} is coordinator-only and never appears in a data-node fragment, so this rule is
- * {@link OptimizerRules.CoordinatorOnly} (skipped by the local logical optimizer).
+ * {@link EqlQuery} is coordinator-only, so this rule is {@link OptimizerRules.CoordinatorOnly}.
  */
 public final class PushDownLimitToEqlQuery extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext>
     implements

@@ -118,10 +118,8 @@ externalCommand
     ;
 
 // EQL source command: `EQL <index patterns> | "<eql query>" [WITH {..options..}]`. Index patterns reuse FROM's
-// `indexPattern` rule (unquoted/quoted, comma-separated, wildcards, `remote:` prefixes) but NOT METADATA or
-// subqueries. The pipe after the patterns separates them from the quoted EQL query; an optional WITH map tunes the
-// underlying EQL search (tiebreaker_field / timestamp_field / event_category_field); a following pipe starts the
-// regular ES|QL processing pipeline.
+// `indexPattern` rule (no METADATA/subqueries); the optional WITH map tunes the EQL search
+// (tiebreaker_field / timestamp_field / event_category_field).
 eqlCommand
     : DEV_EQL indexPattern (COMMA indexPattern)* PIPE eqlQuery=string commandNamedParameters
     ;

@@ -15,15 +15,11 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Optional tuning knobs for the {@code EQL} source command, supplied via the trailing
- * {@code WITH { ... }} map (e.g. {@code EQL idx | "..." WITH {"tiebreaker_field": "serial_event_id"}}).
- * <p>
- * Each field maps directly to the equivalent {@link org.elasticsearch.xpack.eql.action.EqlSearchRequest} setting. A
- * field left {@code null} (i.e. the corresponding key omitted from the {@code WITH} map) leaves the EQL default in
- * place ({@code @timestamp} for the timestamp, {@code event.category} for the category, and no tiebreaker). Note the
- * parser rejects an explicit {@code null} value in the map. Supplying a {@code tiebreaker_field} is the way to get
- * deterministic ordering for {@code head} / {@code tail} / {@code sequence} / {@code sample} queries when events
- * share a timestamp.
+ * Optional tuning knobs for the {@code EQL} source command's trailing {@code WITH { ... }} map (e.g.
+ * {@code WITH {"tiebreaker_field": "serial_event_id"}}). Each field maps to the matching
+ * {@link org.elasticsearch.xpack.eql.action.EqlSearchRequest} setting; a {@code null} field leaves the EQL default
+ * ({@code @timestamp}, {@code event.category}, no tiebreaker). A tiebreaker gives deterministic ordering for
+ * {@code head} / {@code tail} / {@code sequence} / {@code sample} when events share a timestamp.
  */
 public record EqlQueryOptions(@Nullable String tiebreakerField, @Nullable String timestampField, @Nullable String eventCategoryField) {
 

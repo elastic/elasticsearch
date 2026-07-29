@@ -249,8 +249,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             );
         }
 
-        // The EQL source command runs coordinator-local against a single cluster's index; it is exercised only by the
-        // single-node / multi-node / mixed-cluster spec suites, not across clusters.
+        // The EQL source command is coordinator-local and not exercised across clusters.
         assumeFalse(
             "EQL source command is not exercised in CCS csv-spec",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EQL_QUERY.capabilityName())

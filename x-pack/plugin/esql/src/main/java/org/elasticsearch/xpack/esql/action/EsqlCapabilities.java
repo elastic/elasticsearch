@@ -2734,10 +2734,7 @@ public class EsqlCapabilities {
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
-        /**
-         * Support for the EQL source command, which delegates to the EQL search transport endpoint and returns
-         * the {@code EqlSearchResponse} events/sequences as ES|QL rows. Snapshot-only while under development.
-         */
+        /** Support for the EQL source command (delegates to the EQL search endpoint). Snapshot-only while under development. */
         EQL_QUERY(Build.current().isSnapshot()),
 
         /**

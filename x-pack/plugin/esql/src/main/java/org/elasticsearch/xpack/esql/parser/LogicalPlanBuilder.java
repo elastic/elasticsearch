@@ -1040,8 +1040,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
         Source source = source(ctx);
-        // Reuse FROM's index-pattern assembly (comma-joined, cluster/selector aware) so EQL accepts the
-        // exact same index syntax; the resulting string is forwarded verbatim to the EQL search request.
+        // Reuse FROM's index-pattern assembly so EQL accepts the same index syntax; forwarded verbatim to EQL.
         String index = visitIndexPattern(ctx.indexPattern());
         String query = BytesRefs.toString(visitString(ctx.eqlQuery).fold(FoldContext.small()));
         EqlQueryOptions options = visitEqlQueryOptions(ctx.commandNamedParameters());
@@ -1049,10 +1048,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     /**
-     * Parses the optional trailing {@code WITH { ... }} map of the {@code EQL} command into an {@link EqlQueryOptions}.
-     * Only the three EQL search knobs are accepted ({@code tiebreaker_field}, {@code timestamp_field},
-     * {@code event_category_field}); every value must be a literal string field name. Unknown keys, non-string values
-     * and null values are rejected with a {@link ParsingException} pointing at the offending entry.
+     * Parses the optional trailing {@code WITH { ... }} map into {@link EqlQueryOptions}. Accepts only
+     * {@code tiebreaker_field} / {@code timestamp_field} / {@code event_category_field} with literal string values;
+     * unknown keys and non-string/blank/null values throw a {@link ParsingException}.
      */
     private EqlQueryOptions visitEqlQueryOptions(EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);

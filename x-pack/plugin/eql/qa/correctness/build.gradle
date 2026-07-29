@@ -17,6 +17,9 @@ dependencies {
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
   clusterModules project(':x-pack:plugin:eql')
+  // esql-core/ql declare mapper-version as an extended runtime module (no longer bundled), so it must be
+  // installed alongside the eql plugin for the node to start.
+  clusterModules project(xpackModule('mapper-version'))
   clusterModules project(':x-pack:plugin:security')
   clusterModules project(':modules:repository-gcs')
 }

@@ -14,6 +14,10 @@ dependencies {
     // upon any types from ES|QL (only xpack core)
     testImplementation project(':x-pack:plugin:esql-core')
     testImplementation project(':x-pack:plugin:esql')
+    // The ESQL plugin delegates the EQL source command to the EQL search action, so TransportEsqlQueryAction
+    // references EQL classes at construction; the node needs the EQL plugin (and its ql/mapper-version chain)
+    // on the classpath to start, even for tests that never run an EQL query.
+    testImplementation project(':x-pack:plugin:eql')
     internalClusterTestImplementation project(':x-pack:plugin:encryption')
     internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
 }

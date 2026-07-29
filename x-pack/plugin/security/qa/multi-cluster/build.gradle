@@ -22,6 +22,9 @@ dependencies {
   clusterModules(project(":x-pack:plugin:transform"))
   // esql with enrich
   clusterModules project(':x-pack:plugin:esql')
+  // esql-core/ql declare mapper-version as an extended runtime module (no longer bundled), so it must be
+  // installed alongside the esql plugin for the node to start.
+  clusterModules project(':x-pack:plugin:mapper-version')
   clusterModules project(':x-pack:plugin:enrich')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ml')

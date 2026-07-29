@@ -15,6 +15,9 @@ dependencies {
 
   clusterModules project(xpackModule('downsample'))
   clusterModules project(xpackModule('esql'))
+  // esql-core/ql declare mapper-version as an extended runtime module (no longer bundled), so it must be
+  // installed alongside the esql plugin for the node to start.
+  clusterModules project(xpackModule('mapper-version'))
   clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))

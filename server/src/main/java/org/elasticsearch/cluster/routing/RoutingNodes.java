@@ -576,7 +576,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // find the relocation source
                             ShardRouting sourceShard = getByAllocationId(routing.shardId(), routing.allocationId().getRelocationId());
                             // cancel relocation and start relocation to same node again
-                            ShardRouting startedReplica = cancelRelocation(sourceShard, false);
+                            ShardRouting startedReplica = cancelRelocation(sourceShard, true);
                             remove(routing);
                             routingChangesObserver.shardFailed(
                                 routing,

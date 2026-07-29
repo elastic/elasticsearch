@@ -474,7 +474,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             VerificationException.class,
             () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))")
         );
-        assertThat(e.getMessage(), containsString("Binary expressions between vectors with different grouping keys are not supported yet"));
+        assertThat(e.getMessage(), containsString("binary operations between vectors with mismatched grouping keys are not yet supported"));
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

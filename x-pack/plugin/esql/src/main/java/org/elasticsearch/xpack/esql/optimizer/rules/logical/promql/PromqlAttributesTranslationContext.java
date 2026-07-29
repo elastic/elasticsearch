@@ -105,10 +105,35 @@ public final class PromqlAttributesTranslationContext {
             };
         }
 
-        /** Widen this demand with the identity requirement implied by a grouping header. */
+        /**
+         * Widen this demand with the identity requirement implied by a grouping header.
+         * <p>
+         * When this demand has no grouping yet, the required TA <em>is</em> the leaf identity (e.g. single
+         * {@code without(pod)} → {@code ta·skip{pod}}). Pinning it into {@code groupBy} stops
+         * {@link #withIdentityGrouping} from also inventing a full {@code ta·skip{}} and emitting two
+         * {@code _timeseries} columns. When a TA group key already exists, the required identity is only
+         * carried as an extra column (nested {@code without}).
+         */
         public Header requiring(Header grouping) {
             TimeSeriesColumn tc = grouping.groupByTimeSeries();
-            return tc != null ? including(TimeSeriesColumn.of(tc.exclusions())) : this;
+            if (tc == null) {
+                return this;
+            }
+            TimeSeriesColumn required = TimeSeriesColumn.of(tc.exclusions());
+            if (groupByTimeSeries() != null) {
+                return including(required);
+            }
+            if (groupBy.isEmpty()) {
+                var exposed = new ArrayList<Column>(columns.size() + 1);
+                exposed.add(required);
+                for (Column column : columns) {
+                    if (eq(column, required) == false) {
+                        exposed.add(column);
+                    }
+                }
+                return new Header(List.of(required), exposed);
+            }
+            return including(required);
         }
 
         /** Whether a returned header exposes every time-series identity this demand requires. */

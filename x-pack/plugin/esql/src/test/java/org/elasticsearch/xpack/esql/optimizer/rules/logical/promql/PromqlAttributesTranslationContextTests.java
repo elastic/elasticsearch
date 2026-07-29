@@ -64,18 +64,42 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
     }
 
     public void testIdentityGroupingDefaultsOnlyUndemandedGrouping() {
-        Header demand = Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).including(List.of(CLUSTER));
-        Header surface = demand.withIdentityGrouping();
+        Header surface = Header.undefined().including(List.of(CLUSTER)).withIdentityGrouping();
 
         assertTrue(surface.hasTimeSeriesGrouping());
-        // the demanded identity and labels remain exposed alongside the default identity
-        assertTrue(Header.undefined().including(TimeSeriesColumn.of(List.of(REGION))).success(surface));
         assertTrue(Header.undefined().including(TimeSeriesColumn.of(List.of())).success(surface));
         assertThat(surface.labels(), equalTo(List.of(CLUSTER)));
 
-        // a demand that pins concrete grouping is returned unchanged
         Header concrete = concreteHeader(CLUSTER);
         assertThat(concrete.withIdentityGrouping(), sameInstance(concrete));
+    }
+
+    public void testRequiringPinsLeafIdentityWhenGroupByEmpty() {
+        Header leaf = new Header(List.of(TimeSeriesColumn.of(List.of())), List.of(TimeSeriesColumn.of(List.of())));
+        Header withoutPod = leaf.groupedWithout(List.of(POD));
+        Header demand = Header.undefined().requiring(withoutPod).including(List.of(CLUSTER));
+
+        assertTrue(demand.hasTimeSeriesGrouping());
+        assertThat(demand.withIdentityGrouping(), sameInstance(demand));
+        assertThat(demand.groupingExpressions(), hasSize(1));
+        assertThat(demand.labels(), equalTo(List.of(CLUSTER)));
+        demand.transformExpressions((column, grouping) -> {
+            if (grouping) {
+                assertThat(((TimeSeriesColumn) column).exclusions(), equalTo(List.of(POD)));
+            }
+            return column;
+        });
+        // a second requiring with an already-pinned TA group key only carries the wider identity
+        Header nested = demand.requiring(withoutPod.groupedWithout(List.of(REGION)));
+        assertThat(nested.groupingExpressions(), hasSize(1));
+        assertTrue(
+            nested.success(
+                new Header(
+                    List.of(TimeSeriesColumn.of(List.of(POD))),
+                    List.of(TimeSeriesColumn.of(List.of(POD)), TimeSeriesColumn.of(List.of(POD, REGION)))
+                )
+            )
+        );
     }
 
     public void testNestedWithoutSelectsExactCarriedIdentity() {

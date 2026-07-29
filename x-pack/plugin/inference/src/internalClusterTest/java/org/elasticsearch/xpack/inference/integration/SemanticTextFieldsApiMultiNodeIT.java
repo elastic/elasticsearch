@@ -12,6 +12,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -21,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.junit.After;
 
@@ -31,32 +34,14 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Reproduces a transport serialization failure when fetching {@code _inference_fields} via the
- * fields API ({@code "fields": ["_inference_fields"]}) in a multi-node cluster where the
- * coordinating node does not host any of the queried shards.
- *
- * <p>When a {@code SearchHit} carrying an {@code _inference_fields} {@link org.elasticsearch.common.document.DocumentField}
- * is serialized from a data node back to the coordinator, {@code StreamOutput.writeGenericValue}
- * throws because the {@code SemanticTextField} objects placed into the field's value map are not
- * registered as a generic-writable type. The shard failure is swallowed and the response comes
- * back with zero hits.
- *
- * <p>This is the same underlying defect exercised by the {@code diversify} retriever (issue #154748);
- * that retriever internally calls {@code .fetchField("_inference_fields")} on its inner sub-search.
- * This test hits the bug <em>directly</em> through the public fields API, independent of the
- * diversify retriever.
- *
- * <p>This test uses a coordinating-only node ({@code numClientNodes = 1}) as the search client,
- * with all index shards on the separate data nodes, so every matching hit must cross the transport
- * boundary — deterministically exercising the failing serialization path.
- */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class SemanticTextFieldsApiMultiNodeIT extends ESIntegTestCase {
 
@@ -116,8 +101,7 @@ public class SemanticTextFieldsApiMultiNodeIT extends ESIntegTestCase {
         );
 
         // Issue the search from the coordinating-only node: it holds no shards, so every hit
-        // must be serialized from a data node across the transport layer. Pre-fix this triggers
-        // the SemanticTextField serialization failure and all shards fail.
+        // must be serialized from a data node across the transport layer.
         assertResponse(internalCluster().coordOnlyNodeClient().search(request), response -> {
             assertThat("Expected no shard failures, but got: " + response.getFailedShards(), response.getFailedShards(), equalTo(0));
             assertThat("All shards should have succeeded", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
@@ -138,6 +122,27 @@ public class SemanticTextFieldsApiMultiNodeIT extends ESIntegTestCase {
                     inferenceMap,
                     hasKey(CONTENT_FIELD)
                 );
+
+                assertThat(inferenceMap.get(CONTENT_FIELD), instanceOf(SemanticTextField.class));
+                SemanticTextField semanticTextField = (SemanticTextField) inferenceMap.get(CONTENT_FIELD);
+                assertThat(semanticTextField.fieldName(), equalTo(CONTENT_FIELD));
+
+                SemanticTextField.InferenceResult inference = semanticTextField.inference();
+                assertThat(inference.inferenceId(), equalTo(INFERENCE_ID));
+
+                MinimalServiceSettings modelSettings = inference.modelSettings();
+                assertThat(modelSettings, notNullValue());
+                assertThat(modelSettings.taskType(), equalTo(TaskType.TEXT_EMBEDDING));
+                assertThat(modelSettings.dimensions(), equalTo(4));
+                assertThat(modelSettings.similarity(), equalTo(SimilarityMeasure.COSINE));
+
+                assertThat(inference.chunks(), hasKey(CONTENT_FIELD));
+                List<SemanticTextField.Chunk> chunks = inference.chunks().get(CONTENT_FIELD);
+                assertThat(chunks, not(empty()));
+                for (SemanticTextField.Chunk chunk : chunks) {
+                    assertThat("Each chunk should carry raw embeddings", chunk.rawEmbeddings(), notNullValue());
+                    assertThat(chunk.rawEmbeddings().length(), greaterThan(0));
+                }
             }
         });
     }

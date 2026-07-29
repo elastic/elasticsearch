@@ -33,16 +33,8 @@ public class FallbackStorageRouterTests extends ESTestCase {
     }
 
     public void testIgnoredSourceReasons() {
-        EnumSet<FallbackStorageRouter.Reason> ignoredSourceReasons = EnumSet.of(
-            FallbackStorageRouter.Reason.SYNTHETIC_FALLBACK,
-            FallbackStorageRouter.Reason.SOURCE_KEEP_ALL,
-            FallbackStorageRouter.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY,
-            FallbackStorageRouter.Reason.COPY_TO_DESTINATION,
-            FallbackStorageRouter.Reason.DYNAMIC_DISABLED,
-            FallbackStorageRouter.Reason.DYNAMIC_RUNTIME,
-            FallbackStorageRouter.Reason.OBJECT_DISABLED,
-            FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED,
-            FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG
+        EnumSet<FallbackStorageRouter.Reason> ignoredSourceReasons = EnumSet.complementOf(
+            EnumSet.of(FallbackStorageRouter.Reason.MALFORMED, FallbackStorageRouter.Reason.MULTI_VALUE_VIOLATION)
         );
         for (FallbackStorageRouter.Reason reason : ignoredSourceReasons) {
             assertThat(

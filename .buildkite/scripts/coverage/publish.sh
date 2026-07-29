@@ -115,6 +115,16 @@ echo "$SUMMARY"
 # build. Never fails the step - see the script for why.
 "$ROOT/.buildkite/scripts/coverage/index-results.sh" "$REPORT" || true
 
+# Numbers into the coverage repo, where they can be read without credentials and a change shows up
+# as a diff. Only main writes the canonical `latest/`; a PR writes its own directory. The override
+# exists so the push can be exercised before there is a main run to exercise it.
+if [[ "${COVERAGE_SKIP_PUBLISH:-}" != "1" && -n "${BUILDKITE:-}" ]] \
+   && [[ "${BUILDKITE_BRANCH:-}" == "main" || "${COVERAGE_PUBLISH_TO_REPO:-}" == "1" ]]; then
+  "$ROOT/.buildkite/scripts/coverage/publish-to-repo.sh" "$REPORT" || true
+else
+  echo "--- not committing coverage to the data repo (branch ${BUILDKITE_BRANCH:-none})"
+fi
+
 # --- publish + annotate --------------------------------------------------------------------------
 
 LINK="report is in this step's artifacts (build/coverage/report/)"
@@ -125,8 +135,10 @@ elif [[ -n "${BUILDKITE:-}" ]]; then
     AWS_ACCESS_KEY_ID=$(jq -r '.data.access_key' <<< "$creds")
     AWS_SECRET_ACCESS_KEY=$(jq -r '.data.secret_key' <<< "$creds")
     export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    aws s3 sync "$REPORT" "s3://$BUCKET/$SHA/" --only-show-errors
-    aws s3 sync "$REPORT" "s3://$BUCKET/latest/" --only-show-errors
+    # Unprotected, these abort the step under `set -e` and status.sh then reports "merge failed" -
+    # a false report, since the merge succeeded and everything above it already published.
+    aws s3 sync "$REPORT" "s3://$BUCKET/$SHA/" --only-show-errors || true
+    aws s3 sync "$REPORT" "s3://$BUCKET/latest/" --only-show-errors || true
     LINK="[Browse the report](https://$BUCKET.s3.amazonaws.com/$SHA/merged/html/index.html)"
   else
     echo "--- S3 publish skipped: no credentials at $VAULT_PATH (one-time ops setup, see README)"
@@ -135,7 +147,7 @@ fi
 
 if [[ -n "${BUILDKITE:-}" ]] && command -v buildkite-agent >/dev/null; then
   printf '### Coverage (%s @ %.12s)\n\n```\n%s\n```\n\n%s\n' "$PROJECTS" "$SHA" "$SUMMARY" "$LINK" \
-    | buildkite-agent annotate --style info --context coverage
+    | buildkite-agent annotate --style info --context coverage || true
 fi
 
 # Post the summary as a PR comment, updating the previous one rather than piling up.

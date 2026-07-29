@@ -184,6 +184,11 @@ steps:
           # how the microbenchmarks ship their numbers too. Only this step needs them: the per-layer
           # legs report a layer, and a layer on its own is not a coverage figure.
           USE_PERF_CREDENTIALS: "true"
+          # Publishing to the coverage repo is normally main-only, because `latest/` reads as a
+          # trend only if every commit measured the same line of development. This forces it on so
+          # the push is exercised before a main run exists. A PR writes its own pr/<n>/ directory,
+          # so it cannot overwrite what main measured.
+          COVERAGE_PUBLISH_TO_REPO: "1"
         timeout_in_minutes: 60
         artifact_paths:
           - "build/coverage/report/**/*"

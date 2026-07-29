@@ -531,10 +531,10 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
 
         return Strings.format("""
-          ,
-          "prompt_tokens_details": {
-              %s
-          }""", String.join(",\n    ", fields));
+            ,
+            "prompt_tokens_details": {
+                %s
+            }""", String.join(",\n    ", fields));
     }
 
     public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {

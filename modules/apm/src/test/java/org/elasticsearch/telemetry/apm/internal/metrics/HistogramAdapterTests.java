@@ -39,6 +39,25 @@ public class HistogramAdapterTests extends ESTestCase {
         registry = new APMMeterRegistry(provider.get("elasticsearch"));
     }
 
+    public void testLongHistogramUsesCustomBoundaries() {
+        List<Long> customBoundaries = List.of(10L, 100L, 1_000L, 10_000L, 100_000L);
+        String name = "es.test.custom.long.histogram";
+        registry.registerLongHistogram(name, "desc", "ms", customBoundaries).record(500L);
+
+        List<Double> actual = reader.collectAllMetrics()
+            .stream()
+            .filter(m -> m.getName().equals(name))
+            .findFirst()
+            .orElseThrow()
+            .getHistogramData()
+            .getPoints()
+            .iterator()
+            .next()
+            .getBoundaries();
+
+        assertThat(actual, equalTo(customBoundaries.stream().map(Long::doubleValue).toList()));
+    }
+
     public void testHistogramsUseApmDefaultBoundaries() {
         String longName = "es.test.long.histogram";
         String doubleName = "es.test.double.histogram";

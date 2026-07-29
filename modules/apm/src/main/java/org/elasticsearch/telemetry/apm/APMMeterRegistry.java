@@ -262,6 +262,13 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return register(longHistograms, new LongHistogramAdapter(meter, name, description, unit, bucketBoundaries));
+        }
+    }
+
+    @Override
     public LongHistogram getLongHistogram(String name) {
         return longHistograms.get(name);
     }

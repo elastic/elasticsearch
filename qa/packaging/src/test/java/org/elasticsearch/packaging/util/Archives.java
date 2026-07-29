@@ -247,12 +247,14 @@ public class Archives {
         final Installation.Executables bin = installation.executables();
 
         // requires the "expect" utility to be installed
-        // -t forces sudo to allocate a pseudo-terminal for the spawned process. Without it, some platforms
-        // (observed on EL10 distros) do not propagate the pty that "expect"/"spawn" allocated through the
-        // privilege drop, so Elasticsearch's console detection concludes no terminal is attached and skips
-        // security auto-configuration entirely (see https://github.com/elastic/elasticsearch/issues/154510).
+        // On some platforms (observed on EL10 distros) sudo does not propagate the pty that "expect"/"spawn"
+        // allocated through the privilege drop, so Elasticsearch's console detection concludes no terminal is
+        // attached and skips security auto-configuration entirely (see
+        // https://github.com/elastic/elasticsearch/issues/154510). Note that sudo's "-t" option is unrelated to
+        // pty allocation (it sets an SELinux type); pty propagation is controlled by the "use_pty" sudoers
+        // policy setting, which CI enables explicitly (see .ci/scripts/packaging-test.sh).
         List<String> command = new ArrayList<>();
-        command.add("sudo -E -t -u %s %s -p %s");
+        command.add("sudo -E -u %s %s -p %s");
         if (daemonize) {
             command.add("-d");
         }

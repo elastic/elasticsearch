@@ -583,3 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
+  method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/155342

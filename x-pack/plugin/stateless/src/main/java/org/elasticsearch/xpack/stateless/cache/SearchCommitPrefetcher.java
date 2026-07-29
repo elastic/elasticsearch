@@ -280,7 +280,7 @@ public class SearchCommitPrefetcher {
                     continue;
                 }
 
-                var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
+                var cacheKey = new FileCacheKey(shardId, blobFile);
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 

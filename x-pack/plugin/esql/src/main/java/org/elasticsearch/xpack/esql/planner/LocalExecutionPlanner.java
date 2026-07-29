@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -372,6 +373,8 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof ReadDimsExec readDimsExec) {
+            return planReadDimsNode(readDimsExec, context);
         } else if (node instanceof PackDimsExec packDims) {
             return planPackDims(packDims, context);
         } else if (node instanceof UnpackDimsExec unpackDims) {
@@ -628,6 +631,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
+    }
+
+    private PhysicalOperation planReadDimsNode(ReadDimsExec readDimsExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.readDimsPhysicalOperation(readDimsExec, plan(readDimsExec.child(), context), context);
     }
 
     private PhysicalOperation planPackDims(PackDimsExec packDimsExec, LocalExecutionPlannerContext context) {
@@ -1883,13 +1890,16 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
-        // Federation kill switch, data-node backstop. This is where an external source becomes a running operator, so
-        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a disabled node regardless of who
-        // planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled coordinator during a
-        // rolling restart that has not yet reached this node. The coordinator FROM <dataset> path is closed earlier by
-        // the DatasetResolver gate; the snapshot-only inline EXTERNAL command bypasses that gate and is stopped only
-        // here, after its planning-time source resolution and split discovery have run.
-        Federation.ensureEnabled();
+        // Federation gate, operator-build backstop. This is where an external source becomes a running operator, so
+        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a node without federation
+        // regardless of who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled
+        // coordinator during a rolling restart that has not yet reached this node. An external request arriving at a
+        // data node is already refused earlier, in DataNodeComputeHandler.handleExternalSourceRequest, which also
+        // covers the plans this backstop cannot see because local planning folded the source away. The coordinator
+        // FROM <dataset> path is closed earlier by the DatasetResolver gate; the snapshot-only inline EXTERNAL command
+        // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
+        // have run.
+        Federation.ensureEnabled(settings);
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());

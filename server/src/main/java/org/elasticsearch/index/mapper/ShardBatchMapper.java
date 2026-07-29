@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -185,7 +186,19 @@ public final class ShardBatchMapper {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.preColumnarParse(context);
             }
-            // TODO: No field (non-metadata) mappers run yet — see class javadoc.
+            // Invoke field mappers
+            final SourceBatch sourceBatch = indexBatch.sourceBatch();
+            if (sourceBatch instanceof EscfBatch escfChunk) {
+                final FieldMapper[] columnMappers = resolution.columnMappers();
+                for (int c = 0; c < columnMappers.length; c++) {
+                    final FieldMapper mapper = columnMappers[c];
+                    if (mapper != null) {
+                        mapper.mapColumnBatch(context, escfChunk.column(c));
+                    }
+                }
+            } else {
+                throw new IllegalStateException("unexpected batch mapping - only use escf currently");
+            }
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.postColumnarParse(context);
             }

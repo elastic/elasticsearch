@@ -292,7 +292,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      *
-     * @return {@link ParseResult.Indexed} on success, {@link ParseResult.Malformed} when the field was ignored
+     * @return {@link ParseResult.Indexed} on success, {@link ParseResult.Ignored} when the field was ignored
      *         (e.g. {@code ignore_malformed} or {@code ignore_above}), or {@link ParseResult.MultiValueViolation} with
      *         {@code multi_value=false, on_failure=ignore}.
      */
@@ -326,7 +326,7 @@ public abstract class FieldMapper extends Mapper {
             return new ParseResult.MultiValueViolation(mvvStash);
         }
         if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed();
+            return new ParseResult.Ignored();
         }
         return new ParseResult.Indexed();
     }

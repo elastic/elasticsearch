@@ -15,14 +15,16 @@ import org.apache.lucene.util.BytesRef;
  * The outcome of parsing a single field value.
  * {@link FallbackStorageRouter} switches exhaustively on this to route to exactly one fallback destination.
  */
-public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Malformed, ParseResult.MultiValueViolation {
+public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ignored, ParseResult.MultiValueViolation {
 
     /** The value was parsed and indexed successfully; no fallback write is needed. */
     record Indexed() implements ParseResult {}
 
-    /** The field was ignored during parsing (e.g. {@code ignore_malformed} or {@code ignore_above});
-     * the mapper wrote to its own fallback destination. */
-    record Malformed() implements ParseResult {}
+    /**
+     * The field was ignored during parsing (e.g. {@code ignore_malformed} or {@code ignore_above});
+     * the mapper wrote to its own fallback destination.
+     */
+    record Ignored() implements ParseResult {}
 
     /**
      * A {@code multi_value=false} constraint was violated. {@code capturedValue} holds the encoded

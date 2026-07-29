@@ -196,7 +196,7 @@ public final class FallbackStorageRouter {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
                 }
             }
-            case ParseResult.Malformed() -> {
+            case ParseResult.Ignored() -> {
                 if (precaptured) {
                     if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                         context.commitPendingPreCapture(fieldPath);

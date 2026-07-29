@@ -34,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -105,6 +106,13 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testLongTermQueryRejectsOversizedString() {
+        // A quoted numeric value long enough to be costly to parse is rejected rather than coerced.
+        MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> ft.termQuery(oversized, MOCK_CONTEXT));
     }
 
     public void testByteTermQueryWithDecimalPart() {

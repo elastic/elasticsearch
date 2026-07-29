@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
@@ -348,6 +349,13 @@ public final class DataTypeConverter {
     }
 
     public static BigInteger safeToUnsignedLong(String x) {
+        if (x.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+            throw new InvalidArgumentException(
+                "Numeric value length [{}] exceeds the maximum of [{}]",
+                x.length(),
+                Numbers.MAX_NUMERIC_STRING_LENGTH
+            );
+        }
         BigInteger bi = new BigDecimal(x).toBigInteger();
         if (isUnsignedLong(bi) == false) {
             throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);

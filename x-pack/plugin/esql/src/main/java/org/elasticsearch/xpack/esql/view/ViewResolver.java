@@ -476,13 +476,22 @@ public class ViewResolver {
             // Views are a stored subquery, and TS command already rejects explicit subqueries
             // (see LogicalPlanBuilder#visitRelation) because time-series semantics (_tsid,
             // bucketing, etc.) assume every row comes directly from a time-series index. A view's
-            // output never satisfies that, so reject it here too, once view resolution has told us
-            // whether the pattern actually matched a view - the parser can't know this up front.
+            // output never satisfies that, so reject concrete view names in TS commands.
+            // Wildcard patterns are allowed: field-caps carries an _index_mode:time_series filter
+            // that naturally excludes views (which are not real indices), so we return the relation
+            // unchanged and let field-caps handle it.
             if (unresolvedRelation.indexMode() == IndexMode.TIME_SERIES) {
-                throw new VerificationException(
-                    "Views are not supported in TS command, found view(s) [{}]",
-                    Arrays.stream(response.views()).map(View::name).collect(Collectors.joining(", "))
-                );
+                Set<String> patternSet = new HashSet<>(Arrays.asList(patterns));
+                String concreteViewNames = Arrays.stream(response.views())
+                    .map(View::name)
+                    .filter(patternSet::contains)
+                    .collect(Collectors.joining(", "));
+                if (concreteViewNames.isEmpty() == false) {
+                    throw new VerificationException("Views are not supported in TS command, found view(s) [{}]", concreteViewNames);
+                }
+                // Only wildcard-matched views reached here; skip expansion and return unchanged.
+                listener.onResponse(unresolvedRelation);
+                return;
             }
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();

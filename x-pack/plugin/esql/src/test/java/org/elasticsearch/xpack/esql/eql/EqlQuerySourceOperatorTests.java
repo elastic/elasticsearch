@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -19,9 +20,12 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -87,6 +91,27 @@ public class EqlQuerySourceOperatorTests extends ESTestCase {
         assertThat(id(page, 0), equalTo("a"));
         assertThat(id(page, 2), equalTo("c"));
         page.releaseBlocks();
+    }
+
+    public void testSourceIsNormalizedToJson() throws IOException {
+        // Clients (and the yaml REST runner) may index _source as SMILE/CBOR, so it comes back as non-UTF-8 bytes; the
+        // operator must normalize any XContent format to a JSON string rather than assuming JSON.
+        for (XContentType xContentType : List.of(XContentType.JSON, XContentType.SMILE, XContentType.CBOR)) {
+            BytesReference source = BytesReference.bytes(
+                XContentBuilder.builder(xContentType.xContent()).startObject().field("a", 1).field("b", "x").endObject()
+            );
+            EqlSearchResponse response = new EqlSearchResponse(
+                new EqlSearchResponse.Hits(List.of(new EqlSearchResponse.Event("index-1", "id-1", source, null, false)), null, null),
+                1,
+                false,
+                ShardSearchFailure.EMPTY_ARRAY
+            );
+
+            Page page = runToPage(response);
+            assertThat(page.getPositionCount(), equalTo(1));
+            assertThat("source for " + xContentType, source(page, 0), equalTo("{\"a\":1,\"b\":\"x\"}"));
+            page.releaseBlocks();
+        }
     }
 
     public void testEmptyResult() {

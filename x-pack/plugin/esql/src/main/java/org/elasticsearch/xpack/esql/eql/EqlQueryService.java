@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
 /**
  * Thin coordinator-only adapter that forwards the ES|QL {@code EQL} source command to the EQL search transport action
- * and returns the raw {@link EqlSearchResponse}, mirroring how {@code InferenceService} wraps a {@link Client}.
+ * and returns the raw {@link EqlSearchResponse}.
  */
 public class EqlQueryService {
 

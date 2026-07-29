@@ -25,8 +25,12 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 
 /**
  * Source operator that materializes an EQL search into a single {@link Page}. On the first poll it fires the async
@@ -205,8 +209,17 @@ public class EqlQuerySourceOperator extends SourceOperator {
         BytesRef index = event.index() == null ? null : new BytesRef(event.index());
         BytesRef id = event.id() == null ? null : new BytesRef(event.id());
         BytesReference source = event.source();
-        BytesRef sourceRef = source == null ? null : new BytesRef(source.utf8ToString());
+        BytesRef sourceRef = source == null ? null : sourceToJson(source);
         return new Row(sequenceOrdinal, index, id, sourceRef);
+    }
+
+    /** Normalizes the stored {@code _source} to a JSON string regardless of the XContent format it was indexed with (e.g. SMILE/CBOR). */
+    private static BytesRef sourceToJson(BytesReference source) {
+        try {
+            return new BytesRef(convertToJson(source, false));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override

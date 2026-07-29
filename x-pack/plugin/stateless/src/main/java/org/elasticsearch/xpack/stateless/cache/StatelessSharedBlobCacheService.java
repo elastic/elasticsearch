@@ -116,7 +116,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
-     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. A zero value disables it.
+     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. A zero value disables degradation.
      * Set to a non-zero duration together with a threshold below {@code 100%} to fully enable degradation mode.
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.

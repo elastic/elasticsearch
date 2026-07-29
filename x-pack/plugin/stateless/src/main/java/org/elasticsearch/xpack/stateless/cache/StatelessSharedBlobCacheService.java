@@ -103,7 +103,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
-     * scan before the cache enters an eviction degradation period. When {@code rejectedCount / numRegions} exceeds
+     * scan before the cache enters a global eviction degradation period. When {@code rejectedCount / numRegions} exceeds
      * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.

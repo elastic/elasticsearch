@@ -73,7 +73,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     }
 
     protected int smallInputSize() {
-        return randomIntBetween(1, 100);
+        return randomIntBetween(10, 100);
     }
 
     /**

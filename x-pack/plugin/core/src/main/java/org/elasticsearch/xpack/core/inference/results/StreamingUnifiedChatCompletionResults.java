@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
 
 import java.io.IOException;
@@ -201,16 +203,8 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
                         .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
                     var promptTokensDetails = usage.promptTokensDetails();
-                    if (promptTokensDetails != null
-                        && (promptTokensDetails.cachedTokens() != null || promptTokensDetails.cacheWriteTokens() != null)) {
-                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD);
-                        if (promptTokensDetails.cachedTokens() != null) {
-                            builder.field(CACHED_TOKENS_FIELD, promptTokensDetails.cachedTokens());
-                        }
-                        if (promptTokensDetails.cacheWriteTokens() != null) {
-                            builder.field(CACHE_WRITE_TOKENS_FIELD, promptTokensDetails.cacheWriteTokens());
-                        }
-                        builder.endObject();
+                    if (promptTokensDetails != null){
+                        promptTokensDetails.toXContent(builder, params);
                     }
                     if (usage.completionTokenDetails() != null && usage.completionTokenDetails().reasoningTokens() != null) {
                         builder.startObject(COMPLETION_TOKENS_DETAILS_FIELD)
@@ -474,7 +468,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 }
             }
 
-            public record PromptTokensDetails(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) implements Writeable {
+            public record PromptTokensDetails(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) implements ToXContentFragment, Writeable {
 
                 private PromptTokensDetails(StreamInput in) throws IOException {
                     this(in.readOptionalVInt(), in.readOptionalVInt());
@@ -484,6 +478,31 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeOptionalVInt(cachedTokens);
                     out.writeOptionalVInt(cacheWriteTokens);
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if(isEmpty()){
+                        return builder;
+                    }
+
+                    builder.startObject(PROMPT_TOKENS_DETAILS_FIELD);
+
+                    if(cachedTokens() != null){
+                        builder.field(CACHED_TOKENS_FIELD, cachedTokens());
+                    }
+
+                    if(cacheWriteTokens() != null){
+                        builder.field(CACHE_WRITE_TOKENS_FIELD, cacheWriteTokens());
+                    }
+
+                    builder.endObject();
+
+                    return builder;
+                }
+
+                private boolean isEmpty(){
+                    return cachedTokens() == null && cacheWriteTokens() == null;
                 }
             }
 

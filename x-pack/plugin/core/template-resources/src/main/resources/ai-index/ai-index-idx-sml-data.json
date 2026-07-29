@@ -1,0 +1,20 @@
+{
+  "index_patterns": ["${ai-index.idx.sml.index_pattern}"],
+  "priority": 600,
+  "composed_of": [
+    "ai-index@mappings",
+    "ai-index-sml@mappings"
+  ],
+  "template": {
+    "aliases": {
+      "ai-index-idx-sml-data": {
+        "is_write_index": true
+      }
+    }
+  },
+  "_meta": {
+    "description": "Template applied to the SML data index. Composes the shared ai-index@mappings base with SML-specific fields and provides the write alias.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

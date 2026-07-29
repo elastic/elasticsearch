@@ -35,8 +35,11 @@ import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_SML_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_SML_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_SML_MAPPINGS_COMPONENT_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -81,11 +84,11 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         assertThat(
             registry.getComponentTemplateConfigs().keySet(),
-            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME)
+            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, AI_INDEX_SML_MAPPINGS_COMPONENT_NAME)
         );
         assertThat(
             registry.getComposableTemplateConfigs().keySet(),
-            containsInAnyOrder(AI_INDEX_IDX_TEMPLATE_NAME, AI_INDEX_DS_TEMPLATE_NAME)
+            containsInAnyOrder(AI_INDEX_IDX_TEMPLATE_NAME, AI_INDEX_DS_TEMPLATE_NAME, AI_INDEX_IDX_SML_TEMPLATE_NAME)
         );
     }
 
@@ -144,6 +147,50 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         );
         assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index@custom"));
         assertThat(template.getDataStreamTemplate(), notNullValue());
+    }
+
+    public void testSmlMappingsComponentDefinesSmlSpecificFields() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_SML_MAPPINGS_COMPONENT_NAME);
+        assertThat(mappings, notNullValue());
+
+        Map<String, Object> properties = mappingProperties(mappings);
+        assertThat(propertyType(properties, "id"), equalTo("keyword"));
+        assertThat(propertyType(properties, "discovery_labels"), equalTo("nested"));
+        assertThat(propertyType(properties, "extended_attrs"), equalTo("flattened"));
+        assertThat(propertyType(properties, "created_at"), equalTo("date"));
+        assertThat(propertyType(properties, "ingestion_method"), equalTo("keyword"));
+
+        // The tags override carries a lowercase normalizer, unlike the shared ai-index@mappings tags field.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tags = (Map<String, Object>) properties.get("tags");
+        assertThat(tags.get("normalizer"), equalTo("lowercase"));
+    }
+
+    public void testSmlMappingsComponentIsStrict() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_SML_MAPPINGS_COMPONENT_NAME);
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, mappings.template().mappings().string())
+        ) {
+            assertThat(parser.map().get("dynamic"), equalTo("strict"));
+        }
+    }
+
+    public void testSmlIndexTemplateComposition() {
+        registry = createRegistry(Settings.EMPTY);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_SML_TEMPLATE_NAME);
+        assertThat(template, notNullValue());
+        assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_SML_PATTERN));
+        // Composes the shared base mappings with the SML-specific mappings; the SML component wins on overlaps.
+        assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_SML_MAPPINGS_COMPONENT_NAME));
+        // A higher priority than the generic ai-index-idx template so the more specific pattern wins.
+        assertThat(template.priority(), equalTo(600L));
+        // Supplies the write alias that bulk writes (require_alias:true) depend on.
+        assertThat(template.template().aliases().keySet(), contains("ai-index-idx-sml-data"));
+        assertThat(template.template().aliases().get("ai-index-idx-sml-data").writeIndex(), equalTo(true));
+        assertThat(template.getDataStreamTemplate(), nullValue());
     }
 
     public void testRegistryIsUpToDate() throws Exception {

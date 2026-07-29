@@ -1,0 +1,76 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "tags": {
+          "type": "keyword",
+          "normalizer": "lowercase"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "keyword"
+            }
+          }
+        },
+        "discovery_labels": {
+          "type": "nested",
+          "properties": {
+            "value": {
+              "type": "search_as_you_type"
+            },
+            "kind": {
+              "type": "keyword"
+            }
+          }
+        },
+        "extended_attrs": {
+          "type": "flattened"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "updated_at": {
+          "type": "date"
+        },
+        "spaces": {
+          "type": "keyword"
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "kibana": {
+              "type": "object",
+              "properties": {
+                "privileges": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ingestion_method": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "SML-specific field mappings, composed on top of ai-index@mappings for the SML data index.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

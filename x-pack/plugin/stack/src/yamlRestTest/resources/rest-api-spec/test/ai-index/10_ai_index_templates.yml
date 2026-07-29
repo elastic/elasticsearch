@@ -49,3 +49,24 @@ setup:
         name: ai-index-ds-foo
   - match: { data_streams.0.name: ai-index-ds-foo }
   - match: { data_streams.0.template: ai-index-ds }
+
+---
+"Agent Builder SML data index composes the shared base with SML-specific mappings and the write alias":
+  - do:
+      indices.create:
+        index: ai-index-idx-sml-data-000001
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_alias:
+        index: ai-index-idx-sml-data-000001
+  - match: { ai-index-idx-sml-data-000001.aliases.ai-index-idx-sml-data.is_write_index: true }
+
+  - do:
+      indices.get_mapping:
+        index: ai-index-idx-sml-data-000001
+  - match: { ai-index-idx-sml-data-000001.mappings.properties.type.type: keyword }
+  - match: { ai-index-idx-sml-data-000001.mappings.properties.discovery_labels.type: nested }
+  - match: { ai-index-idx-sml-data-000001.mappings.properties.ingestion_method.type: keyword }
+  - match: { ai-index-idx-sml-data-000001.mappings.properties.tags.normalizer: lowercase }
+  - match: { ai-index-idx-sml-data-000001.mappings.dynamic: strict }

@@ -294,8 +294,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 // AI index components
                 "ai-index-idx",
                 "ai-index-ds",
+                "ai-index-idx-sml-data",
                 "ai-index@mappings",
-                "ai-index@ds-settings"
+                "ai-index@ds-settings",
+                "ai-index-sml@mappings"
             )
         );
     }

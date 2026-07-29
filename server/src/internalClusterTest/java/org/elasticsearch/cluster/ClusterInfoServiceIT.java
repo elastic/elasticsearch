@@ -495,18 +495,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             for (int i = 0; i < numberOfTasks; ++i) {
                 threadsToJoin[i].join();
             }
-            final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
-            // Disable the periodic global-checkpoint sync task for the test index. This is the only remaining source
-            // of GlobalCheckpointSyncAction dispatches to WRITE after all write threads are joined (post-operation
-            // triggers from TransportReplicationAction cannot fire once there are no active writers). Without this,
-            // shards that received no writes have trackedGlobalCheckpointsNeedSync() perpetually true, so the
-            // periodic task would keep dispatching to WRITE indefinitely, making active=0 && queue=0 unsafe to rely
-            // on as a quiescence signal.
+            // Disable the periodic global-checkpoint sync task for ALL indices.
+            // This is a source of GlobalCheckpointSyncAction dispatches to the WRITE pool after all write threads are joined.
+            final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
             for (IndexService indexService : dataNodeIndicesService) {
-                if (indexService.index().getName().equals(indexName)) {
-                    indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
-                }
+                indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
             }
             // Wait until the WRITE thread pool is fully quiesced. With the periodic task disabled and all writers
             // joined, no new GlobalCheckpointSyncAction dispatches can occur; active=0 ensures afterExecute() has

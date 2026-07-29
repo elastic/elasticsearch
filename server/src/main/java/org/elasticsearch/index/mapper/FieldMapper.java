@@ -1633,7 +1633,10 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values DISABLED_LOW_CARDINALITY = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values DISABLED_HIGH_CARDINALITY = new Values(false, Cardinality.HIGH, true, true, OnFailure.FAIL);
+            public static final Values ENABLED_LOW_CARDINALITY = new Values(true, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values ENABLED_HIGH_CARDINALITY = new Values(true, Cardinality.HIGH, true, true, OnFailure.FAIL);
         }
 
         public final Parameter<Boolean> multiValueParameter;
@@ -1665,6 +1668,21 @@ public abstract class FieldMapper extends Mapper {
             boolean supportsExtendedDocValues
         ) {
             return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
+        }
+
+        /**
+         * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
+         * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
+         * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.
+         */
+        public static Values defaultValues(IndexSettings indexSettings, Values nonColumnarDefault, Values.Cardinality columnarCardinality) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+            boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
         }
 
         private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
@@ -1770,7 +1788,7 @@ public abstract class FieldMapper extends Mapper {
                         )
                     );
                 } else {
-                    setValue(Values.DISABLED);
+                    setValue(Values.DISABLED_LOW_CARDINALITY);
                 }
             }
         }

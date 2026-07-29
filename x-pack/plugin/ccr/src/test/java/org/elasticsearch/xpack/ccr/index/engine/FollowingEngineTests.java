@@ -124,6 +124,16 @@ public class FollowingEngineTests extends ESTestCase {
         IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        final var warnings = super.filteredWarnings();
+        warnings.add(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        return warnings;
+    }
+
     public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
         final Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0);
         if (randomBoolean()) {

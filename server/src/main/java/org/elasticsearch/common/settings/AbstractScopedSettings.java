@@ -201,11 +201,15 @@ public abstract class AbstractScopedSettings {
 
     /**
      * Similar to {@link #addSettingsUpdateConsumer(Setting, Consumer)} but returns a {@link Releasable} that can be used
-     * to remove the updater registered for the consumer.
+     * to remove the updater registered for the consumer. Unlike {@link #initializeAndWatch(Setting, Consumer)}, this
+     * does not invoke the consumer with the current value; callers must initialize separately if needed.
      * NOTE: {@link #settingUpdaters} is a copy-on-write list so that it expects more traversals than modifications.
      * So this method should be only used when the removal does not happen frequently.
      */
     public synchronized <T> Releasable addRemovableSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+        assert setting.getProperties().contains(Setting.Property.Dynamic)
+            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
+        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }

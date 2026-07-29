@@ -1098,6 +1098,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     @Override
     public void close() {
+        cache.close();
         sharedBytes.decRef();
     }
 
@@ -2332,6 +2333,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public void close() {
             decayAndNewEpochTask.close();
+            evictionPolicy.close();
         }
 
         // used by tests

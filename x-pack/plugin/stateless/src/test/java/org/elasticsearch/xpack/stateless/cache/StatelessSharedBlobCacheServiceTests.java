@@ -166,7 +166,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         if (evictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
             return switchingEvictionPolicy.getDelegate();
         }
-        throw new AssertionError("Not a DelegatingEvictionPolicy: " + evictionPolicy);
+        throw new AssertionError("Not a SwitchingEvictionPolicy: " + evictionPolicy);
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

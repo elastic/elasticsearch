@@ -13,10 +13,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -26,23 +29,27 @@ import java.util.function.Predicate;
 class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     private volatile EvictionPolicy<FileCacheKey> delegate;
+    private final Releasable closeOnce;
 
     SwitchingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
         assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-        clusterService.getClusterSettings()
-            .initializeAndWatch(
+        final var clusterSettings = Objects.requireNonNull(clusterService).getClusterSettings();
+        this.delegate = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings)
+            .create(clusterService, indicesService, threadPool);
+        final Releasable releasePolicyTypeUpdater = Releasables.releaseOnce(
+            clusterSettings.addRemovableSettingsUpdateConsumer(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
                 newEvictionPolicyType -> {
                     final var oldDelegate = this.delegate;
                     this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool);
-                    if (oldDelegate != null) {
-                        oldDelegate.close();
-                    }
+                    oldDelegate.close();
                 }
-            );
+            )
+        );
+        this.closeOnce = Releasables.releaseOnce(() -> Releasables.close(releasePolicyTypeUpdater, this.delegate));
     }
 
-    // package private for tests
+    // visible for testing
     EvictionPolicy<FileCacheKey> getDelegate() {
         return delegate;
     }
@@ -56,7 +63,7 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
      * The underlying policy can change when the eviction scan is in progress. Hence, it is possible that the eviction is
      * checked by the old delegate and onCached is called on the new delegate. This is intentional since the newly cached
      * region should be accounted for by the current policy regardless of how eviction itself is determined. The old policy
-     * performs the necessary cleanup when its closed method is called.
+     * performs the necessary cleanup when its close method is called.
      */
     @Override
     public void onCached(CacheRegion<FileCacheKey> region) {
@@ -73,6 +80,7 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     @Override
     public void close() {
-        this.delegate.close();
+        // Stop watching for policy-type changes, then close the current delegate
+        closeOnce.close();
     }
 }

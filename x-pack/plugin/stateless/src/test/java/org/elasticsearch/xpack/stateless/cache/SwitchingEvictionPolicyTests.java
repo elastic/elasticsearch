@@ -74,6 +74,38 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
         assertThat(oldDelegate.getPinnedWindowDuration(), equalTo(initialPinnedDuration));
     }
 
+    public void testCloseUnregistersSettingsUpdaterAndClosesDelegate() {
+        Settings settings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.PINNED_WINDOW)
+            .build();
+        final var clusterSettings = createClusterSettings(settings);
+        final var switchingPolicy = createSwitchingEvictionPolicy(clusterSettings, settings);
+
+        assertThat(switchingPolicy.getDelegate(), instanceOf(PinnedWindowEvictionPolicy.class));
+        final var delegate = (PinnedWindowEvictionPolicy) switchingPolicy.getDelegate();
+        final var initialPinnedDuration = delegate.getPinnedWindowDuration();
+
+        switchingPolicy.close();
+        if (randomBoolean()) {
+            switchingPolicy.close(); // close should be idempotent for the settings updater
+        }
+
+        // Policy-type setting changes must not swap in a new delegate after close
+        settings = Settings.builder()
+            .put(settings)
+            .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.ALWAYS)
+            .build();
+        clusterSettings.applySettings(settings);
+        assertThat(switchingPolicy.getDelegate(), instanceOf(PinnedWindowEvictionPolicy.class));
+        assertSame(delegate, switchingPolicy.getDelegate());
+
+        // Delegate was closed, so its duration watcher no longer updates
+        settings = Settings.builder().put(settings).put(PINNED_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueHours(48)).build();
+        clusterSettings.applySettings(settings);
+        assertThat(delegate.getPinnedWindowDuration(), equalTo(initialPinnedDuration));
+    }
+
     private static SwitchingEvictionPolicy createSwitchingEvictionPolicy(ClusterSettings clusterSettings, Settings settings) {
         final var taskQueue = new DeterministicTaskQueue();
         final var threadPool = taskQueue.getThreadPool();

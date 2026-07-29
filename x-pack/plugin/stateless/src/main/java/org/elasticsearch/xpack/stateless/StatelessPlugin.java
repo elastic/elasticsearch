@@ -795,12 +795,6 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        // already initialized based on passed settings, no need for initializeAndWatch
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
-                cacheService::setEvictObsoleteRegionsEnabled
-            );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -924,7 +918,7 @@ public class StatelessPlugin extends Plugin
         // available on all nodes despite being useful only on indexing nodes
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
-            new HollowShardsService(
+            createHollowShardsService(
                 settings,
                 clusterService,
                 indicesService,
@@ -1189,6 +1183,30 @@ public class StatelessPlugin extends Plugin
             cacheService,
             cacheWarmingService,
             telemetryProvider
+        );
+    }
+
+    protected HollowShardsService createHollowShardsService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
+        IndexShardCacheWarmer indexShardCacheWarmer,
+        ThreadPool threadPool,
+        HollowShardsMetrics metrics,
+        Executor bccHeaderReadExecutor
+    ) {
+        return new HollowShardsService(
+            settings,
+            clusterService,
+            indicesService,
+            objectStoreService,
+            commitService,
+            indexShardCacheWarmer,
+            threadPool,
+            metrics,
+            bccHeaderReadExecutor
         );
     }
 

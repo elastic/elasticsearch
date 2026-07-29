@@ -445,9 +445,9 @@ public class MetadataCreateIndexService {
         if (descriptorForIndex == null) {
             return null;
         }
-        // If the request has a managed system index descriptor on it, use the mapping version from that
+        // If the expected descriptor is automatically managed, try and adjust it to the mapping version on the request descriptor
         final var requestDescriptor = request.systemIndexDescriptor();
-        return requestDescriptor != null && requestDescriptor.isAutomaticallyManaged()
+        return requestDescriptor != null && descriptorForIndex.isAutomaticallyManaged() && requestDescriptor.isAutomaticallyManaged()
             ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())
             : descriptorForIndex;
     }

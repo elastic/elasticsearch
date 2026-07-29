@@ -5,7 +5,7 @@
 - **Build tooling**: Gradle composite build with `build-conventions`, `build-tools`, and `build-tools-internal`; Docker is required for some packaging/tests.
 - **OS packages**: Packaging and QA jobs expect ephemeral hosts; do not run packaging suites on your workstation.
 - **Security**: Default dev clusters enable security; use `elastic-admin:elastic-password` or disable with `-Dtests.es.xpack.security.enabled=false`.
-- **Cursor/Copilot rules**: None provided in repo; follow this guide plus CONTRIBUTING.md.
+- **Cursor/Copilot rules**: Project rules in `.cursor/rules/`; CLI permissions in `.cursor/cli.json`.
 
 ## Build & Run Commands
 - Refer to BUILDING.md, CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
@@ -153,7 +153,7 @@ To confirm: `grep ClassName muted-tests.yml`. To verify the migration/test actua
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
-- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule.
+- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Cursor's agent harness rewrites bare `git commit` commands to add a `Co-authored-by: Cursor` trailer; `.cursor/cli.json` denies that form in this repo. Wrap commits in `bash -lc 'git commit ...'` to bypass the rewriter.
 
 ## Methods with Required Javadoc Reading
 If you encounter any of the following methods, you must go and read their javadoc before taking any other actions:

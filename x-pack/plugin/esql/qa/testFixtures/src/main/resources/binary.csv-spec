@@ -199,7 +199,7 @@ required_capability: binary_type
 ROW s = "not valid base64!!!"
 | EVAL b = TO_BINARY(s)
 ;
-warning:Line 2:12: evaluation of [TO_BINARY(s)] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:12: evaluation of \[TO_BINARY\(s\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 2:12: java.lang.IllegalArgumentException: .*
 
 s:keyword           | b:binary

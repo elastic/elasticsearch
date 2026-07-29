@@ -21,7 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -629,16 +630,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(indexSettings.getNodeSettings()),
             nodeEnvironment
         );
+        var cacheClusterService = TestUtils.mockClusterService(indexSettings.getSettings());
         var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             indexSettings.getSettings(),
+            cacheClusterService.getClusterSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(
+                indexSettings.getSettings(),
+                cacheClusterService,
+                TestUtils.mockIndicesService(cacheClusterService),
+                threadPool
+            ),
             System::nanoTime,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-        );
+        ) {};
         SearchDirectory directory = new SearchDirectory(
             cache,
             new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
@@ -669,7 +677,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 }
             },
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-            shardId
+            shardId,
+            randomBoolean()
         ) {
             @Override
             public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
@@ -793,7 +802,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
             objectStoreUploadTracker,
-            shardId
+            shardId,
+            randomBoolean()
         );
         directory.setBlobContainer(primaryTerm -> blobContainer);
         // update the CC of the directory because assertions use it for the primary term

@@ -155,6 +155,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
+    /**
+     * Timestamp to stamp on a cache region whose {@link BlobFileRanges} carry no known data timestamp.
+     */
+    protected long unknownRegionTimestampMillis() {
+        return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
     StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }
@@ -328,6 +335,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
+        long timestampMillis = BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange());
+        if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            timestampMillis = unknownRegionTimestampMillis();
+        }
         return cacheService.getCacheFile(
             new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
             // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
@@ -338,7 +349,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
+            timestampMillis
         );
     }
 
@@ -405,6 +416,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
+
+    /**
+     * @return the {@link BlobStoreCacheDirectory} to use when reading BCC/CC metadata through the cache.
+     */
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
+        return createNewBlobStoreCacheDirectoryForWarming();
+    }
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

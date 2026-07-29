@@ -622,12 +622,12 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 .orElse(false);
         });
         waitNoPendingTasksOnAll();
-        assertFalse("waiting snapshot should not send cancellations for non relocating shards", unexpectedCancellation.get());
+        assertFalse("all-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
         ensureGreen(indexName, blockingIndexName);
-        assertFalse("waiting snapshot should not send cancellations for non relocating shards", unexpectedCancellation.get());
+        assertFalse("all-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
     }
 
     public void testSnapshotCancellationDoesNotCancelNonRelocatingShards() throws Exception {
@@ -704,7 +704,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         assertFalse("waiting snapshot should not send cancellations for non relocating shards", unexpectedCancellation.get());
     }
 
-    public void testSnapshotCancellationDoesNotCancelWhenSourceNodeShuttingDown() throws Exception {
+    public void testSnapshotCancellationDoesNotCancelWhenSourceNodeMarkedForRemoval() throws Exception {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
         final var targetNode = internalCluster().startDataOnlyNode();
@@ -758,12 +758,12 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
 
         awaitSnapshotWithInitAndWaitingShards();
         waitNoPendingTasksOnAll();
-        assertFalse("waiting snapshot should not send cancellations for shutting down node", unexpectedCancellation.get());
+        assertFalse("waiting snapshot should not send cancellations for a node marked for removal", unexpectedCancellation.get());
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
         ensureGreen(indexName, blockingIndex);
-        assertFalse("waiting snapshot should not send cancellations for shutting down node", unexpectedCancellation.get());
+        assertFalse("waiting snapshot should not send cancellations for a node marked for removal", unexpectedCancellation.get());
     }
 
     private void awaitSnapshotWithInitAndWaitingShards() {

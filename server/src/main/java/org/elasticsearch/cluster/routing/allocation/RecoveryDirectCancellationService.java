@@ -29,12 +29,14 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +66,9 @@ import java.util.concurrent.Executor;
 /// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has both
 ///   [SnapshotsInProgress.ShardState#INIT] and [SnapshotsInProgress.ShardState#WAITING] shards, and a WAITING shard
 ///   is blocked by a primary relocation, we attempt to cancel the relocation target recovery if it has not started
-///   yet, so the snapshot can proceed. Relocations driven by a node shutdown are left untouched. All-WAITING
+///   yet, so the snapshot can proceed. Relocations driven by node removal are left untouched. Skipped entirely when
+///   relocation is decoupled from snapshots
+///   ([SnapshotInProgressAllocationDecider#RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME]). All-WAITING
 ///   snapshots are not cancelled yet (matches [SnapshotInProgressAllocationDecider], which only throttles when INIT
 ///   shards exist). This path is driven by [ClusterStateListener#clusterChanged].
 ///
@@ -96,6 +100,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
     private final Executor genericExecutor;
     private volatile boolean enableDirectRecoveryCancellations = false;
+    private volatile boolean relocationDuringSnapshotEnabled = false;
 
     /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
@@ -126,11 +131,19 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
     @Override
     protected void doStart() {
-        clusterService.getClusterSettings()
-            .initializeAndWatchIfRegistered(
-                ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
-                value -> this.enableDirectRecoveryCancellations = value
-            );
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.initializeAndWatchIfRegistered(
+            ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+            value -> this.enableDirectRecoveryCancellations = value
+        );
+        // Only registered on stateless.
+        final Setting<?> relocationDuringSnapshotSetting = clusterSettings.get(
+            SnapshotInProgressAllocationDecider.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME
+        );
+        if (relocationDuringSnapshotSetting != null) {
+            assert relocationDuringSnapshotSetting.isDynamic();
+            clusterSettings.initializeAndWatch(relocationDuringSnapshotSetting, value -> relocationDuringSnapshotEnabled = (boolean) value);
+        }
         clusterService.addListener(this);
     }
 
@@ -147,11 +160,14 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         if (event.localNodeMaster() == false) {
             return;
         }
+        if (relocationDuringSnapshotEnabled) {
+            return;
+        }
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
         final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
         // Match [SnapshotInProgressAllocationDecider]. Only act when a snapshot also has INIT shards, so that after
         // cancellation the decider will throttle re-relocation. All-WAITING snapshots are left alone for now.
-        // TODO: also cancel for all-WAITING snapshots and update the decider to prevent the cancel→reroute→relocate race
+        // TODO: also cancel for all-WAITING snapshots and update the decider to prevent the cancel->reroute->relocate race.
         if ((newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged())
             && snapshotsInProgress.asStream().anyMatch(entry -> entry.hasShardsInWaitingState() && entry.hasShardsInInitState())) {
             cancelRecoveriesBlockingSnapshots();
@@ -278,6 +294,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
         snapshotsInProgress.asStream().forEach(snapshotInProgress -> {
             // see [#clusterChanged].
+            // There is a window where the last INIT shard could complete after we check but before/while the cancellation
+            // lands. The snapshot may briefly have no INIT shards and the decider will not throttle. Safe/best-effort, at
+            // worst a wasted cancel and a re-relocation attempt. The completed shard does not return to WAITING.
             if (snapshotInProgress.isClone()
                 || snapshotInProgress.hasShardsInWaitingState() == false
                 || snapshotInProgress.hasShardsInInitState() == false) {
@@ -305,12 +324,14 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             if (primary == null || primary.relocating() == false) {
                 continue;
             }
-            // Leave shutdown-driven moves alone: the source is the node being removed
-            if (nodesShutdownMetadata.contains(primary.currentNodeId())) {
+            // Leave removal-driven moves alone to avoid delaying evacuation.
+            if (nodesShutdownMetadata.isNodeMarkedForRemoval(primary.currentNodeId())) {
                 continue;
             }
             final ShardRouting target = primary.getTargetRelocatingShard();
-            nodeToBlockingShards.computeIfAbsent(state.nodes().get(target.currentNodeId()), n -> new ArrayList<>())
+            final DiscoveryNode targetNode = state.nodes().get(target.currentNodeId());
+            assert targetNode != null : "unexpected missing target node from cluster state " + target.currentNodeId();
+            nodeToBlockingShards.computeIfAbsent(targetNode, n -> new ArrayList<>())
                 .add(new ShardRecoveryCancellation(primary.shardId(), target.allocationId().getId(), false));
         }
         final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();

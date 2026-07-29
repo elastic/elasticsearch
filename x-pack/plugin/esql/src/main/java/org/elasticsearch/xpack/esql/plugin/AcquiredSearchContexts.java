@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.util.Arrays;
 import java.util.List;
@@ -53,8 +56,15 @@ class AcquiredSearchContexts implements Releasable {
         checkNotClosed();
         var startingIndex = nextAddIndex;
         for (var cse : searchContexts) {
-            allContexts[nextAddIndex] = new ComputeSearchContext(nextAddIndex, cse);
-            nextAddIndex++;
+            final int idx = nextAddIndex++;
+            cse.addReleasable(() -> {
+                synchronized (AcquiredSearchContexts.this) {
+                    // Allow GC of closed search contexts as soon as they are released.
+                    // noinspection resource
+                    allContexts[idx] = new AlreadyReleasedComputeSearchContext(idx);
+                }
+            });
+            allContexts[idx] = new ComputeSearchContext(idx, cse);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }
@@ -198,6 +208,32 @@ class AcquiredSearchContexts implements Releasable {
         @Override
         public <U> IndexedByShardId<U> map(Function<S, U> anotherMapper) {
             return new Mapped<>(this, cache.length, offset, anotherMapper);
+        }
+    }
+
+    private static class AlreadyReleasedComputeSearchContext extends ComputeSearchContext {
+        AlreadyReleasedComputeSearchContext(int index) {
+            super(index, null);
+        }
+
+        @Override
+        public SearchContext searchContext() {
+            throw new AlreadyClosedException("ComputeSearchContext at index [" + index() + "] was already released");
+        }
+
+        @Override
+        EsPhysicalOperationProviders.ShardContext newDetachedShardContext() {
+            throw new AlreadyClosedException("ComputeSearchContext at index [" + index() + "] was already released");
+        }
+
+        @Override
+        EsPhysicalOperationProviders.ShardContext shardContext(QueryWarnings queryWarnings) {
+            throw new AlreadyClosedException("ComputeSearchContext at index [" + index() + "] was already released");
+        }
+
+        @Override
+        public void close() {
+            // no-op
         }
     }
 }

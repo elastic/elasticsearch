@@ -265,12 +265,7 @@ public abstract class AbstractPhysicalOperationProviders {
                         operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(hashGroupSpecs)
                             .aggregators(aggSpecs)
                             .partitionCount(partitionCount)
-                            .partitionConversionThreshold(
-                                pragmas.partitionedAggConversionThreshold(plannerSettings.partitionedAggConversionThreshold())
-                            )
-                            .perPartitionEmitThreshold(
-                                pragmas.partitionedAggPerPartitionEmitThreshold(plannerSettings.partitionedAggPerPartitionEmitThreshold())
-                            )
+                            .emitKeysThreshold(pragmas.partitionedAggEmitKeysThreshold(plannerSettings.partitionedAggEmitKeysThreshold()))
                             .maxPageSize(maxPageSize)
                             .aggregationBatchSize(aggregationBatchSize)
                             .build();

@@ -91,21 +91,13 @@ public class PartitionedHashAggregationOperatorCanPartitionAndSortTests extends 
 
     public void testCanPartitionReturnsFalseForCategorizeSingleColumn() {
         // Categorize uses semantic equality incompatible with key-space partitioning.
-        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef(
-            "standard",
-            BlockHash.CategorizeDef.OutputFormat.REGEX,
-            70
-        );
+        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef("standard", BlockHash.CategorizeDef.OutputFormat.REGEX, 70);
         BlockHash.GroupSpec spec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorize);
         assertFalse(PartitionedHashAggregationOperator.canPartition(List.of(spec)));
     }
 
     public void testCanPartitionReturnsFalseForCategorizeMultiColumn() {
-        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef(
-            "standard",
-            BlockHash.CategorizeDef.OutputFormat.REGEX,
-            70
-        );
+        BlockHash.CategorizeDef categorize = new BlockHash.CategorizeDef("standard", BlockHash.CategorizeDef.OutputFormat.REGEX, 70);
         List<BlockHash.GroupSpec> specs = List.of(
             new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorize),
             new BlockHash.GroupSpec(1, ElementType.LONG)

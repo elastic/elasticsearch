@@ -68,18 +68,19 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     }
 
     /**
-     * Data node never converts (high threshold) → all intermediate pages are untagged.
-     * Merge operator stays in the non-promoted single-table path.
+     * Data node with a high emit threshold that is not crossed mid-stream — all keys accumulate in
+     * one pass and are flushed at finish(). The single flush partitions all groups at once and tags
+     * every output page. Results must still be correct.
      */
     public void testNonPromotedPath() {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> raw = rawInput(500, 20, oracle);
 
         int partitionCount = between(2, 16);
-        List<Page> intermediate = runDataNodeOp(raw, partitionCount, 10_000 /* never crossed */);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, 10_000 /* not crossed mid-stream */);
         assertTrue(
-            "expected only untagged pages when conversion threshold is never crossed",
-            intermediate.stream().allMatch(p -> p.partitionId() == null)
+            "expected all pages to be tagged: PHAO always tags output at finish()",
+            intermediate.stream().allMatch(p -> p.partitionId() != null)
         );
 
         Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
@@ -103,20 +104,20 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     }
 
     /**
-     * Two simulated data nodes: one converts (produces tagged pages), one doesn't (produces untagged
-     * pages). The merge operator must correctly handle the mix — promoting on the first tagged page
-     * and routing untagged pages to the NONE table for reconciliation at finish().
+     * Two simulated data nodes, one with a low emit threshold (multiple flushes) and one with a high
+     * threshold (single flush at finish()). Both produce tagged pages; the merge operator must
+     * correctly route and reconcile pages from both.
      */
     public void testMixedTaggedAndUntagged() {
         Map<Long, Long> oracle = new HashMap<>();
 
         int partitionCount = between(2, 16);
 
-        // Node A: converts
+        // Node A: frequent intermediate flushes
         List<Page> rawA = rawInput(3_000, 150, oracle);
         List<Page> intermediateA = runDataNodeOp(rawA, partitionCount, between(5, 50));
 
-        // Node B: never converts
+        // Node B: single flush at finish()
         List<Page> rawB = rawInput(500, 20, oracle);
         List<Page> intermediateB = runDataNodeOp(rawB, partitionCount, 10_000);
 
@@ -130,9 +131,9 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
     }
 
     /**
-     * Tagged pages arrive BEFORE untagged ones, then more tagged pages follow. Verifies that
-     * once promoted the NONE table continues accumulating untagged arrivals, and those are
-     * correctly folded in at reconciliation.
+     * Pages from a high-cardinality data node (many intermediate flushes) arrive before pages from
+     * a low-cardinality node (single flush at finish()). Verifies correct reconciliation when pages
+     * from both nodes are interleaved in non-trivial order.
      */
     public void testUntaggedArrivingAfterPromotion() {
         Map<Long, Long> oracle = new HashMap<>();
@@ -141,10 +142,10 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         List<Page> rawConverting = rawInput(4_000, 200, oracle);
         List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30);
 
-        List<Page> rawUntagged = rawInput(800, 50, oracle);
-        List<Page> untagged = runDataNodeOp(rawUntagged, partitionCount, 10_000);
+        List<Page> rawLowCardinality = rawInput(800, 50, oracle);
+        List<Page> untagged = runDataNodeOp(rawLowCardinality, partitionCount, 10_000);
 
-        // Feed tagged first so the operator promotes, then feed untagged.
+        // Feed the frequent-flush node's pages first, then the single-flush node's pages.
         List<Page> ordered = new ArrayList<>(tagged);
         ordered.addAll(untagged);
 
@@ -257,8 +258,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(countSupplier, List.of())))
             .partitionCount(8)
-            .partitionConversionThreshold(30)
-            .perPartitionEmitThreshold(Integer.MAX_VALUE)
+            .emitKeysThreshold(30)
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()
@@ -395,15 +395,14 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
      *     The returned pages are owned by the caller; they must be passed to
      *     {@link #runMergeOp} (which consumes them) or released explicitly.
      */
-    private List<Page> runDataNodeOp(List<Page> raw, int partitionCount, int conversionThreshold) {
+    private List<Page> runDataNodeOp(List<Page> raw, int partitionCount, int emitKeysThreshold) {
         SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
         PartitionedHashAggregationOperator op = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(sumSupplier, List.of(1))))
             .partitionCount(partitionCount)
-            .partitionConversionThreshold(conversionThreshold)
-            .perPartitionEmitThreshold(Integer.MAX_VALUE) // disable periodic early emit; only finish() emits
+            .emitKeysThreshold(emitKeysThreshold)
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()

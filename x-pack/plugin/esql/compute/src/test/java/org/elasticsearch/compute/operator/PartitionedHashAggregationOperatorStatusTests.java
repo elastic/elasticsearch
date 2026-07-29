@@ -18,17 +18,15 @@ public class PartitionedHashAggregationOperatorStatusTests extends AbstractWireS
     PartitionedHashAggregationOperator.Status> {
 
     public static PartitionedHashAggregationOperator.Status simple() {
-        return new PartitionedHashAggregationOperator.Status(100012L, 50006L, 300024L, 200018L, 10, 1000L, 5L, true);
+        return new PartitionedHashAggregationOperator.Status(100012L, 3L, 300024L, 200018L, 10, 1000L, 5L);
     }
 
     public static String simpleToJson() {
         return """
             {
-              "partitioned_mode" : true,
-              "routing_nanos" : 100012,
-              "routing_time" : "100micros",
-              "conversion_nanos" : 50006,
-              "conversion_time" : "50micros",
+              "emit_nanos" : 100012,
+              "emit_time" : "100micros",
+              "emit_count" : 3,
               "hash_nanos" : 300024,
               "hash_time" : "300micros",
               "aggregation_nanos" : 200018,
@@ -57,41 +55,37 @@ public class PartitionedHashAggregationOperatorStatusTests extends AbstractWireS
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomBoolean()
+            randomNonNegativeLong()
         );
     }
 
     @Override
     protected PartitionedHashAggregationOperator.Status mutateInstance(PartitionedHashAggregationOperator.Status instance) {
-        long routingNanos = instance.routingNanos();
-        long conversionNanos = instance.conversionNanos();
+        long emitNanos = instance.emitNanos();
+        long emitCount = instance.emitCount();
         long hashNanos = instance.hashNanos();
         long aggregationNanos = instance.aggregationNanos();
         int pagesProcessed = instance.pagesProcessed();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
-        boolean partitionedMode = instance.partitionedMode();
-        switch (between(0, 7)) {
-            case 0 -> routingNanos = randomValueOtherThan(routingNanos, ESTestCase::randomNonNegativeLong);
-            case 1 -> conversionNanos = randomValueOtherThan(conversionNanos, ESTestCase::randomNonNegativeLong);
+        switch (between(0, 6)) {
+            case 0 -> emitNanos = randomValueOtherThan(emitNanos, ESTestCase::randomNonNegativeLong);
+            case 1 -> emitCount = randomValueOtherThan(emitCount, ESTestCase::randomNonNegativeLong);
             case 2 -> hashNanos = randomValueOtherThan(hashNanos, ESTestCase::randomNonNegativeLong);
             case 3 -> aggregationNanos = randomValueOtherThan(aggregationNanos, ESTestCase::randomNonNegativeLong);
             case 4 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
             case 5 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
             case 6 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
-            case 7 -> partitionedMode = partitionedMode == false;
             default -> throw new UnsupportedOperationException();
         }
         return new PartitionedHashAggregationOperator.Status(
-            routingNanos,
-            conversionNanos,
+            emitNanos,
+            emitCount,
             hashNanos,
             aggregationNanos,
             pagesProcessed,
             rowsReceived,
-            rowsEmitted,
-            partitionedMode
+            rowsEmitted
         );
     }
 }

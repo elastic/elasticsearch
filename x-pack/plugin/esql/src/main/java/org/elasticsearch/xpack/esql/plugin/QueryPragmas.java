@@ -216,8 +216,7 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT,
-        PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD,
-        PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD
+        PlannerSettings.PARTITIONED_AGGREGATION_EMIT_KEYS_THRESHOLD
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -426,16 +425,9 @@ public final class QueryPragmas implements Writeable {
         return defaultPartitionCount;
     }
 
-    public int partitionedAggConversionThreshold(int defaultThreshold) {
-        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.getKey())) {
-            return PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.get(settings);
-        }
-        return defaultThreshold;
-    }
-
-    public int partitionedAggPerPartitionEmitThreshold(int defaultThreshold) {
-        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.getKey())) {
-            return PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.get(settings);
+    public int partitionedAggEmitKeysThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTITIONED_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
         }
         return defaultThreshold;
     }

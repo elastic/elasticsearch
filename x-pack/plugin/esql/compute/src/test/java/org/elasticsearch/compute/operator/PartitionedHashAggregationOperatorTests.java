@@ -35,15 +35,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Exercises {@link PartitionedHashAggregationOperator} end to end: conversion from the legacy
- * single table to N partitions, bucket-sort routing, per-partition early emit, null-key handling,
- * and the multi-valued-key fallback to permanent single-table behavior.
- * Every test compares the operator's output (which is always {@link AggregatorMode#INITIAL},
- * i.e. intermediate state - sum/seen/failed per group, possibly split across several emitted
- * pages for the same key) against a hand-computed reference by folding all emitted rows for a
- * key together, exactly as a downstream {@code INTERMEDIATE}-mode consumer would.
+ * Exercises {@link PartitionedHashAggregationOperator} end to end: single-table accumulation,
+ * output-partitioned intermediate emission, null-key handling, multi-valued key aggregation,
+ * and a variety of grouping key types. Every test compares the operator's output (which is always
+ * {@link AggregatorMode#INITIAL}, i.e. intermediate state — sum/seen/failed per group, possibly
+ * split across several emitted pages for the same key) against a hand-computed reference by folding
+ * all emitted rows for a key together, exactly as a downstream {@code INTERMEDIATE}-mode consumer
+ * would.
  */
 public class PartitionedHashAggregationOperatorTests extends ESTestCase {
 
@@ -56,53 +57,41 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
     }
 
-    public void testNeverConvertsStaysUntagged() {
+    /**
+     * All output from PHAO is tagged with a real partition id (0..partitionCount-1); NONE_PARTITION
+     * is never emitted by the operator itself.
+     */
+    public void testAllOutputIsTaggedWithRealPartitions() {
         Map<Long, Long> oracle = new HashMap<>();
-        List<Page> input = randomInput(50, 5, oracle, false);
+        int partitionCount = between(2, 16);
+        List<Page> input = randomInput(4_000, 200, oracle, false);
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
-            .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(500, 2000)) // never crossed by 5 distinct keys
+            .partitionCount(partitionCount)
+            .emitKeysThreshold(between(50, 150))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
+        assertTrue("expected at least one output page", results.isEmpty() == false);
         for (TaggedPage tagged : results) {
-            assertThat(
-                "never-converted output must be tagged NONE_PARTITION",
-                tagged.partition,
-                equalTo(PartitionedHashAggregationOperator.NONE_PARTITION)
+            assertTrue(
+                "all output must carry a real partition id in [0, " + partitionCount + "); got " + tagged.partition,
+                tagged.partition >= 0 && tagged.partition < partitionCount
             );
         }
         assertMatchesOracle(results, oracle, 0L);
     }
 
-    public void testConvertsAndProducesRealPartitionTags() {
-        Map<Long, Long> oracle = new HashMap<>();
-        List<Page> input = randomInput(5_000, 200, oracle, false);
-
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
-        )
-            .aggregators(List.of(sumLongFactory()))
-            .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 80))
-            .perPartitionEmitThreshold(Integer.MAX_VALUE) // no periodic early emit; only finish() emits
-            .maxPageSize(10_000)
-            .aggregationBatchSize(10_000);
-
-        List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected at least one real partition tag once converted",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertMatchesOracle(results, oracle, 0L);
-    }
-
-    public void testPerPartitionEarlyEmitStillReconciles() {
+    /**
+     * With a small emitKeysThreshold the operator flushes multiple intermediate times before
+     * finish(). Each flush partitions the current table and resets; the downstream merge operator
+     * reconciles the pieces. This test verifies correctness across multiple emit cycles.
+     */
+    public void testEmitCyclesStillReconcile() {
         Map<Long, Long> oracle = new HashMap<>();
         List<Page> input = randomInput(8_000, 300, oracle, false);
 
@@ -111,13 +100,12 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 8))
-            .partitionConversionThreshold(between(5, 50))
-            .perPartitionEmitThreshold(between(10, 50)) // aggressive: force frequent per-partition resets
+            .emitKeysThreshold(between(30, 80)) // low threshold forces multiple intermediate emits
             .maxPageSize(between(100, 500))
             .aggregationBatchSize(between(100, 500));
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue("expected multiple emitted pages when early emit is aggressive", results.size() > 1);
+        assertThat("expected multiple emitted pages when threshold is low", results.size(), greaterThan(1));
         assertMatchesOracle(results, oracle, 0L);
     }
 
@@ -130,8 +118,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 50))
-            .perPartitionEmitThreshold(50)
+            .emitKeysThreshold(between(30, 100))
             .maxPageSize(2_000)
             .aggregationBatchSize(2_000);
 
@@ -139,17 +126,18 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertMatchesOracle(results, oracle, 0L);
     }
 
-    public void testMultiValuedKeyAfterConversionRoutesToOverflowAndStillReconciles() {
+    /**
+     * Multi-valued grouping key rows are expanded by the single BlockHash into one group per value;
+     * after aggregation all output keys are single-valued, so partition routing is always exact.
+     */
+    public void testMultiValuedKeysAggregateCorrectly() {
         Map<Long, Long> oracle = new HashMap<>();
-        // These pages arrive first and are enough to cross the conversion threshold (30 distinct keys).
-        List<Page> input = new ArrayList<>(randomInput(6_000, 200, oracle, false));
+        List<Page> input = new ArrayList<>(randomInput(4_000, 200, oracle, false));
 
-        // One page with a multi-valued grouping key, appended after conversion is certain to have happened.
-        LongBlock keys;
-        LongBlock values;
+        // Append a page with multi-valued grouping keys.
         try (
-            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(3);
-            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(3)
+            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(4);
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(4)
         ) {
             keyBuilder.beginPositionEntry();
             keyBuilder.appendLong(1L);
@@ -163,153 +151,20 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             valueBuilder.appendLong(2000L);
             oracle.merge(3L, 2000L, Long::sum);
 
-            keys = keyBuilder.build();
-            values = valueBuilder.build();
+            input.add(new Page(keyBuilder.build(), valueBuilder.build()));
         }
-        input.add(new Page(keys, values));
-        // More ordinary rows after the MV page, to confirm partition routing still works.
         input.addAll(randomInput(2_000, 200, oracle, false));
-        // Do not shuffle: MV page must arrive post-conversion so the new overflow path is exercised.
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(30)
-            .perPartitionEmitThreshold(Integer.MAX_VALUE)
+            .emitKeysThreshold(between(50, 200))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        // MV page was routed to the overflow legacyOp → at least one NONE_PARTITION result.
-        assertTrue(
-            "expected at least one NONE_PARTITION result for the MV overflow page",
-            results.stream().anyMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        // Non-MV pages after the MV page still route to partition ops → at least one real partition tag.
-        assertTrue(
-            "expected at least one real partition tag: partition ops must continue working after an MV page",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertMatchesOracle(results, oracle, 0L);
-    }
-
-    public void testMultiValuedKeyBeforeConversionAbsorbedIntoPartitions() {
-        Map<Long, Long> oracle = new HashMap<>();
-        List<Page> input = new ArrayList<>();
-
-        // MV page first — arrives before any conversion threshold is crossed.
-        LongBlock mvKeys;
-        LongBlock mvValues;
-        try (
-            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(3);
-            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(3)
-        ) {
-            keyBuilder.beginPositionEntry();
-            keyBuilder.appendLong(1L);
-            keyBuilder.appendLong(2L);
-            keyBuilder.endPositionEntry();
-            valueBuilder.appendLong(1000L);
-            oracle.merge(1L, 1000L, Long::sum);
-            oracle.merge(2L, 1000L, Long::sum);
-
-            keyBuilder.appendLong(3L);
-            valueBuilder.appendLong(2000L);
-            oracle.merge(3L, 2000L, Long::sum);
-
-            mvKeys = keyBuilder.build();
-            mvValues = valueBuilder.build();
-        }
-        input.add(new Page(mvKeys, mvValues));
-        // Normal pages follow — enough distinct keys to cross the threshold and trigger conversion.
-        input.addAll(randomInput(6_000, 200, oracle, false));
-
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
-        )
-            .aggregators(List.of(sumLongFactory()))
-            .partitionCount(between(2, 16))
-            .partitionConversionThreshold(30)
-            .perPartitionEmitThreshold(Integer.MAX_VALUE)
-            .maxPageSize(10_000)
-            .aggregationBatchSize(10_000);
-
-        List<TaggedPage> results = runOperator(builder, input);
-        // MV rows were ingested by the legacy op and absorbed into the partition ops during
-        // conversion (evaluateOp → distributeIntermediatePage): no overflow legacyOp is created,
-        // so all output carries real partition tags.
-        assertTrue(
-            "expected real partition tags: MV data was ingested pre-conversion and absorbed into partitions",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertTrue(
-            "expected no NONE_PARTITION output: MV data was absorbed into partitions during conversion",
-            results.stream().noneMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertMatchesOracle(results, oracle, 0L);
-    }
-
-    public void testMultiValuedKeyOnConversionPagePreventsPartitioning() {
-        // Use an exact threshold so we can control which page triggers the conversion check.
-        int threshold = 30;
-        Map<Long, Long> oracle = new HashMap<>();
-        List<Page> input = new ArrayList<>();
-
-        // Fill the legacy table to exactly (threshold - 1) distinct keys so the next page tips it over.
-        try (
-            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(threshold - 1);
-            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(threshold - 1)
-        ) {
-            for (long k = 0; k < threshold - 1; k++) {
-                keyBuilder.appendLong(k);
-                valueBuilder.appendLong(1L);
-                oracle.merge(k, 1L, Long::sum);
-            }
-            input.add(new Page(keyBuilder.build(), valueBuilder.build()));
-        }
-
-        // This page introduces a new key (threshold) AND has a multi-valued entry — it is the
-        // first page that would trigger conversion. The MV detection should prevent conversion.
-        try (
-            LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(2);
-            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(2)
-        ) {
-            keyBuilder.appendLong((long) threshold); // new key, tips numKeys over threshold
-            valueBuilder.appendLong(10L);
-            oracle.merge((long) threshold, 10L, Long::sum);
-
-            keyBuilder.beginPositionEntry();          // MV entry: keys threshold+1 and threshold+2
-            keyBuilder.appendLong((long) threshold + 1);
-            keyBuilder.appendLong((long) threshold + 2);
-            keyBuilder.endPositionEntry();
-            valueBuilder.appendLong(20L);
-            oracle.merge((long) threshold + 1, 20L, Long::sum);
-            oracle.merge((long) threshold + 2, 20L, Long::sum);
-
-            input.add(new Page(keyBuilder.build(), valueBuilder.build()));
-        }
-
-        // More ordinary pages after — should all stay in legacy mode.
-        input.addAll(randomInput(2_000, 50, oracle, false));
-
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
-        )
-            .aggregators(List.of(sumLongFactory()))
-            .partitionCount(between(2, 16))
-            .partitionConversionThreshold(threshold)
-            .perPartitionEmitThreshold(Integer.MAX_VALUE)
-            .maxPageSize(10_000)
-            .aggregationBatchSize(10_000);
-
-        List<TaggedPage> results = runOperator(builder, input);
-        // MV key on the conversion-triggering page must prevent partitioning entirely:
-        // all output is NONE_PARTITION (no partition ops were ever created).
-        assertTrue(
-            "expected all output to be NONE_PARTITION: MV key on conversion page prevented partitioning",
-            results.stream().allMatch(t -> t.partition == PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesOracle(results, oracle, 0L);
     }
 
@@ -322,15 +177,11 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 50))
+            .emitKeysThreshold(between(30, 100))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion to partitioned mode for 100 distinct int keys",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesIntOracle(results, oracle);
     }
 
@@ -343,20 +194,16 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 50))
+            .emitKeysThreshold(between(30, 80))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion to partitioned mode for 50 distinct bytesref keys",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesBytesRefOracle(results, oracle);
     }
 
     public void testTwoLongGroupingKeys() {
-        // Two LONG columns -> PackedValuesBlockHash (fixed-width) -> router works.
+        // Two LONG columns -> PackedValuesBlockHash (fixed-width).
         Map<String, Long> oracle = new HashMap<>();
         List<Page> input = randomTwoLongInput(5_000, 20, oracle);
 
@@ -365,21 +212,16 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactoryAt(2)))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 80))
+            .emitKeysThreshold(between(30, 100))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion with " + oracle.size() + " distinct key pairs",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesTwoLongOracle(results, oracle);
     }
 
     public void testLongBytesRefPartitions() {
-        // LONG+BYTES_REF uses PackedValuesBlockHash with a VariableWidthBatchWork router, so the
-        // operator should convert to the partitioned path once enough distinct keys are seen.
+        // LONG+BYTES_REF uses PackedValuesBlockHash with a VariableWidthBatchWork router.
         Map<String, Long> oracle = new HashMap<>();
         List<Page> input = randomLongBytesRefInput(3_000, 50, oracle);
 
@@ -388,15 +230,11 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactoryAt(2)))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 50))
+            .emitKeysThreshold(between(30, 80))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion with " + oracle.size() + " distinct LONG+BYTES_REF key pairs",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesLongBytesRefOracle(results, oracle);
     }
 
@@ -410,7 +248,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory(), maxLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 50))
+            .emitKeysThreshold(between(30, 100))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -419,11 +257,10 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     /**
-     * Regression test: COUNT aggregation works correctly in the promoted (partitioned) path.
+     * Regression test: COUNT aggregation works correctly through the single-table partitioned path.
      */
-    public void testCountAggregationInPromotedPath() {
+    public void testCountAggregation() {
         Map<Long, Long> oracle = new HashMap<>();
-        // Single-column pages (key only): COUNT(*) needs no value column.
         List<Page> input = randomCountInput(4_000, 200, oracle);
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
@@ -431,33 +268,28 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(countAllFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(30)  // low threshold forces conversion to partitioned mode
-            .perPartitionEmitThreshold(Integer.MAX_VALUE)
+            .emitKeysThreshold(between(30, 100))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
         List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion to partitioned mode for 200 distinct keys",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
         assertMatchesCountOracle(results, oracle);
     }
 
     /**
-     * Regression test: after finish() drains a converted (partitioned) operator, both {@code legacy}
-     * and {@code partitions} are null. {@code toString()} must not throw in that state.
+     * Regression test: after finish() drains the operator, {@code singleOp} is null.
+     * {@code toString()} must not throw in that state.
      */
     public void testToStringAfterFinishDoesNotThrow() {
         Map<Long, Long> oracle = new HashMap<>();
-        List<Page> input = randomInput(5_000, 200, oracle, false);
+        List<Page> input = randomInput(2_000, 200, oracle, false);
 
         PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 16))
-            .partitionConversionThreshold(between(5, 80))
+            .emitKeysThreshold(between(50, 200))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 
@@ -478,12 +310,48 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             while ((out = operator.getOutput()) != null) {
                 out.releaseBlocks();
             }
-            // Both legacy and partitions are null at this point — toString() must not throw.
+            // singleOp is null at this point — toString() must not throw.
             operator.toString();
         } finally {
             operator.close();
         }
     }
+
+    public void testDoubleGroupingKey() {
+        Map<Double, Long> oracle = new HashMap<>();
+        List<Page> input = randomDoubleInput(4_000, 100, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(8)
+            .emitKeysThreshold(between(30, 100))
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertMatchesDoubleOracle(results, oracle);
+    }
+
+    public void testBooleanGroupingKey() {
+        Map<Boolean, Long> oracle = new HashMap<>();
+        List<Page> input = randomBooleanInput(3_000, oracle);
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN))
+        )
+            .aggregators(List.of(sumLongFactory()))
+            .partitionCount(4)
+            .emitKeysThreshold(2) // only 2 distinct boolean keys; threshold ≤ 2 to exercise emit
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        assertMatchesBooleanOracle(results, oracle);
+    }
+
+    // ---- helpers ----
 
     private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactory() {
         return new PartitionedHashAggregationOperator.AggregatorSpec(
@@ -492,10 +360,26 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         );
     }
 
+    private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactoryAt(int channel) {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(
+            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE),
+            List.of(channel)
+        );
+    }
+
+    private PartitionedHashAggregationOperator.AggregatorSpec maxLongFactory() {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(new MaxLongAggregatorFunctionSupplier(), List.of(1));
+    }
+
+    /** COUNT(*) aggregator spec (empty channels → countAll=true). */
+    private PartitionedHashAggregationOperator.AggregatorSpec countAllFactory() {
+        return new PartitionedHashAggregationOperator.AggregatorSpec(CountAggregatorFunction.supplier(), List.of());
+    }
+
     /**
      * Builds {@code rows} random (key, value) pairs over {@code cardinality} distinct keys (plus,
-     * if {@code withNulls}, some null keys folded into oracle key {@code 0L} by convention here),
-     * split across a handful of pages, updating {@code oracle} (key -&gt; expected sum) as it goes.
+     * if {@code withNulls}, some null keys folded into oracle key {@code 0L} by convention),
+     * split across a handful of pages, updating {@code oracle} (key → expected sum) as it goes.
      */
     private List<Page> randomInput(int rows, int cardinality, Map<Long, Long> oracle, boolean withNulls) {
         List<Page> pages = new ArrayList<>();
@@ -519,106 +403,10 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
                     }
                     valueBuilder.appendLong(value);
                 }
-                LongBlock keys = keyBuilder.build();
-                LongBlock values = valueBuilder.build();
-                pages.add(new Page(keys, values));
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
             }
         }
         return pages;
-    }
-
-    private record TaggedPage(int partition, Page page) {}
-
-    private List<TaggedPage> runOperator(PartitionedHashAggregationOperator.Builder builder, List<Page> input) {
-        DriverContext driverContext = driverContext();
-        PartitionedHashAggregationOperator operator = builder.build().get(driverContext);
-        try {
-            List<TaggedPage> results = new ArrayList<>();
-            for (Page page : input) {
-                assertTrue(operator.needsInput());
-                Page copy = copyPage(page);
-                operator.addInput(copy);
-                drain(operator, results);
-            }
-            operator.finish();
-            drain(operator, results);
-            assertTrue(operator.isFinished());
-            return results;
-        } finally {
-            operator.close();
-        }
-    }
-
-    private void drain(PartitionedHashAggregationOperator operator, List<TaggedPage> results) {
-        Page out;
-        while ((out = operator.getOutput()) != null) {
-            Integer pid = out.partitionId();
-            results.add(new TaggedPage(pid != null ? pid : PartitionedHashAggregationOperator.NONE_PARTITION, out));
-        }
-    }
-
-    /**
-     * {@code addInput} releases the page's blocks; the test still owns {@code input} for building
-     * the oracle and reusing across assertions, so feed the operator an independent copy.
-     */
-    private Page copyPage(Page page) {
-        Block[] blocks = new Block[page.getBlockCount()];
-        boolean success = false;
-        try {
-            for (int i = 0; i < blocks.length; i++) {
-                Block b = page.getBlock(i);
-                blocks[i] = b.elementType()
-                    .newBlockBuilder(b.getPositionCount(), blockFactory)
-                    .copyFrom(b, 0, b.getPositionCount())
-                    .build();
-            }
-            Page copy = new Page(blocks);
-            success = true;
-            return copy;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(blocks);
-            }
-        }
-    }
-
-    /**
-     * Folds every emitted (key, sum, seen) row across all pages/partitions together and compares
-     * the per-key totals to {@code oracle}. {@code nullOracleKey} is the oracle key a null
-     * grouping key's contributions were folded into when building the oracle.
-     */
-    private void assertMatchesOracle(List<TaggedPage> results, Map<Long, Long> oracle, long nullOracleKey) {
-        Map<Long, Long> actual = new HashMap<>();
-        for (TaggedPage tagged : results) {
-            Page page = tagged.page;
-            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
-            LongBlock keys = page.getBlock(0);
-            LongBlock sums = page.getBlock(1);
-            BooleanBlock seenFlags = page.getBlock(2);
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                if (seenFlags.getBoolean(i) == false) {
-                    continue;
-                }
-                long key = keys.isNull(i) ? nullOracleKey : keys.getLong(i);
-                actual.merge(key, sums.getLong(i), Long::sum);
-            }
-        }
-        assertThat(actual, equalTo(oracle));
-    }
-
-    private DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-    }
-
-    private PartitionedHashAggregationOperator.AggregatorSpec sumLongFactoryAt(int channel) {
-        return new PartitionedHashAggregationOperator.AggregatorSpec(
-            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE),
-            List.of(channel)
-        );
-    }
-
-    private PartitionedHashAggregationOperator.AggregatorSpec maxLongFactory() {
-        return new PartitionedHashAggregationOperator.AggregatorSpec(new MaxLongAggregatorFunctionSupplier(), List.of(1));
     }
 
     private List<Page> randomIntInput(int rows, int cardinality, Map<Integer, Long> oracle) {
@@ -743,6 +531,149 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         return pages;
     }
 
+    private List<Page> randomCountInput(int rows, int cardinality, Map<Long, Long> countOracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize)) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key = randomLongBetween(0, cardinality - 1);
+                    keyBuilder.appendLong(key);
+                    countOracle.merge(key, 1L, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomDoubleInput(int rows, int cardinality, Map<Double, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                DoubleBlock.Builder keyBuilder = blockFactory.newDoubleBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    double key = (double) between(0, cardinality - 1);
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendDouble(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private List<Page> randomBooleanInput(int rows, Map<Boolean, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 500));
+            remaining -= pageSize;
+            try (
+                BooleanBlock.Builder keyBuilder = blockFactory.newBooleanBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    boolean key = randomBoolean();
+                    long value = randomLongBetween(-1000, 1000);
+                    keyBuilder.appendBoolean(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    private record TaggedPage(int partition, Page page) {}
+
+    private List<TaggedPage> runOperator(PartitionedHashAggregationOperator.Builder builder, List<Page> input) {
+        DriverContext driverContext = driverContext();
+        PartitionedHashAggregationOperator operator = builder.build().get(driverContext);
+        try {
+            List<TaggedPage> results = new ArrayList<>();
+            for (Page page : input) {
+                assertTrue(operator.needsInput());
+                Page copy = copyPage(page);
+                operator.addInput(copy);
+                drain(operator, results);
+            }
+            operator.finish();
+            drain(operator, results);
+            assertTrue(operator.isFinished());
+            return results;
+        } finally {
+            operator.close();
+        }
+    }
+
+    private void drain(PartitionedHashAggregationOperator operator, List<TaggedPage> results) {
+        Page out;
+        while ((out = operator.getOutput()) != null) {
+            Integer pid = out.partitionId();
+            results.add(new TaggedPage(pid != null ? pid : PartitionedHashAggregationOperator.NONE_PARTITION, out));
+        }
+    }
+
+    /**
+     * {@code addInput} releases the page's blocks; the test still owns {@code input} for building
+     * the oracle and reusing across assertions, so feed the operator an independent copy.
+     */
+    private Page copyPage(Page page) {
+        Block[] blocks = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                Block b = page.getBlock(i);
+                blocks[i] = b.elementType()
+                    .newBlockBuilder(b.getPositionCount(), blockFactory)
+                    .copyFrom(b, 0, b.getPositionCount())
+                    .build();
+            }
+            Page copy = new Page(blocks);
+            success = true;
+            return copy;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
+        }
+    }
+
+    /**
+     * Folds every emitted (key, sum, seen) row across all pages/partitions together and compares
+     * the per-key totals to {@code oracle}. {@code nullOracleKey} is the oracle key a null
+     * grouping key's contributions were folded into when building the oracle.
+     */
+    private void assertMatchesOracle(List<TaggedPage> results, Map<Long, Long> oracle, long nullOracleKey) {
+        Map<Long, Long> actual = new HashMap<>();
+        for (TaggedPage tagged : results) {
+            Page page = tagged.page;
+            assertThat(page.getBlockCount(), equalTo(4)); // key, sum, seen, failed
+            LongBlock keys = page.getBlock(0);
+            LongBlock sums = page.getBlock(1);
+            BooleanBlock seenFlags = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (seenFlags.getBoolean(i) == false) {
+                    continue;
+                }
+                long key = keys.isNull(i) ? nullOracleKey : keys.getLong(i);
+                actual.merge(key, sums.getLong(i), Long::sum);
+            }
+        }
+        assertThat(actual, equalTo(oracle));
+    }
+
     private void assertMatchesIntOracle(List<TaggedPage> results, Map<Integer, Long> oracle) {
         Map<Integer, Long> actual = new HashMap<>();
         for (TaggedPage tagged : results) {
@@ -774,8 +705,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
                 if (seenFlags.getBoolean(i) == false) {
                     continue;
                 }
-                String key = keys.getBytesRef(i, scratch).utf8ToString();
-                actual.merge(key, sums.getLong(i), Long::sum);
+                actual.merge(keys.getBytesRef(i, scratch).utf8ToString(), sums.getLong(i), Long::sum);
             }
         }
         assertThat(actual, equalTo(oracle));
@@ -858,122 +788,6 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertThat(actualMax, equalTo(maxOracle));
     }
 
-    /** COUNT(*) aggregator spec (empty channels → countAll=true). */
-    private PartitionedHashAggregationOperator.AggregatorSpec countAllFactory() {
-        return new PartitionedHashAggregationOperator.AggregatorSpec(CountAggregatorFunction.supplier(), List.of());
-    }
-
-    /**
-     * Builds {@code rows} single-column (LONG key) pages over {@code cardinality} distinct keys,
-     * updating {@code countOracle} (key → expected occurrence count). Used for COUNT(*) tests
-     * where no value column is needed.
-     */
-    private List<Page> randomCountInput(int rows, int cardinality, Map<Long, Long> countOracle) {
-        List<Page> pages = new ArrayList<>();
-        int remaining = rows;
-        while (remaining > 0) {
-            int pageSize = Math.min(remaining, between(50, 500));
-            remaining -= pageSize;
-            try (LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize)) {
-                for (int i = 0; i < pageSize; i++) {
-                    long key = randomLongBetween(0, cardinality - 1);
-                    keyBuilder.appendLong(key);
-                    countOracle.merge(key, 1L, Long::sum);
-                }
-                pages.add(new Page(keyBuilder.build()));
-            }
-        }
-        return pages;
-    }
-
-    public void testDoubleGroupingKey() {
-        Map<Double, Long> oracle = new HashMap<>();
-        List<Page> input = randomDoubleInput(4_000, 100, oracle);
-
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-            List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE))
-        )
-            .aggregators(List.of(sumLongFactory()))
-            .partitionCount(8)
-            .partitionConversionThreshold(30)
-            .maxPageSize(10_000)
-            .aggregationBatchSize(10_000);
-
-        List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion to partitioned mode for 100 distinct double keys",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertMatchesDoubleOracle(results, oracle);
-    }
-
-    public void testBooleanGroupingKey() {
-        Map<Boolean, Long> oracle = new HashMap<>();
-        List<Page> input = randomBooleanInput(3_000, oracle);
-
-        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
-            List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN))
-        )
-            .aggregators(List.of(sumLongFactory()))
-            .partitionCount(4)
-            .partitionConversionThreshold(2) // 2 distinct boolean keys; threshold must be ≤ 2 to trigger conversion
-            .maxPageSize(10_000)
-            .aggregationBatchSize(10_000);
-
-        List<TaggedPage> results = runOperator(builder, input);
-        assertTrue(
-            "expected conversion to partitioned mode with 2 distinct boolean keys",
-            results.stream().anyMatch(t -> t.partition != PartitionedHashAggregationOperator.NONE_PARTITION)
-        );
-        assertMatchesBooleanOracle(results, oracle);
-    }
-
-    private List<Page> randomDoubleInput(int rows, int cardinality, Map<Double, Long> oracle) {
-        List<Page> pages = new ArrayList<>();
-        int remaining = rows;
-        while (remaining > 0) {
-            int pageSize = Math.min(remaining, between(50, 500));
-            remaining -= pageSize;
-            try (
-                DoubleBlock.Builder keyBuilder = blockFactory.newDoubleBlockBuilder(pageSize);
-                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
-            ) {
-                for (int i = 0; i < pageSize; i++) {
-                    double key = (double) between(0, cardinality - 1);
-                    long value = randomLongBetween(-1000, 1000);
-                    keyBuilder.appendDouble(key);
-                    valueBuilder.appendLong(value);
-                    oracle.merge(key, value, Long::sum);
-                }
-                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
-            }
-        }
-        return pages;
-    }
-
-    private List<Page> randomBooleanInput(int rows, Map<Boolean, Long> oracle) {
-        List<Page> pages = new ArrayList<>();
-        int remaining = rows;
-        while (remaining > 0) {
-            int pageSize = Math.min(remaining, between(50, 500));
-            remaining -= pageSize;
-            try (
-                BooleanBlock.Builder keyBuilder = blockFactory.newBooleanBlockBuilder(pageSize);
-                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
-            ) {
-                for (int i = 0; i < pageSize; i++) {
-                    boolean key = randomBoolean();
-                    long value = randomLongBetween(-1000, 1000);
-                    keyBuilder.appendBoolean(key);
-                    valueBuilder.appendLong(value);
-                    oracle.merge(key, value, Long::sum);
-                }
-                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
-            }
-        }
-        return pages;
-    }
-
     private void assertMatchesDoubleOracle(List<TaggedPage> results, Map<Double, Long> oracle) {
         Map<Double, Long> actual = new HashMap<>();
         for (TaggedPage tagged : results) {
@@ -1010,10 +824,6 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         assertThat(actual, equalTo(oracle));
     }
 
-    /**
-     * Folds COUNT(*) intermediate state rows across all tagged pages and compares against
-     * {@code oracle}. COUNT intermediate state: [key (LONG), count (LONG), seen (BOOLEAN)] = 3 blocks.
-     */
     private void assertMatchesCountOracle(List<TaggedPage> results, Map<Long, Long> oracle) {
         Map<Long, Long> actual = new HashMap<>();
         for (TaggedPage tagged : results) {
@@ -1031,5 +841,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             }
         }
         assertThat(actual, equalTo(oracle));
+    }
+
+    private DriverContext driverContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 }

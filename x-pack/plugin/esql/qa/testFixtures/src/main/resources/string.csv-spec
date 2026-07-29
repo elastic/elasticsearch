@@ -2848,10 +2848,82 @@ ROW a = FROM_BASE64("YfA=")
 ;
 
 warning:Line 1:9: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.IllegalArgumentException: decoded value is not valid UTF-8
+warning:Line 1:9: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
 
 a:keyword
 null
+;
+
+base64DecodeInvalidUtf8Contains
+required_capability: fn_from_base64_validate_utf8
+required_capability: fn_contains
+// Invalid UTF-8 from FROM_BASE64 must not crash CONTAINS.
+ROW c = CONTAINS(FROM_BASE64("YfA="), "a")
+;
+
+warning:Line 1:18: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:18: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+c:boolean
+null
+;
+
+base64DecodeMixedMvExpandSort
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["YfA=", "ZWxhc3RpYw=="]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| SORT d
+| KEEP d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+d:keyword
+elastic
+null
+;
+
+base64DecodeMixedMvExpand
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["ZWxhc3RpYw==", "YfA=", "not!!base64"]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| KEEP enc, d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+warning:Line 3:12: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+enc:keyword    | d:keyword
+ZWxhc3RpYw==   | elastic
+YfA=           | null
+not!!base64    | null
+;
+
+base64DecodeInvalidBase64
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("not!!base64")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"not!!base64\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+a:keyword
+null
+;
+
+base64EncodeDecodeUnicode
+required_capability: base64_decode_encode
+ROW a = "cafè ☕ 日本語"
+| EVAL e = TO_BASE64(a), d = FROM_BASE64(e)
+| KEEP a, d
+;
+
+a:keyword       | d:keyword
+cafè ☕ 日本語   | cafè ☕ 日本語
 ;
 
 base64EncodeDecodeEmp

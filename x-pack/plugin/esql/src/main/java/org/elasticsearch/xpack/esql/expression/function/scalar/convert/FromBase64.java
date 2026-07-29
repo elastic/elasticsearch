@@ -107,7 +107,7 @@ public class FromBase64 extends UnaryScalarFunction {
         oScratch.clear();
         int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
         if (Utf8Sanitizer.isWellFormed(oScratch.bytes(), 0, decodedSize) == false) {
-            throw new IllegalArgumentException("decoded value is not valid UTF-8");
+            throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
         }
         return new BytesRef(oScratch.bytes(), 0, decodedSize);
     }

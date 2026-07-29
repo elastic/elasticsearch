@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -85,6 +86,13 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         ) {
             return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
         }
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        // Both the local and the remote nodes need federation on: the remote reports its datasets during field
+        // resolution only when it is available there, and the local coordinator only asks when it is available here.
+        return Settings.builder().put(super.nodeSettings()).put(Federation.FEDERATION_ENABLED.getKey(), true).build();
     }
 
     @Override

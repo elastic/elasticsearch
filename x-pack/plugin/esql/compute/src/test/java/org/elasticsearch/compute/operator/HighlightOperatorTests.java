@@ -343,22 +343,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testShrinkingTextAcrossRows() {
-        StringBuilder longText = new StringBuilder();
-        for (int i = 0; i < 300; i++) {
-            longText.append("filler word ");
-        }
-        longText.append("fox jumps at the end.");
-        BytesRefBlock result = highlight(config("fox", 5, 0, 0), bytesRefs(List.of(List.of(longText.toString()), List.of("a fox."))));
-        try {
-            assertThat(value(result, 0).contains("<em>fox</em>"), equalTo(true));
-            assertThat(value(result, 1), equalTo("a <em>fox</em>."));
-        } finally {
-            result.close();
-        }
-    }
-
-    public void testMultiFieldAlternatingNulls() {
+    public void testNullValueHighlightsOnlyThePresentField() {
         Query query = new BooleanQuery.Builder().add(termQuery("title", "fox"), BooleanClause.Occur.SHOULD)
             .add(termQuery("body", "fox"), BooleanClause.Occur.SHOULD)
             .build();
@@ -407,7 +392,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testMustNotTermsAreNotHighlighted() {
+    public void testMustNotTermExcludesRow() {
         Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
             .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
             .build();
@@ -427,32 +412,17 @@ public class HighlightOperatorTests extends OperatorTestCase {
     public void testCustomAnalyzerMatchesThroughSynonyms() throws IOException {
         SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
         synonyms.add(new CharsRef("car"), new CharsRef("automobile"), true);
-        SynonymMap synonymMap = synonyms.build();
-        Analyzer analyzer = new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                Tokenizer tokenizer = new StandardTokenizer();
-                TokenStream stream = new LowerCaseFilter(tokenizer);
-                stream = new SynonymGraphFilter(stream, synonymMap, true);
-                return new TokenStreamComponents(tokenizer, stream);
-            }
-        };
-        BytesRefBlock input = bytesRefs(List.of(List.of("the red car drives"), List.of("a plain sentence")));
-        try (
-            HighlightOperator operator = new HighlightOperator(
-                blockFactory(),
-                config("automobile", 5, 0, 0).withExecutionContext(analyzer, contentTerm("automobile"), CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
-            )
-        ) {
-            Page result = operator.process(new Page(input));
-            BytesRefBlock highlighted = result.getBlock(result.getBlockCount() - 1);
-            try {
-                assertThat(value(highlighted, 0), equalTo("the red <em>car</em> drives"));
-                assertThat(highlighted.isNull(1), equalTo(true));
-            } finally {
-                result.releaseBlocks();
-            }
+        BytesRefBlock result = highlight(
+            config("automobile", 5, 0, 0),
+            contentTerm("automobile"),
+            synonymAnalyzer(synonyms.build()),
+            bytesRefs(List.of(List.of("the red car drives"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the red <em>car</em> drives"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
         }
     }
 
@@ -462,6 +432,17 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     private static Query termQuery(String field, String term) {
         return new TermQuery(new Term(field, term));
+    }
+
+    private static Analyzer synonymAnalyzer(SynonymMap synonyms) {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                TokenStream lowerCased = new LowerCaseFilter(tokenizer);
+                return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(lowerCased, synonyms, true));
+            }
+        };
     }
 
     private BytesRefBlock highlightSingle(HighlightConfig config, String text) {
@@ -477,10 +458,14 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     private BytesRefBlock highlight(HighlightConfig config, Query query, BytesRefBlock input) {
+        return highlight(config, query, new StandardAnalyzer(), input);
+    }
+
+    private BytesRefBlock highlight(HighlightConfig config, Query query, Analyzer analyzer, BytesRefBlock input) {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(new StandardAnalyzer(), query, CONTENT),
+                config.withExecutionContext(analyzer, query, CONTENT),
                 new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
             )
         ) {

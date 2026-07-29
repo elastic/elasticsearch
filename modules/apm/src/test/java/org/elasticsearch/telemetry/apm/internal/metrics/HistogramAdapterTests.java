@@ -58,6 +58,25 @@ public class HistogramAdapterTests extends ESTestCase {
         assertThat(actualBoundaries, equalTo(customBoundaries.stream().map(Long::doubleValue).toList()));
     }
 
+    public void testDoubleHistogramUsesCustomBoundaries() {
+        List<Double> customBoundaries = List.of(0.01, 0.1, 1.0, 10.0, 100.0);
+        String name = "es.test.custom.double.histogram";
+        registry.registerDoubleHistogram(name, "desc", "ms", customBoundaries).record(randomDoubleBetween(0.0, 100.0, true));
+
+        List<Double> actualBoundaries = reader.collectAllMetrics()
+            .stream()
+            .filter(m -> m.getName().equals(name))
+            .findFirst()
+            .orElseThrow()
+            .getHistogramData()
+            .getPoints()
+            .iterator()
+            .next()
+            .getBoundaries();
+
+        assertThat(actualBoundaries, equalTo(customBoundaries));
+    }
+
     public void testHistogramsUseApmDefaultBoundaries() {
         String longName = "es.test.long.histogram";
         String doubleName = "es.test.double.histogram";

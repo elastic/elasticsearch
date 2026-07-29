@@ -94,6 +94,20 @@ public interface MeterRegistry {
     DoubleHistogram registerDoubleHistogram(String name, String description, String unit);
 
     /**
+     * Register a {@link DoubleHistogram} with explicit bucket boundaries.  The returned object may be reused.
+     * Callers that need bucket boundaries tuned to a specific range should prefer this over
+     * {@link #registerDoubleHistogram(String, String, String)}, which uses the APM default sqrt(2) ladder.
+     * @param name name of the histogram
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param bucketBoundaries explicit upper-inclusive bucket boundaries, in ascending order
+     * @return the registered meter.
+     */
+    default DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
+        return registerDoubleHistogram(name, description, unit);
+    }
+
+    /**
      * Retrieved a previously registered {@link DoubleHistogram}.
      * @param name name of the histogram
      * @return the registered meter.

@@ -84,7 +84,11 @@ public class DataSourceService {
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        clusterService.getClusterSettings().initializeAndWatch(MAX_DATA_SOURCES_COUNT_SETTING, v -> this.maxDataSourcesCount = v);
+        // The ceiling is watched while the setting exists, which is while the federation feature is registered (see
+        // Federation#settings). Where the feature is unregistered the ceiling is the setting's default and cannot be
+        // changed, which no request observes because the CRUD REST routes are not registered either.
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(MAX_DATA_SOURCES_COUNT_SETTING, v -> this.maxDataSourcesCount = v);
     }
 
     protected DataSourceMetadata getMetadata(ProjectMetadata projectMetadata) {

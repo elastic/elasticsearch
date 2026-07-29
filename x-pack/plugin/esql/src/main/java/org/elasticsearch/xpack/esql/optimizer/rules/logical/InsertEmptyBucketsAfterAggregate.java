@@ -53,15 +53,13 @@ public final class InsertEmptyBucketsAfterAggregate extends OptimizerRules.Optim
             return aggregate;
         }
 
-        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
-        aggregate.forEachExpressionDown(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
-        AttributeMap<Expression> aliases = aliasesBuilder.build();
+        AttributeMap<Expression> aliases = collectAliases(aggregate);
 
         AttributeMap.Builder<Bucket> bucketsBuilder = AttributeMap.builder();
         AttributeSet.Builder groupsBuilder = AttributeSet.builder();
         for (Expression grouping : aggregate.groupings()) {
             Attribute attribute = Expressions.attribute(grouping);
-            Expression expression = aliases.resolve(attribute, grouping);
+            Expression expression = aliases.resolve(attribute);
             if (expression instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
                 bucketsBuilder.put(attribute, bucket);
             } else {
@@ -73,6 +71,26 @@ public final class InsertEmptyBucketsAfterAggregate extends OptimizerRules.Optim
         return buckets.isEmpty()
             ? aggregate
             : new InsertEmptyBuckets(aggregate.source(), aggregate, buckets, groups, defaultValues(aggregate, buckets, groups));
+    }
+
+    private static AttributeMap<Expression> collectAliases(Aggregate aggregate) {
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        aggregate.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
+        collectAliases(aggregate.child(), aliasesBuilder);
+        return aliasesBuilder.build();
+    }
+
+    private static void collectAliases(LogicalPlan plan, AttributeMap.Builder<Expression> aliasesBuilder) {
+        if (plan instanceof Aggregate && plan instanceof TimeSeriesAggregate == false) {
+            // Stop at any Aggregate beyond the original one: any "include_empty_buckets" belongs to
+            // that Aggregate, and not to the one currently being processed.
+            // Do continue processing a TimeSeriesAggregate, which is this Aggregate's "sibling".
+            return;
+        }
+        plan.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
+        for (LogicalPlan child : plan.children()) {
+            collectAliases(child, aliasesBuilder);
+        }
     }
 
     private static AttributeMap<DefaultValue> defaultValues(Aggregate aggregate, AttributeMap<Bucket> buckets, AttributeSet groups) {

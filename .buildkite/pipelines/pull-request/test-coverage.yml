@@ -47,10 +47,21 @@ steps:
       - label: "test-coverage / unit"
         key: "test-coverage-unit"
         command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh unit pending "measuring unit coverage"
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
               | buildkite-agent annotate --style info --context "coverage-unit"
+            SUMMARY_LINE=$$(grep -m1 '^unit' build/coverage/summary.txt || echo "unit measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh unit success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh unit failure "$$SUMMARY_LINE"
           fi
           exit $$rc
         env:
@@ -70,10 +81,21 @@ steps:
       - label: "test-coverage / internal-cluster"
         key: "test-coverage-internal-cluster"
         command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh internal-cluster pending "measuring internal-cluster coverage"
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
               | buildkite-agent annotate --style info --context "coverage-internal-cluster"
+            SUMMARY_LINE=$$(grep -m1 '^internal-cluster' build/coverage/summary.txt || echo "internal-cluster measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh internal-cluster success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh internal-cluster failure "$$SUMMARY_LINE"
           fi
           exit $$rc
         env:
@@ -93,10 +115,21 @@ steps:
       - label: "test-coverage / cluster"
         key: "test-coverage-cluster"
         command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh cluster pending "measuring cluster coverage"
           .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
               | buildkite-agent annotate --style info --context "coverage-cluster"
+            SUMMARY_LINE=$$(grep -m1 '^cluster' build/coverage/summary.txt || echo "cluster measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh cluster success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh cluster failure "$$SUMMARY_LINE"
           fi
           exit $$rc
         env:
@@ -125,10 +158,16 @@ steps:
           - "test-coverage-cluster"
         allow_dependency_failure: true
         command: |
+          .buildkite/scripts/coverage/status.sh merged pending "merging layers"
           .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
           if [[ -f build/coverage/summary.txt ]]; then
             { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
               | buildkite-agent annotate --style info --context coverage-merged
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh merged success "$$(grep -m1 '^merged' build/coverage/summary.txt || echo merged)"
+          else
+            .buildkite/scripts/coverage/status.sh merged failure "merge failed"
           fi
           exit $$rc
         timeout_in_minutes: 60

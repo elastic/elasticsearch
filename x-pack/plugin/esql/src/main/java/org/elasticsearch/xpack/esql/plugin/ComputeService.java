@@ -1086,9 +1086,6 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
-
-            List<SearchExecutionContext> localContexts = new ArrayList<>();
-            context.searchExecutionContexts().iterable().forEach(localContexts::add);
             boolean hasExternalSource = plan.anyMatch(
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
@@ -1096,6 +1093,8 @@ public class ComputeService {
             PhysicalPlan localPlan;
             final String logicalPlanString;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                List<SearchExecutionContext> localContexts = new ArrayList<>();
+                context.searchExecutionContexts().iterable().forEach(localContexts::add);
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,

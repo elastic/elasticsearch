@@ -126,3 +126,29 @@ if [[ -n "${BUILDKITE:-}" ]] && command -v buildkite-agent >/dev/null; then
   printf '### Coverage (%s @ %.12s)\n\n```\n%s\n```\n\n%s\n' "$PROJECTS" "$SHA" "$SUMMARY" "$LINK" \
     | buildkite-agent annotate --style info --context coverage
 fi
+
+# Post the summary as a PR comment, updating the previous one rather than piling up.
+#
+# Buildkite publishes a GitHub check per step from a pipeline-side setting that this repo does not
+# control, and coverage steps are not in it - so the annotation above is only visible after
+# clicking into the build. A comment puts the numbers on the PR itself, which is where anyone
+# looking for them will actually look.
+if [[ -n "${BUILDKITE_PULL_REQUEST:-}" && "${BUILDKITE_PULL_REQUEST}" != "false" ]] \
+   && command -v gh >/dev/null 2>&1; then
+  MARKER="<!-- coverage-report -->"
+  SLUG="${BUILDKITE_REPO_SLUG:-elastic/elasticsearch}"
+  BODY=$(printf '%s\n## Coverage\n\n```\n%s\n```\n\n%s\n' "$MARKER" "$SUMMARY" "$LINK")
+
+  EXISTING=$(gh api "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" \
+    --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" 2>/dev/null | head -1)
+
+  if [[ -n "$EXISTING" ]]; then
+    gh api --method PATCH "repos/$SLUG/issues/comments/$EXISTING" -f body="$BODY" >/dev/null 2>&1 \
+      && echo "--- updated coverage comment on PR ${BUILDKITE_PULL_REQUEST}" \
+      || echo "--- could not update coverage comment"
+  else
+    gh api --method POST "repos/$SLUG/issues/${BUILDKITE_PULL_REQUEST}/comments" -f body="$BODY" >/dev/null 2>&1 \
+      && echo "--- posted coverage comment on PR ${BUILDKITE_PULL_REQUEST}" \
+      || echo "--- could not post coverage comment"
+  fi
+fi

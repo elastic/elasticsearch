@@ -99,6 +99,15 @@ public final class NumberColumnTransform {
      * types try the ASCII fast path first, float/double go straight to the string slow path.
      */
     private static long stringToSortableLong(BytesRef ref, NumberFieldMapper.NumberType type, long min, long max, long[] scratch) {
+        if (ref.length > AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length ["
+                    + ref.length
+                    + "] exceeds the maximum of ["
+                    + AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH
+                    + "]"
+            );
+        }
         return switch (type) {
             case FLOAT, HALF_FLOAT, DOUBLE -> stringSlowPath(ref, type);
             case BYTE, SHORT, INTEGER, LONG -> tryParseAsciiLong(ref, min, max, scratch) ? scratch[0] : stringSlowPath(ref, type);

@@ -4130,7 +4130,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }

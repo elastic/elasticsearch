@@ -137,7 +137,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            return parseShort(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return parseShort(numericText.string());
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -170,7 +172,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            return parseInt(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return parseInt(numericText.string());
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -181,6 +185,18 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static final BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
+
+    // Numeric strings longer than this are rejected before coercion, whose cost grows with the digit count;
+    // matches the unquoted JSON number-token limit. Mirrored by Numbers#MAX_NUMERIC_STRING_LENGTH. Keep in sync.
+    public static final int MAX_NUMERIC_STRING_LENGTH = 1000;
+
+    private static void checkNumericStringLength(int length) {
+        if (length > MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length [" + length + "] exceeds the maximum of [" + MAX_NUMERIC_STRING_LENGTH + "]"
+            );
+        }
+    }
 
     /**
      * Returns the {@code long} that {@code stringValue} represents, using the same semantics as the
@@ -241,7 +257,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return toLong(text(), coerce);
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return toLong(numericText.string(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -260,7 +278,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Float.class);
-            return Float.parseFloat(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Float.parseFloat(numericText.string());
         }
         return doFloatValue();
     }
@@ -277,7 +297,9 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Double.class);
-            return Double.parseDouble(text());
+            XContentString numericText = optimizedText();
+            checkNumericStringLength(numericText.stringLength());
+            return Double.parseDouble(numericText.string());
         }
         return doDoubleValue();
     }

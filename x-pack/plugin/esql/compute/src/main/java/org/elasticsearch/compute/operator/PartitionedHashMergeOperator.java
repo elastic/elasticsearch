@@ -644,7 +644,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         int positions = intermediatePage.getPositionCount();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        fillPartitionAssignments(intermediatePage, partitionCount, partitionOf, counts);
+        fillPartitionAssignments(probeHash, groupChannels.size(), intermediatePage, partitionCount, partitionOf, counts);
         BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
         for (int p = 0; p < partitionCount; p++) {
             int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];

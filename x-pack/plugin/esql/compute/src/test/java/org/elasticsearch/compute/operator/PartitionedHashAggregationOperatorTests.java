@@ -318,8 +318,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     /**
-     * Regression test: after finish() drains the operator, {@code singleOp} is null.
-     * {@code toString()} must not throw in that state.
+     * Regression test: after finish() drains the operator, {@code toString()} must not throw.
      */
     public void testToStringAfterFinishDoesNotThrow() {
         Map<Long, Long> oracle = new HashMap<>();
@@ -351,7 +350,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             while ((out = operator.getOutput()) != null) {
                 out.releaseBlocks();
             }
-            // singleOp is null at this point — toString() must not throw.
+            // toString() must not throw after the operator is fully drained.
             operator.toString();
         } finally {
             operator.close();

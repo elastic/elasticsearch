@@ -7,36 +7,29 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 /**
  * Aggregates raw input {@link Page}s into partitioned intermediate output using a single hash table.
  * <p>
- *     Accumulates all input in one {@link HashAggregationOperator} table. When the table's unique
- *     key count reaches {@link #emitKeysThreshold}, evaluates the table to intermediate pages,
- *     splits each page by {@code hash(key) % partitionCount}, tags each sub-page with its
- *     partition id, emits those tagged pages, then resets the table to accumulate again.
+ *     Accumulates all input in one inherited hash table. When the table's unique key count reaches
+ *     {@link #emitKeysThreshold}, evaluates the table to intermediate pages, splits each page by
+ *     {@code hash(key) % partitionCount}, tags each sub-page with its partition id, emits those
+ *     tagged pages, then resets the table to accumulate again.
  * </p>
  * <p>
  *     Only supports {@link AggregatorMode#INITIAL} (raw input, partial output).
@@ -46,7 +39,7 @@ import static java.util.stream.Collectors.joining;
  *     each partition independently in a background worker.
  * </p>
  */
-public class PartitionedHashAggregationOperator extends AbstractPartitionedHashAggregationOperator {
+public class PartitionedHashAggregationOperator extends HashAggregationOperator {
 
     public static final int DEFAULT_PARTITION_COUNT = 8;
 
@@ -148,7 +141,7 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             var mapping = AbstractPartitionedHashAggregationOperator.buildGroupChannelMapping(builder.groupSpecs);
             this.groupChannels = mapping.groupChannels();
             this.internalGroupSpecs = mapping.internalGroupSpecs();
-            this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
+            this.aggregatorSpecs = java.util.Objects.requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
             List<List<Integer>> rawChannelsList = new ArrayList<>(aggregatorSpecs.size());
@@ -229,20 +222,18 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         }
     }
 
-    private final List<GroupingAggregator.Factory> aggregatorFactories;
+    // ---- Instance fields (beyond those inherited from HashAggregationOperator) ----
+
+    private final List<Integer> groupChannels;
+    private final List<BlockHash.GroupSpec> internalGroupSpecs;
+    /** Per-aggregator raw-input channel indices; used by {@link #toRawInternalLayout}. */
+    private final List<List<Integer>> aggregatorChannels;
+    private final int[] combinedChannelStart;
+    private final int internalPageWidth;
+    private final int partitionCount;
     private final int emitKeysThreshold;
-    private final int aggregationBatchSize;
-
-    /** The single accumulation table. Replaced by a fresh instance after each intermediate emit. */
-    private HashAggregationOperator singleOp;
-
-    private long emitNanos;
-    private long emitCount;
-    private long savedHashNanos;
-    private long savedAggNanos;
-    private int pagesProcessed;
-    private long rowsReceived;
-    private long rowsEmitted;
+    /** Routing-only hash for computing {@code hash(key) % partitionCount}; never used for aggregation. */
+    private BlockHash probeHash;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -259,13 +250,13 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         DriverContext driverContext
     ) {
         super(
-            groupChannels,
-            internalGroupSpecs,
-            aggregatorRawChannels,
-            combinedChannelStart,
-            internalPageWidth,
-            partitionCount,
+            AggregatorMode.INITIAL,
+            aggregatorFactories,
+            () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
+            Integer.MAX_VALUE, // shouldEmitPartialResultsPeriodically() always returns false; this value is never used
+            1.0,
             maxPageSize,
+            null,
             driverContext
         );
         if (partitionCount <= 0) {
@@ -274,13 +265,16 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         if (emitKeysThreshold <= 0) {
             throw new IllegalArgumentException("emitKeysThreshold must be greater than 0; got " + emitKeysThreshold);
         }
-        this.aggregatorFactories = aggregatorFactories;
+        this.groupChannels = groupChannels;
+        this.internalGroupSpecs = internalGroupSpecs;
+        this.aggregatorChannels = aggregatorRawChannels;
+        this.combinedChannelStart = combinedChannelStart;
+        this.internalPageWidth = internalPageWidth;
+        this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
-        this.aggregationBatchSize = aggregationBatchSize;
         boolean success = false;
         try {
-            this.singleOp = newOp();
-            this.probeHash = buildProbeHash();
+            this.probeHash = buildProbeHash(aggregationBatchSize);
             success = true;
         } finally {
             if (success == false) {
@@ -289,37 +283,36 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         }
     }
 
-    /**
-     * Builds the routing-only {@link BlockHash} used at emit time to assign each output row to a
-     * partition. Tries the specialized hash first (exposes a {@link BlockHash.Router} for the schema),
-     * then falls back to {@code PackedValuesBlockHash} for multi-column schemas that need it.
-     */
-    private BlockHash buildProbeHash() {
-        int batchSize = Math.min(aggregationBatchSize, Operator.TARGET_PAGE_SIZE);
-        BlockHash hash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), batchSize, false);
+    private BlockHash buildProbeHash(int batchSize) {
+        int size = Math.min(batchSize, Operator.TARGET_PAGE_SIZE);
+        BlockHash hash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), size, false);
         if (hash.router() == null) {
             hash.close();
-            hash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), batchSize);
+            hash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), size);
         }
         return hash;
     }
 
+    /**
+     * Suppresses HAO's two-condition self-emit check (key count + uniqueness ratio). This operator
+     * drives its own emit threshold — a simple key-count gate — from {@link #addInput} directly.
+     */
+    @Override
+    protected boolean shouldEmitPartialResultsPeriodically() {
+        return false;
+    }
+
     @Override
     public void addInput(Page page) {
+        List<Block> ownedPlaceholders = new ArrayList<>();
         try {
-            checkState(needsInput(), "Operator is already finishing");
-            requireNonNull(page, "page is null");
-            List<Block> ownedPlaceholders = new ArrayList<>();
-            try {
-                Page internal = toRawInternalLayout(page, ownedPlaceholders);
-                singleOp.processPage(internal);
-                if (singleOp.blockHash.numKeys() >= emitKeysThreshold) {
-                    emitIntermediate();
-                }
-            } finally {
-                Releasables.closeExpectNoException(ownedPlaceholders.toArray(Block[]::new));
+            Page internal = toRawInternalLayout(page, ownedPlaceholders);
+            processPage(internal);
+            if (blockHash.numKeys() >= emitKeysThreshold) {
+                emit();
             }
         } finally {
+            Releasables.closeExpectNoException(ownedPlaceholders.toArray(Block[]::new));
             page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
@@ -327,9 +320,54 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
     }
 
     /**
-     * Builds an internal-layout page for raw {@link AggregatorMode#INITIAL} input, similar to
-     * {@link #toInternalLayout} but replacing placeholder slots (those beyond an aggregator's
-     * raw channel count) with constant non-null blocks rather than the group key block.
+     * Evaluates the accumulated table to intermediate pages, splits each by
+     * {@code hash(key) % partitionCount}, and tags each non-empty partition slice with its
+     * partition id. Called at the emit threshold (mid-stream) and at finish (final drain).
+     * The inherited {@link HashAggregationOperator#maybeReinitializeAfterPeriodicallyEmitted()}
+     * resets the hash table and aggregators at the start of the next {@link #processPage} call.
+     */
+    @Override
+    protected void emit() {
+        if (rowsAddedInCurrentBatch == 0) {
+            return;
+        }
+        List<Page> taggedPages = new ArrayList<>();
+        long emitStart = System.nanoTime();
+        try {
+            if (blockHash.numKeys() > 0) {
+                var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
+                try (ReleasableIterator<Page> pages = pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext))) {
+                    while (pages.hasNext()) {
+                        try (Page page = pages.next()) {
+                            appendTaggedPages(page, taggedPages);
+                        }
+                    }
+                }
+            }
+        } finally {
+            rowsAddedInCurrentBatch = 0;
+            emitNanos += System.nanoTime() - emitStart;
+            emitCount++;
+        }
+        if (taggedPages.isEmpty() == false) {
+            output = new PageListIterator(taggedPages);
+        }
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(probeHash, () -> super.close());
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[partitionCount=" + partitionCount + ", emitKeysThreshold=" + emitKeysThreshold + "]";
+    }
+
+    /**
+     * Builds an internal-layout page for raw {@link AggregatorMode#INITIAL} input, remapping
+     * external channels to internal positions and filling placeholder slots (those beyond an
+     * aggregator's raw channel count) with constant non-null blocks.
      * <p>
      *     This prevents INITIAL-mode aggregators from misreading the placeholder as "all-null
      *     input": COUNT(*) is created with {@code combinedChannels} (so {@code countAll == false}),
@@ -365,84 +403,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         return new Page(blocks);
     }
 
-    @Override
-    public Page getOutput() {
-        if (output == null) {
-            return null;
-        }
-        if (output.hasNext() == false) {
-            output.close();
-            output = null;
-            return null;
-        }
-        Page page = output.next();
-        rowsEmitted += page.getPositionCount();
-        return page;
-    }
-
-    @Override
-    public void finish() {
-        if (finishCalled) {
-            return;
-        }
-        finishCalled = true;
-        emitIntermediate();
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finishCalled && output == null;
-    }
-
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
-    }
-
-    @Override
-    public void close() {
-        Releasables.close(singleOp, probeHash, output);
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[partitionCount=" + partitionCount + ", emitKeysThreshold=" + emitKeysThreshold + "]";
-    }
-
-    /**
-     * Evaluates the single table to tagged intermediate pages and resets the table. Each
-     * intermediate page is split by {@code hash(key) % partitionCount}; each non-empty partition
-     * gets its own sub-page tagged with its partition id. Called at emit threshold (mid-stream)
-     * and at finish (final drain).
-     */
-    private void emitIntermediate() {
-        if (singleOp.blockHash.numKeys() == 0) {
-            return;
-        }
-        List<Page> taggedPages = new ArrayList<>();
-        long emitStart = System.nanoTime();
-        try {
-            // Use Integer.MAX_VALUE so all groups come out in a single pass; the per-partition
-            // sub-pages produced by the split are each naturally bounded to ~numKeys/partitionCount rows.
-            try (ReleasableIterator<Page> pages = evaluateOp(singleOp, Integer.MAX_VALUE)) {
-                while (pages.hasNext()) {
-                    try (Page page = pages.next()) {
-                        appendTaggedPages(page, taggedPages);
-                    }
-                }
-            }
-        } finally {
-            emitNanos += System.nanoTime() - emitStart;
-            emitCount++;
-        }
-        saveOpTiming(singleOp);
-        singleOp.close();
-        singleOp = finishCalled ? null : newOp();
-        if (taggedPages.isEmpty() == false) {
-            output = new PageListIterator(taggedPages);
-        }
-    }
-
     /**
      * Splits {@code intermediatePage} by partition hash and appends a tagged sub-page for each
      * non-empty partition to {@code out}. Ownership of the sub-pages is transferred to {@code out};
@@ -452,8 +412,19 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         int positions = intermediatePage.getPositionCount();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        fillPartitionAssignments(intermediatePage, partitionCount, partitionOf, counts);
-        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
+        AbstractPartitionedHashAggregationOperator.fillPartitionAssignments(
+            probeHash,
+            internalGroupSpecs.size(),
+            intermediatePage,
+            partitionCount,
+            partitionOf,
+            counts
+        );
+        AbstractPartitionedHashAggregationOperator.BucketSort sorted = AbstractPartitionedHashAggregationOperator.sortPositionsByPartition(
+            partitionOf,
+            counts,
+            partitionCount
+        );
         for (int p = 0; p < partitionCount; p++) {
             int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
             if (start == end) {
@@ -463,171 +434,6 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
             Page tagged = subPage.withPartitionId(p);
             subPage.releaseBlocks();
             out.add(tagged);
-        }
-    }
-
-    private void saveOpTiming(HashAggregationOperator op) {
-        HashAggregationOperator.Status s = (HashAggregationOperator.Status) op.status();
-        savedHashNanos += s.hashNanos();
-        savedAggNanos += s.aggregationNanos();
-    }
-
-    private HashAggregationOperator newOp() {
-        return new HashAggregationOperator(
-            AggregatorMode.INITIAL,
-            aggregatorFactories,
-            () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
-            Integer.MAX_VALUE, // disable self-emit; this operator manages its own emit threshold
-            1.0,
-            maxPageSize,
-            null,
-            driverContext
-        );
-    }
-
-    @Override
-    public Operator.Status status() {
-        long hashNanos = savedHashNanos;
-        long aggNanos = savedAggNanos;
-        if (singleOp != null) {
-            HashAggregationOperator.Status s = (HashAggregationOperator.Status) singleOp.status();
-            hashNanos += s.hashNanos();
-            aggNanos += s.aggregationNanos();
-        }
-        return new Status(emitNanos, emitCount, hashNanos, aggNanos, pagesProcessed, rowsReceived, rowsEmitted);
-    }
-
-    public static class Status implements Operator.Status {
-        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-            Operator.Status.class,
-            "partitioned_hash_agg",
-            Status::new
-        );
-
-        private final long emitNanos;
-        private final long emitCount;
-        private final long hashNanos;
-        private final long aggregationNanos;
-        private final int pagesProcessed;
-        private final long rowsReceived;
-        private final long rowsEmitted;
-
-        public Status(
-            long emitNanos,
-            long emitCount,
-            long hashNanos,
-            long aggregationNanos,
-            int pagesProcessed,
-            long rowsReceived,
-            long rowsEmitted
-        ) {
-            this.emitNanos = emitNanos;
-            this.emitCount = emitCount;
-            this.hashNanos = hashNanos;
-            this.aggregationNanos = aggregationNanos;
-            this.pagesProcessed = pagesProcessed;
-            this.rowsReceived = rowsReceived;
-            this.rowsEmitted = rowsEmitted;
-        }
-
-        public Status(StreamInput in) throws IOException {
-            emitNanos = in.readVLong();
-            emitCount = in.readVLong();
-            hashNanos = in.readVLong();
-            aggregationNanos = in.readVLong();
-            pagesProcessed = in.readVInt();
-            rowsReceived = in.readVLong();
-            rowsEmitted = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(emitNanos);
-            out.writeVLong(emitCount);
-            out.writeVLong(hashNanos);
-            out.writeVLong(aggregationNanos);
-            out.writeVInt(pagesProcessed);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return ENTRY.name;
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
-        }
-
-        public long emitNanos() {
-            return emitNanos;
-        }
-
-        public long emitCount() {
-            return emitCount;
-        }
-
-        public long hashNanos() {
-            return hashNanos;
-        }
-
-        public long aggregationNanos() {
-            return aggregationNanos;
-        }
-
-        public int pagesProcessed() {
-            return pagesProcessed;
-        }
-
-        public long rowsReceived() {
-            return rowsReceived;
-        }
-
-        public long rowsEmitted() {
-            return rowsEmitted;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Status status = (Status) o;
-            return emitNanos == status.emitNanos
-                && emitCount == status.emitCount
-                && hashNanos == status.hashNanos
-                && aggregationNanos == status.aggregationNanos
-                && pagesProcessed == status.pagesProcessed
-                && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted;
-        }
-
-        @Override
-        public int hashCode() {
-            return java.util.Objects.hash(emitNanos, emitCount, hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("emit_nanos", emitNanos);
-            if (builder.humanReadable()) {
-                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
-            }
-            builder.field("emit_count", emitCount);
-            builder.field("hash_nanos", hashNanos);
-            if (builder.humanReadable()) {
-                builder.field("hash_time", TimeValue.timeValueNanos(hashNanos));
-            }
-            builder.field("aggregation_nanos", aggregationNanos);
-            if (builder.humanReadable()) {
-                builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
-            }
-            builder.field("pages_processed", pagesProcessed);
-            builder.field("rows_received", rowsReceived);
-            builder.field("rows_emitted", rowsEmitted);
-            return builder.endObject();
         }
     }
 

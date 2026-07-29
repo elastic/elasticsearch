@@ -320,7 +320,7 @@ public class HashAggregationOperator implements Operator {
     /**
      * Maximum number of rows per output page.
      */
-    private final int maxPageSize;
+    protected final int maxPageSize;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -333,11 +333,11 @@ public class HashAggregationOperator implements Operator {
     /**
      * Count of pages this operator has processed.
      */
-    private int pagesProcessed;
+    protected int pagesProcessed;
     /**
      * Count of rows this operator has received.
      */
-    private long rowsReceived;
+    protected long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */

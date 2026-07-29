@@ -35,7 +35,6 @@ import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
-import org.elasticsearch.compute.operator.PartitionedHashAggregationOperator;
 import org.elasticsearch.compute.operator.PartitionedHashMergeOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
@@ -719,7 +718,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
-        entries.add(PartitionedHashAggregationOperator.Status.ENTRY);
         entries.add(PartitionedHashMergeOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);

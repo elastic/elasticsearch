@@ -141,14 +141,21 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
      * When no {@link BlockHash.Router} is available for the current grouping shape, all rows are
      * routed to {@link #NULL_PARTITION}.
      */
-    protected final void fillPartitionAssignments(Page page, int nPartitions, int[] partitionOf, int[] counts) {
+    protected static void fillPartitionAssignments(
+        BlockHash probeHash,
+        int keyCount,
+        Page page,
+        int nPartitions,
+        int[] partitionOf,
+        int[] counts
+    ) {
         BlockHash.Router router = probeHash.router();
         if (router == null) {
             counts[NULL_PARTITION] = page.getPositionCount();
             // partitionOf is already all zeros (NULL_PARTITION) — Java default
             return;
         }
-        router.fillPartitions(page, page.getPositionCount(), groupChannels.size(), nPartitions, NULL_PARTITION, partitionOf, counts);
+        router.fillPartitions(page, page.getPositionCount(), keyCount, nPartitions, NULL_PARTITION, partitionOf, counts);
     }
 
     /**

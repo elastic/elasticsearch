@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
-import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -53,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
  * which supports all the relations in the ShapeField.QueryRelation enum.
  * Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
  */
-public class SpatialDisjoint extends SpatialRelatesFunction implements AnyNullIsNull {
+public class SpatialDisjoint extends SpatialRelatesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "SpatialDisjoint",

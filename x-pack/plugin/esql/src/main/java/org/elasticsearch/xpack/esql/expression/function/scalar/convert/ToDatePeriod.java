@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,7 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 
-public class ToDatePeriod extends FoldablesConvertFunction implements AnyNullIsNull {
+public class ToDatePeriod extends FoldablesConvertFunction {
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDatePeriod.class)
         .unary(ToDatePeriod::new)

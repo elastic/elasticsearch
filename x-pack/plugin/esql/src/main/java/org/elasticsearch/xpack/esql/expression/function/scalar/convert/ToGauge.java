@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -42,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * {@code aggregate_metric_double} inputs are also returned unchanged (idempotent).
  * No values are modified; this is a pure type-annotation change.
  */
-public class ToGauge extends AbstractConvertFunction implements AnyNullIsNull {
+public class ToGauge extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGauge", ToGauge::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGauge.class).unary(ToGauge::new).name("to_gauge");
 

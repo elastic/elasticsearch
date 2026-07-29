@@ -262,6 +262,7 @@ import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -1218,6 +1219,9 @@ class NodeConstruction {
             clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders = pluginsService.loadServiceProviders(
+            TransportMessageListener.Provider.class
+        );
         final TransportService transportService = serviceProvider.newTransportService(
             pluginsService,
             settings,
@@ -1231,7 +1235,8 @@ class NodeConstruction {
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            transportMessageListenerProviders
         );
         transportServiceRef.set(transportService);
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());

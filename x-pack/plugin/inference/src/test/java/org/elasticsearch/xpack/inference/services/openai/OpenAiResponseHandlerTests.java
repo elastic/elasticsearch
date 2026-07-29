@@ -47,12 +47,9 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
 
-        // 200 ok
-        when(statusLine.getStatusCode()).thenReturn(200);
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
         // 503
         when(statusLine.getStatusCode()).thenReturn(503);
-        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        var retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -61,7 +58,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 501
         when(statusLine.getStatusCode()).thenReturn(501);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -70,7 +67,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 500
         when(statusLine.getStatusCode()).thenReturn(500);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -79,27 +76,27 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
         when(statusLine.getStatusCode()).thenReturn(429);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
         when(statusLine.getStatusCode()).thenReturn(413);
-        retryException = expectThrows(ContentTooLargeException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(ContentTooLargeException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         // 400 content too large
         retryException = expectThrows(
             ContentTooLargeException.class,
-            () -> handler.checkForFailureStatusCode(mockRequest, createContentTooLargeResult(400))
+            () -> handler.handleFailureStatusCode(mockRequest, createContentTooLargeResult(400))
         );
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 generic bad request should not be marked as a content too large
         when(statusLine.getStatusCode()).thenReturn(400);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -108,10 +105,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 is not flagged as a content too large when the error message is different
         when(statusLine.getStatusCode()).thenReturn(400);
-        retryException = expectThrows(
-            RetryException.class,
-            () -> handler.checkForFailureStatusCode(mockRequest, createResult(400, "blah"))
-        );
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, createResult(400, "blah")));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -120,7 +114,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -129,7 +123,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
         when(statusLine.getStatusCode()).thenReturn(300);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -138,7 +132,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
         when(statusLine.getStatusCode()).thenReturn(402);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
@@ -173,7 +167,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
 
-        var exception = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        var exception = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
         return new FailureResult(mockRequest, exception);
     }
 

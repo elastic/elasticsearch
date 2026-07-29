@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -76,6 +77,12 @@ public final class MlRecoverableErrorClassifier {
         // IllegalIndexShardStateException: shard in wrong state (e.g. RECOVERING) – transient; retry when shard is ready.
         // Overrides NOT_FOUND status; TransportActions treats it as shard-not-available (retryable).
         if (cause instanceof IllegalIndexShardStateException) {
+            return true;
+        }
+
+        // SearchContextMissingException: expired/relocated scroll (or PIT) context — transient under load.
+        // Overrides NOT_FOUND; shortened DBQ keepalive (JobDataDeleter) can expire during bulk rejection backoff (#153260).
+        if (ExceptionsHelper.unwrap(e, SearchContextMissingException.class) != null) {
             return true;
         }
 

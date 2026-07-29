@@ -31,7 +31,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -70,6 +72,19 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
 
     public void testIllegalIndexShardStateException_isRecoverable() {
         var e = new IllegalIndexShardStateException(new ShardId("my-index", "uuid", 0), IndexShardState.RECOVERING, "shard not ready");
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    public void testSearchContextMissingExceptionShouldBeRecoverable() {
+        var e = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testSearchPhaseExecutionExceptionWrappingSearchContextMissingShouldBeRecoverable() {
+        var scm = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        var shardFailure = new ShardSearchFailure(scm);
+        var e = new SearchPhaseExecutionException("query", "scroll failed", new ShardSearchFailure[] { shardFailure });
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 

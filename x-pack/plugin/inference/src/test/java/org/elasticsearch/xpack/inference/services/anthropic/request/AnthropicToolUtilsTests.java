@@ -221,7 +221,9 @@ public class AnthropicToolUtilsTests extends ESTestCase {
 
     public void testWriteMessages_translatesAssistantToolCallsToToolUseBlocks() throws IOException {
         var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
-        var message = new Message(new ContentString(""), "assistant", null, List.of(toolCall));
+        // All empty content shapes yield the same output: tool_use blocks with no leading text block.
+        var content = randomFrom(new ContentString(""), new ContentObjects(List.of()), null);
+        var message = new Message(content, "assistant", null, List.of(toolCall));
         assertMessagesJson(List.of(message), """
             {
                 "messages": [
@@ -530,6 +532,108 @@ public class AnthropicToolUtilsTests extends ESTestCase {
                 ]
             }
             """);
+    }
+
+    public void testWriteMessages_emitsLeadingTextBlockFromAssistantContentObjects() throws IOException {
+        // A tool-calling assistant message may carry its text as content objects; their text items are concatenated into the
+        // single leading text block, matching the ContentString shape.
+        var content = new ContentObjects(
+            List.of(new ContentObject.ContentObjectText("Let me check "), new ContentObject.ContentObjectText("the weather."))
+        );
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var message = new Message(content, "assistant", null, List.of(toolCall));
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Let me check the weather."
+                            },
+                            {
+                                "type": "tool_use",
+                                "id": "call_1",
+                                "name": "get_weather",
+                                "input": {"location": "San Francisco"}
+                            }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_assistantWithoutToolCallsPassesThrough() throws IOException {
+        // An assistant message with no tool calls keeps its unified serialization, which Anthropic already accepts.
+        var message = new Message(new ContentString("The weather is sunny."), "assistant", null, null);
+        assertMessagesJson(List.of(message), """
+            {
+                "messages": [
+                    {
+                        "content": "The weather is sunny.",
+                        "role": "assistant"
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testWriteMessages_emptyUserContentBecomesEmptyTextBlock() throws IOException {
+        // Anthropic rejects messages without content, so empty or absent user content is normalized to a single empty text block.
+        var expectedJson = """
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": ""
+                            }
+                        ]
+                    }
+                ]
+            }
+            """;
+        assertMessagesJson(List.of(new Message(new ContentString(""), "user", null, null)), expectedJson);
+        assertMessagesJson(List.of(new Message(new ContentObjects(List.of()), "user", null, null)), expectedJson);
+        assertMessagesJson(List.of(new Message(null, "user", null, null)), expectedJson);
+    }
+
+    public void testWriteMessages_emptyAssistantContentBecomesEmptyTextBlock() throws IOException {
+        // An assistant message with no tool calls and empty or absent content is normalized to a single empty text block,
+        // mirroring the EIS gateway's fallback when no content blocks were produced.
+        var toolCalls = randomBoolean() ? null : List.<ToolCall>of();
+        var expectedJson = """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": ""
+                            }
+                        ]
+                    }
+                ]
+            }
+            """;
+        assertMessagesJson(List.of(new Message(new ContentString(""), "assistant", null, toolCalls)), expectedJson);
+        assertMessagesJson(List.of(new Message(new ContentObjects(List.of()), "assistant", null, toolCalls)), expectedJson);
+        assertMessagesJson(List.of(new Message(null, "assistant", null, toolCalls)), expectedJson);
+    }
+
+    public void testWriteMessages_unsupportedRoleThrows() {
+        // Only user/assistant/tool messages can be translated; system messages must be extracted into the top-level "system"
+        // field before writeMessages is called.
+        var role = randomFrom("system", "developer");
+        var message = new Message(new ContentString("You are a helpful assistant."), role, null, null);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderMessages(List.of(message)));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is(Strings.format("Unsupported role [%s] for the Anthropic chat completion API.", role)));
     }
 
     public void testWriteMessages_blankArgumentsYieldEmptyInputObject() throws IOException {

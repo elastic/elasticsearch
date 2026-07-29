@@ -19,7 +19,6 @@ import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
-import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
@@ -108,7 +107,9 @@ public final class AnthropicToolUtils {
      *         blocks and {@code file} objects become {@code document} blocks, since Anthropic rejects the OpenAI shapes.</li>
      * </ul>
      *
-     * <p>Messages with plain-string content are passed through with their unified serialization, which Anthropic already accepts.
+     * <p>Messages with non-empty plain-string content are passed through with their unified serialization, which Anthropic already
+     * accepts. A user or assistant message whose content is empty or absent (and that carries no tool calls) is normalized to a
+     * single empty {@code text} block, mirroring the EIS gateway, since Anthropic requires {@code content} on every message.
      * Both the direct Anthropic service and the Google Model Garden Anthropic provider share this logic so they emit identical
      * Anthropic-shaped messages.
      */
@@ -116,9 +117,9 @@ public final class AnthropicToolUtils {
         builder.startArray(MESSAGES_FIELD);
         for (var message : messages) {
             if (USER_ROLE.equals(message.role())) {
-                writeUserMessage(builder, message);
+                writePlainMessage(builder, message);
             } else if (ASSISTANT_ROLE.equals(message.role())) {
-                writeAssistantToolCalls(builder, message);
+                writeAssistantMessage(builder, message);
             } else if (TOOL_ROLE.equals(message.role())) {
                 writeToolResult(builder, message);
             } else {
@@ -131,33 +132,36 @@ public final class AnthropicToolUtils {
         builder.endArray();
     }
 
-    private static void writeUserMessage(XContentBuilder builder, Message message) throws IOException {
+    /**
+     * Writes a message that carries no tool calls: a user message, or an assistant message without {@code tool_calls}. Non-empty
+     * plain-string content is passed through with the unified serialization; content objects are translated into Anthropic blocks;
+     * empty or absent content is normalized to a single empty text block since Anthropic rejects messages without content.
+     */
+    private static void writePlainMessage(XContentBuilder builder, Message message) throws IOException {
         if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
             message.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }  else if (message.content() instanceof ContentObjects(List<ContentObject> contentObjects) && contentObjects.isEmpty() == false) {
+        } else if (message.content() instanceof ContentObjects(List<ContentObject> contentObjects) && contentObjects.isEmpty() == false) {
             writeContentObjectsMessage(builder, message.role(), contentObjects);
         } else {
-            writeTextBlock(builder, "");
+            writeContentObjectsMessage(builder, message.role(), List.of(new ContentObjectText("")));
         }
     }
 
-    private static void writeAssistantToolCalls(XContentBuilder builder, Message message) throws IOException {
+    private static void writeAssistantMessage(XContentBuilder builder, Message message) throws IOException {
         var toolCalls = message.toolCalls();
         if (toolCalls == null || toolCalls.isEmpty()) {
-            message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            writePlainMessage(builder, message);
             return;
         }
 
         builder.startObject();
         builder.field(ROLE_FIELD, ASSISTANT_ROLE);
         builder.startArray(CONTENT_FIELD);
+
         // Anthropic allows a leading text block alongside tool_use blocks; the unified assistant message often carries empty content.
-        if (message.content() instanceof ContentString(String content)) {
-            if (content.isEmpty()) {
-                writeTextBlock(builder, "");
-            } else {
-                writeTextBlock(builder, content);
-            }
+        var text = extractText(message.content());
+        if (text.isEmpty() == false) {
+            writeTextBlock(builder, text);
         }
         for (var toolCall : toolCalls) {
             builder.startObject();
@@ -167,6 +171,7 @@ public final class AnthropicToolUtils {
             writeToolCallInput(builder, toolCall.function().arguments());
             builder.endObject();
         }
+
         builder.endArray();
         builder.endObject();
     }
@@ -455,4 +460,21 @@ public final class AnthropicToolUtils {
         }
         builder.endObject();
     }
+
+    private static String extractText(Content content) {
+        if (content instanceof ContentString(String text)) {
+            return text;
+        }
+        if (content instanceof ContentObjects(List<ContentObject> contentObjects)) {
+            var text = new StringBuilder();
+            for (var contentObject : contentObjects) {
+                if (contentObject instanceof ContentObject.ContentObjectText textObject) {
+                    text.append(textObject.text());
+                }
+            }
+            return text.toString();
+        }
+        return "";
+    }
+
 }

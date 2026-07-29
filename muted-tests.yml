@@ -17,9 +17,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
-  issue: https://github.com/elastic/elasticsearch/issues/138370
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -685,9 +682,6 @@ tests:
 - class: org.elasticsearch.xpack.slm.SnapshotLifecycleRestIT
   method: testSnapshotRetentionWithMissingRepo
   issue: https://github.com/elastic/elasticsearch/issues/154353
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
-  issue: https://github.com/elastic/elasticsearch/issues/154355
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
   method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
   issue: https://github.com/elastic/elasticsearch/issues/154023
@@ -706,18 +700,12 @@ tests:
 - class: org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramTDigestConverterAccuracyTests
   method: testUniformDistribution
   issue: https://github.com/elastic/elasticsearch/issues/154819
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=synonyms/110_synonyms_invalid/Reload index with an invalid synonym rule with lenient set to false}
-  issue: https://github.com/elastic/elasticsearch/issues/154907
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-load.loadViewWithSubqueryBody_EvalNonExistent}
   issue: https://github.com/elastic/elasticsearch/issues/154921
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/153848
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.get_alias/10_basic/Get aliases via /_alias/*}
-  issue: https://github.com/elastic/elasticsearch/issues/155013
 - class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
   method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
   issue: https://github.com/elastic/elasticsearch/issues/155014

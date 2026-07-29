@@ -17,7 +17,10 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -88,7 +91,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                     }
 
                     var histogramExpected = histogramAssertions.get(key);
-                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var counts)) {
+                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignored, var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
                         // Pass once we have observed at least the expected number of counts. The retry loop below
@@ -123,6 +126,66 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                 "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
                 finished.getCount() == 0
             );
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    public void testCustomBoundaryHistogram() throws Exception {
+        long[] recordedValues = new long[randomIntBetween(3, 10)];
+        for (int i = 0; i < recordedValues.length; i++) {
+            // Let's not cover the bucket midpoint reporting logic for underflow or overflow buckets
+            recordedValues[i] = randomLongBetween(
+                TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(0) + 1,
+                TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size() - 1)
+            );
+        }
+        // Assign each value to its OTel explicit-bucket index
+        Map<Integer, Integer> bucketCountMap = new TreeMap<>();
+        for (long v : recordedValues) {
+            for (int i = 0; i < TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size(); i++) {
+                if (v <= TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(i)) {
+                    bucketCountMap.merge(i, 1, Integer::sum);
+                    break;
+                }
+            }
+        }
+        // Build (midpoint, count) lists for non-zero buckets in ascending bucket order
+        List<Double> expectedMidpoints = new ArrayList<>();
+        List<Integer> expectedCounts = new ArrayList<>();
+        for (var entry : bucketCountMap.entrySet()) {
+            var bucketIndex = entry.getKey();
+            double lower = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(bucketIndex - 1);
+            double upper = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.get(bucketIndex);
+            expectedMidpoints.add(lower + (upper - lower) / 2.0);
+            expectedCounts.add(entry.getValue());
+        }
+
+        CountDownLatch finished = new CountDownLatch(1);
+        apmServer().addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
+                && "elasticsearch".equals(m.instrumentationScopeName())) {
+                var sample = m.samples().get(TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME);
+                if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var counts)) {
+                    if (counts.equals(expectedCounts) && midpoints.equals(expectedMidpoints)) {
+                        logger.info(
+                            "{} assertion PASSED (midpoints={}, counts={})",
+                            TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
+                            midpoints,
+                            counts
+                        );
+                        finished.countDown();
+                    }
+                }
+            }
+        });
+
+        assertBusy(() -> {
+            for (long v : recordedValues) {
+                client().performRequest(
+                    new Request("GET", "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME + "&value=" + v)
+                );
+            }
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            assertTrue("Timeout waiting for custom boundary histogram assertion", finished.getCount() == 0);
         }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
     }
 

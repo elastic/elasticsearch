@@ -91,11 +91,16 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * A histogram of counts.
-     * @param counts the individual count values
+     * A histogram of non-zero bucket midpoints and their counts.
+     * Both lists are parallel: {@code values.get(i)} is the representative value (midpoint) of the bucket whose
+     * non-zero count is {@code counts.get(i)}. {@code values} is empty on export paths that do not carry midpoints
+     * (e.g. OTLP, which carries explicit bounds separately).
+     * @param values representative midpoint values for each non-zero bucket (empty when not available)
+     * @param counts non-zero bucket counts, in bucket order
      */
-    record HistogramSample(List<Integer> counts) implements ReceivedMetricValue {
+    record HistogramSample(List<Double> values, List<Integer> counts) implements ReceivedMetricValue {
         public HistogramSample {
+            requireNonNull(values);
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);
         }

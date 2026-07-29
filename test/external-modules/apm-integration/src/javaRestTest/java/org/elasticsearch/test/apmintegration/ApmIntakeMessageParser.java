@@ -112,6 +112,17 @@ public final class ApmIntakeMessageParser {
         }
         if (sample.containsKey("counts")) {
             Object c = sample.get("counts");
+            Object v = sample.get("values");
+            List<Double> values = new ArrayList<>();
+            if (v instanceof List<?> vList) {
+                for (Object o : vList) {
+                    if (o instanceof Number n) {
+                        values.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample values element is not a number");
+                    }
+                }
+            }
             if (c instanceof List<?> list) {
                 List<Integer> counts = new ArrayList<>();
                 for (Object o : list) {
@@ -121,7 +132,7 @@ public final class ApmIntakeMessageParser {
                         throw new IOException("metric sample counts element is not a number");
                     }
                 }
-                return new ReceivedTelemetry.HistogramSample(List.copyOf(counts));
+                return new ReceivedTelemetry.HistogramSample(List.copyOf(values), List.copyOf(counts));
             }
             throw new IOException("metric sample counts is not a list");
         }

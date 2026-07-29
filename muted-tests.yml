@@ -358,6 +358,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069
+- class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
+  method: test {p0=search.vectors/45_knn_search_bit/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
+  issue: https://github.com/elastic/elasticsearch/issues/155328
 
 # Examples:
 #

@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -39,6 +40,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -75,10 +77,15 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
     private final int minPageSize;
 
+    @Nullable
+    private final MinCompetitiveQuery minCompetitiveQuery;
+
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
         protected final int maxPageSize;
         protected final Limiter limiter;
+        @Nullable
+        private final MinCompetitiveQuery.Factory minCompetitive;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -93,6 +100,38 @@ public class LuceneSourceOperator extends LuceneOperator {
             LongSupplier directoryBytesRead,
             int minDocsPerSlice,
             QueryWarnings singleValueQueryWarnings
+        ) {
+            this(
+                shardContexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                maxPageSize,
+                limit,
+                needsScore,
+                directoryBytesRead,
+                minDocsPerSlice,
+                singleValueQueryWarnings,
+                null
+            );
+        }
+
+        public Factory(
+            IndexedByShardId<? extends ShardContext> shardContexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int maxPageSize,
+            int limit,
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable MinCompetitiveQuery.Factory minCompetitive
         ) {
             super(
                 shardContexts,
@@ -114,6 +153,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
+            this.minCompetitive = minCompetitive;
         }
 
         @Override
@@ -127,7 +167,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 limiter,
                 needsScore,
                 directoryBytesRead,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                minCompetitive
             );
         }
 
@@ -346,7 +387,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore,
         LongSupplier directoryBytesRead,
-        QueryWarnings singleValueQueryWarnings
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable MinCompetitiveQuery.Factory minCompetitive
     ) {
         super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -363,6 +405,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 this.leafCollector = new LimitingCollector();
             }
             this.docIdsPool = new IntArrayPool(blockFactory.breaker());
+            this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -383,6 +426,11 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            return minCompetitiveQuery == null ? null : minCompetitiveQuery.disi();
         }
     }
 
@@ -421,6 +469,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
                 return null;
+            }
+            if (minCompetitiveQuery != null) {
+                minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
             }
             if (docIds == null) {
                 docIds = docIdsPool.getOrAllocate(maxPageSize);
@@ -519,7 +570,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(scoreBuilder, docIdsPool);
+        Releasables.close(scoreBuilder, docIdsPool, minCompetitiveQuery);
     }
 
     @Override

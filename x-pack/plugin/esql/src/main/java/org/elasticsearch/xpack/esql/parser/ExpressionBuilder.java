@@ -925,15 +925,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
         if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
             String patternString = BytesRefs.toString(lit.value());
-            try {
-                Expression regex = switch (variant) {
-                    case LIKE -> new WildcardLike(source, left, new WildcardPattern(patternString));
-                    case RLIKE -> new RLike(source, left, new RLikePattern(patternString));
-                };
-                return not == null ? regex : new Not(source, regex);
-            } catch (InvalidArgumentException e) {
-                throw new ParsingException(source, "Invalid pattern for {} [{}]: [{}]", variant.name(), patternString, e.getMessage());
-            }
+            Expression regex = DeferredRegexExpression.buildRegexMatch(source, left, variant, patternString);
+            return not == null ? regex : new Not(source, regex);
         }
         // For parameters (not inline literals), wrong types must be caught at parse time.
         // Inline literals like `12` in `WHERE field LIKE 12` are caught later by postOptimizationVerification.

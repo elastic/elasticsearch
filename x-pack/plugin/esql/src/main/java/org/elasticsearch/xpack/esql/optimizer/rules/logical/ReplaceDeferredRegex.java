@@ -8,21 +8,15 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 /**
- * Converts {@link DeferredRegexExpression} nodes into concrete {@link WildcardLike} or
- * {@link RLike} nodes after constant folding and eval propagation have run.
+ * Converts {@link DeferredRegexExpression} nodes into concrete {@code WildcardLike} or
+ * {@code RLike} nodes after constant folding and eval propagation have run.
  * <p>
  * This rule runs after {@code PropagateEvalFoldables} and {@code ConstantFolding} so that a pattern
  * arriving via an {@code EVAL} alias is treated identically to an inline literal. For example,
@@ -53,21 +47,7 @@ public final class ReplaceDeferredRegex extends OptimizerRules.OptimizerExpressi
             return expr;
         }
         String patternStr = BytesRefs.toString(val);
-        RegexMatch<?> regex;
-        try {
-            regex = switch (expr.variant()) {
-                case LIKE -> new WildcardLike(expr.source(), expr.field(), new WildcardPattern(patternStr));
-                case RLIKE -> new RLike(expr.source(), expr.field(), new RLikePattern(patternStr));
-            };
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(
-                expr.source(),
-                "Invalid pattern for {} [{}]: [{}]",
-                expr.variant().name(),
-                patternStr,
-                e.getMessage()
-            );
-        }
+        RegexMatch<?> regex = DeferredRegexExpression.buildRegexMatch(expr.source(), expr.field(), expr.variant(), patternStr);
         return ReplaceRegexMatch.replace(regex, ctx);
     }
 }

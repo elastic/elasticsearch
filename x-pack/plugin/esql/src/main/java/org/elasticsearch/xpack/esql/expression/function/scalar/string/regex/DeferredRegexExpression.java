@@ -11,14 +11,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +43,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * replaces this node with a concrete {@link WildcardLike} or {@link RLike} once the pattern is
  * foldable to a string. Any node that survives to post-optimization verification is reported as
  * an error via {@link #postOptimizationVerification}.
- * <p>
  */
 public class DeferredRegexExpression extends Expression implements PostOptimizationVerificationAware {
 
@@ -166,5 +170,20 @@ public class DeferredRegexExpression extends Expression implements PostOptimizat
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new DeferredRegexExpression(source(), newChildren.get(0), newChildren.get(1), variant);
+    }
+
+    /**
+     * Builds a concrete {@link WildcardLike} or {@link RLike} from a folded pattern string.
+     * Shared by the parse-time literal fast path and {@code ReplaceDeferredRegex}.
+     */
+    public static RegexMatch<?> buildRegexMatch(Source source, Expression field, Variant variant, String patternStr) {
+        try {
+            return switch (variant) {
+                case LIKE -> new WildcardLike(source, field, new WildcardPattern(patternStr));
+                case RLIKE -> new RLike(source, field, new RLikePattern(patternStr));
+            };
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for {} [{}]: [{}]", variant.name(), patternStr, e.getMessage());
+        }
     }
 }

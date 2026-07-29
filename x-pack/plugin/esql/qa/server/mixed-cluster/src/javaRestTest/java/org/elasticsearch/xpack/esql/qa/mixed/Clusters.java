@@ -25,7 +25,7 @@ public class Clusters {
      * release constants, so the boundary is converted from the server constant instead of being spelled out again. The
      * qualified name disambiguates the two {@code Version} types this file needs.
      */
-    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_6_0.toString());
+    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_5_0.toString());
 
     public static ElasticsearchCluster mixedVersionCluster() {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);

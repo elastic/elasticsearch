@@ -42,63 +42,102 @@ env:
   COVERAGE_INCLUDES: "org.elasticsearch.xpack.esql.*:org.elasticsearch.compute.*:org.elasticsearch.arrow.*"
 
 steps:
-  - label: test-coverage / {{matrix.layer}}
-    key: test-coverage
-    command: |
-      # A leg the operator did not ask for exits immediately rather than measuring. Set
-      # COVERAGE_LAYERS on the build to select, e.g. unit,internal-cluster for the fast pair.
-      # (3) Test groups: Buildkite matrices are static, so all three legs are always created.
-      WANTED="${COVERAGE_LAYERS:-unit,internal-cluster,cluster}"
-      if [[ ",$$WANTED," != *",{{matrix.layer}},"* ]]; then
-        echo "--- layer {{matrix.layer}} not requested (COVERAGE_LAYERS=$$WANTED) - NOT MEASURED"
-        exit 0
-      fi
-      COVERAGE_LAYERS={{matrix.layer}} .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
-      if [[ -f build/coverage/summary.txt ]]; then
-        { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-          | buildkite-agent annotate --style info --context "coverage-{{matrix.layer}}"
-      fi
-      exit $$rc
-    matrix:
-      setup:
-        layer:
-          - unit
-          - internal-cluster
-          - cluster
-    timeout_in_minutes: 240
-    artifact_paths:
-      - "build/coverage/exec/**/*.exec"
-      - "build/coverage/report/**/*"
-      - "build/coverage/summary.txt"
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      machineType: n4-custom-32-98304
-      diskType: hyperdisk-balanced
-      buildDirectory: /dev/shm/bk
+  - group: test-coverage
+    steps:
+      - label: "test-coverage / unit"
+        key: "test-coverage-unit"
+        command: |
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-unit"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "unit"
+        timeout_in_minutes: 240
+        artifact_paths:
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/report/**/*"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
 
-  # Reconciliation. The legs above measure one layer each; this merges their execution data into
+      - label: "test-coverage / internal-cluster"
+        key: "test-coverage-internal-cluster"
+        command: |
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-internal-cluster"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "internal-cluster"
+        timeout_in_minutes: 240
+        artifact_paths:
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/report/**/*"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      - label: "test-coverage / cluster"
+        key: "test-coverage-cluster"
+        command: |
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-cluster"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "cluster"
+        timeout_in_minutes: 240
+        artifact_paths:
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/report/**/*"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      # Reconciliation. The legs above measure one layer each; this merges their execution data into
   # the union, which is the only honest total. Layers overlap, so percentages cannot be added or
   # averaged - a line covered by two layers is one covered line. Runs even if a leg failed, so a
   # partial result is still reported, clearly as a lower bound.
-  - label: test-coverage / merged
-    key: test-coverage-merged
-    depends_on: test-coverage
-    allow_dependency_failure: true
-    command: |
-      .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
-      if [[ -f build/coverage/summary.txt ]]; then
-        { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
-          | buildkite-agent annotate --style info --context coverage-merged
-      fi
-      exit $$rc
-    timeout_in_minutes: 60
-    artifact_paths:
-      - "build/coverage/report/**/*"
-      - "build/coverage/summary.txt"
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      machineType: n4-custom-32-98304
-      diskType: hyperdisk-balanced
-      buildDirectory: /dev/shm/bk
+      - label: "test-coverage / merged"
+        key: "test-coverage-merged"
+        depends_on:
+          - "test-coverage-unit"
+          - "test-coverage-internal-cluster"
+          - "test-coverage-cluster"
+        allow_dependency_failure: true
+        command: |
+          .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context coverage-merged
+          fi
+          exit $$rc
+        timeout_in_minutes: 60
+        artifact_paths:
+          - "build/coverage/report/**/*"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk

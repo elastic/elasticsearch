@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
+import static org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator.randomQueryWord;
 
 /**
  * Generates {@code HIGHLIGHT} commands with string and full-text queries. Queries only reference fields in the
@@ -38,25 +40,6 @@ public class HighlightGenerator implements CommandGenerator {
     public static final String HIGHLIGHT_COLUMNS = "highlight_columns";
 
     public static final CommandGenerator INSTANCE = new HighlightGenerator();
-
-    private static final String[] QUERY_WORDS = { "test", "hello", "world", "data", "search", "quick", "brown", "fox", "ring", "return" };
-
-    /** MATCH options are valid only for index-mapped fields. */
-    private static final String[][] MATCH_OPTIONS = {
-        { "operator", "\"AND\"", "\"OR\"" },
-        { "fuzziness", "\"AUTO\"", "1", "2" },
-        { "boost", "1.0", "2.5" },
-        { "zero_terms_query", "\"none\"", "\"all\"" },
-        { "lenient", "true", "false" } };
-
-    /** Field-independent QSTR options ({@code default_field} is handled separately since its value is a field name). */
-    private static final String[][] QSTR_OPTIONS = {
-        { "default_operator", "\"OR\"", "\"AND\"" },
-        { "lenient", "true", "false" },
-        { "fuzziness", "\"AUTO\"", "1" },
-        { "boost", "1.0", "2.5" },
-        { "phrase_slop", "1", "2", "3" },
-        { "analyze_wildcard", "true", "false" } };
 
     /** Entries have the form {@code { name, value1, value2, ... }}. */
     private static final String[][] WITH_OPTIONS = {
@@ -85,7 +68,7 @@ public class HighlightGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled() == false) {
+        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled() == false) {
             return EMPTY_DESCRIPTION;
         }
 
@@ -98,7 +81,7 @@ public class HighlightGenerator implements CommandGenerator {
         }
 
         List<Column> onFields = pickOnFields(stringColumns);
-        String query = buildQuery(onFields);
+        String query = buildQuery(onFields, previousCommands);
         Prefix prefix = pickPrefix();
         String onClause = onFields.stream().map(c -> ref(c.name())).collect(Collectors.joining(", "));
 
@@ -191,9 +174,12 @@ public class HighlightGenerator implements CommandGenerator {
     }
 
     /** Builds a query using only the given ON fields. */
-    private static String buildQuery(List<Column> onFields) {
+    private static String buildQuery(List<Column> onFields, List<CommandDescription> previousCommands) {
         List<Column> functionFields = onFields.stream().filter(HighlightGenerator::cleanStringField).toList();
-        List<Column> indexMappedFields = functionFields.stream().filter(Column::indexMapped).toList();
+        List<Column> indexFields = FullTextFunctionGenerator.indexFieldColumns(functionFields, previousCommands);
+        List<Column> indexMappedFields = indexFields == null ? List.of() : indexFields;
+        // MATCH accepts options on a non-index-mapped field only when it is TEXT; MATCH_PHRASE never does.
+        List<Column> matchFields = functionFields.stream().filter(c -> c.type().equals("text") || indexMappedFields.contains(c)).toList();
         List<Column> simpleFields = functionFields.stream().filter(c -> EsqlQueryGenerator.needsQuoting(c.name()) == false).toList();
         List<Column> simpleIndexMappedFields = indexMappedFields.stream()
             .filter(c -> EsqlQueryGenerator.needsQuoting(c.name()) == false)
@@ -206,14 +192,18 @@ public class HighlightGenerator implements CommandGenerator {
 
         List<Supplier<String>> forms = new ArrayList<>();
         forms.add(HighlightGenerator::stringLiteralQuery);
-        forms.add(() -> matchQuery(randomFrom(functionFields)));
+        forms.add(() -> FullTextFunctionGenerator.qstrFunction(simpleFields));
         forms.add(() -> qstrQuery(simpleFields));
-        forms.add(() -> booleanQuery(functionFields));
+        if (matchFields.isEmpty() == false) {
+            forms.add(() -> FullTextFunctionGenerator.matchFunction(matchFields));
+            forms.add(() -> booleanQuery(matchFields));
+        }
         if (indexMappedFields.isEmpty() == false) {
-            forms.add(() -> matchPhraseQuery(randomFrom(indexMappedFields)));
+            forms.add(() -> fuzzyMatchQuery(randomFrom(indexMappedFields)));
+            forms.add(() -> FullTextFunctionGenerator.matchPhraseFunction(indexMappedFields));
         }
         if (simpleIndexMappedFields.isEmpty() == false) {
-            forms.add(() -> kqlQuery(randomFrom(simpleIndexMappedFields)));
+            forms.add(() -> FullTextFunctionGenerator.kqlFunction(simpleIndexMappedFields));
         }
         if (simpleFields.isEmpty() == false) {
             forms.add(() -> fieldQualifiedLiteralQuery(randomFrom(simpleFields)));
@@ -223,30 +213,30 @@ public class HighlightGenerator implements CommandGenerator {
 
     private static String stringLiteralQuery() {
         return switch (randomIntBetween(0, 10)) {
-            case 0 -> "\"" + word() + "\"";
-            case 1 -> "\"" + word() + " " + word() + "\"";
+            case 0 -> "\"" + randomQueryWord() + "\"";
+            case 1 -> "\"" + randomQueryWord() + " " + randomQueryWord() + "\"";
             // An empty query analyzes to no terms (a valid no-match query).
             case 2 -> "\"\"";
-            case 3 -> "\"" + word() + " AND " + word() + "\"";
-            case 4 -> "\"(" + word() + " OR " + word() + ") AND " + word() + "\"";
-            case 5 -> "\"" + word() + " " + word() + " " + word() + "\"";
+            case 3 -> "\"" + randomQueryWord() + " AND " + randomQueryWord() + "\"";
+            case 4 -> "\"(" + randomQueryWord() + " OR " + randomQueryWord() + ") AND " + randomQueryWord() + "\"";
+            case 5 -> "\"" + randomQueryWord() + " " + randomQueryWord() + " " + randomQueryWord() + "\"";
             // A prohibited term suppresses the whole match when present.
-            case 6 -> "\"" + word() + " -" + word() + "\"";
+            case 6 -> "\"" + randomQueryWord() + " -" + randomQueryWord() + "\"";
             // Wildcard term: exercises the multi-term (consumeTermsMatching) highlighter path.
             case 7 -> "\"" + wildcardTerm() + "\"";
             // Fuzzy term with AUTO fuzziness.
-            case 8 -> "\"" + word() + "~\"";
+            case 8 -> "\"" + randomQueryWord() + "~\"";
             // Regexp term between slashes.
-            case 9 -> "\"/" + word() + "/\"";
+            case 9 -> "\"/" + randomQueryWord() + "/\"";
             // Quoted phrase: wraps the exact sequence in a single weight-matches span.
-            case 10 -> "\"\\\"" + word() + " " + word() + "\\\"\"";
+            case 10 -> "\"\\\"" + randomQueryWord() + " " + randomQueryWord() + "\\\"\"";
             default -> throw new IllegalStateException("unexpected query choice");
         };
     }
 
     /** A prefix, leading, or double-sided wildcard term (all valid query_string syntax in HIGHLIGHT). */
     private static String wildcardTerm() {
-        String w = word();
+        String w = randomQueryWord();
         return switch (randomIntBetween(0, 2)) {
             case 0 -> w + "*";
             case 1 -> "*" + w;
@@ -257,71 +247,38 @@ public class HighlightGenerator implements CommandGenerator {
 
     /** A field-qualified literal string query; the field is in ON so it highlights (require_field_match parity). */
     private static String fieldQualifiedLiteralQuery(Column simpleField) {
-        return "\"" + simpleField.name() + ":" + word() + "\"";
-    }
-
-    private static String matchQuery(Column field) {
-        String reference = ref(field.name());
-        if (randomBoolean()) {
-            // The `:` operator form does not support options.
-            return reference + " : \"" + word() + "\"";
-        }
-        String options = field.indexMapped() ? maybeMatchOptions() : "";
-        return "match(" + reference + ", \"" + word() + "\"" + options + ")";
-    }
-
-    private static String matchPhraseQuery(Column field) {
-        return "match_phrase(" + ref(field.name()) + ", \"" + word() + " " + word() + "\")";
+        return "\"" + simpleField.name() + ":" + randomQueryWord() + "\"";
     }
 
     private static String qstrQuery(List<Column> simpleFields) {
-        List<Supplier<String>> bodies = new ArrayList<>();
-        bodies.add(HighlightGenerator::word);
-        // Quoted phrase -> single weight-matches span.
-        bodies.add(() -> "\\\"" + word() + " " + word() + "\\\"");
-        if (simpleFields.isEmpty() == false) {
-            // Field-qualified term, and a range matching every in-range term; both need a simple ON field.
-            bodies.add(() -> randomFrom(simpleFields).name() + ":" + word());
-            bodies.add(() -> randomFrom(simpleFields).name() + ":[a TO z]");
+        if (simpleFields.isEmpty() || randomBoolean()) {
+            return "qstr(\"\\\"" + randomQueryWord() + " " + randomQueryWord() + "\\\"\")";
         }
-        return "qstr(\"" + randomFrom(bodies).get() + "\"" + maybeQstrOptions(simpleFields) + ")";
-    }
-
-    private static String maybeQstrOptions(List<Column> simpleFields) {
-        if (randomIntBetween(0, 3) != 0) {
-            return "";
-        }
-        // default_field must name an ON field, so only offer it when a simple (unquoted) field exists.
-        if (simpleFields.isEmpty() == false && randomBoolean()) {
-            return ", {\"default_field\": \"" + randomFrom(simpleFields).name() + "\"}";
-        }
-        return ", {" + optionEntry(randomFrom(QSTR_OPTIONS)) + "}";
-    }
-
-    private static String kqlQuery(Column simpleField) {
-        return "kql(\"" + simpleField.name() + ": " + word() + "\")";
-    }
-
-    private static String booleanQuery(List<Column> functionFields) {
+        String name = randomFrom(simpleFields).name();
         if (randomBoolean()) {
-            return "NOT match(" + ref(randomFrom(functionFields).name()) + ", \"" + word() + "\")";
+            return "qstr(\"" + randomQueryWord() + "\", {\"default_field\": \"" + name + "\"})";
         }
-        Column left = randomFrom(functionFields);
-        Column right = randomFrom(functionFields);
-        String operator = randomBoolean() ? " AND " : " OR ";
-        return "match(" + ref(left.name()) + ", \"" + word() + "\")" + operator + "match(" + ref(right.name()) + ", \"" + word() + "\")";
+        return "qstr(\"" + name + ":[a TO z]\")";
     }
 
-    private static String maybeMatchOptions() {
-        if (randomIntBetween(0, 3) != 0) {
-            return "";
-        }
-        // fuzzy_rewrite only has an effect alongside fuzziness, so emit the two together.
+    private static String fuzzyMatchQuery(Column indexMappedField) {
+        String rewrite = randomFrom("\"constant_score\"", "\"scoring_boolean\"", "\"constant_score_boolean\"");
+        return "match("
+            + ref(indexMappedField.name())
+            + ", \""
+            + randomQueryWord()
+            + "\", {\"fuzziness\": \"AUTO\", \"fuzzy_rewrite\": "
+            + rewrite
+            + "})";
+    }
+
+    private static String booleanQuery(List<Column> matchFields) {
+        String left = "(" + FullTextFunctionGenerator.matchFunction(matchFields) + ")";
         if (randomBoolean()) {
-            String rewrite = randomFrom("\"constant_score\"", "\"scoring_boolean\"", "\"constant_score_boolean\"");
-            return ", {\"fuzziness\": \"AUTO\", \"fuzzy_rewrite\": " + rewrite + "}";
+            return "NOT " + left;
         }
-        return ", {" + optionEntry(randomFrom(MATCH_OPTIONS)) + "}";
+        String right = "(" + FullTextFunctionGenerator.matchFunction(matchFields) + ")";
+        return left + (randomBoolean() ? " AND " : " OR ") + right;
     }
 
     private static String maybeWith() {
@@ -338,10 +295,6 @@ public class HighlightGenerator implements CommandGenerator {
     /** Renders a {@code { name, value1, value2, ... }} entry as {@code "name": value}, picking one value at random. */
     private static String optionEntry(String[] entry) {
         return "\"" + entry[0] + "\": " + entry[randomIntBetween(1, entry.length - 1)];
-    }
-
-    private static String word() {
-        return randomFrom(QUERY_WORDS);
     }
 
     private static String ref(String rawName) {

@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvLast extends AbstractMultivalueFunction {
+public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvLast.class)
         .unary(MvLast::new)

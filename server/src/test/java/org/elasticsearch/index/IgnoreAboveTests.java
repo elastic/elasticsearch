@@ -9,9 +9,11 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 public class IgnoreAboveTests extends ESTestCase {
 
@@ -117,6 +119,86 @@ public class IgnoreAboveTests extends ESTestCase {
         assertFalse(ignoreAbove.isIgnored(new Text("1234567890")));
         assertTrue(ignoreAbove.isIgnored(new Text("12345678901")));
         assertTrue(ignoreAbove.isIgnored(new Text("potato potato tomato tomato")));
+    }
+
+    public void test_Text_isIgnored_without_bytes() {
+        // Text backed by a String — hasBytes() is false, falls through to stringLength().
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+
+        assertFalse(ignoreAbove.isIgnored(new Text("potato")));
+        assertFalse(ignoreAbove.isIgnored(new Text("1234567890")));
+        assertTrue(ignoreAbove.isIgnored(new Text("12345678901")));
+    }
+
+    public void test_Text_isIgnored_with_bytes_fast_path() {
+        // Text backed by UTF8Bytes — hasBytes() is true; ASCII strings use the byte-length fast path.
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+
+        // Byte length <= ignore_above: fast path returns false without counting code points.
+        Text withinLimit = new Text(new XContentString.UTF8Bytes("potato".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertTrue(withinLimit.hasBytes());
+        assertFalse(ignoreAbove.isIgnored(withinLimit));
+
+        Text atLimit = new Text(new XContentString.UTF8Bytes("1234567890".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertTrue(atLimit.hasBytes());
+        assertFalse(ignoreAbove.isIgnored(atLimit));
+
+        // Byte length > ignore_above: fast path does not apply; falls through to stringLength().
+        Text overLimit = new Text(new XContentString.UTF8Bytes("12345678901".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertTrue(overLimit.hasBytes());
+        assertTrue(ignoreAbove.isIgnored(overLimit));
+    }
+
+    public void test_Text_isIgnored_multibyte_not_short_circuited() {
+        // A 6-char string of 2-byte UTF-8 code points has 12 bytes but only 6 code points.
+        // Byte length (12) > ignore_above (10), so fast path does not apply; stringLength() is used
+        // and correctly returns 6 — not ignored.
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+        String sixChars = "éééééé"; // é×6, 2 bytes each = 12 bytes
+        Text t = new Text(new XContentString.UTF8Bytes(sixChars.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertTrue(t.hasBytes());
+        assertEquals(12, t.bytes().length());
+        assertFalse(ignoreAbove.isIgnored(t));
+    }
+
+    public void test_BytesRef_isIgnored_null() {
+        assertFalse(new Mapper.IgnoreAbove(10).isIgnored((BytesRef) null));
+    }
+
+    public void test_BytesRef_isIgnored_ascii_fast_path() {
+        // ASCII: 1 byte per char, so byte length == code-point count. Fast path fires.
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+
+        assertFalse(ignoreAbove.isIgnored(new BytesRef("potato")));        // 6 bytes, within limit
+        assertFalse(ignoreAbove.isIgnored(new BytesRef("1234567890")));    // 10 bytes, at limit
+        assertTrue(ignoreAbove.isIgnored(new BytesRef("12345678901")));    // 11 bytes, over limit
+    }
+
+    public void test_BytesRef_isIgnored_multibyte_bytes_exceed_but_codepoints_do_not() {
+        // "éééééé" = 6 code points, 12 UTF-8 bytes. Byte count (12) > ignore_above (10),
+        // so the fast path does not apply; stringLength() returns 6 — not ignored.
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+        BytesRef ref = new BytesRef("éééééé");
+        assertEquals(12, ref.length);
+        assertFalse(ignoreAbove.isIgnored(ref));
+    }
+
+    public void test_BytesRef_isIgnored_multibyte_both_exceed() {
+        // 11 × "é" = 11 code points, 22 bytes — both exceed ignore_above (10).
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(10);
+        assertTrue(ignoreAbove.isIgnored(new BytesRef("ééééééééééé")));
+    }
+
+    public void test_BytesRef_isIgnored_respects_offset_and_length() {
+        // Wrap a short string inside a larger backing array with a non-zero offset.
+        // Only the slice "hello" (5 bytes) should be evaluated; the surrounding bytes are noise.
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(4);
+        byte[] backing = "XXhelloXX".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        BytesRef sliced = new BytesRef(backing, 2, 5); // "hello"
+        assertTrue(ignoreAbove.isIgnored(sliced));  // 5 code points > 4
+
+        BytesRef withinLimit = new BytesRef(backing, 2, 4); // "hell"
+        assertFalse(ignoreAbove.isIgnored(withinLimit)); // 4 code points == 4
     }
 
     public void test_default_value() {

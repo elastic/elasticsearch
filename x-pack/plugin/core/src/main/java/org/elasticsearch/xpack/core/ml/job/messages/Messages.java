@@ -171,6 +171,14 @@ public final class Messages {
         "Skipping revocation of cloud API key [{0}] — revoke primitive not yet available";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED = "Internal cloud API key revoked for cross-project datafeed";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED = "Failed to revoke internal cloud API key [{0}]";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE =
+        "Internal cloud API key [{0}] failed authentication during datafeed search; it may have been revoked or expired."
+            + " Re-key by issuing a cloud-authenticated POST _ml/datafeeds/_update on this datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE =
+        "Datafeed search was denied (forbidden) while using internal cloud API key [{0}];"
+            + " the key's privileges or the requesting user's cross-project access may be insufficient."
+            + " Verify the key and the datafeed owner's project privileges,"
+            + " then re-key with a cloud-authenticated update if the key is the cause";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -41,7 +42,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -412,9 +413,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
      * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
-    @TestIssueLogging(
+    @TestLogging(
         value = "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/151837"
+        reason = "Aids diagnosis of hard-to-reproduce failures in this test: thread pool executor state is not otherwise observable"
     )
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
         var settings = Settings.builder()
@@ -502,12 +503,22 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             for (IndexService indexService : dataNodeIndicesService) {
                 indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
             }
-            // Wait until the WRITE thread pool is fully quiesced. With the periodic task disabled and all writers
-            // joined, no new GlobalCheckpointSyncAction dispatches can occur; active=0 ensures afterExecute() has
-            // been called (finalising utilization accounting) and queue=0 ensures nothing is about to be picked up.
+            // Wait for the WRITE thread pool to quiesce. setInterval(ZERO) prevents future periodic-task triggers, but
+            // a periodic task already executing before setInterval was called may have dispatched a GlobalCheckpointSyncAction
+            // via client.executeLocally(). That dispatch registers a task in the TaskManager *before* submitting work to
+            // the WRITE pool, so the combined check ensures any in-flight sync is fully drained: active=0 and queue=0
+            // confirm the WRITE pool is idle, and no TaskManager entry for the action confirms no dispatch is between
+            // client.executeLocally() and WRITE pool submission.
+            final var dataNodeTaskManager = internalCluster().getInstance(TransportService.class, dataNodeName).getTaskManager();
             assertBusy(() -> {
                 assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
                 assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
+                final var inFlightSyncTasks = dataNodeTaskManager.getTasks()
+                    .values()
+                    .stream()
+                    .filter(t -> t.getAction().startsWith(GlobalCheckpointSyncAction.ACTION_NAME))
+                    .toList();
+                assertThat(inFlightSyncTasks, Matchers.empty());
             });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);

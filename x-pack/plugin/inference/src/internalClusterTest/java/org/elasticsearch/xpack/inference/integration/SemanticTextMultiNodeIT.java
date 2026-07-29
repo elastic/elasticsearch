@@ -142,8 +142,7 @@ public class SemanticTextMultiNodeIT extends ESIntegTestCase {
         SearchRequest request = new SearchRequest(new String[] { indexName }, source);
 
         // Issue the search from the coordinating-only node: it holds no shards, so every hit
-        // must be serialized from a data node across the transport layer. Pre-fix this triggers
-        // the SemanticTextField serialization failure and all shards fail.
+        // must be serialized from a data node across the transport layer.
         assertResponse(internalCluster().coordOnlyNodeClient().search(request), response -> {
             assertThat(
                 "Expected no shard failures, but got: " + response.getShardFailures().length,

@@ -157,7 +157,6 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         Map<String, Object> properties = mappingProperties(mappings);
         assertThat(propertyType(properties, "id"), equalTo("keyword"));
         assertThat(propertyType(properties, "discovery_labels"), equalTo("nested"));
-        assertThat(propertyType(properties, "extended_attrs"), equalTo("flattened"));
         assertThat(propertyType(properties, "created_at"), equalTo("date"));
         assertThat(propertyType(properties, "ingestion_method"), equalTo("keyword"));
 

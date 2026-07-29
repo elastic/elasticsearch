@@ -29,9 +29,6 @@
             }
           }
         },
-        "extended_attrs": {
-          "type": "flattened"
-        },
         "user_id": {
           "type": "keyword"
         },

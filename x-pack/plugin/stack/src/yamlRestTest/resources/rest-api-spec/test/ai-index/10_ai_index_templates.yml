@@ -66,6 +66,7 @@ setup:
       indices.get_mapping:
         index: ai-index-idx-sml-data-000001
   - match: { ai-index-idx-sml-data-000001.mappings.properties.type.type: keyword }
+  - match: { ai-index-idx-sml-data-000001.mappings.properties.attributes.type: flattened }
   - match: { ai-index-idx-sml-data-000001.mappings.properties.discovery_labels.type: nested }
   - match: { ai-index-idx-sml-data-000001.mappings.properties.ingestion_method.type: keyword }
   - match: { ai-index-idx-sml-data-000001.mappings.properties.tags.normalizer: lowercase }

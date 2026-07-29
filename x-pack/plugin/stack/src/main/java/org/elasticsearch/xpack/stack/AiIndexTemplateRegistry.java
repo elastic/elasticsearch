@@ -38,7 +38,7 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
     static final int REGISTRY_VERSION = 2;
 
     // The computed checksum of all templates and components that are registered in this registry.
-    static final String COMPUTED_CHECKSUM = "8906a4d";
+    static final String COMPUTED_CHECKSUM = "5801102c";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 

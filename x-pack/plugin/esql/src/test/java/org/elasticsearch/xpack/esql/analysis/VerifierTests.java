@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1626,6 +1627,26 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
+    public void testDoubleRangeUnsupportedOperations() {
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V2.isEnabled());
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | STATS count(*) BY height_range",
+                containsString("cannot group by on [double_range] type for grouping [height_range]")
+            );
+        analyzer().addIndex("heights", "mapping-heights.json")
+            .addLookupIndex("heights_lookup", "mapping-heights.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM heights | LOOKUP JOIN heights_lookup ON height_range",
+                containsString("JOIN with right field [height_range] of type [DOUBLE_RANGE] is not supported")
+            );
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
@@ -1947,20 +1968,11 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
-        // MATCH_PHRASE supports runtime search (snapshot-only for now) on text and keyword expressions
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
-            fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
-            fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        } else {
-            checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        }
-        checkFieldBasedFunctionNotAllowedAfterCommands(
-            "MatchPhrase",
-            "function",
-            "match_phrase(title, \"Meditation\")",
-            MatchPhrase.runtimeSearchEnabled()
-        );
+        // MATCH_PHRASE supports runtime search on text and keyword expressions
+        fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
+        fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
+        fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
@@ -2059,29 +2071,6 @@ public class VerifierTests extends ESTestCase {
                     + "| where title : \"data\"",
                 allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
             );
-    }
-
-    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
-        fullText().error(
-            "from test | eval text = substring(title, 1) | where " + functionInvocation,
-            containsString(
-                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
-            )
-        );
-        fullText().error(
-            "from test | eval text=concat(title, body) | where " + functionInvocation,
-            containsString(
-                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
-            )
-        );
-        var keywordInvocation = functionInvocation.replace("text", "text::keyword");
-        fullText().error(
-            "row n = null | eval text = n + 5 | where " + keywordInvocation,
-            allOf(
-                containsString("[" + functionName + "] " + functionType + " cannot operate on"),
-                containsString("which is not a field from an index mapping")
-            )
-        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -2373,15 +2362,8 @@ public class VerifierTests extends ESTestCase {
         // match and : support runtime search and can operate on EVAL columns
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
-        // match_phrase supports runtime search (snapshot-only for now) on text EVAL columns
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
-        } else {
-            fullText().error(
-                "from test | eval name = title | where match_phrase(name, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
-            );
-        }
+        // match_phrase supports runtime search on text EVAL columns
+        fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
     }
 
     /**
@@ -2409,45 +2391,17 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
-        // MATCH_PHRASE supports runtime search (snapshot-only for now) on renamed text expressions
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
-        } else {
-            fullText().error(
-                "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-            );
-        }
-
-        // MATCH_PHRASE runtime search also covers keyword expressions (concat, grok, dissect and substring all
-        // produce keyword); in release builds these still require a field from an index mapping
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            fullText().query(
-                "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")"
-            );
-            fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
-            fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
-            fullText().query(
-                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")"
-            );
-        } else {
-            fullText().error(
-                "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-            );
-            fullText().error(
-                "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-            );
-            fullText().error(
-                "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
-            );
-            fullText().error(
-                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
-                containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
-            );
-        }
+        // MATCH_PHRASE supports runtime search on renamed text and keyword expressions (concat, grok, dissect and
+        // substring all produce keyword)
+        fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+        fullText().query(
+            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")"
+        );
+        fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+        fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")");
+        fullText().query(
+            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")"
+        );
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2975,6 +2929,24 @@ public class VerifierTests extends ESTestCase {
             containsString("Invalid option [include_lower]")
         );
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
+        // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run
+        // after constant folding, in postOptimizationVerification — see LogicalPlanOptimizerTests#testMvLike*.
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_like(first_name, 1)",
+            containsString("second argument of [mv_like(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
+    }
+
+    public void testMvRLikePattern() {
+        defaultAnalyzer().query("FROM test | WHERE mv_rlike(first_name, \"Ann.*\")");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_rlike(first_name, 1)",
+            containsString("second argument of [mv_rlike(first_name, 1)] must be [string], found value [1] type [integer]")
+        );
     }
 
     public void testCategorizeOptionOutputFormat() {
@@ -4791,7 +4763,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json")
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }

@@ -19,6 +19,8 @@ and the values from the `<group_column>` and `<score_column>`
 Learn more about [how search works in ES|QL](docs-content://solutions/search/esql-for-search.md#how-search-works-in-esql).
 :::::
 
+`FUSE` can also normalize scores, making it simple to apply a minimum score cutoff and filter out low-quality results.
+
 A `LIMIT` is required before `FUSE`, because `FUSE` can only work with a finite set of rows.
 
 ::::{applies-switch}
@@ -31,7 +33,7 @@ When using `FUSE` after `FORK`, a `LIMIT` must be added to each `FORK` branch.
 :::{applies-item} stack: preview 9.1-9.3
 An implicit `LIMIT 1000` is added to each `FORK` branch.
 When using `FUSE` after `FORK`, `FUSE` does not require an explicit `LIMIT` in each `FORK` branch.
-However, as a best practice and to avoid issues when upgrading to newer versions, it is advised to still add an explicit `LIMIT` before `FUSE`.
+However, as a best practice and to avoid issues when upgrading to newer versions, we recommend still adding an explicit `LIMIT` before `FUSE`.
 :::
 
 ::::
@@ -83,7 +85,7 @@ When `fuse_method` is `LINEAR`, `options` supports the following parameters:
 :   Defaults to `none`. Can be one of `none` or `minmax`. Specifies which score normalization method to apply.
 
 `weights`
-:   Defaults to `{}`. Allows you to different weights for scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
+:   Defaults to `{}`. Allows you to set different weights for scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
 :::
 ::::
 
@@ -111,7 +113,7 @@ FROM books METADATA _id, _index, _score  # Include document ID, index name, and 
 | FORK (WHERE title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 1: Lexical search on title field, sorted by relevance score
        (WHERE semantic_title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 2: Semantic search on semantic_title field, sorted by relevance score
 | FUSE  # Merge results using RRF algorithm by default
-| SORT _score DESC # sort results by the new scores, since `FUSE` does not do any sorting.
+| SORT _score DESC # Sort results by the new scores, since `FUSE` does not do any sorting.
 ```
 
 ### Use linear combination
@@ -123,7 +125,7 @@ FROM books METADATA _id, _index, _score
 | FORK (WHERE title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 1: Lexical search on title
        (WHERE semantic_title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 2: Semantic search on semantic_title
 | FUSE LINEAR  # Merge results using linear combination of scores (equal weights by default)
-| SORT _score DESC # sort results by the new scores, since `FUSE` does not do any sorting.
+| SORT _score DESC # Sort results by the new scores, since `FUSE` does not do any sorting.
 ```
 
 ### Normalize scores
@@ -131,14 +133,14 @@ FROM books METADATA _id, _index, _score
 When combining results from semantic and lexical queries through linear combination, we recommend first normalizing the scores from each result set.
 
 The following example uses `minmax` score normalization.
-This means the scores normalize and assign values between 0 and 1, before combining the rows:
+Scores are normalized to values between 0 and 1 before the rows are combined:
 
 ```esql
 FROM books METADATA _id, _index, _score
 | FORK (WHERE title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 1: Lexical search
        (WHERE semantic_title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 2: Semantic search
 | FUSE LINEAR WITH { "normalizer": "minmax" }  # Linear combination with min-max normalization (scales scores to 0-1 range)
-| SORT _score DESC # sort results by the new scores, since `FUSE` does not do any sorting.
+| SORT _score DESC # Sort results by the new scores, since `FUSE` does not do any sorting.
 ```
 
 ### Set custom weights
@@ -150,7 +152,48 @@ FROM books METADATA _id, _index, _score
 | FORK (WHERE title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 1: Lexical search
        (WHERE semantic_title:"Shakespeare" | SORT _score DESC | LIMIT 100)  # Fork 2: Semantic search
 | FUSE LINEAR WITH { "weights": { "fork1": 0.7, "fork2": 0.3 }, "normalizer": "minmax" }  # Weighted linear combination: 70% lexical, 30% semantic, with min-max normalization
-| SORT _score DESC # sort results by the new scores, since `FUSE` does not do any sorting.
+| SORT _score DESC # Sort results by the new scores, since `FUSE` does not do any sorting.
+```
+
+### Minimum score cutoff
+
+While `FUSE` is generally used for merging result sets, it can also be used to apply minimum score cutoffs, to filter out low-quality or irrelevant results.
+Using `FUSE` to first normalize the scores gives a consistent threshold for applying a minimum score cutoff.
+
+The following example uses `FUSE` to normalize the scores and apply a minimum score cutoff.
+
+```esql
+FROM books METADATA _id, _index, _score
+| WHERE title:"Shakespeare"
+| SORT _score DESC
+| LIMIT 100
+| EVAL label = "semantic_results" # Column used by FUSE to indicate that we are using a single result set
+| FUSE LINEAR GROUP BY label WITH { "normalizer": "minmax" } # Applies score normalization, modifying only the _score column
+| WHERE _score > 0.1 # Applies a score cutoff, filtering out irrelevant results
+| SORT _score DESC # `FUSE` can change the order of the results, so we need to sort by `_score`
+```
+
+In the following example, we use `FUSE` to normalize the scores in each `FORK` branch and remove irrelevant results, before they are merged together by another `FUSE` command using `RRF`:
+
+```
+FROM books METADATA _id, _index, _score
+| FORK (WHERE title:"Shakespeare"
+        | SORT _score DESC
+        | LIMIT 100
+        | EVAL label = "lexical"
+        | FUSE LINEAR GROUP BY label WITH { "normalizer": "minmax" } # Lexical scores are normalized, they will take values between 0 and 1.
+        | WHERE _score > 0.1 # Irrelevant lexical results are filtered out.
+        | SORT _score DESC # We reorder the results, since FUSE does not guarantee the order
+        | LIMIT 100)
+       (WHERE semantic_title:"Shakespeare"
+       | SORT _score DESC
+       | LIMIT 100
+       | FUSE LINEAR GROUP BY label WITH { "normalizer": "minmax" } # Semantic search scores are normalized, they will take values between 0 and 1.
+       | WHERE _score > 0.1 # Irrelevant semantic search results are filtered out
+       | SORT _score DESC
+       | LIMIT 100)
+| FUSE RRF # Lexical and semantic search results are merged together using Reciprocal Rank Fusion.
+| SORT _score DESC # FUSE does not re-order the results based on their score, so we need to sort again.
 ```
 
 ## Limitations
@@ -158,7 +201,7 @@ FROM books METADATA _id, _index, _score
 These limitations can be present either when:
 
 -  `FUSE` is not combined with [`FORK`](/reference/query-languages/esql/commands/fork.md)
-- `FUSE` doesn't use the default  [metadata](/reference/query-languages/esql/esql-metadata-fields.md) columns `_id`, `_index`, `_score` and `_fork`
+- `FUSE` doesn't use the default [metadata](/reference/query-languages/esql/esql-metadata-fields.md) columns `_id`, `_index`, `_score` and `_fork`
 
   1. `FUSE` assumes that `key_columns` are single valued. When `key_columns` are multivalued, `FUSE` can produce unreliable relevance scores.
   1. `FUSE` automatically assigns a score value of `NULL` if the `<score_column>` or `<group_column>` are multivalued.

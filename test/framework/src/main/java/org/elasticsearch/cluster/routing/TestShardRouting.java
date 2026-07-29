@@ -59,6 +59,7 @@ public class TestShardRouting {
         private boolean primary;
         private ShardRoutingState state;
         private RecoverySource recoverySource;
+        private ShardRouting.RecoveryPriority recoveryPriority;
         private UnassignedInfo unassignedInfo;
         private RelocationFailureInfo relocationFailureInfo;
         private AllocationId allocationId;
@@ -79,6 +80,11 @@ public class TestShardRouting {
 
         public Builder withRecoverySource(RecoverySource recoverySource) {
             this.recoverySource = recoverySource;
+            return this;
+        }
+
+        public Builder withRecoveryPriority(ShardRouting.RecoveryPriority recoveryPriority) {
+            this.recoveryPriority = recoveryPriority;
             return this;
         }
 
@@ -115,6 +121,7 @@ public class TestShardRouting {
                 primary,
                 state,
                 recoverySource != null ? recoverySource : buildRecoverySource(primary, state),
+                recoveryPriority != null ? recoveryPriority : buildRecoveryPriority(state, relocatingNodeId != null),
                 unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state, relocatingNodeId != null),
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
@@ -157,6 +164,7 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
+            buildRecoveryPriority(state, false),
             buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -181,6 +189,7 @@ public class TestShardRouting {
             primary,
             state,
             recoverySource,
+            buildRecoveryPriority(state, false),
             buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -220,6 +229,7 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
+            buildRecoveryPriority(state, relocatingNodeId != null),
             buildUnassignedInfo(state, relocatingNodeId != null),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -243,6 +253,27 @@ public class TestShardRouting {
                 : RecoverySource.PeerRecoverySource.INSTANCE;
             case STARTED, RELOCATING -> null;
         };
+    }
+
+    public static ShardRouting.RecoveryPriority buildRecoveryPriority(ShardRoutingState state, boolean hasRelocationNodeId) {
+        return switch (state) {
+            case INITIALIZING -> hasRelocationNodeId ? buildRecoveryPriorityForRelocation() : buildRecoveryPriorityForUnassigned();
+            case UNASSIGNED -> buildRecoveryPriorityForUnassigned();
+            case RELOCATING -> buildRecoveryPriorityForRelocation();
+            case STARTED -> null;
+        };
+    }
+
+    private static ShardRouting.RecoveryPriority buildRecoveryPriorityForUnassigned() {
+        return randomFrom(ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING, ShardRouting.RecoveryPriority.UNASSIGNED_NEW);
+    }
+
+    private static ShardRouting.RecoveryPriority buildRecoveryPriorityForRelocation() {
+        return randomFrom(
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
     }
 
     public static AllocationId buildAllocationId(ShardRoutingState state) {

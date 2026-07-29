@@ -39,7 +39,7 @@ public class ErrorModelTests extends ESTestCase {
     public void testSelectTopNDescendingReturnsLargestInDescendingOrder() {
         double[] keys = { 5.0, 1.0, 4.0, 2.0, 3.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 3);
         // top-3 keys are 5, 4, 3 at indices 0, 2, 4; only idx[0..n) is specified by the contract.
         assertEquals(0, idx[0]);
         assertEquals(2, idx[1]);
@@ -50,7 +50,7 @@ public class ErrorModelTests extends ESTestCase {
         // n == 1: picks the (a) maximum key. 7.0 ties at indices 1 and 3.
         double[] keys = { -3.0, 7.0, 2.0, 7.0, 1.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 1);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 1);
         assertEquals(7.0, keys[idx[0]], 0.0);
         assertTopN(keys, 1);
     }
@@ -59,7 +59,7 @@ public class ErrorModelTests extends ESTestCase {
         // n >= len takes the full-sort branch: the whole array is permuted into descending key order.
         double[] keys = { 2.0, 5.0, -1.0, 3.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, keys.length);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, keys.length);
         assertEquals(1, idx[0]); // 5.0
         assertEquals(3, idx[1]); // 3.0
         assertEquals(0, idx[2]); // 2.0
@@ -70,7 +70,7 @@ public class ErrorModelTests extends ESTestCase {
     public void testSelectTopNDescendingSingletonArray() {
         double[] keys = { 42.0 };
         int[] idx = new int[1];
-        ErrorModel.selectTopNDescending(keys, idx, 1, 1);
+        CalibrationUtils.selectTopNDescending(keys, idx, 1, 1);
         assertEquals(0, idx[0]);
     }
 
@@ -78,7 +78,7 @@ public class ErrorModelTests extends ESTestCase {
         // Four docs tie at the top; the top-3 must all be those, and the singleton 1.0 must be excluded.
         double[] keys = { 4.0, 4.0, 4.0, 1.0, 4.0 };
         int[] idx = new int[keys.length];
-        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        CalibrationUtils.selectTopNDescending(keys, idx, keys.length, 3);
         for (int i = 0; i < 3; i++) {
             assertEquals(4.0, keys[idx[i]], 0.0);
         }
@@ -99,14 +99,14 @@ public class ErrorModelTests extends ESTestCase {
     }
 
     /**
-     * Verifies the {@link ErrorModel#selectTopNDescending} postcondition: {@code idx[0..n)} holds distinct in-range
+     * Verifies the {@link CalibrationUtils#selectTopNDescending} postcondition: {@code idx[0..n)} holds distinct in-range
      * indices whose keys are the {@code n} largest, listed in non-increasing key order. Compares selected key
      * <em>values</em> (not indices) against a reference full sort so it is robust to how ties are broken.
      */
     private static void assertTopN(double[] keys, int n) {
         int len = keys.length;
         int[] idx = new int[len];
-        ErrorModel.selectTopNDescending(keys, idx, len, n);
+        CalibrationUtils.selectTopNDescending(keys, idx, len, n);
 
         Set<Integer> seen = new HashSet<>();
         for (int i = 0; i < n; i++) {
@@ -374,7 +374,7 @@ public class ErrorModelTests extends ESTestCase {
             10,
             fvv.size()
         );
-        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+        double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
 
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
         QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state);
@@ -409,7 +409,7 @@ public class ErrorModelTests extends ESTestCase {
             10,
             fvv.size()
         );
-        double invDim = ManifoldModel.estimateManifoldParameters(source)[1];
+        double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();
         ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(source);
         return ErrorModel.estimateMagnitudeFromRealResiduals(invDim, source, false, 4, 2, 128, state).errorStd(128, corpus.length);
     }

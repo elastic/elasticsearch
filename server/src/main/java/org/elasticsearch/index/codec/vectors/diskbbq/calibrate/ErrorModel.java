@@ -10,8 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.IntroSelector;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
@@ -69,7 +67,7 @@ public final class ErrorModel {
         QuantizedErrorScratch scratch
     ) throws IOException {
         VectorSimilarityFunction sim = source.similarityFunction();
-        int dim = source.dim();
+        int dim = source.workingDim();
         boolean cosine = source.cosine();
 
         int nDocClusters = docCentroids.length;
@@ -242,7 +240,7 @@ public final class ErrorModel {
             }
 
             int topN = Math.min(5 * source.k(), nDocs);
-            selectTopNDescending(simOsq, order, nDocs, topN);
+            CalibrationUtils.selectTopNDescending(simOsq, order, nDocs, topN);
             for (int i = 0; i < topN; i++) {
                 int docIdx = order[i];
                 float[] doc = source.vectors().vectorValue(source.corpusOrdinals()[docIdx]);
@@ -308,7 +306,7 @@ public final class ErrorModel {
     record QuantizedErrorComputeResult(double std, float[][] docCentroids, float[][] queryCentroids) {}
 
     public static ErrorScalingFit estimateErrorScalingFit(CalibrationSource source, int nDocsPerCluster) {
-        return estimateErrorScalingFit(source, nDocsPerCluster, HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.dim()));
+        return estimateErrorScalingFit(source, nDocsPerCluster, HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.workingDim()));
     }
 
     private static ErrorScalingFit estimateErrorScalingFit(
@@ -328,7 +326,7 @@ public final class ErrorModel {
         int maxNDocs = Math.min(SAMPLE_SIZES_SCALING[SAMPLE_SIZES_SCALING.length - 1], source.corpusOrdinals().length);
         QuantizedErrorScratch scratch = new QuantizedErrorScratch(
             maxNDocs,
-            source.dim(),
+            source.workingDim(),
             source.cosine(),
             source.similarityFunction() == VectorSimilarityFunction.EUCLIDEAN,
             source.preconditioner() != null
@@ -429,7 +427,7 @@ public final class ErrorModel {
             qbits,
             dbits,
             nDocsPerCluster,
-            HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.dim())
+            HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.workingDim())
         );
     }
 
@@ -447,13 +445,13 @@ public final class ErrorModel {
 
         double logNDocsPerCluster = Math.log(nDocsPerCluster);
         Regression.OLSAccumulator state = new Regression.OLSAccumulator();
-        float[][] docWarmStart = scalingFit.lastDocCentroids;
-        float[][] queryWarmStart = scalingFit.lastQueryCentroids;
+        float[][] docWarmStart = scalingFit.lastDocCentroids();
+        float[][] queryWarmStart = scalingFit.lastQueryCentroids();
 
         int maxNDocs = Math.min(SAMPLE_SIZES_MAGNITUDE[SAMPLE_SIZES_MAGNITUDE.length - 1], source.corpusOrdinals().length);
         QuantizedErrorScratch scratch = new QuantizedErrorScratch(
             maxNDocs,
-            source.dim(),
+            source.workingDim(),
             source.cosine(),
             source.similarityFunction() == VectorSimilarityFunction.EUCLIDEAN,
             source.preconditioner() != null
@@ -522,10 +520,10 @@ public final class ErrorModel {
 
         private RealResidualState(CalibrationSource source) {
             this.nDocs = Math.min(REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
-            this.kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.dim());
+            this.kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.workingDim());
             this.scratch = new QuantizedErrorScratch(
                 nDocs,
-                source.dim(),
+                source.workingDim(),
                 source.cosine(),
                 source.similarityFunction() == VectorSimilarityFunction.EUCLIDEAN,
                 source.preconditioner() != null
@@ -583,69 +581,6 @@ public final class ErrorModel {
         // so evaluating at N gives measuredStd × (state.nDocs / N)^invDim
         double beta0 = Math.log(Math.max(r.std(), 1e-38)) - invDimEffective * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
         return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDim, 0, 0, 0, 0));
-    }
-
-    /**
-     * Fills {@code idx[0..n)} with the indices of the {@code n} largest {@code keys[0..len)}, ordered by
-     * descending key.
-     * Requires {@code idx.length >= len} and {@code 0 <= n <= len}. Survivors are ordered descending so the caller
-     * accumulates error moments largest-first.
-     */
-    static void selectTopNDescending(double[] keys, int[] idx, int len, int n) {
-        for (int i = 0; i < len; i++) {
-            idx[i] = i;
-        }
-        int m = Math.min(n, len);
-        if (m <= 0) {
-            return;
-        }
-        if (m < len) {
-            // partition idx so idx[0..m) hold the m largest keys (unordered). select(from, to, k) leaves the k
-            // elements that sort first in [from, k); under this descending comparator those are the m largest.
-            new IntroSelector() {
-                double pivot;
-
-                @Override
-                protected void swap(int i, int j) {
-                    int tmp = idx[i];
-                    idx[i] = idx[j];
-                    idx[j] = tmp;
-                }
-
-                @Override
-                protected void setPivot(int i) {
-                    pivot = keys[idx[i]];
-                }
-
-                @Override
-                protected int comparePivot(int j) {
-                    // descending: pivot sorts before j when pivot's key is larger
-                    return Double.compare(keys[idx[j]], pivot);
-                }
-            }.select(0, len, m);
-        }
-        // order the m selected indices descending by key.
-        new IntroSorter() {
-            double pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = idx[i];
-                idx[i] = idx[j];
-                idx[j] = tmp;
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = keys[idx[i]];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                // descending: pivot sorts before j when pivot's key is larger
-                return Double.compare(keys[idx[j]], pivot);
-            }
-        }.sort(0, m);
     }
 
     /**

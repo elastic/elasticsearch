@@ -140,9 +140,9 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         int dbits,
         int numVectors
     ) throws IOException {
-        double[] manifold = estimateManifold(fixture, similarityFunction);
-        double alpha = manifold[0];
-        double invDim = manifold[1];
+        ManifoldModel.ManifoldParams manifold = estimateManifold(fixture, similarityFunction);
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
 
         ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
         QuantizationErrorStdModel errorModel = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, qbits, dbits);
@@ -151,7 +151,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         return ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, CALIBRATION_K, rerank);
     }
 
-    private static double[] estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) throws IOException {
+    private static ManifoldModel.ManifoldParams estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction)
+        throws IOException {
         return ManifoldModel.estimateManifoldParameters(toSource(fixture, similarityFunction));
     }
 

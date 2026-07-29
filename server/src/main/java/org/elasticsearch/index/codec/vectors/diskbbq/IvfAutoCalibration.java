@@ -452,9 +452,9 @@ public class IvfAutoCalibration {
         CalibrationMode mode
     ) throws IOException {
 
-        double[] manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
-        double alpha = manifold[0];
-        double invDim = manifold[1];
+        ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
 
         if (mode == CalibrationMode.FAST) {
             return sweepQuantizationCandidatesRealResiduals(

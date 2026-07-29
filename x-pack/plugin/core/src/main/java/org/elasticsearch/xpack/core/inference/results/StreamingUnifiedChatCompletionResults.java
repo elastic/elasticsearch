@@ -440,7 +440,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     in.readInt(),
                     in.readInt(),
                     in.readInt(),
-                    readPromptTokensDetails(in),
+                    readOptionalPromptTokensDetails(in),
                     in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                         ? in.readOptionalWriteable(CompletionTokenDetails::new)
                         : null
@@ -487,7 +487,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 }
             }
 
-            private static PromptTokensDetails readPromptTokensDetails(StreamInput in) throws IOException {
+            private static PromptTokensDetails readOptionalPromptTokensDetails(StreamInput in) throws IOException {
                 if (in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
                     return in.readOptionalWriteable(PromptTokensDetails::new);
                 } else if (in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {

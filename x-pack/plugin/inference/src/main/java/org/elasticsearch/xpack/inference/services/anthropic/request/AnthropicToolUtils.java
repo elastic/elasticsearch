@@ -66,6 +66,7 @@ public final class AnthropicToolUtils {
 
     private static final String TOOL_ROLE = "tool";
     private static final String USER_ROLE = "user";
+    private static final String ASSISTANT_ROLE = "assistant";
     private static final String TEXT_TYPE = "text";
     private static final String TOOL_USE_TYPE = "tool_use";
     private static final String TOOL_RESULT_TYPE = "tool_result";
@@ -130,7 +131,7 @@ public final class AnthropicToolUtils {
 
     private static void writeAssistantToolCalls(XContentBuilder builder, Message message, List<ToolCall> toolCalls) throws IOException {
         builder.startObject();
-        builder.field(ROLE_FIELD, message.role());
+        builder.field(ROLE_FIELD, ASSISTANT_ROLE);
         builder.startArray(CONTENT_FIELD);
         // Anthropic allows a leading text block alongside tool_use blocks; the unified assistant message often carries empty content.
         if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {

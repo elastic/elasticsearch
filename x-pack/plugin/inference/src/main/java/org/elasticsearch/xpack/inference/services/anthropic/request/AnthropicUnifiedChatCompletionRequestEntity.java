@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Content;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -99,9 +102,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             for (var msg : systemMessages) {
                 builder.startObject();
                 builder.field(TYPE_FIELD, TEXT_TYPE);
-                if (msg.content() instanceof ContentString cs) {
-                    builder.field(TEXT_FIELD, cs.content());
-                }
+                builder.field(TEXT_FIELD, extractSystemText(msg.content()));
                 builder.endObject();
             }
             builder.endArray();
@@ -143,4 +144,21 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.endObject();
         return builder;
     }
+
+    private static String extractSystemText(Content content) {
+        if (content instanceof ContentString(String text)) {
+            return text;
+        }
+        if (content instanceof ContentObjects(List<ContentObject> contentObjects)) {
+            var text = new StringBuilder();
+            for (var contentObject : contentObjects) {
+                if (contentObject instanceof ContentObject.ContentObjectText textObject) {
+                    text.append(textObject.text());
+                }
+            }
+            return text.toString();
+        }
+        return "";
+    }
+
 }

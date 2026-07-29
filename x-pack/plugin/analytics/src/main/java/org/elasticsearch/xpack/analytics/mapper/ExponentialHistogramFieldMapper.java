@@ -639,10 +639,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed();
-        }
-        return new ParseResult.Indexed();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     // Visible for testing, to construct realistic doc values in tests

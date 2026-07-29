@@ -329,10 +329,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
         boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Ignored();
-        }
-        return new ParseResult.Indexed();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)

@@ -429,10 +429,7 @@ public class HistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed();
-        }
-        return new ParseResult.Indexed();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     static BytesRef encodeBytesRef(List<Double> values, List<Long> counts) throws IOException {

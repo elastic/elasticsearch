@@ -513,10 +513,7 @@ public class TDigestFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Malformed();
-        }
-        return new ParseResult.Indexed();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     private static String valuesCountSubFieldName(String fullPath) {

@@ -325,6 +325,15 @@ public abstract class FieldMapper extends Mapper {
         if (mvvStash != null) {
             return new ParseResult.MultiValueViolation(mvvStash);
         }
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
+    }
+
+    /**
+     * Returns {@link ParseResult.Ignored} if the field was newly added to the ignored-fields set
+     * during parse (i.e. was not already there before), {@link ParseResult.Indexed} otherwise.
+     * Subclasses that override {@link #parse} directly should call this instead of duplicating the check.
+     */
+    protected final ParseResult resolveIgnoredResult(DocumentParserContext context, boolean wasAlreadyIgnored) {
         if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
             return new ParseResult.Ignored();
         }

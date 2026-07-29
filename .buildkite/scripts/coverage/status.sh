@@ -25,28 +25,33 @@ DESCRIPTION="${3:-}"
 [[ -z "${BUILDKITE_COMMIT:-}" ]] && exit 0
 command -v gh >/dev/null 2>&1 || { echo "gh unavailable - no status posted for $NAME"; exit 0; }
 
-# GH_TOKEN is exported by hooks/pre-command from VAULT_GITHUB_TOKEN, which is only populated for
-# steps that ask for it. Without a token gh is unauthenticated and cannot write a status, so fall
-# back to the SAML-authorized admin token the agentic-workflows path carries.
-if [[ -z "${GH_TOKEN:-}" ]] && command -v vault >/dev/null 2>&1; then
-  GH_TOKEN=$(vault read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows 2>/dev/null) || true
-  export GH_TOKEN
-fi
-if [[ -z "${GH_TOKEN:-}" ]]; then
-  echo "--- no GH_TOKEN available - cannot post status coverage/$NAME"
-  exit 0
-fi
-
 SLUG="${BUILDKITE_REPO_SLUG:-elastic/elasticsearch}"
 URL="${BUILDKITE_BUILD_URL:-}"
 [[ -n "${BUILDKITE_JOB_ID:-}" && -n "$URL" ]] && URL="$URL#${BUILDKITE_JOB_ID}"
 
-gh api --method POST "repos/$SLUG/statuses/$BUILDKITE_COMMIT" \
-  -f state="$STATE" \
-  -f context="coverage/$NAME" \
-  -f description="${DESCRIPTION:0:139}" \
-  -f target_url="$URL" >/tmp/status-out 2>&1 \
-  && echo "--- status coverage/$NAME -> $STATE" \
-  || { echo "--- could not post status coverage/$NAME (non-fatal):"; head -3 /tmp/status-out; }
+# Auth. The ambient GH_TOKEN (hooks/pre-command, from VAULT_GITHUB_TOKEN) is a GitHub App token
+# without `statuses: write` - it returns 403 "Resource not accessible by integration". So try it,
+# and on failure retry with the SAML-authorized token in Vault, which can write statuses.
+#
+# The retry is on failure rather than on an empty token: the ambient one is present but
+# insufficient, so an emptiness check never fires.
+post_status() {
+  gh api --method POST "repos/$SLUG/statuses/$BUILDKITE_COMMIT" \
+    -f state="$STATE" \
+    -f context="coverage/$NAME" \
+    -f description="${DESCRIPTION:0:139}" \
+    -f target_url="$URL" >/tmp/status-out 2>&1
+}
+
+if post_status; then
+  echo "--- status coverage/$NAME -> $STATE"
+elif command -v vault >/dev/null 2>&1 \
+     && GH_TOKEN=$(vault read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows 2>/dev/null) \
+     && export GH_TOKEN && post_status; then
+  echo "--- status coverage/$NAME -> $STATE (via vault token)"
+else
+  echo "--- could not post status coverage/$NAME (non-fatal):"
+  head -3 /tmp/status-out
+fi
 
 exit 0

@@ -1706,7 +1706,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
-        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+        protected void scheduleWarmingTask(AbstractWarmingTask task) {
             var interceptor = scheduleWarmingTaskInterceptor;
             if (interceptor != null) {
                 interceptor.accept(task);

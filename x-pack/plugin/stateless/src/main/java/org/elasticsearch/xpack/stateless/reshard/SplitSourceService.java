@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -312,6 +313,7 @@ public class SplitSourceService {
                 try (Releasable ignore = permit) {
                     objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
                 }
+                task.ensureNotCancelled();
                 prepareForHandoff(l, sourceShard, targetShardId);
             })
             .addListener(listener.delegateResponse((l, e) -> {
@@ -727,6 +729,11 @@ public class SplitSourceService {
         // we can bump the refcount instead of waiting for them to be released and then reacquiring.
         // This speeds up handoff when multiple target shards enter handoff concurrently.
         final RefCountedAcquirer permitAcquirer;
+        // Once we have begun acquiring permits, we should not cancel on relocation because it is difficult to reason about whether
+        // we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
+        // relocation begins.
+        // On permit acquisition or on task cancellation we set this to false if it is true, otherwise fail the operation.
+        final AtomicBoolean cancellable = new AtomicBoolean(true);
 
         Split(IndexShard sourceShard) {
             // XXX figure out what to do with the timeout on acquiring the permit. I would guess that we're blocking any new requests that
@@ -735,22 +742,37 @@ public class SplitSourceService {
             permitAcquirer = new RefCountedAcquirer(
                 releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE),
                 SplitSourceService.this.indicesService.clusterService().threadPool().relativeTimeInMillisSupplier(),
-                acquiredDuration -> SplitSourceService.this.reshardIndexService.getReshardMetrics()
-                    .indexingBlockedDurationHistogram()
-                    .record(acquiredDuration)
+                acquiredDuration -> {
+                    SplitSourceService.this.reshardIndexService.getReshardMetrics()
+                        .indexingBlockedDurationHistogram()
+                        .record(acquiredDuration);
+                }
             );
         }
 
         /**
          * Calls listener when permits for the source shard are held.
-         * If they are not yet held they will be acquired before calling the listener, but if they are already held a reference count
-         * on them will be incremented and the listener will be called immediately.
+         * Fails the listener immediately if the split is marked as uncancellable, which will happen if the split is about to be cancelled.
+         * Otherwise, f they are not yet held they will be acquired before calling the listener, but if they are already held a
+         * reference count on them will be incremented and the listener will be called immediately.
          * The reference count will be decremented when the listener completes, and permits will be released when the reference count
          * reaches zero.
          * @param listener a listener to call when permits have been acquired
          */
         public void withPermits(ActionListener<Releasable> listener) {
-            permitAcquirer.acquire(listener);
+            if (setUncancellable()) {
+                permitAcquirer.acquire(listener);
+            } else {
+                listener.onFailure(new TaskCancelledException("Split is being cancelled"));
+            }
+        }
+
+        /**
+         * Mark the split as uncancellable.
+         * @return true if the split is currently cancellable, or false if it is already uncancellable.
+         */
+        public boolean setUncancellable() {
+            return cancellable.compareAndSet(true, false);
         }
     }
 
@@ -919,6 +941,15 @@ public class SplitSourceService {
                         return true;
                     }
 
+                    // if the source shard has been marked for relocation, exit early so that the clone step releases its permit
+                    // and doesn't block relocation. But don't exit early once we've started acquiring permits, to avoid racing
+                    // with relocation while trying to enter handoff.
+                    if (indexShard.routingEntry().relocating() && split().setUncancellable()) {
+                        logger.info("cancelling split from {} because it is relocating", indexShard.shardId());
+                        cancel();
+                        return true;
+                    }
+
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
                         // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
@@ -945,6 +976,15 @@ public class SplitSourceService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
+                            final var currentSplit = activeTargetRequests.get(indexShard);
+                            if (currentSplit != null) {
+                                taskManager.cancelTaskAndDescendants(
+                                    currentSplit.task(),
+                                    "source relocating",
+                                    false,
+                                    ActionListener.noop()
+                                );
+                            }
                             return;
                         }
 

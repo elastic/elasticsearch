@@ -34,11 +34,16 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     }
 
     public static DataStreamOptions.Template randomDataStreamOptions() {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> DataStreamOptions.Template.EMPTY;
             case 1 -> RESET;
             case 2 -> new DataStreamOptions.Template(
                 ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
+            );
+            case 3 -> new DataStreamOptions.Template(DataStreamDerivedMetricsTests.randomTemplate());
+            case 4 -> new DataStreamOptions.Template(
+                ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate()),
+                ResettableValue.create(DataStreamDerivedMetricsTests.randomTemplate())
             );
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
@@ -47,25 +52,45 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     @Override
     protected DataStreamOptions.Template mutateInstance(DataStreamOptions.Template instance) {
         ResettableValue<DataStreamFailureStore.Template> failureStore = instance.failureStore();
-        if (failureStore.isDefined() == false) {
-            failureStore = randomBoolean()
-                ? ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
-                : ResettableValue.reset();
-        } else if (failureStore.shouldReset()) {
-            failureStore = ResettableValue.create(
-                randomBoolean() ? DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate() : null
-            );
-        } else {
-            failureStore = switch (randomIntBetween(0, 2)) {
-                case 0 -> ResettableValue.undefined();
-                case 1 -> ResettableValue.reset();
-                case 2 -> ResettableValue.create(
-                    randomValueOtherThan(failureStore.get(), DataStreamFailureStoreTemplateTests::randomFailureStoreTemplate)
+        ResettableValue<DataStreamDerivedMetrics.Template> derivedMetrics = instance.derivedMetrics();
+        if (randomBoolean()) {
+            if (failureStore.isDefined() == false) {
+                failureStore = randomBoolean()
+                    ? ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
+                    : ResettableValue.reset();
+            } else if (failureStore.shouldReset()) {
+                failureStore = ResettableValue.create(
+                    randomBoolean() ? DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate() : null
                 );
-                default -> throw new IllegalArgumentException("Illegal randomisation branch");
-            };
+            } else {
+                failureStore = switch (randomIntBetween(0, 2)) {
+                    case 0 -> ResettableValue.undefined();
+                    case 1 -> ResettableValue.reset();
+                    case 2 -> ResettableValue.create(
+                        randomValueOtherThan(failureStore.get(), DataStreamFailureStoreTemplateTests::randomFailureStoreTemplate)
+                    );
+                    default -> throw new IllegalArgumentException("Illegal randomisation branch");
+                };
+            }
+        } else {
+            if (derivedMetrics.isDefined() == false) {
+                derivedMetrics = randomBoolean()
+                    ? ResettableValue.create(DataStreamDerivedMetricsTests.randomTemplate())
+                    : ResettableValue.reset();
+            } else if (derivedMetrics.shouldReset()) {
+                derivedMetrics = ResettableValue.create(randomBoolean() ? DataStreamDerivedMetricsTests.randomTemplate() : null);
+            } else {
+                derivedMetrics = switch (randomIntBetween(0, 2)) {
+                    case 0 -> ResettableValue.undefined();
+                    case 1 -> ResettableValue.reset();
+                    case 2 -> ResettableValue.create(
+                        randomValueOtherThan(derivedMetrics.get(), DataStreamDerivedMetricsTests::randomTemplate)
+                    );
+                    default -> throw new IllegalArgumentException("Illegal randomisation branch");
+                };
+            }
         }
-        return new DataStreamOptions.Template(failureStore);
+        return new DataStreamOptions.Template(failureStore, derivedMetrics);
     }
 
     @Override
@@ -124,6 +149,46 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         assertThat(result.failureStore().get().enabled(), equalTo(dataStreamOptionsWithoutLifecycle.failureStore().get().enabled()));
         assertThat(result.failureStore().get().lifecycle(), equalTo(dataStreamOptionsWithLifecycle.failureStore().get().lifecycle()));
 
+        DataStreamDerivedMetrics.Metric requests = new DataStreamDerivedMetrics.Metric(
+            "http.requests",
+            DataStreamDerivedMetrics.MetricType.COUNTER,
+            null,
+            null,
+            null,
+            java.util.List.of("http.request.method")
+        );
+        DataStreamOptions.Template derivedBase = new DataStreamOptions.Template(
+            new DataStreamDerivedMetrics.Template(
+                true,
+                java.util.List.of("ingest.docs.rate"),
+                java.util.List.of(org.elasticsearch.core.TimeValue.timeValueSeconds(10)),
+                java.util.List.of("service.name"),
+                java.util.List.of(requests)
+            )
+        );
+        DataStreamOptions.Template derivedExtra = new DataStreamOptions.Template(
+            new DataStreamDerivedMetrics.Template(
+                null,
+                java.util.List.of("ingest.failures.rate"),
+                java.util.List.of(org.elasticsearch.core.TimeValue.timeValueMinutes(1)),
+                java.util.List.of("host.name"),
+                java.util.List.of()
+            )
+        );
+        result = DataStreamOptions.builder(derivedBase).composeTemplate(derivedExtra).buildTemplate();
+        assertThat(result.derivedMetrics().get().builtin(), equalTo(java.util.List.of("ingest.docs.rate", "ingest.failures.rate")));
+        assertThat(
+            result.derivedMetrics().get().intervals(),
+            equalTo(
+                java.util.List.of(
+                    org.elasticsearch.core.TimeValue.timeValueSeconds(10),
+                    org.elasticsearch.core.TimeValue.timeValueMinutes(1)
+                )
+            )
+        );
+        assertThat(result.derivedMetrics().get().dimensions(), equalTo(java.util.List.of("service.name", "host.name")));
+        assertThat(result.derivedMetrics().get().metrics(), equalTo(java.util.List.of(requests)));
+
         // Reset
         result = DataStreamOptions.builder(fullyConfigured).composeTemplate(RESET).buildTemplate();
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
@@ -156,5 +221,9 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         );
         result = copyInstance(withEnabledReset, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(new DataStreamOptions.Template(ResettableValue.reset())));
+
+        DataStreamOptions.Template withDerivedMetrics = new DataStreamOptions.Template(DataStreamDerivedMetricsTests.randomTemplate());
+        result = copyInstance(withDerivedMetrics, SETTINGS_IN_DATA_STREAMS);
+        assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
     }
 }

@@ -34,10 +34,15 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
     }
 
     public static DataStreamOptions randomDataStreamOptions() {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> DataStreamOptions.EMPTY;
             case 1 -> DataStreamOptions.FAILURE_STORE_DISABLED;
             case 2 -> DataStreamOptions.FAILURE_STORE_ENABLED;
+            case 3 -> new DataStreamOptions(null, DataStreamDerivedMetricsTests.randomDerivedMetrics());
+            case 4 -> new DataStreamOptions(
+                DataStreamFailureStoreTests.randomFailureStore(),
+                DataStreamDerivedMetricsTests.randomDerivedMetrics()
+            );
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
     }
@@ -45,12 +50,23 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
     @Override
     protected DataStreamOptions mutateInstance(DataStreamOptions instance) throws IOException {
         var failureStore = instance.failureStore();
-        if (failureStore == null) {
-            failureStore = DataStreamFailureStoreTests.randomFailureStore();
+        var derivedMetrics = instance.derivedMetrics();
+        if (randomBoolean()) {
+            if (failureStore == null) {
+                failureStore = DataStreamFailureStoreTests.randomFailureStore();
+            } else {
+                failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
+            }
         } else {
-            failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
+            if (derivedMetrics == null) {
+                derivedMetrics = DataStreamDerivedMetricsTests.randomDerivedMetrics();
+            } else {
+                derivedMetrics = randomBoolean()
+                    ? null
+                    : randomValueOtherThan(derivedMetrics, DataStreamDerivedMetricsTests::randomDerivedMetrics);
+            }
         }
-        return new DataStreamOptions(failureStore);
+        return new DataStreamOptions(failureStore, derivedMetrics);
     }
 
     @Override
@@ -74,5 +90,13 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
         );
         result = copyInstance(withoutEnabled, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(DataStreamOptions.EMPTY));
+
+        DataStreamOptions withDerivedMetrics = new DataStreamOptions(
+            new DataStreamFailureStore(true, null),
+            DataStreamDerivedMetricsTests.randomDerivedMetrics()
+        );
+        result = copyInstance(withDerivedMetrics, SETTINGS_IN_DATA_STREAMS);
+        assertThat(result.failureStore(), equalTo(new DataStreamFailureStore(true, null)));
+        assertThat(result.derivedMetrics(), nullValue());
     }
 }

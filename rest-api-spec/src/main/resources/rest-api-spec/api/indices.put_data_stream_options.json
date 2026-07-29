@@ -55,7 +55,7 @@
       }
     },
     "body": {
-      "description": "The data stream options configuration that consist of the failure store configuration",
+      "description": "The data stream options configuration",
       "required": true
     }
   }

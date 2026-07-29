@@ -1,0 +1,46 @@
+{
+  "index_patterns": [
+    "profiling-otel-executables"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.build.id": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.file.name": {
+          "type": "keyword",
+          "index": true
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "Symbolization.next_time": {
+          "type": "date",
+          "format": "epoch_second",
+          "index": true
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "profiling-hot-tier"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "OTel data stream template for profiling-otel-executables",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

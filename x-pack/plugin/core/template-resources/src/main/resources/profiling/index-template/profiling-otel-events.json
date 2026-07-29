@@ -1,0 +1,89 @@
+{
+  "index_patterns": [
+    "profiling-otel-events*"
+  ],
+  "data_stream": {
+    "hidden": false
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "profiling.project.id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date_nanos",
+          "format": "strict_date_optional_time_nanos||epoch_second"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "Stacktrace.id": {
+          "type": "keyword",
+          "index": false
+        },
+        "orchestrator.resource.name": {
+          "type": "keyword"
+        },
+        "container.name": {
+          "type": "keyword"
+        },
+        "process.thread.name": {
+          "type": "keyword"
+        },
+        "process.executable.name": {
+          "type": "keyword"
+        },
+        "Stacktrace.count": {
+          "type": "short",
+          "index": false
+        },
+        "Stacktrace.sampling_frequency": {
+          "type": "long",
+          "index": false
+        },
+        "agent.version": {
+          "type": "keyword"
+        },
+        "host.ip": {
+          "type": "ip"
+        },
+        "host.name": {
+          "type": "keyword"
+        },
+        "os.kernel": {
+          "type": "keyword"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "service.name": {
+          "type": "keyword"
+        },
+        "container.id": {
+          "type": "keyword"
+        },
+        "k8s.namespace.name": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "profiling-hot-tier"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "OTel data stream template for profiling-otel-events",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

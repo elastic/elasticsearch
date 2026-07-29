@@ -185,6 +185,39 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ActionListener<GetStackTracesResponse> submitListener,
         GetStackTracesResponseBuilder responseBuilder
     ) {
+        // Probe OTel full index first; fall back to standard indices if empty or missing.
+        client.prepareSearch(EventsIndex.OTEL_FULL_INDEX.getName())
+            .setSize(0)
+            .setQuery(request.getQuery())
+            .setTrackTotalHits(true)
+            .execute(ActionListener.wrap(searchResponse -> {
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
+                if (sampleCount > 0) {
+                    log.debug("Using OTel index [{}] with [{}] samples.", EventsIndex.OTEL_FULL_INDEX, sampleCount);
+                    searchRandomSampledProfilingEvents(
+                        submitTask, client, request, submitListener, responseBuilder, EventsIndex.OTEL_FULL_INDEX
+                    );
+                } else {
+                    log.debug("OTel index [{}] is empty, falling back to standard profiling indices.", EventsIndex.OTEL_FULL_INDEX);
+                    searchStandardProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
+                }
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    log.debug("OTel index [{}] not found, falling back to standard profiling indices.", EventsIndex.OTEL_FULL_INDEX.getName());
+                    searchStandardProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
+                } else {
+                    submitListener.onFailure(e);
+                }
+            }));
+    }
+
+    private void searchStandardProfilingEvents(
+        CancellableTask submitTask,
+        Client client,
+        GetStackTracesRequest request,
+        ActionListener<GetStackTracesResponse> submitListener,
+        GetStackTracesResponseBuilder responseBuilder
+    ) {
         StopWatch watch = new StopWatch("getResampledIndex");
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
@@ -285,7 +318,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(randomSampler)
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
+            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, "profiling-hosts", searchResponse -> {
                 long totalSamples = 0;
                 SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
                 Terms stacktraces = sample.getAggregations().get("group_by");
@@ -398,7 +431,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         )
                     )
             )
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
+            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, eventsIndex.hostsIndex(), searchResponse -> {
                 StopWatch watch = new StopWatch("createStackTraceEvents");
                 SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
                 InternalComposite stacktraces = sample.getAggregations().get("group_by");
@@ -542,6 +575,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
+        String hostsIndex,
         Function<SearchResponse, Map<TraceEventID, TraceEvent>> stacktraceCollector
     ) {
         StopWatch watch = new StopWatch("eventsGroupedByStackTrace");
@@ -556,7 +590,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                 responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
                 responseBuilder.setStackTraceEvents(stackTraceEvents);
-                retrieveStackTraces(submitTask, client, responseBuilder, submitListener);
+                retrieveStackTraces(submitTask, client, responseBuilder, submitListener, hostsIndex);
             } else {
                 submitListener.onResponse(responseBuilder.build());
             }
@@ -580,7 +614,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
-        ActionListener<GetStackTracesResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener,
+        String hostsIndex
     ) {
         if (submitTask.notifyIfCancelled(submitListener)) {
             return;
@@ -620,7 +655,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        client.prepareSearch("profiling-hosts")
+        client.prepareSearch(hostsIndex)
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()

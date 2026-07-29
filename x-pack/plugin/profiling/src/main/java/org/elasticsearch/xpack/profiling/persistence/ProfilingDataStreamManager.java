@@ -43,11 +43,39 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         List<ProfilingDataStream> dataStreams = new ArrayList<>(
             EventsIndex.indexNames()
                 .stream()
-                .map(n -> ProfilingDataStream.of(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
+                .map(n -> ProfilingDataStream.withoutPreCreation(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
                 .toList()
         );
         dataStreams.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
         dataStreams.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
+        // OTel data streams are auto-created on first ingest and managed here for rollover and mapping migrations.
+        dataStreams.addAll(
+            EventsIndex.otelIndexNames()
+                .stream()
+                .map(n -> ProfilingDataStream.withoutPreCreation(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
+                .toList()
+        );
+        dataStreams.add(
+            ProfilingDataStream.withoutPreCreation("profiling-otel-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION)
+        );
+        dataStreams.add(
+            ProfilingDataStream.withoutPreCreation(
+                "profiling-otel-executables",
+                ProfilingIndexTemplateRegistry.PROFILING_EXECUTABLES_VERSION
+            )
+        );
+        dataStreams.add(
+            ProfilingDataStream.withoutPreCreation(
+                "profiling-otel-stacktraces",
+                ProfilingIndexTemplateRegistry.PROFILING_STACKTRACES_VERSION
+            )
+        );
+        dataStreams.add(
+            ProfilingDataStream.withoutPreCreation(
+                "profiling-otel-stackframes",
+                ProfilingIndexTemplateRegistry.PROFILING_STACKFRAMES_VERSION
+            )
+        );
         PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
     }
 
@@ -69,7 +97,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
     ) {
         IndexStatus status = indexState.getStatus();
         switch (status) {
-            case NEEDS_CREATION -> createDataStream(indexState.getIndex(), listener);
+            case NEEDS_CREATION -> {
+                if (indexState.getIndex().requiresPreCreation()) {
+                    createDataStream(indexState.getIndex(), listener);
+                } else {
+                    listener.onResponse(null);
+                }
+            }
             case NEEDS_VERSION_BUMP -> rolloverDataStream(indexState.getIndex(), listener);
             case NEEDS_MAPPINGS_UPDATE -> applyMigrations(indexState, listener);
             default -> {
@@ -181,6 +215,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
     static class ProfilingDataStream implements ProfilingIndexAbstraction {
         private final String name;
         private final int version;
+        private final boolean requiresPreCreation;
         private final List<Migration> migrations;
 
         public static ProfilingDataStream of(String name, int version) {
@@ -189,17 +224,31 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
         public static ProfilingDataStream of(String name, int version, Migration.Builder builder) {
             List<Migration> migrations = builder != null ? builder.build(version) : null;
-            return new ProfilingDataStream(name, version, migrations);
+            return new ProfilingDataStream(name, version, true, migrations);
         }
 
-        private ProfilingDataStream(String name, int version, List<Migration> migrations) {
+        /**
+         * Creates a data stream entry that is tracked for rollover and migrations but never
+         * pre-created by the manager. ES auto-creates it on first document ingest via the
+         * installed index templates.
+         */
+        public static ProfilingDataStream withoutPreCreation(String name, int version) {
+            return new ProfilingDataStream(name, version, false, null);
+        }
+
+        private ProfilingDataStream(String name, int version, boolean requiresPreCreation, List<Migration> migrations) {
             this.name = name;
             this.version = version;
+            this.requiresPreCreation = requiresPreCreation;
             this.migrations = migrations;
         }
 
+        boolean requiresPreCreation() {
+            return requiresPreCreation;
+        }
+
         public ProfilingDataStream withVersion(int version) {
-            return new ProfilingDataStream(name, version, migrations);
+            return new ProfilingDataStream(name, version, requiresPreCreation, migrations);
         }
 
         @Override
@@ -261,9 +310,15 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
     public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver) {
         for (ProfilingDataStream profilingDataStream : PROFILING_DATASTREAMS) {
-            if (indexStateResolver.getIndexState(state, profilingDataStream).getStatus() != IndexStatus.UP_TO_DATE) {
-                return false;
+            IndexStatus status = indexStateResolver.getIndexState(state, profilingDataStream).getStatus();
+            if (status == IndexStatus.UP_TO_DATE) {
+                continue;
             }
+            // OTel data streams are auto-created on first ingest; their absence does not block setup.
+            if (profilingDataStream.requiresPreCreation() == false && status == IndexStatus.NEEDS_CREATION) {
+                continue;
+            }
+            return false;
         }
         return true;
     }

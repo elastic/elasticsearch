@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,8 +53,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 13: Added 'container.id' keyword mapping to profiling-events
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
-    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 15;
+    // version 16: Added OTel data stream templates for profiling-executables, profiling-stacktraces, profiling-stackframes
+    public static final int INDEX_TEMPLATE_VERSION = 16;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 6;
@@ -69,6 +70,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
+    private final boolean stateless;
 
     public ProfilingIndexTemplateRegistry(
         Settings nodeSettings,
@@ -78,6 +80,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        this.stateless = DiscoveryNode.isStateless(nodeSettings);
     }
 
     public void setTemplatesEnabled(boolean templatesEnabled) {
@@ -113,10 +116,24 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
+        if (stateless || templatesEnabled == false) {
+            return Collections.emptyList();
+        }
+        return lifecyclePolicies;
     }
 
-    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+    // Component templates shared by both legacy K/V and OTel paths
+    private final Map<String, ComponentTemplate> sharedComponentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            "profiling-hot-tier",
+            "/profiling/component-template/profiling-hot-tier.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        )
+    );
+
+    // Component templates required only by the legacy K/V path (not used on serverless)
+    private final Map<String, ComponentTemplate> legacyComponentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/component-template/profiling-events.json",
@@ -134,12 +151,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             "profiling-ilm",
             "/profiling/component-template/profiling-ilm.json",
-            INDEX_TEMPLATE_VERSION,
-            PROFILING_TEMPLATE_VERSION_VARIABLE
-        ),
-        new IndexTemplateConfig(
-            "profiling-hot-tier",
-            "/profiling/component-template/profiling-hot-tier.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
@@ -186,10 +197,53 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return templatesEnabled ? componentTemplates : Collections.emptyMap();
+        if (templatesEnabled == false) {
+            return Collections.emptyMap();
+        }
+        if (stateless) {
+            return sharedComponentTemplates;
+        }
+        Map<String, ComponentTemplate> all = new java.util.HashMap<>(sharedComponentTemplates);
+        all.putAll(legacyComponentTemplates);
+        return Collections.unmodifiableMap(all);
     }
 
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
+    // OTel data stream templates are DSL managed and auto-created on first ingest
+    private final Map<String, ComposableIndexTemplate> otelComposableIndexTemplates = parseComposableTemplates(
+        new IndexTemplateConfig(
+            "profiling-otel-events",
+            "/profiling/index-template/profiling-otel-events.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-otel-hosts",
+            "/profiling/index-template/profiling-otel-hosts.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-otel-executables",
+            "/profiling/index-template/profiling-otel-executables.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-otel-stacktraces",
+            "/profiling/index-template/profiling-otel-stacktraces.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-otel-stackframes",
+            "/profiling/index-template/profiling-otel-stackframes.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        )
+    );
+
+    // Legacy K/V and ILM-backed templates (not used on serverless)
+    private final Map<String, ComposableIndexTemplate> legacyComposableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/index-template/profiling-events.json",
@@ -264,7 +318,15 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return templatesEnabled ? composableIndexTemplates : Collections.emptyMap();
+        if (templatesEnabled == false) {
+            return Collections.emptyMap();
+        }
+        if (stateless) {
+            return otelComposableIndexTemplates;
+        }
+        Map<String, ComposableIndexTemplate> all = new java.util.HashMap<>(otelComposableIndexTemplates);
+        all.putAll(legacyComposableIndexTemplates);
+        return Collections.unmodifiableMap(all);
     }
 
     @Override
@@ -299,19 +361,19 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String name : componentTemplates.keySet()) {
+        for (String name : getComponentTemplateConfigs().keySet()) {
             ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String name : composableIndexTemplates.keySet()) {
+        for (String name : getComposableTemplateConfigs().keySet()) {
             ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        if (isDataStreamsLifecycleOnlyMode(settings) == false) {
+        if (stateless == false && isDataStreamsLifecycleOnlyMode(settings) == false) {
             IndexLifecycleMetadata ilmMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (ilmMetadata == null) {
                 return false;

@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.RestStatus;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,10 +30,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Resolves aliases that point to multiple key/value indices.
+ * Resolves aliases that point to multiple key/value indices or their OTel data stream counterpart.
+ *
+ * For each K/V index pattern such as {@code profiling-executables} the resolver first checks
+ * whether a corresponding OTel data stream ({@code profiling-otel-executables}) exists. If it does,
+ * its backing indices are returned directly. If both the OTel data stream and the legacy K/V alias
+ * exist simultaneously a {@link RestStatus#CONFLICT} exception is raised because mixed schemas are
+ * not supported. When no OTel data stream is present the resolver falls back to the existing
+ * time-range K/V logic.
  */
 public class KvIndexResolver {
     private static final Logger log = LogManager.getLogger(KvIndexResolver.class);
+
+    private static final String KV_PREFIX = "profiling-";
+    private static final String OTEL_PREFIX = "profiling-otel-";
 
     private final IndexNameExpressionResolver resolver;
     /**
@@ -45,19 +58,37 @@ public class KvIndexResolver {
     }
 
     /**
+     * Resolves the backing indices for a K/V index pattern.
      *
-     * Resolves aliases that point to multiple K/V indices. When resolving indices it sorts indices by their creation timestamp (or
-     * lifecycle origination date, if specified) and assumes that an index contains data from its creation until the creation of the next
-     * index plus an overlap that is controlled by <code>kvIndexOverlapPeriod</code>. It will only return matching indices within the
-     * specified time range.
+     * The OTel data stream is checked first. If found, its backing indices are returned. If both the
+     * OTel data stream and the legacy K/V alias exist a {@link RestStatus#CONFLICT} exception is
+     * thrown. Otherwise the resolver falls back to the time-range K/V logic.
      *
-     * @param clusterState The current cluster state.
-     * @param indexPattern An index pattern to match.
-     * @param eventStart The earliest point in time to consider
-     * @param eventEnd The latest point in time to consider
-     * @return A list of indices that match both the provided index pattern and the time range between event start and end.
+     * @param clusterState the current cluster state
+     * @param indexPattern a legacy K/V index pattern such as {@code profiling-executables}
+     * @param eventStart the earliest point in time to consider, used only on the K/V path
+     * @param eventEnd the latest point in time to consider, used only on the K/V path
+     * @return a list of indices that satisfy the query
      */
     public List<Index> resolve(ClusterState clusterState, String indexPattern, Instant eventStart, Instant eventEnd) {
+        String otelDsName = toOtelName(indexPattern);
+        DataStream otelDataStream = clusterState.metadata().getProject().dataStreams().get(otelDsName);
+
+        if (otelDataStream != null) {
+            if (clusterState.metadata().getProject().hasAlias(indexPattern)) {
+                throw new ElasticsearchStatusException(
+                    "Both K/V indices and an OTel data stream exist for ["
+                        + indexPattern
+                        + "]. Mixed schemas are not supported. Delete the legacy K/V indices to continue using the OTel data stream.",
+                    RestStatus.CONFLICT
+                );
+            }
+            List<Index> dsIndices = otelDataStream.getIndices();
+            log.debug("Resolved [{}] to OTel data stream backing indices {}.", indexPattern, dsIndices.stream().map(Index::getName).toList());
+            return Collections.unmodifiableList(dsIndices);
+        }
+
+        // K/V index path: filter by time range when multiple indices exist.
         Index[] indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, indexPattern);
         List<Index> matchingIndices = new ArrayList<>();
         // find matching index for the current time range (indices are non-overlapping)
@@ -79,7 +110,7 @@ public class KvIndexResolver {
                 }
                 indicesWithTime.add(Tuple.tuple(i, Instant.ofEpochMilli(creationDate)));
             }
-            // sort - newest index first, then work backwards to find overlaps
+            // sort newest index first, then work backwards to find overlaps
             indicesWithTime.sort((i1, i2) -> i2.v2().compareTo(i1.v2()));
             Instant intervalEnd = Instant.MAX;
             for (Tuple<Index, Instant> indexAndTime : indicesWithTime) {
@@ -111,5 +142,16 @@ public class KvIndexResolver {
             );
         }
         return Collections.unmodifiableList(matchingIndices);
+    }
+
+    /**
+     * Derives the OTel data stream name for a given legacy K/V index name.
+     * For example {@code profiling-executables} becomes {@code profiling-otel-executables}.
+     */
+    static String toOtelName(String kvIndexPattern) {
+        if (kvIndexPattern.startsWith(KV_PREFIX) == false) {
+            return OTEL_PREFIX + kvIndexPattern;
+        }
+        return OTEL_PREFIX + kvIndexPattern.substring(KV_PREFIX.length());
     }
 }

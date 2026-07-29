@@ -1,0 +1,58 @@
+{
+  "index_patterns": [
+    "profiling-otel-stackframes"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.line.number": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.file.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.name": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Stackframe.function.offset": {
+          "type": "integer",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "profiling-hot-tier"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "OTel data stream template for profiling-otel-stackframes",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

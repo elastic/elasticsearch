@@ -1,0 +1,37 @@
+{
+  "index_patterns": [
+    "profiling-otel-stacktraces"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "Stacktrace.frame.ids": {
+          "type": "keyword",
+          "index": false
+        },
+        "Stacktrace.frame.types": {
+          "type": "keyword",
+          "index": false
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "profiling-hot-tier"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "OTel data stream template for profiling-otel-stacktraces",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

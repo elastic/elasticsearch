@@ -1,0 +1,73 @@
+{
+  "index_patterns": [
+    "profiling-otel-hosts"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "dynamic": false,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "host": {
+          "properties": {
+            "arch": { "type": "keyword" },
+            "id": { "type": "keyword" },
+            "name": { "type": "keyword" },
+            "type": { "type": "keyword" }
+          }
+        },
+        "host.id": { "type": "keyword" },
+        "host.name": { "type": "keyword" },
+        "cloud": {
+          "properties": {
+            "provider": { "type": "keyword" },
+            "region": { "type": "keyword" }
+          }
+        },
+        "os": {
+          "properties": {
+            "type": { "type": "keyword" }
+          }
+        },
+        "profiling": {
+          "properties": {
+            "project.id": { "type": "keyword" },
+            "agent": {
+              "properties": {
+                "version": { "type": "version" },
+                "revision": { "type": "keyword" },
+                "build_timestamp": { "type": "date", "format": "epoch_second" },
+                "start_time": { "type": "date", "format": "epoch_millis" },
+                "protocol": { "type": "keyword" },
+                "config.probabilistic_interval": { "type": "keyword" },
+                "config.probabilistic_threshold": { "type": "unsigned_long" },
+                "config.sampling_frequency": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "profiling-hot-tier"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "OTel data stream template for profiling-otel-hosts",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

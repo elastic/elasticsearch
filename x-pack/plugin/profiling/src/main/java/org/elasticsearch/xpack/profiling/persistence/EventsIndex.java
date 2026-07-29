@@ -15,6 +15,7 @@ import java.util.Set;
 
 public final class EventsIndex {
     private static final String PREFIX = "profiling-events";
+    private static final String OTEL_PREFIX = "profiling-otel-events";
     private static final String ALL_EVENTS = PREFIX + "-all";
 
     private static final int SAMPLING_FACTOR = 5;
@@ -25,7 +26,10 @@ public final class EventsIndex {
 
     public static final EventsIndex FULL_INDEX = new EventsIndex(ALL_EVENTS, 1, 0);
 
+    public static final EventsIndex OTEL_FULL_INDEX = new EventsIndex(OTEL_PREFIX + "-all", 1, 0);
+
     // Start with counting the results in the index down-sampled by 5^6.
+
     // That is in the middle of our down-sampled indexes.
     public static final EventsIndex MEDIUM_DOWNSAMPLED = fromFactorAndExponent(SAMPLING_FACTOR, 6);
 
@@ -43,6 +47,14 @@ public final class EventsIndex {
 
     public String getName() {
         return name;
+    }
+
+    /**
+     * Returns the hosts data stream name that corresponds to this events index.
+     * OTel events use {@code profiling-otel-hosts}; legacy events use {@code profiling-hosts}.
+     */
+    public String hostsIndex() {
+        return name.startsWith(OTEL_PREFIX) ? "profiling-otel-hosts" : "profiling-hosts";
     }
 
     public int getExponent() {
@@ -90,10 +102,23 @@ public final class EventsIndex {
     }
 
     public static Collection<String> indexNames() {
+        return indexNamesForPrefix(PREFIX);
+    }
+
+    /**
+     * Returns the set of OTel event data stream names that mirror the downsampled structure of the
+     * legacy profiling-events streams. OTel streams use the {@code profiling-otel-events} prefix
+     * and are managed via DSL rather than ILM.
+     */
+    public static Collection<String> otelIndexNames() {
+        return indexNamesForPrefix(OTEL_PREFIX);
+    }
+
+    private static Collection<String> indexNamesForPrefix(String prefix) {
         Set<String> names = new HashSet<>();
-        names.add(EventsIndex.ALL_EVENTS);
+        names.add(prefix + "-all");
         for (int exp = MIN_EXPONENT; exp <= MAX_EXPONENT; exp++) {
-            names.add(indexName(SAMPLING_FACTOR, exp));
+            names.add(String.format(Locale.ROOT, "%s-%dpow%02d", prefix, SAMPLING_FACTOR, exp));
         }
         return Collections.unmodifiableSet(names);
     }

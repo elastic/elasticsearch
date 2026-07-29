@@ -279,7 +279,7 @@ public class MetadataSliceIT extends ESRestTestCase {
 
     private void indexDocWithSlice(String index, String id, String slice) throws IOException {
         Request req = new Request("PUT", "/" + index + "/_doc/" + id);
-        req.addParameter("_slice", slice);
+        req.addParameter("slice", slice);
         req.setJsonEntity("{\"value\":\"" + id + "\"}");
         assertOK(client().performRequest(req));
     }

@@ -1,0 +1,53 @@
+# Code coverage, on demand.
+#
+# Never runs by default. Apply the `test-coverage` label to a PR, or comment
+# `@elasticmachine run elasticsearch-ci/test-coverage`.
+#
+# Reports coverage per test layer. It never gates: no thresholds, no failure on a number. The step
+# fails only if the instrument itself is broken, or on test failures - in which case the coverage
+# still uploads and is a lower bound.
+#
+# Parameters are read from the environment; defaults measure the ES|QL surface.
+#
+#   COVERAGE_PROJECTS  Gradle project-path pattern, e.g. ':x-pack:plugin:esql*' or ':server'
+#   COVERAGE_INCLUDES  JaCoCo class-include pattern, colon-separated
+#
+# Layers are reported separately, one matrix leg each. They are never averaged - a line covered by
+# two layers is one covered line. To see the union, merge the legs' exec artifacts with
+# .buildkite/scripts/coverage/publish.sh.
+config:
+  auto-retry: false
+  # Opt-in only, gated on the label alone. Not gated on changed-file regions: in the generator
+  # (.buildkite/scripts/pull-request/pipeline.ts) `included-regions` means "every changed file
+  # matches some region" - it detects docs-only-style PRs, and it composes with `allow-labels`
+  # by AND - so a labelled PR touching one file outside the regions would silently never be
+  # offered this pipeline. The trigger comment bypasses all filters, labels included.
+  allow-labels: test-coverage
+  trigger-phrase: '.*run\W+elasticsearch-ci/test-coverage.*'
+steps:
+  - label: test-coverage / {{matrix.layer}}
+    key: test-coverage
+    command: |
+      COVERAGE_LAYERS={{matrix.layer}} .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+      if [[ -f build/coverage/summary.txt ]]; then
+        { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+          | buildkite-agent annotate --style info --context "coverage-{{matrix.layer}}"
+      fi
+      exit $$rc
+    matrix:
+      setup:
+        layer:
+          - unit
+          - internal-cluster
+          - cluster
+    timeout_in_minutes: 240
+    artifact_paths:
+      - "build/coverage/exec/**/*.exec"
+      - "build/coverage/report/**/*"
+      - "build/coverage/summary.txt"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

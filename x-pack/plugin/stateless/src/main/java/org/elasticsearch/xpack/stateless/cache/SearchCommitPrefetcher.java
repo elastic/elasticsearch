@@ -447,7 +447,7 @@ public class SearchCommitPrefetcher {
         // stampable region timestamp.
         timestampPerBlob.replaceAll(
             (blobFile, rawMillis) -> regionTimestampResolver.resolveRegionTimestampMillis(
-                rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : notificationCommitTimestamp
+                BlobFileRanges.firstKnownTimestamp(rawMillis, notificationCommitTimestamp)
             )
         );
         assert timestampPerBlob.keySet().containsAll(blobFilesToPrefetch);

@@ -762,16 +762,6 @@ public class SearchDirectoryTests extends ESTestCase {
                 directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
-            assertThat(
-                "an unknown value prefers the preferred value",
-                directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP, 7000L),
-                equalTo(7000L)
-            );
-            assertThat(
-                "both unknown stays UNKNOWN",
-                directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP, UNKNOWN_TIMESTAMP),
-                equalTo(UNKNOWN_TIMESTAMP)
-            );
             assertThat("a known range resolves to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
                 "a metadata-read clone inherits the shard's terminal fallback when backfill is disabled",
@@ -791,17 +781,6 @@ public class SearchDirectoryTests extends ESTestCase {
         assertThat(
             "an unknown raw value falls back to MINIMAL",
             directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP),
-            equalTo(MINIMAL_CACHE_TIMESTAMP)
-        );
-        assertThat("a known value ignores the preferred value", directory.resolveRegionTimestampMillis(5000L, 7000L), equalTo(5000L));
-        assertThat(
-            "an unknown value prefers the preferred value",
-            directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP, 7000L),
-            equalTo(7000L)
-        );
-        assertThat(
-            "both unknown falls back to MINIMAL",
-            directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP, UNKNOWN_TIMESTAMP),
             equalTo(MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat("a null range falls back to MINIMAL", directory.resolveRegionTimestampMillis(null), equalTo(MINIMAL_CACHE_TIMESTAMP));

@@ -617,7 +617,9 @@ public class SearchEngine extends Engine {
                                 latestCommit.getTimestampFieldValueRange()
                             );
                             backfillTimestampsByCacheKey.replaceAll(
-                                (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(rawMillis, latestCommitTimestamp)
+                                (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(
+                                    BlobFileRanges.firstKnownTimestamp(rawMillis, latestCommitTimestamp)
+                                )
                             );
                             searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
                             return newBlobFileRanges;

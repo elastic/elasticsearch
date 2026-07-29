@@ -166,10 +166,6 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : fallbackRegionTimestampMillis();
     }
 
-    public long resolveRegionTimestampMillis(long rawMillis, long preferredFallbackMillis) {
-        return resolveRegionTimestampMillis(rawMillis != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? rawMillis : preferredFallbackMillis);
-    }
-
     /**
      * Timestamp to stamp on a cache region whose content carries no known data timestamp.
      */

@@ -199,6 +199,8 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
             assertOK(oldEs.performRequest(createSnapshotRequest));
         }
+        // Snapshot is on disk — old ES is no longer needed. Stop it now to free memory during the remaining tests.
+        oldEs.stop();
 
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);

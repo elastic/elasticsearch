@@ -152,8 +152,12 @@ public final class AnthropicToolUtils {
         builder.field(ROLE_FIELD, ASSISTANT_ROLE);
         builder.startArray(CONTENT_FIELD);
         // Anthropic allows a leading text block alongside tool_use blocks; the unified assistant message often carries empty content.
-        if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
-            writeTextBlock(builder, content);
+        if (message.content() instanceof ContentString(String content)) {
+            if (content.isEmpty()) {
+                writeTextBlock(builder, "");
+            } else {
+                writeTextBlock(builder, content);
+            }
         }
         for (var toolCall : toolCalls) {
             builder.startObject();

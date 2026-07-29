@@ -81,8 +81,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    static final Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
+
     // One restart is sufficient for the whole test class regardless of how many test methods run.
     private static boolean restarted;
+
+    // testOldSourceOnlyRepoAccess is skipped for versions < 6.5.0, so old ES is used only once there.
+    private static final int EXPECTED_OLD_ES_USES = oldVersion.onOrAfter(Version.fromString("6.5.0")) ? 2 : 1;
+    private static int oldEsUseCount = 0;
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -106,7 +112,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     public void runTest(boolean sourceOnlyRepository) throws IOException {
         String repoLocation = System.getProperty("tests.repo.location");
         repoLocation = PathUtils.get(repoLocation).resolve("source_only_" + sourceOnlyRepository).toString();
-        Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
         assumeTrue(
             "source only repositories only supported since ES 6.5.0",
             sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
@@ -128,6 +133,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             // Before restart phase
             beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, indexVersion, numDocs, extraDocs, expectedIds, oldEs, indexName);
+        }
+        // Snapshot is on disk — old ES is no longer needed for this test method.
+        // Stop it after its last use across all test methods to free memory before restart and post-restart checks.
+        if (++oldEsUseCount >= EXPECTED_OLD_ES_USES) {
+            oldEs.stop();
         }
 
         if (restarted == false) {

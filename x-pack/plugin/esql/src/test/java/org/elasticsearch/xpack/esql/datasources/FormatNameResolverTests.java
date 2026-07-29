@@ -159,7 +159,11 @@ public class FormatNameResolverTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveFormatName(null, "no_extension", registry)
         );
-        assertThat(e.getMessage(), containsString("without extension"));
+        // The extensionless case now shares the one unreadable-object message, so it names the object, the
+        // reason, and the [format] remedy rather than a bare "without extension" phrase.
+        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
     }
 
     /**

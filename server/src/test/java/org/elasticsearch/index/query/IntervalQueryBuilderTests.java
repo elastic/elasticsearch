@@ -29,7 +29,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -47,12 +49,23 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQueryBuilder> {
+
+    private static final int HIGH_MAX_REGEX_LENGTH = 500_000;
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
         return new IntervalQueryBuilder(TEXT_FIELD_NAME, createRandomSource(0, true));
+    }
+
+    @Override
+    protected Settings createTestIndexSettings() {
+        return Settings.builder()
+            .put(super.createTestIndexSettings())
+            .put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), HIGH_MAX_REGEX_LENGTH)
+            .build();
     }
 
     private static final String[] filters = new String[] {
@@ -105,13 +118,13 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     static IntervalsSourceProvider.Disjunction createRandomDisjunction(int depth, boolean useScripts) {
-        int orCount = randomInt(4) + 1;
+        int orCount = randomInt(3) + 1;
         List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
         return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
     }
 
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
-        int count = randomInt(4) + 1;
+        int count = randomInt(3) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
         boolean ordered = randomBoolean();
         int maxGaps = randomInt(5) - 1;
@@ -143,7 +156,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     static IntervalsSourceProvider.Match createRandomMatch(int depth, boolean useScripts) {
         String useField = rarely() ? MASKED_FIELD : null;
-        int wordCount = randomInt(4) + 1;
+        int wordCount = randomInt(3) + 1;
         List<String> words = new ArrayList<>();
         for (int i = 0; i < wordCount; i++) {
             words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
@@ -810,6 +823,45 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
     }
 
+    public void testRegexpLengthLimit() throws IOException {
+        String pattern = "a".repeat(HIGH_MAX_REGEX_LENGTH + 1);
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "%s"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME, pattern);
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createSearchExecutionContext()));
+        assertThat(e.getMessage(), containsString("[regexp] rule of the Intervals Query request has exceeded the allowed maximum"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+    }
+
+    public void testRegexpDeeplyNested() throws IOException {
+        int depth = 100000;
+        String pattern = "(".repeat(depth) + "a" + ")".repeat(depth);
+        assertThat(pattern.length(), lessThanOrEqualTo(HIGH_MAX_REGEX_LENGTH));
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "regexp": {
+                    "pattern": "%s"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME, pattern);
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> builder.toQuery(createSearchExecutionContext()));
+        assertThat(e.getMessage(), containsString("[regexp] rule of the Intervals Query request has a pattern that is too deeply nested"));
+    }
+
     public void testMaxExpansionExceptionFailure() throws Exception {
         IntervalsSourceProvider provider1 = new IntervalsSourceProvider.Prefix("bar", "keyword", null);
         IntervalsSourceProvider provider2 = new IntervalsSourceProvider.Wildcard("bar*", "keyword", null);
@@ -841,6 +893,24 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                     }
                 }
             }
+        }
+    }
+
+    public void testTooManyClausesAtBuildTime() throws IOException {
+        int origBoolMaxClauseCount = IndexSearcher.getMaxClauseCount();
+        int maxClauses = 4;
+        IndexSearcher.setMaxClauseCount(maxClauses);
+        try {
+            List<IntervalsSourceProvider> sources = new ArrayList<>();
+            for (int i = 0; i < maxClauses + 1; i++) {
+                sources.add(new IntervalsSourceProvider.Match("term" + i, 0, false, "keyword", null, null));
+            }
+            IntervalsSourceProvider provider = new IntervalsSourceProvider.Disjunction(sources, null);
+            IntervalQueryBuilder queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, provider);
+            SearchExecutionContext context = createSearchExecutionContext();
+            expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> queryBuilder.toQuery(context));
+        } finally {
+            IndexSearcher.setMaxClauseCount(origBoolMaxClauseCount);
         }
     }
 
@@ -946,6 +1016,44 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("Te?m"), IndexSearcher.getMaxClauseCount()))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+    }
+
+    public void testWildcardLengthLimit() throws IOException {
+        String pattern = "a".repeat(HIGH_MAX_REGEX_LENGTH + 1);
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "%s"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME, pattern);
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.toQuery(createSearchExecutionContext()));
+        assertThat(e.getMessage(), containsString("[wildcard] rule of the Intervals Query request has exceeded the allowed maximum"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+    }
+
+    public void testWildcardDeeplyNested() throws IOException {
+        int depth = 100000;
+        String pattern = "(".repeat(depth) + "a" + ")".repeat(depth);
+        assertThat(pattern.length(), lessThanOrEqualTo(HIGH_MAX_REGEX_LENGTH));
+        String json = Strings.format("""
+            {
+              "intervals": {
+                "%s": {
+                  "wildcard": {
+                    "pattern": "%s"
+                  }
+                }
+              }
+            }""", TEXT_FIELD_NAME, pattern);
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        assertNotNull(builder.toQuery(createSearchExecutionContext()));
     }
 
     private static IntervalsSource buildFuzzySource(String term, String label, int prefixLength, boolean transpositions, int editDistance) {

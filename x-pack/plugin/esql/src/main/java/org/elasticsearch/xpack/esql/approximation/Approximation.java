@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -146,7 +145,6 @@ public class Approximation {
         Eval.class,
         Filter.class,
         Grok.class,
-        Insist.class,
         LocalRelation.class,
         MvExpand.class,
         OrderBy.class,
@@ -193,7 +191,6 @@ public class Approximation {
         Enrich.class,
         Eval.class,
         Grok.class,
-        Insist.class,
         OrderBy.class,
         Project.class,
         RegexExtract.class,

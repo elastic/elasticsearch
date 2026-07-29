@@ -31,7 +31,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
 public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
-    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+    // Caps regex cost regardless of total input size; real MIME types are well under this.
+    static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
+
+    // Character classes stop at literal delimiters so matching is linear. RFC 2397 ";param=value" pairs get absorbed into the {subtype}
+    // class.
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
 
     static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
@@ -89,7 +94,10 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     private void validateDataURIFormat() {
         if (dataFormat == DataFormat.BASE64) {
             var endOfURIPart = value.indexOf(',');
-            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+            // Fast-fail on missing or oversized URI part before the regex.
+            if (endOfURIPart < 0
+                || endOfURIPart >= MAX_DATA_URI_PREFIX_LENGTH
+                || DATA_URI_PATTERN.matcher(value).region(0, endOfURIPart + 1).matches() == false) {
                 throw new IllegalArgumentException(
                     "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
                 );

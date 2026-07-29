@@ -142,6 +142,11 @@ public interface DataPoint {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
+                // Value-less data points are rejected by isValid before reaching this point. Fail loudly rather than
+                // writing a field name with no value, which would corrupt the document.
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
             }
         }
 
@@ -173,6 +178,10 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors) {
+            if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.VALUE_NOT_SET) {
+                errors.add("number data point without a value, ignoring " + metric.getName());
+                return false;
+            }
             return true;
         }
     }

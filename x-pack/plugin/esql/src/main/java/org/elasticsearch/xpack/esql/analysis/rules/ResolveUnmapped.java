@@ -53,7 +53,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -163,7 +163,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
+     * This method introduces field extractors - {@link PotentiallyUnmappedKeywordEsField} wrapped in
      * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
      * the given {@code plan}.
      * <p>
@@ -182,13 +182,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
-        List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
+        List<FieldAttribute> loaded = new ArrayList<>(unresolved.size());
         for (var ua : unresolved) {
             if (exclude.contains(ua.name()) == false) {
-                insisted.add(insistKeyword(ua));
+                loaded.add(unmappedKeyword(ua));
             }
         }
-        return insisted;
+        return loaded;
     }
 
     // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?

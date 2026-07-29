@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -296,29 +295,27 @@ public class EsqlSession {
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
 
-        Configuration configuration = new ConfigurationBuilder(
-            new Configuration(
-                timeZone,
-                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-                request.locale() != null ? request.locale() : Locale.US,
-                // TODO: plug-in security
-                null,
-                clusterName,
-                request.pragmas(),
-                analyzerSettings.resultTruncationMaxSize(),
-                analyzerSettings.resultTruncationDefaultSize(),
-                request.query(),
-                request.profile(),
-                request.tables(),
-                System.nanoTime(),
-                request.allowPartialResults(),
-                analyzerSettings.timeseriesResultTruncationMaxSize(),
-                analyzerSettings.timeseriesResultTruncationDefaultSize(),
-                projectRouting(request, statement),
-                approximationSettings(request, statement),
-                viewResolution.viewQueries()
-            )
-        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
+        Configuration configuration = new Configuration(
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+            request.locale() != null ? request.locale() : Locale.US,
+            // TODO: plug-in security
+            null,
+            clusterName,
+            request.pragmas(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
+            request.query(),
+            request.profile(),
+            request.tables(),
+            System.nanoTime(),
+            request.allowPartialResults(),
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement),
+            approximationSettings(request, statement),
+            viewResolution.viewQueries()
+        );
 
         LogicalPlan plan = viewResolution.plan();
         Configuration configurationToUse = configuration;
@@ -900,9 +897,9 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         executionInfo.queryProfile().indicesResolutionMarker().start();
-        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {

@@ -623,6 +623,10 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
+        verifySecurityAutoConfigured(es, null);
+    }
+
+    public void verifySecurityAutoConfigured(Installation es, String keystorePassword) throws Exception {
         final String autoConfigDirName = "certs";
         final Settings settings;
         if (es.distribution.isArchive()) {
@@ -653,10 +657,7 @@ public abstract class PackagingTestCase extends Assert {
                 .forEach(
                     file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
-            assertThat(
-                sh.run(es.executables().keystoreTool + " list").stdout(),
-                Matchers.containsString("autoconfiguration.password_hash")
-            );
+            assertThat(listKeystoreEntries(es, keystorePassword), Matchers.containsString("autoconfiguration.password_hash"));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
@@ -669,6 +670,10 @@ public abstract class PackagingTestCase extends Assert {
         if (es.distribution.isDocker() == false) {
             assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
+    }
+
+    private static String listKeystoreEntries(Installation es, String keystorePassword) {
+        return es.executables().keystoreTool.run("list", keystorePassword == null ? null : keystorePassword + "\n").stdout();
     }
 
     /**

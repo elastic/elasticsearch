@@ -10,13 +10,13 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class MainRequest extends LegacyActionRequest {
+public class MainRequest extends UntypedActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         return null;

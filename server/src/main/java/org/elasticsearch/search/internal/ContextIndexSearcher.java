@@ -439,6 +439,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Runs the registered cancellation/timeout checks. Production queries trigger these implicitly while
+     * reading from the {@link ExitableDirectoryReader} (for instance during {@link #rewrite}); this method
+     * exposes the same check so it can be invoked explicitly, e.g. by synthetic queries in tests that do not
+     * touch the reader.
+     */
+    public void checkCancelled() {
+        cancellable.checkCancelled();
+    }
+
+    /**
      * Exception thrown whenever a search timeout occurs. May be thrown by {@link ContextIndexSearcher} or {@link ExitableDirectoryReader}.
      */
     public static final class TimeExceededException extends RuntimeException {

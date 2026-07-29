@@ -7,88 +7,18 @@
 
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
-
-  def baseLeaderCluster = testClusters.register("${baseName}-leader") {
-      numberOfNodes = 3
-  }
-  def baseFollowerCluster = testClusters.register("${baseName}-follower") {
-    numberOfNodes = 3
-  }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
-    testDistribution = "DEFAULT"
-    versions = [bwcVersion.toString(), project.version]
-
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-  }
-
-  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster baseLeaderCluster
-    useCluster baseFollowerCluster
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-    def baseClusterName = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
-    def baseCluster = testClusters.named(baseClusterName)
-    doFirst {
-      if (name.endsWith("#clusterTest") == false) {
-        println "Upgrade node $it"
-        getRegistry().get().nextNodeToNextVersion(baseCluster)
-      }
-    }
-    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseCluster.name).map { it.allHttpSocketURI.join(",") })
-    nonInputProperties.systemProperty('tests.clustername', baseName)
-    nonInputProperties.systemProperty('tests.leader_host', getClusterInfo(baseLeaderCluster.name).map { c->c.allHttpSocketURI.last() })
-    nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', getClusterInfo(baseLeaderCluster.name).map { c -> c.allTransportPortURI.last() })
-    nonInputProperties.systemProperty('tests.follower_host', getClusterInfo(baseFollowerCluster.name).map { c->c.allHttpSocketURI.last() })
-    nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', getClusterInfo(baseFollowerCluster.name).map { c -> c.allTransportPortURI.last() })
-  }
-
-  ["follower", "leader"].each { kind ->
-    tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
-      systemProperty 'tests.rest.upgrade_state', 'none'
-      systemProperty 'tests.rest.cluster_name', kind
-    }
-
-    tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
-      systemProperty 'tests.rest.upgrade_state', 'one_third'
-      systemProperty 'tests.rest.cluster_name', kind
-      dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
-    }
-
-    tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
-      systemProperty 'tests.rest.upgrade_state', 'two_third'
-      systemProperty 'tests.rest.cluster_name', kind
-      dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
-    }
-
-    tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-      systemProperty 'tests.rest.upgrade_state', 'all'
-      systemProperty 'tests.rest.cluster_name', kind
-      dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
-    }
-  }
-
-  tasks.named("${baseName}#follower#clusterTest") {
-    dependsOn "${baseName}#leader#clusterTest"
-  }
-
-  tasks.named("${baseName}#leader#oneThirdUpgradedTest") {
-    dependsOn "${baseName}#follower#upgradedClusterTest"
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#leader#upgradedClusterTest"
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.upgrade_from_version", bwcVersion.toString().replace('-SNAPSHOT', ''))
+    maxParallelForks = 1
   }
 }
 

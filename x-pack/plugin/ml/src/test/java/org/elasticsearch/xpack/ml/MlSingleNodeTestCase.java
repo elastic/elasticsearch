@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -175,6 +178,41 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             return;
         }
         throw error.get();
+    }
+
+    /**
+     * Creates an index with the given name and mapping source, then attaches the canonical
+     * ML read and write aliases for each supplied job id — mirroring the alias shape that
+     * anomaly detection produces in production.
+     * <p>
+     * Intended for tests that need to pre-seed a results index in the state that a broken
+     * upgrade would leave behind (e.g. a {@code .reindexed-v7-ml-anomalies-*} index with
+     * aliases still pointing at it).
+     *
+     * @param indexName     The concrete index name to create.
+     * @param mappingSource The mapping JSON, in {@link CreateIndexRequest#mapping(String)} form
+     *                      (i.e. with an outer {@code _doc} wrapper if the server expects it).
+     * @param jobIds        Job ids whose read + write aliases will be added to the index.
+     */
+    protected void createResultsIndexWithAliases(String indexName, String mappingSource, List<String> jobIds) {
+        client().admin().indices().create(new CreateIndexRequest(indexName).mapping(mappingSource)).actionGet();
+        var aliasReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        for (String jobId : jobIds) {
+            aliasReq.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                    .isHidden(true)
+            );
+            aliasReq.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+                    .writeIndex(true)
+                    .isHidden(true)
+            );
+        }
+        aliasReq.get();
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

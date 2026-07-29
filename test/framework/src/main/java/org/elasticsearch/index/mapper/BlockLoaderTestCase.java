@@ -73,7 +73,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
-    private final BlockLoaderTestRunner runner;
+    protected final BlockLoaderTestRunner runner;
 
     protected final String fieldName;
 

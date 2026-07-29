@@ -122,8 +122,11 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
-            deepCopyMap(other.ingestMetadata)
+            new IngestCtxMap(
+                deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
+                other.ctxMap.getMetadata().clone()
+            ),
+            deepCopyMap(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -140,9 +143,9 @@ public final class IngestDocument {
      * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
      * general purpose method.
      */
-    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
-        CollectionUtils.ensureNoSelfReferences(source, null);
-        return source;
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> map, String hint) {
+        CollectionUtils.ensureNoSelfReferences(map, hint);
+        return map;
     }
 
     /**
@@ -1058,6 +1061,11 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
+    }
+
+    void ensureNoSelfReferences() {
+        CollectionUtils.ensureNoSelfReferences(ctxMap.getSource(), "source document");
+        CollectionUtils.ensureNoSelfReferences(ingestMetadata, "ingest metadata");
     }
 
     @SuppressWarnings("unchecked")

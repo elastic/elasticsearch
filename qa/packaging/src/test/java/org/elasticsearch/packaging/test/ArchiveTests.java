@@ -164,6 +164,7 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> {
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
+            createKeystoreIfMissing();
             // prevent modifications to the config directory
             sh.run(
                 String.format(
@@ -178,7 +179,10 @@ public class ArchiveTests extends PackagingTestCase {
                 )
             );
         });
-        Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            sh.run("chmod u-w " + installation.config);
+        });
         try {
             startElasticsearch();
             verifySecurityNotAutoConfigured(installation);
@@ -203,6 +207,13 @@ public class ArchiveTests extends PackagingTestCase {
             });
             Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
             FileUtils.rm(installation.data);
+        }
+    }
+
+    private void createKeystoreIfMissing() {
+        if (Files.exists(installation.config("elasticsearch.keystore")) == false) {
+            final Installation.Executables bin = installation.executables();
+            bin.keystoreTool.run("create");
         }
     }
 
@@ -231,8 +242,12 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
-        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
+        Platforms.onLinux(() -> {
+            createKeystoreIfMissing();
+            bin.keystoreTool.run("passwd", password + "\n" + password + "\n");
+        });
         Platforms.onWindows(() -> {
+            createKeystoreIfMissing();
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
@@ -242,7 +257,7 @@ public class ArchiveTests extends PackagingTestCase {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
-        verifySecurityAutoConfigured(installation);
+        verifySecurityAutoConfigured(installation, password);
 
         stopElasticsearch();
 

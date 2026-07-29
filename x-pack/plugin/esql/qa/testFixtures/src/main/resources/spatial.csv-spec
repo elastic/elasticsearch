@@ -492,6 +492,23 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
+countFromAirportsAfterIntersectsPredicateInvalidBoundsLiteral
+required_capability: st_intersects
+required_capability: spatial_bbox_validation_fix
+
+// An inverted BBOX (maxY < minY) is an invalid envelope. The literal fails to parse into a geo_shape,
+// so it folds to null (with a warning), and ST_INTERSECTS(field, NULL) matches no rows rather than failing the query.
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
+| STATS count=COUNT()
+;
+warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+count:long
+0
+;
+
 centroidFromAirportsAfterContainsPredicateCountryUK
 required_capability: st_contains_within
 
@@ -1391,6 +1408,25 @@ wkt:keyword    | pt:geo_point  | distance:double
 "POINT(-1 0)"  | POINT(-1 0)   | 111195.08242688453
 "POINT(0 1)"   | POINT(0 1)    | 111195.07776676829
 "POINT(0 -1)"  | POINT(0 -1)   | 111195.08242688453
+;
+
+literalGeoPointDistanceInvalidLiteralPoint
+required_capability: st_distance
+required_capability: spatial_bbox_validation_fix
+
+// An out-of-range point literal fails to parse into a geo_point, so it folds to null (with a warning),
+// and ST_DISTANCE returns null for every row rather than failing the query.
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(200 100)"))
+;
+warningRegex:evaluation of \[TO_GEOPOINT\("POINT\(200 100\)"\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)    | null
+"POINT(-1 -1)" | POINT(-1 -1)  | null
 ;
 
 twoCitiesPointDistanceGeo

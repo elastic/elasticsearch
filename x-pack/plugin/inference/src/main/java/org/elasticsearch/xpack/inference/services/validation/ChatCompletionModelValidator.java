@@ -22,13 +22,13 @@ public class ChatCompletionModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener) {
         serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
             delegate.onResponse(postValidate(service, model));
         }));
     }
 
-    private Model postValidate(InferenceService service, Model model) {
-        return service.updateModelWithChatCompletionDetails(model);
+    private ModelValidationResult postValidate(InferenceService service, Model model) {
+        return new ModelValidationResult(service.updateModelWithChatCompletionDetails(model), false);
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -101,11 +102,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
  * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
@@ -177,6 +180,9 @@ public class ComputeService {
     private final FilterPushdownRegistry filterPushdownRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
+    // re-resolving it from ClusterSettings for every query.
+    private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -203,6 +209,11 @@ public class ComputeService {
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
+        this.clusterService.getClusterSettings()
+            .initializeAndWatch(
+                GROK_WATCHDOG_MAX_EXECUTION_TIME,
+                timeValue -> grokMatcherWatchdog.set(MatcherWatchdog.newInstance(timeValue.millis()))
+            );
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
             clusterService,
@@ -1070,7 +1081,8 @@ public class ComputeService {
                 inferenceService,
                 userAgentParserRegistry,
                 physicalOperationProviders,
-                operatorFactoryRegistry
+                operatorFactoryRegistry,
+                grokMatcherWatchdog.get()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

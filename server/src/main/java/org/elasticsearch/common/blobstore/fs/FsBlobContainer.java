@@ -434,9 +434,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
             return;
         } catch (FileSystemException e) {
             // In some filesystems (e.g., CIFS) the Files.createLink() does not throw UnsupportedOperationException (as Javadoc says) but
-            // FileSystemException instead. To handle this, we fall back to the no-hard-link operation. This is an indirect check
-            // that assumes that direct FileSystemExceptions instance creation is rare, and it indicates a lack of support for hard links.
-            if (e.getClass() != FileSystemException.class) {
+            // FileSystemException or AccessDeniedException instead. To handle this, we fall back to the no-hard-link operation. This is an
+            // indirect check that assumes that direct FileSystemExceptions or AccessDeniedException instances are rare, and they indicate
+            // a lack of support for hard links or insufficient permissions for creating them.
+            if (e.getClass() != FileSystemException.class && e instanceof AccessDeniedException == false) {
                 throw e;
             }
             fallbackMoveAtomically.accept(targetBlobPath, sourceBlobPath);

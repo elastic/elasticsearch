@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -240,7 +239,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // as multiple invalid patterns could be combined to form a valid one
                 // see https://github.com/elastic/elasticsearch/issues/136750
                 try {
-                    Grok.pattern(source, pattern, context.grokMatcherWatchdog());
+                    Grok.pattern(source, pattern);
                 } catch (SyntaxException e) {
                     throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
                 }
@@ -248,7 +247,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
 
-            Grok.Parser grokParser = Grok.pattern(source, combinePattern, context.grokMatcherWatchdog());
+            Grok.Parser grokParser = Grok.pattern(source, combinePattern);
 
             validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
@@ -435,22 +434,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
-        var source = source(ctx);
-        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
-            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
-                Source neSource = ne.source();
-                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
-            }
-        });
-        return input -> new Insist(
-            source,
-            input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
-        );
-    }
-
-    @Override
     public PlanFactory visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) {
         Source source = source(ctx);
 
@@ -609,9 +592,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
+            boolean hasTimeSeries = hasOuterTimeSeries(input);
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
-
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -625,6 +607,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());
             }
         };
+    }
+
+    /**
+     * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
+     * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
+     * <p>
+     * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
+     * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
+     * {@code STATS} to pick {@link TimeSeriesAggregate}.  The outer command is {@code FROM}, not
+     * {@code TS}, so time-series aggregate planning must not be triggered by a relation that is
+     * isolated inside an independent subquery.
+     */
+    private static boolean hasOuterTimeSeries(LogicalPlan plan) {
+        if (plan instanceof UnionAll || plan instanceof Subquery) {
+            return false;
+        }
+        if (plan instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
+            return true;
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (hasOuterTimeSeries(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ParserUtils.Stats stats(

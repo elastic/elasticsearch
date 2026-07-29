@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +49,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
 
         private static final ParseField INDEX = new ParseField("index");
         private static final ParseField QUERY = new ParseField("query");

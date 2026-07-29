@@ -273,6 +273,7 @@ public class Archives {
             """
                 expect - <<EXPECT
                 set timeout 120
+                set stty_init "rows 24 columns 80"
                 spawn -ignore HUP %s
                 %s
                 %s

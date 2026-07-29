@@ -159,7 +159,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
-        assertTrue(source.isFinished());
+        assertBusy(() -> assertTrue(source.isFinished()));
         source.finish();
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {

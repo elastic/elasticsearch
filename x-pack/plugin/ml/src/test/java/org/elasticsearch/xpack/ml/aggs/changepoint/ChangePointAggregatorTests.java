@@ -25,6 +25,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
@@ -35,7 +38,9 @@ import java.util.function.Consumer;
 import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ChangePointAggregatorTests extends AggregatorTestCase {
@@ -379,6 +384,86 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             assertThat(changeType, instanceOf(ChangeType.Spike.class));
             assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(72));
         });
+    }
+
+    public void testGapPolicySkipDropsEmptyBuckets() throws IOException {
+        testGapPolicy(BucketHelpers.GapPolicy.SKIP, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.Indeterminable.class));
+            // Only the eight populated buckets reach the detector, well short of the 22 it requires.
+            assertThat(((ChangeType.Indeterminable) changeType).getReason(), containsString("found [8]"));
+        });
+    }
+
+    public void testGapPolicyKeepValuesIncludesEmptyBuckets() throws IOException {
+        // A sum over an empty bucket is a finite 0.0, which KEEP_VALUES preserves.
+        testGapPolicy(BucketHelpers.GapPolicy.KEEP_VALUES, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
+            assertThat(changeType.changePoint(), equalTo(16));
+        });
+    }
+
+    public void testGapPolicyInsertZerosIncludesEmptyBuckets() throws IOException {
+        // INSERT_ZEROS is the only non-skippable policy, so this also covers that nothing throws.
+        testGapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
+            assertThat(changeType.changePoint(), equalTo(16));
+        });
+    }
+
+    /**
+     * Runs the sparse series from {@link #sparseBucketValues()} through the aggregation under the given
+     * gap policy. The series only clears the detector's 22-value minimum when the empty buckets are kept,
+     * so the change type doubles as an assertion on how many buckets survived the policy.
+     */
+    private void testGapPolicy(BucketHelpers.GapPolicy gapPolicy, Consumer<ChangeType> changeTypeAssertions) throws IOException {
+        Double[] bucketValues = sparseBucketValues();
+        FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
+            .subAggregation(
+                new DateHistogramAggregationBuilder("time").field(TIME_FIELD_NAME)
+                    .fixedInterval(INTERVAL)
+                    .minDocCount(0)
+                    .extendedBounds(new LongBounds(0L, (bucketValues.length - 1) * INTERVAL.estimateMillis()))
+                    .subAggregation(AggregationBuilders.sum("sum").field(NUMERIC_FIELD_NAME))
+            )
+            .subAggregation(new ChangePointAggregationBuilder("changes", "time>sum", gapPolicy));
+        testCase(w -> writeSparseTestDocs(w, bucketValues), (InternalFilter result) -> {
+            InternalDateHistogram histogram = result.getAggregations().get("time");
+            assertThat("the empty buckets under test were not materialized", histogram.getBuckets(), hasSize(bucketValues.length));
+            InternalChangePointAggregation agg = result.getAggregations().get("changes");
+            changeTypeAssertions.accept(agg.getChangeType());
+        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
+    }
+
+    /**
+     * Builds the sparse series from issue #154973: two short plateaus separated by a run of intervals
+     * that contain no documents at all. A {@code sum} over an empty bucket still reports a real, finite
+     * {@code 0.0}, so whether those buckets reach the detector is decided purely by the gap policy.
+     * A {@code null} entry means no document is written for that interval.
+     */
+    private static Double[] sparseBucketValues() {
+        Double[] bucketValues = new Double[30];
+        double[] lowPlateau = { 3.0, 4.0, 3.0, 5.0 };
+        double[] highPlateau = { 80.0, 75.0, 90.0, 85.0 };
+        for (int i = 0; i < lowPlateau.length; i++) {
+            bucketValues[i] = lowPlateau[i];
+            bucketValues[12 + i] = highPlateau[i];
+        }
+        return bucketValues;
+    }
+
+    private static void writeSparseTestDocs(RandomIndexWriter w, Double[] bucketValues) throws IOException {
+        long epochTimestamp = 0;
+        for (Double bucketValue : bucketValues) {
+            if (bucketValue != null) {
+                w.addDocument(
+                    Arrays.asList(
+                        new NumericDocValuesField(NUMERIC_FIELD_NAME, NumericUtils.doubleToSortableLong(bucketValue)),
+                        new SortedNumericDocValuesField(TIME_FIELD_NAME, epochTimestamp)
+                    )
+                );
+            }
+            epochTimestamp += INTERVAL.estimateMillis();
+        }
     }
 
     void testChangeType(double[] bucketValues, Consumer<ChangeType> changeTypeAssertions) throws IOException {

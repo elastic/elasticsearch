@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -253,6 +259,193 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testWildcardMatchingOnlyDatasetsExcludesThemWhenFlagOff() {
+        // With wildcard-dataset matching off, FROM logs_* does not resolve any dataset: the relation is left untouched
+        // and flows to normal index resolution (which excludes datasets), so it means "matching indices only".
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testWildcardSpanningIndexAndDatasetResolvesToIndexOnlyWhenFlagOff() {
+        // FROM logs_* matching an index and a dataset resolves to the index only (dataset dropped) — not rejected. The
+        // wildcard is left untouched for normal resolution, which excludes datasets.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_ds", dataset), Set.of("logs_idx"));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testExactDatasetNameResolvesWhenFlagOff() {
+        // A dataset named exactly still resolves with the flag off — only wildcards are restricted.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testPrefixWildcardDoesNotResolveDatasetWhenFlagOff() {
+        // A prefix wildcard is still a wildcard: it does not reach a dataset with the flag off (datasets need an exact
+        // name), so the relation is untouched and resolves to indices only.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation relation = relationOf("logs_d*");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testExplicitDatasetAndIndexMixAllowedWhenFlagOff() {
+        // An explicit dataset named alongside an index still produces the heterogeneous UnionAll with the flag off —
+        // only accidental wildcard mixing is prevented, not deliberate explicit mixing.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_ds", dataset), Set.of("some_idx"));
+
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,some_idx"), project);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testWildcardDoesNotPullDatasetAlongsideExactDatasetWhenFlagOff() {
+        // FROM logs_a, logs_* with BOTH logs_a and logs_b registered as datasets: the exact name resolves logs_a and
+        // dispatches, but the wildcard must not pull in logs_b. This is the discriminating case for resolve()'s
+        // exact-name filter — without it, resolve would return {logs_a, logs_b} and a wildcard would read a dataset.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        DatasetRewriter.DatasetResolution resolution = resolve("logs_a,logs_*", project, Set.of("logs_a", "logs_b"), false);
+        assertThat(resolution.resolvedExternalDatasets(), containsInAnyOrder("logs_a"));
+
+        // Rewrite-level twin: only logs_a becomes an external relation; logs_b is not pulled in by the wildcard.
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_a,logs_*"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+    }
+
+    public void testWildcardIndexAndExactDatasetUnionWhenFlagOff() {
+        // FROM foo*, bar — a wildcard over indices plus an explicitly-named dataset — still unions: the wildcard
+        // resolves to indices (datasets excluded), the exact name resolves the dataset.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset bar = new Dataset("bar", new DataSourceReference("s3_parent"), "s3://bar/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("bar", bar), Set.of("foo_1", "foo_2"));
+
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("foo*,bar"), project);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        // Dataset branch first (buildDatasetBranch loop), then the index branch for the wildcard.
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testAnyPatternCouldMatchDatasetRespectsFlag() {
+        // The cheap pre-check that gates dispatch: a wildcard could match a dataset only when wildcard-dataset matching
+        // is on; an exact name always could; an exclusion never does; no registered datasets short-circuits.
+        Set<String> datasets = Set.of("logs_ds");
+        assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_*"), datasets, true));
+        assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_*"), datasets, false));
+        assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_ds"), datasets, true));
+        assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_ds"), datasets, false));
+        assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("-logs_ds"), datasets, false));
+        assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_ds"), Set.of(), false));
+        // Date math: flag-on dispatches conservatively on the '<' prefix; flag-off resolves it and skips a non-match.
+        assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("<metrics-{now/d}>"), datasets, true));
+        assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("<metrics-{now/d}>"), datasets, false));
+    }
+
+    public void testBareWildcardExcludesDatasetWhenFlagOff() {
+        // FROM * with the flag off resolves to indices only — the registered dataset is not swept in.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_ds", dataset), Set.of("some_idx"));
+
+        UnresolvedRelation relation = relationOf("*");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testMultipleExactDatasetsResolveWhenFlagOff() {
+        // Several datasets named exactly still union with the flag off — only wildcards are restricted.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("ds1,ds2"), project);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExclusionOfExactDatasetResolvesToNoDatasetWhenFlagOff() {
+        // An exact dataset excluded by a trailing -pattern resolves to nothing — the exclusion removes it during
+        // abstraction expansion, so no dataset survives (flag-independent, but pinned here for the flag-off path).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        UnresolvedRelation relation = relationOf("logs_ds,-logs_ds");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testExplicitUnauthorizedDatasetSurfacedWhenFlagOff() {
+        // An explicitly-named unauthorized dataset is still flagged (→ Unknown index) with the flag off — the exact
+        // name reaches resolution and explicitUnauthorized is computed before the wildcard filter.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://s/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("secret_ds", dataset));
+
+        DatasetRewriter.DatasetResolution resolution = resolve("secret_ds", project, Set.of(), false);
+        assertThat(resolution.explicitUnauthorized(), containsInAnyOrder("secret_ds"));
+        assertThat(resolution.resolvedExternalDatasets(), hasSize(0));
+    }
+
+    public void testDatasetWildcardFlagFlipsBehaviourForSameQuery() {
+        // The same FROM logs_* over a dataset: with the flag ON it reads the dataset, with it OFF it does not (the
+        // relation is untouched). Proves the flag actually controls wildcard-to-dataset resolution.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
+
+        // Flag on: the wildcard resolves the dataset.
+        assertThat(rewrite(relationOf("logs_*"), project), instanceOf(UnresolvedExternalRelation.class));
+        // Flag off: the wildcard is left untouched (indices only).
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewriteWildcardsDisabled(relation, project));
+    }
+
+    public void testAliasAlongsideExactDatasetUnionsWhenFlagOff() {
+        // An alias is index-like: FROM logs_ds, my_alias unions the exact dataset with the alias, flag off.
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,my_alias"), projectWithDatasetAliasAndDataStream());
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testDataStreamAlongsideExactDatasetUnionsWhenFlagOff() {
+        // A data stream is index-like too: FROM logs_ds, my_ds unions the exact dataset with the data stream, flag off.
+        LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,my_ds"), projectWithDatasetAliasAndDataStream());
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(((UnionAll) rewritten).children().get(0), instanceOf(UnresolvedExternalRelation.class));
     }
 
     public void testWildcardMatchingNoDatasetsLeavesPlanUnchanged() {
@@ -855,9 +1048,17 @@ public class DatasetRewriterTests extends ESTestCase {
 
     // --
 
-    /** Rewrite with every registered dataset authorized — the unsecured-cluster behavior. */
+    /**
+     * Rewrite with every registered dataset authorized — the unsecured-cluster behavior. Wildcard-dataset matching is
+     * forced on so the wildcard cases are deterministic regardless of the build's ambient feature flag default.
+     */
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER);
+        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, true);
+    }
+
+    /** As {@link #rewrite}, but with wildcard-dataset matching off (release-build behavior: datasets by exact name). */
+    private static LogicalPlan rewriteWildcardsDisabled(LogicalPlan parsed, ProjectMetadata project) {
+        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, false);
     }
 
     /**
@@ -878,8 +1079,17 @@ public class DatasetRewriterTests extends ESTestCase {
 
     /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */
     private static DatasetRewriter.DatasetResolution resolve(String rawPattern, ProjectMetadata project, Set<String> authorized) {
+        return resolve(rawPattern, project, authorized, true);
+    }
+
+    private static DatasetRewriter.DatasetResolution resolve(
+        String rawPattern,
+        ProjectMetadata project,
+        Set<String> authorized,
+        boolean wildcardDatasets
+    ) {
         String[] raw = Strings.splitStringByCommaToArray(rawPattern);
-        return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER);
+        return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER, wildcardDatasets);
     }
 
     private static UnresolvedRelation relationOf(String pattern) {
@@ -923,6 +1133,29 @@ public class DatasetRewriterTests extends ESTestCase {
         return builder.build();
     }
 
+    /** Project holding a dataset (logs_ds), an aliased index (my_alias), and a data stream (my_ds). */
+    private static ProjectMetadata projectWithDatasetAliasAndDataStream() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        Settings.Builder indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        IndexMetadata aliasedIndex = IndexMetadata.builder("aliased_index")
+            .settings(indexSettings)
+            .putAlias(AliasMetadata.builder("my_alias").build())
+            .build();
+        IndexMetadata backing = DataStreamTestHelper.createFirstBackingIndex("my_ds").build();
+        DataStream dataStream = DataStreamTestHelper.newInstance("my_ds", List.of(backing.getIndex()));
+        return ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("s3_parent", parent)))
+            .datasets(Map.of("logs_ds", dataset))
+            .put(aliasedIndex, false)
+            .put(backing, false)
+            .put(dataStream)
+            .build();
+    }
+
     private static String tablePathString(UnresolvedExternalRelation relation) {
         Object value = ((Literal) relation.tablePath()).value();
         return value instanceof BytesRef br ? BytesRefs.toString(br) : value.toString();
@@ -940,5 +1173,60 @@ public class DatasetRewriterTests extends ESTestCase {
             return ((Map<String, Object>) subMap).get(key);
         }
         return null;
+    }
+
+    /**
+     * The shared rule both the local and remote rails apply: the flag gates only wildcard discovery of datasets. Off
+     * drops a wildcard-discovered dataset ({@code logs_a}/{@code logs_b}) while keeping an explicitly-named one
+     * ({@code metrics}); on is a no-op.
+     */
+    public void testKeepOnlyExplicitlyNamedGatesOnlyWildcards() {
+        Set<String> explicit = Set.of("metrics");
+
+        Set<String> off = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
+        DatasetRewriter.keepOnlyExplicitlyNamed(off, explicit, false);
+        assertThat(off, containsInAnyOrder("metrics"));
+
+        Set<String> on = new LinkedHashSet<>(List.of("logs_a", "logs_b", "metrics"));
+        DatasetRewriter.keepOnlyExplicitlyNamed(on, explicit, true);
+        assertThat(on, containsInAnyOrder("logs_a", "logs_b", "metrics"));
+    }
+
+    /**
+     * The remote rail's explicit-name derivation must survive the security filter having already replaced the request's
+     * wildcards with concrete names: the wildcard-ness lives on {@link ResolvedIndexExpression#original()}, not on the
+     * (now concrete) indices, so only {@code metrics} — whose original was exact — counts as explicit. Without a
+     * resolution attached (unsecured), the raw indices are still the user's originals.
+     */
+    public void testExplicitlyNamedRecoversOriginalsUnderSecurity() {
+        // Unsecured: no resolution attached; the raw indices are the originals.
+        assertThat(DatasetRewriter.explicitlyNamed(new String[] { "logs*", "metrics" }, null), containsInAnyOrder("metrics"));
+
+        // Secured: request.indices() have been expanded to concrete names, but the originals survive on the resolution.
+        ResolvedIndexExpressions resolved = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs_a", "logs_b", "logs_ds"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    ),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "metrics",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("metrics"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    ),
+                    Set.of()
+                )
+            ),
+            null
+        );
+        assertThat(
+            DatasetRewriter.explicitlyNamed(new String[] { "logs_a", "logs_b", "logs_ds", "metrics" }, resolved),
+            containsInAnyOrder("metrics")
+        );
     }
 }

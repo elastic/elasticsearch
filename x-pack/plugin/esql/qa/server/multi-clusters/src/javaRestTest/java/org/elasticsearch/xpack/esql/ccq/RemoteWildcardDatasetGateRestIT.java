@@ -1,0 +1,156 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.ccq;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+
+/**
+ * The flag-off twin of {@code CrossClusterDatasetIT} (which runs with wildcards matching datasets and asserts every
+ * {@code FROM <remote>:<...>} dataset match is rejected). The flag governs only wildcard discovery of datasets, so with
+ * it off a remote <em>wildcard</em> resolves to remote indices instead of throwing, while an explicitly-named remote
+ * dataset is still detected and rejected as non-remotable — unchanged from flag-on. This is the test that would have
+ * caught the originally-ungated remote rail.
+ *
+ * <p>The flag is set off on the remote, which owns the dataset detection this rail exercises; federation stays enabled
+ * there so the dataset can be registered.
+ */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+public class RemoteWildcardDatasetGateRestIT extends ESRestTestCase {
+
+    private static final String WILDCARDS_FLAG_PROPERTY = "es.esql_dataset_wildcards_feature_flag_enabled";
+    private static final Path DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
+    // The wildcard gate reads the flag where dataset detection runs — the remote's doExecute — so the flag goes off on
+    // the remote. The local (coordinating) cluster keeps the default.
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(
+        DATA_PATH,
+        emptyMap(),
+        false,
+        null,
+        Map.of(WILDCARDS_FLAG_PROPERTY, "false")
+    );
+    static ElasticsearchCluster localCluster = Clusters.localCluster(DATA_PATH, remoteCluster, false, emptyMap(), false);
+
+    @ClassRule
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return localCluster.getHttpAddresses();
+    }
+
+    public void testFlagOffRemoteWildcardResolvesToIndexNotDataset() throws Exception {
+        assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
+        // The wildcard-dataset gate must exist on both clusters; a BWC leg where either side predates it (and so still
+        // rejects a remote wildcard dataset) correctly skips.
+        List<String> gateCapability = List.of(EsqlCapabilities.Cap.DATASET_WILDCARDS_GATE.capabilityName());
+        try (RestClient remoteClient = remoteClusterClient()) {
+            assumeTrue(
+                "wildcard-dataset gate required on both clusters",
+                clusterHasCapability("POST", "/_query", List.of(), gateCapability).orElse(false)
+                    && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), gateCapability).orElse(false)
+            );
+        }
+
+        final String dataSource = "gate_ds";
+        final String dataset = "gate_dataset";
+        final String remoteIndex = "gate_logs";
+
+        Path csv = DATA_PATH.resolve("wildcard_gate.csv");
+        Files.writeString(csv, "id\n1\n2\n");
+        String resource = csv.toUri().toString();
+
+        try (RestClient remoteClient = remoteClusterClient()) {
+            // A dataset and a plain index on the remote whose names both match the wildcard "gate*".
+            DatasetRegistry.putDataSource(remoteClient, dataSource, "local", Map.of());
+            DatasetRegistry.putDataset(remoteClient, dataset, dataSource, resource, Map.of());
+            Request indexDoc = new Request("PUT", "/" + remoteIndex + "/_doc/1?refresh=true");
+            indexDoc.setJsonEntity("{\"v\":1}");
+            remoteClient.performRequest(indexDoc);
+            // Guard against a false green: the dataset must really be in the remote's cluster state, else the wildcard
+            // never had a dataset to (wrongly) match and the assertions below would pass vacuously.
+            assertThat(datasetNames(remoteClient), hasItem(dataset));
+        }
+
+        // The wildcard matches the (now-invisible) dataset and the plain index. With the flag off the remote reports no
+        // datasets, so the wildcard resolves to gate_logs and the query SUCCEEDS instead of throwing. This is the core
+        // "FROM <wildcard> does not bring in datasets, and does not fail" guarantee, across the cluster boundary.
+        Response ok = runQuery("FROM " + REMOTE_CLUSTER_NAME + ":gate* | STATS c = COUNT(*)");
+        assertThat(ok.getStatusLine().getStatusCode(), equalTo(200));
+        // Exactly the one gate_logs doc — not the dataset's two CSV rows. Silent dataset inclusion would read 3, so this
+        // pins non-inclusion directly rather than only asserting the query did not error.
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(ok).get("values");
+        assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(1L));
+
+        // An explicitly-named remote dataset is unchanged by the flag: still detected and rejected as non-remotable,
+        // exactly as with the flag on. The flag disables only wildcard discovery of datasets.
+        ResponseException exactError = expectThrows(ResponseException.class, () -> runQuery("FROM " + REMOTE_CLUSTER_NAME + ":" + dataset));
+        String exactBody = EntityUtils.toString(exactError.getResponse().getEntity());
+        assertThat(exactBody, containsString("remote datasets are not supported"));
+        assertThat(exactBody, containsString(dataset));
+    }
+
+    private Response runQuery(String query) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+        // A successful ES|QL query can carry deprecation warning headers unrelated to this gate; tolerate them so the
+        // assertions test the dataset behavior, not warning strictness.
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> datasetNames(RestClient client) throws IOException {
+        Map<String, Object> body = entityAsMap(client.performRequest(new Request("GET", "/_query/dataset")));
+        return ((List<Map<String, Object>>) body.get("datasets")).stream().map(h -> (String) h.get("name")).toList();
+    }
+
+    private RestClient remoteClusterClient() throws IOException {
+        HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        return buildClient(restClientSettings(), remoteHosts);
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        // The dataset/data_source customs are ProjectCustom metadata the shared wipe does not remove; this class-scoped
+        // cluster is torn down at the end regardless, so skip the between-test wipe that cannot reach them.
+        return true;
+    }
+}

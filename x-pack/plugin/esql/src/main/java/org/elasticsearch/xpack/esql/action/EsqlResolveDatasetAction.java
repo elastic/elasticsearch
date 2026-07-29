@@ -93,7 +93,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             request.indices(),
             request.rawPatterns(),
             project.metadata(),
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            DatasetRewriter.wildcardsMatchDatasets()
         );
         listener.onResponse(
             new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())

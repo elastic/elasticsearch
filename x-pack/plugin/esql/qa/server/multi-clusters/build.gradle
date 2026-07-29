@@ -71,6 +71,23 @@ tasks.named("check").configure {
   dependsOn federationKillSwitchTest
 }
 
+// The wildcard-dataset remote gate is likewise a current-to-current CCS test (coordinator flag off; the remote keeps
+// its dataset). Same rationale as the runner above: the base javaRestTest task is disabled by the bwc-test plugin, so
+// this current-only class needs its own runner wired into `check`.
+def wildcardDatasetGateTest = tasks.register("v${currentVersion}#wildcardDatasetGateTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.RemoteWildcardDatasetGateRestIT"
+  }
+}
+tasks.named("check").configure {
+  dependsOn wildcardDatasetGateTest
+}
+
 def supportedVersion = bwcVersion -> {
   // CCS in ES|QL available in 8.13
   return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion

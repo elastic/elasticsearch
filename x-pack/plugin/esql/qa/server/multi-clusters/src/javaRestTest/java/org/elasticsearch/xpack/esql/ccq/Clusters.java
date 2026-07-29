@@ -41,6 +41,21 @@ public class Clusters {
         boolean shared,
         Supplier<String> registerFederationFeature
     ) {
+        return remoteCluster(csvDataPath, additionalSettings, shared, registerFederationFeature, emptyMap());
+    }
+
+    /**
+     * @param systemProperties node JVM system properties (e.g. a feature-flag override such as
+     *        {@code es.esql_dataset_wildcards_feature_flag_enabled=false}) set on the remote nodes, which own the
+     *        dataset detection the wildcard gate exercises.
+     */
+    static ElasticsearchCluster remoteCluster(
+        Path csvDataPath,
+        Map<String, String> additionalSettings,
+        boolean shared,
+        Supplier<String> registerFederationFeature,
+        Map<String, String> systemProperties
+    ) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -68,6 +83,11 @@ public class Clusters {
         }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
+        }
+        if (systemProperties != null) {
+            for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
+                cluster.systemProperty(entry.getKey(), entry.getValue());
+            }
         }
         if (shared) {
             cluster.shared(true);

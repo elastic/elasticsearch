@@ -2832,6 +2832,14 @@ public class EsqlCapabilities {
         REGISTER_FEDERATION_FEATURE,
 
         /**
+         * Signals that this node gates wildcard discovery of datasets behind the {@code esql_dataset_wildcards} flag: with
+         * the flag off, a wildcard no longer resolves to a dataset (local or on the remote field-caps rail), so
+         * {@code FROM <remote>:<wildcard>} resolves to remote indices instead of throwing. Old nodes predate the gate and
+         * do not report this capability, so a mixed cluster with such a node correctly returns {@code supported=false}.
+         */
+        DATASET_WILDCARDS_GATE,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -503,22 +504,29 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             for (IndexService indexService : dataNodeIndicesService) {
                 indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
             }
-            // Wait for the WRITE thread pool to quiesce. setInterval(ZERO) prevents future periodic-task triggers, but
-            // a periodic task already executing before setInterval was called may have dispatched a GlobalCheckpointSyncAction
-            // via client.executeLocally(). That dispatch registers a task in the TaskManager *before* submitting work to
-            // the WRITE pool, so the combined check ensures any in-flight sync is fully drained: active=0 and queue=0
-            // confirm the WRITE pool is idle, and no TaskManager entry for the action confirms no dispatch is between
-            // client.executeLocally() and WRITE pool submission.
+            // A periodic sync already executing before setInterval(ZERO) may have dispatched a
+            // GlobalCheckpointSyncAction via client.executeLocally(). That call registers a task in
+            // the TaskManager *before* routing the request through the GENERIC pool toward the WRITE
+            // pool. Waiting for GENERIC to be idle and for no matching TaskManager entry confirms that
+            // any such in-flight dispatch has either completed or advanced past GENERIC into WRITE.
+            final var genericExecutor = (EsThreadPoolExecutor) dataNodeThreadPool.executor(ThreadPool.Names.GENERIC);
             final var dataNodeTaskManager = internalCluster().getInstance(TransportService.class, dataNodeName).getTaskManager();
             assertBusy(() -> {
-                assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
-                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
-                final var inFlightSyncTasks = dataNodeTaskManager.getTasks()
+                assertThat(genericExecutor.getActiveCount(), equalTo(0));
+                assertThat(genericExecutor.getQueue().size(), equalTo(0));
+                final var inFlightSyncCheckpointSyncTasks = dataNodeTaskManager.getTasks()
                     .values()
                     .stream()
                     .filter(t -> t.getAction().startsWith(GlobalCheckpointSyncAction.ACTION_NAME))
                     .toList();
-                assertThat(inFlightSyncTasks, Matchers.empty());
+                assertThat(inFlightSyncCheckpointSyncTasks, Matchers.empty());
+            });
+            // Once GENERIC is idle and no TaskManager entry exists, any in-flight sync has reached
+            // the WRITE pool. A WRITE thread may still be finishing its run() after unregistering
+            // from the TaskManager, so wait for WRITE to fully quiesce.
+            assertBusy(() -> {
+                assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
+                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
             });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);

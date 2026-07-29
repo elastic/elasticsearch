@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.CacheRegion;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,11 +22,16 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -39,9 +46,12 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
+
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
 
     // Overall setting to disable/enable the cache boost preference feature.
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
@@ -92,6 +102,33 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             Setting.Property.NodeScope
         );
 
+    /**
+     * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
+     * scan before the cache enters a node-wide eviction degradation period. When {@code rejectedCount / numRegions} exceeds
+     * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING}.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
+     */
+    public static final Setting<RatioValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = new Setting<>(
+        "stateless.cache_boost_preference.eviction_policy_degradation.threshold",
+        "95%",
+        RatioValue::parseRatioValue,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Duration of the eviction degradation period. While active, the eviction policy is bypassed. A zero value disables degradation.
+     * Set to a non-zero duration together with a threshold below {@code 100%} to fully enable degradation mode.
+     * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
+     * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
+     */
+    public static final Setting<TimeValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING = Setting.timeSetting(
+        "stateless.cache_boost_preference.eviction_policy_degradation.duration",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /// Setting gating eviction of cache regions that belong to obsolete segments on search directories (see
     /// [org.elasticsearch.xpack.stateless.lucene.SearchDirectory#retainFiles]). This maintenance work was previously gated
     /// behind [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING]; it is now controlled independently so it can be rolled out
@@ -114,6 +151,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
+
+    private final int evictionDegradationThreshold;
+    private final long evictionDegradationDurationMillis;
+    private volatile long evictionDegradationStartMillis = -1L;
 
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
@@ -154,6 +195,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+        this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
+            .getAsRatio());
+        this.evictionDegradationDurationMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.get(settings).millis();
+        assert evictionDegradationThreshold >= 0 && evictionDegradationThreshold <= numRegions
+            : evictionDegradationThreshold + " not in [0," + numRegions + "]";
+        assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
@@ -276,6 +323,54 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     @Override
     public long getRegionEnd(int region) {
         return super.getRegionEnd(region);
+    }
+
+    @Override
+    protected Predicate<CacheRegion<FileCacheKey>> createEvictionPredicate(
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        CacheRegion<FileCacheKey> incoming
+    ) {
+        if (evictionDegradationThreshold == numRegions || evictionDegradationDurationMillis == 0) {
+            // Degradation is disabled, just use the eviction policy's predicate directly.
+            return super.createEvictionPredicate(evictionPolicy, incoming);
+        }
+
+        final long startMillis = evictionDegradationStartMillis;
+        if (startMillis >= 0 && threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationDurationMillis) {
+            // In the degradation period, bypass the eviction policy. This checked once before creating the predicate, which
+            // means it does not detect degradation triggered by another thread. This thread can still on its own trigger
+            // degradation.
+            return Predicates.always();
+        }
+
+        final Predicate<CacheRegion<FileCacheKey>> policyPredicate = evictionPolicy.createPredicate(incoming);
+        return new Predicate<>() {
+            // NOTE that the counter assumes **single** thread usage.
+            int rejectedCount = 0;
+
+            @Override
+            public boolean test(CacheRegion<FileCacheKey> region) {
+                if (rejectedCount > evictionDegradationThreshold) {
+                    return true;
+                }
+                if (policyPredicate.test(region)) {
+                    return true;
+                }
+                if (++rejectedCount > evictionDegradationThreshold) {
+                    assert rejectedCount == evictionDegradationThreshold + 1 : rejectedCount + " !=" + (evictionDegradationThreshold + 1);
+                    // There could be races in setting the start time. It is ok since it does not have to be super accurate.
+                    evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
+                    logger.warn(
+                        "Eviction policy degraded: policy rejected over [{}/{}] regions; bypassing policy for {}",
+                        evictionDegradationThreshold,
+                        numRegions,
+                        TimeValue.timeValueMillis(evictionDegradationDurationMillis)
+                    );
+                    return true;
+                }
+                return false;
+            }
+        };
     }
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {

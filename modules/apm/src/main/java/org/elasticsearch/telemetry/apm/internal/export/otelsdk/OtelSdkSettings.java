@@ -111,6 +111,14 @@ public final class OtelSdkSettings {
 
     // --- Metrics
 
+    /** When {@code true}, also emit the OTel semantic-convention JVM metric names alongside the legacy APM-agent names,
+     * to support migrating dashboards to the semconv names (ES-14386). */
+    public static final Setting<Boolean> NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING = Setting.boolSetting(
+        "node.metrics.otel_semconv.enabled",
+        false,
+        NodeScope
+    );
+
     /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
     public static final Setting<ByteSizeValue> TELEMETRY_METRICS_BUFFER_DISK_SIZE = Setting.byteSizeSetting(
         "telemetry.metrics.buffer.disk_size",
@@ -216,6 +224,30 @@ public final class OtelSdkSettings {
                 if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
                         TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    public static final Setting<Boolean> TELEMETRY_LOGS_QUERYLOG_ENABLED = Setting.boolSetting(
+        "telemetry.logs.querylog.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.querylog.enabled=true"
                     );
                 }
             }

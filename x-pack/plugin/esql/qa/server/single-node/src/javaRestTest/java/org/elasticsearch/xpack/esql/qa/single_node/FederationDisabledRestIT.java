@@ -9,83 +9,57 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end REST coverage for a node that boots with federation suppressed
- * ({@code -Des.esql.register_federation_feature=false}), the always-off deployment shape. Proves the six
- * data-source/dataset routes are unregistered: PUT, GET, and DELETE all return the framework's standard
- * {@code no handler found for uri} ({@code 400}), exactly as if the feature never existed. The switch is read
- * once at node startup, so this needs a dedicated cluster with the system property set on the node JVM (see the
- * {@code @ClassRule}).
- *
- * <p>Behavior against <em>pre-existing</em> federation state (executing {@code FROM <dataset>} against an existing
- * dataset) cannot be exercised here, because a boot-disabled node cannot create that state; it is covered by
- * {@link FederationKillSwitchRestartRestIT}, which creates state while enabled and then restarts the node with the
- * switch off. The complementary enabled-path CRUD coverage lives in {@link DataSourceCrudRestIT}.
+ * End-to-end REST coverage for a node whose operator unregistered federation
+ * ({@code -Des.esql.register_federation_feature=false}), the always-off deployment shape. The property is read once at
+ * node startup, so this needs a dedicated cluster with it set on the node JVM (see the {@code @ClassRule}), and that
+ * cluster carries no federation setting: an unregistered feature does not accept its own settings, which
+ * {@link FederationSettingRejectedWhenUnregisteredRestIT} covers.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class FederationDisabledRestIT extends ESRestTestCase {
+public class FederationDisabledRestIT extends AbstractFederationUnavailableRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.systemProperty(Federation.REGISTER_PROPERTY, "false"));
+    public static ElasticsearchCluster cluster = Clusters.clusterWithFederationUnregistered(
+        spec -> spec.systemProperty(Federation.REGISTER_PROPERTY, "false")
+    );
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    public void testPutDataSourceRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("PUT", "/_query/data_source/blocked_ds", "{\"type\":\"s3\",\"settings\":{\"auth\":\"anonymous\"}}");
-    }
-
-    public void testGetDataSourceRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("GET", "/_query/data_source", null);
-    }
-
-    public void testDeleteDataSourceRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("DELETE", "/_query/data_source/blocked_ds", null);
-    }
-
-    public void testPutDatasetRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("PUT", "/_query/dataset/blocked_dataset", "{\"data_source\":\"some_parent\",\"resource\":\"s3://b/*\"}");
-    }
-
-    public void testGetDatasetRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("GET", "/_query/dataset", null);
-    }
-
-    public void testDeleteDatasetRouteIsUnregistered() throws IOException {
-        assertRouteUnregistered("DELETE", "/_query/dataset/blocked_dataset", null);
-    }
-
     /**
-     * Asserts the given route behaves like an endpoint that was never registered: HTTP 400 with a
-     * {@code no handler found for uri} body. The body must not name the kill-switch property, so the feature
-     * reads as absent rather than merely disabled.
+     * The unregistered feature owns no settings, so the cluster settings API rejects them the same way it rejects a
+     * misspelled key. This is the counterpart of the accepted update in {@link FederationNotEnabledRestIT}: merely leaving
+     * the feature disabled keeps its settings configurable, unregistering it takes them away.
      */
-    private void assertRouteUnregistered(String method, String path, String jsonBody) throws IOException {
-        Request req = new Request(method, path);
-        if (jsonBody != null) {
-            req.setJsonEntity(jsonBody);
-        }
-        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(req));
-        String body = EntityUtils.toString(ex.getResponse().getEntity());
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(body, containsString("no handler found for uri"));
-        assertThat(body, not(containsString(Federation.REGISTER_PROPERTY)));
+    public void testFederationSettingsAreRejectedOverRest() throws IOException {
+        assertRejected(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.getKey(), "true");
+        assertRejected(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey(), "7");
+    }
+
+    private static void assertRejected(String key, String value) throws IOException {
+        Request update = new Request("PUT", "/_cluster/settings");
+        update.setJsonEntity(Strings.format("""
+            {"persistent": {"%s": %s}}""", key, value));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(update));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("persistent setting [" + key + "], not recognized"));
     }
 }

@@ -29,12 +29,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDeciderTests.CACHE_SIZE_IN_BYTES;
-import static org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDeciderTests.bytesForPercent;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
+
+    private static final long CACHE_SIZE_IN_BYTES = 1000L;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -47,6 +47,10 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         return super.nodeSettings().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true)
             .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), "75%")
             .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), "95%");
+    }
+
+    private static long bytesForPercent(int percent) {
+        return CACHE_SIZE_IN_BYTES * percent / 100;
     }
 
     public void testCanAllocateDeprioritizesOversubscribedNode() throws Exception {
@@ -111,29 +115,26 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
     public void testCanRemainDeprioritizesOversubscribedNode() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
-        final var searchNodeA = startSearchNode();
-        final var searchNodeB = startSearchNode();
-        ensureStableCluster(4);
+        // Start with only one search node, so the shard's initial host is unambiguous and there is no alternative node an incidental
+        // reroute (triggered for any of the many reasons unrelated to this decider) could relocate it to before the oversubscription
+        // is faked and asserted below.
+        final var hostedSearchNode = startSearchNode();
+        ensureStableCluster(3);
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
 
-        final String searchNodeAId = getNodeId(searchNodeA);
-        final String searchNodeBId = getNodeId(searchNodeB);
-        final String hostedNodeId = findSearchShard(indexName).routingEntry().currentNodeId();
-        final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
+        final String hostedNodeId = getNodeId(hostedSearchNode);
+        assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(hostedNodeId));
 
-        // The hosting node is over the 95% high watermark. The other search node has no commitment at all.
+        // The (only) search node is over the 95% high watermark.
         final long hostedBoostedCommitmentBytes = bytesForPercent(97);
-        final long otherBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
             Map.of(
                 hostedNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
-                otherNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes)
             )
         );
 
@@ -155,11 +156,26 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 )
         );
 
+        // Only now introduce a healthy alternative node. Nothing could have relocated the shard prematurely before this point, since
+        // no alternative existed.
+        final var healthySearchNode = startSearchNode();
+        ensureStableCluster(4);
+        final String healthyNodeId = getNodeId(healthySearchNode);
+        final long healthyBoostedCommitmentBytes = 0L;
+        fakeNodeCacheSizeAndCommitments(
+            Map.of(
+                hostedNodeId,
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
+                healthyNodeId,
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, healthyBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+            )
+        );
+
         // The reconciler only moves shards away from a node when canRemain returns NO/NOT_PREFERRED and a better target exists. Drive
         // reroute passes until it picks up the fake oversubscription and relocates the shard to the healthy node.
         assertBusy(() -> {
             ClusterRerouteUtils.reroute(client());
-            assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(otherNodeId));
+            assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(healthyNodeId));
         });
     }
 
@@ -229,7 +245,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
-    public void testCanUpdateAccountingModeMidTest() throws Exception {
+    public void testCanUpdateAccountingModeDynamically() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         final var divergentNode = startSearchNode();
@@ -374,15 +390,11 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         startIndexNode();
         final var soleSearchNode = startSearchNode();
         ensureStableCluster(3);
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-
         final String soleSearchNodeId = getNodeId(soleSearchNode);
-        assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));
 
-        // The sole search node is heavily oversubscribed, but there is no alternative search node to move the shard to.
+        // Fake the sole search node as heavily oversubscribed before the index (and its search-only replica) even exists. That way,
+        // the replica's initial allocation is also exercised against the oversubscription, demonstrating that canAllocate lets the
+        // shard be allocated there too (NOT_PREFERRED is only a soft deprioritization), since there is no alternative node.
         final long overWatermarkCommitmentBytes = bytesForPercent(97);
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
@@ -391,6 +403,11 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, overWatermarkCommitmentBytes, noUnboostedCommitmentBytes)
             )
         );
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));
 
         final var explainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
         explainRequest.setIndex(indexName).setShard(0).setPrimary(false).setCurrentNode(soleSearchNodeId);

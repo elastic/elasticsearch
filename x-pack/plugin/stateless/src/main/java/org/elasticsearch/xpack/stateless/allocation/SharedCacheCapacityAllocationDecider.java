@@ -292,7 +292,12 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         assert nodeCacheSizeAndCommitments != null;
         final NodeCacheSizeAndCommitments nodeCommitments = nodeCacheSizeAndCommitments.get(node.nodeId());
         if (nodeCommitments == null) {
-            return allocation.decision(Decision.YES, NAME, "no cache size and commitment data available for node [%s]", node.nodeId());
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "no cache size and commitment data available for node [%s]",
+                node.getShortNodeDescription()
+            );
         }
 
         // The shard being evaluated is already allocated to this node, so its cost is already reflected in nodeCommitments. If a different
@@ -310,7 +315,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
                     "node [%s] cache commitment [%d] bytes exceeds the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     currentCommitmentBytes,
                     thresholdBytes,
                     highWatermark.getAsPercent(),
@@ -329,7 +334,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             Decision.YES,
             NAME,
             "node [%s] cache commitment [%d] bytes is below the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
-            node.nodeId(),
+            node.getShortNodeDescription(),
             currentCommitmentBytes,
             thresholdBytes,
             highWatermark.getAsPercent(),

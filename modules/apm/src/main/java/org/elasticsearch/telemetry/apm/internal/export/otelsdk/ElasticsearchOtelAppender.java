@@ -29,6 +29,7 @@ import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.time.Instant;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.telemetry.OtelLogEventFilter;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -58,6 +60,7 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     private static final String TRACE_ID_KEY = "trace.id";
 
     private volatile OpenTelemetry openTelemetry;
+    private volatile List<OtelLogEventFilter> otelFilters = List.of();
 
     private static final int KEY_CACHE_MAX_SIZE = 100;
 
@@ -99,9 +102,26 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         this.openTelemetry = openTelemetry;
     }
 
+    /** Add a filter to the end of the filter chain for this appender. */
+    public synchronized void addFilter(OtelLogEventFilter filter) {
+        List<OtelLogEventFilter> next = new ArrayList<>(otelFilters);
+        next.add(filter);
+        otelFilters = List.copyOf(next);
+    }
+
+    private LogEvent applyFilters(LogEvent event) {
+        for (OtelLogEventFilter f : otelFilters) {
+            event = f.filter(event);
+            if (event == null) return null;
+        }
+        return event;
+    }
+
     @Override
     public void append(LogEvent event) {
-        emit(openTelemetry, event);
+        LogEvent filtered = applyFilters(event);
+        if (filtered == null) return;
+        emit(openTelemetry, filtered);
     }
 
     private void emit(OpenTelemetry ot, LogEvent event) {

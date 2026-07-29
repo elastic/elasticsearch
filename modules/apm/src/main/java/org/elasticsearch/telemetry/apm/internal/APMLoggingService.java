@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.OtelLogEventFilter;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -29,6 +30,10 @@ public class APMLoggingService implements Closeable {
     public APMLoggingService(Settings settings, Path configDir) {
         supplier = new OtelSdkExportLogsSupplier(settings, configDir);
         supplier.install();
+    }
+
+    public void addFilter(String appenderName, OtelLogEventFilter filter) {
+        supplier.addFilter(appenderName, filter);
     }
 
     public void initCertReload(ResourceWatcherService resourceWatcher) {

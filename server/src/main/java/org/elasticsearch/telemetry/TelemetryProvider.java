@@ -49,6 +49,13 @@ public interface TelemetryProvider {
 
     MeterRegistry getMeterRegistry();
 
+    /**
+     * Register a filter for a named OTel log appender. Filters are applied in registration order.
+     * Safe to call at any point after node construction; no-op on non-APM providers.
+     * See appender name constants in {@code OtelSdkExportLogsSupplier}.
+     */
+    default void addLoggingFilter(String appenderName, OtelLogEventFilter filter) {}
+
     HttpServerInstrumentation getHttpServerInstrumentation();
 
     /**

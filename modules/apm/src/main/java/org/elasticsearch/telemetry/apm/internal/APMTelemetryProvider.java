@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.OtelLogEventFilter;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
@@ -71,6 +72,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
         CompletableResultCode logs = loggingService.forceFlush();
         CompletableResultCode.ofAll(List.of(metrics, traces, logs))
             .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void addLoggingFilter(String appenderName, OtelLogEventFilter filter) {
+        loggingService.addFilter(appenderName, filter);
     }
 
     public void initCertReload(ResourceWatcherService resourceWatcher) {

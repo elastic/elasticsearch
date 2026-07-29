@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.OtelLogEventFilter;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -36,7 +37,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManager;
@@ -68,18 +71,30 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     /** Logger name that {@code LoggingAuditTrail} (in :x-pack:plugin:security) uses. */
     private static final String AUDIT_LOGGER_NAME = "org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail";
 
-    private static final String OTEL_AUDIT_APPENDER_NAME = "audit_otel";
-    private static final String OTEL_QUERYLOG_APPENDER_NAME = "querylog_otel";
+    public static final String OTEL_AUDIT_APPENDER_NAME = "audit_otel";
+    public static final String OTEL_QUERYLOG_APPENDER_NAME = "querylog_otel";
 
     private final Settings settings;
     private final Path configDir;
     private volatile SdkLoggerProvider loggerProvider;
-    private final List<ElasticsearchOtelAppender> attachedAppenders = new ArrayList<>();
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
+    private final Map<String, ElasticsearchOtelAppender> appendersByName = new HashMap<>();
 
     public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
         this.settings = settings;
         this.configDir = configDir;
+    }
+
+    /**
+     * Register a filter on a named appender. If the appender is not installed (OTel disabled),
+     * this is a no-op.
+     * The filter is added at the end of the filter chain.
+     */
+    public synchronized void addFilter(String appenderName, OtelLogEventFilter filter) {
+        ElasticsearchOtelAppender appender = appendersByName.get(appenderName);
+        if (appender != null) {
+            appender.addFilter(filter);
+        }
     }
 
     /**
@@ -119,7 +134,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         querylogAppender.start();
         config.addAppender(querylogAppender);
         querylogConfig.addAppender(querylogAppender, null, null);
-        attachedAppenders.add(querylogAppender);
+        appendersByName.put(OTEL_QUERYLOG_APPENDER_NAME, querylogAppender);
         closeCallbacks.add(c -> closeQuerylogAppender(c, querylogAppender));
     }
 
@@ -153,7 +168,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
-        attachedAppenders.add(appender);
+        appendersByName.put(OTEL_AUDIT_APPENDER_NAME, appender);
         closeCallbacks.add(c -> closeAuditAppender(c, appender));
     }
 
@@ -273,7 +288,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         logger.info("TLS cert files changed; reloading OTel logs export with new certificates");
         SdkLoggerProvider newProvider = buildProvider();
         var sdk = OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build();
-        attachedAppenders.forEach(appender -> appender.setOpenTelemetry(sdk));
+        appendersByName.values().forEach(appender -> appender.setOpenTelemetry(sdk));
         SdkLoggerProvider oldProvider = loggerProvider;
         loggerProvider = newProvider;
         oldProvider.close();
@@ -317,6 +332,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         Configuration config = ctx.getConfiguration();
         closeCallbacks.forEach(cb -> cb.accept(config));
         closeCallbacks.clear();
+        appendersByName.clear();
         ctx.updateLoggers();
     }
 }

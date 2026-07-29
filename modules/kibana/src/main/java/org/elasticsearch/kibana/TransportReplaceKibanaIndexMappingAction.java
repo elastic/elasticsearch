@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -74,6 +76,7 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
     private final Client client;
+    private final MasterServiceTaskQueue<ReplaceKibanaMappingTask> taskQueue;
 
     @Inject
     public TransportReplaceKibanaIndexMappingAction(
@@ -98,6 +101,19 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
         this.indicesService = indicesService;
         this.projectResolver = projectResolver;
         this.client = client;
+        this.taskQueue = clusterService.createTaskQueue("kibana-replace-mapping", Priority.NORMAL, batchExecutionContext -> {
+            ClusterState state = batchExecutionContext.initialState();
+            for (var ctx : batchExecutionContext.taskContexts()) {
+                final var task = ctx.getTask();
+                try {
+                    state = applyReplacement(state, task.request, task.fieldInfoNames);
+                    ctx.success(task);
+                } catch (Exception e) {
+                    ctx.onFailure(e);
+                }
+            }
+            return state;
+        });
     }
 
     @Override
@@ -124,17 +140,26 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
         Set<String> fieldInfoNames,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        submitUnbatchedTask("kibana-replace-mapping [" + request.index() + "]", new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return applyReplacement(currentState, request, fieldInfoNames);
-            }
-        });
+        taskQueue.submitTask(
+            "kibana-replace-mapping [" + request.index() + "]",
+            new ReplaceKibanaMappingTask(request, fieldInfoNames, listener),
+            request.masterNodeTimeout()
+        );
     }
 
-    @SuppressWarnings("deprecation") // submitUnbatchedStateUpdateTask is fine for this infrequent administrative operation
-    private void submitUnbatchedTask(String source, AckedClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    private static final class ReplaceKibanaMappingTask extends AckedBatchedClusterStateUpdateTask {
+        final ReplaceKibanaIndexMappingAction.Request request;
+        final Set<String> fieldInfoNames;
+
+        ReplaceKibanaMappingTask(
+            ReplaceKibanaIndexMappingAction.Request request,
+            Set<String> fieldInfoNames,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(request.ackTimeout(), listener);
+            this.request = request;
+            this.fieldInfoNames = fieldInfoNames;
+        }
     }
 
     private ClusterState applyReplacement(

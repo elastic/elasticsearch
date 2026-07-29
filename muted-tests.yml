@@ -261,62 +261,14 @@ tests:
   method: test {yaml=tsdb/27_id_generation_synthetic_id_true/create operation on top of old document fails}
   issue: https://github.com/elastic/elasticsearch/issues/155027
 - class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/155233
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:folding.integer_GreaterThan_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/155236
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:string.reverseMultiValue}
-  issue: https://github.com/elastic/elasticsearch/issues/155237
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/155240
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:ints.CombineBinaryComparisonsEmp}
-  issue: https://github.com/elastic/elasticsearch/issues/155259
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromLeftSideWhenNotKept}
-  issue: https://github.com/elastic/elasticsearch/issues/155278
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/155109
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155104
-- class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_first_last.Test retrieval of first long by timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/155108
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/155118
 - class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/155106
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/155286
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/155288
-- class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.weightedAvgWeightZero}
-  issue: https://github.com/elastic/elasticsearch/issues/155293
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:spatial_shapes.convertCartesianShapeFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/155133
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_earliest_latest.retrieve earliest long by timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/155134
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial_shapes.convertCartesianShapeFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/155301
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/180_update_dense_vector_type/Test create and update dense vector mapping to int4 with per-doc indexing and flush}
   issue: https://github.com/elastic/elasticsearch/issues/155334

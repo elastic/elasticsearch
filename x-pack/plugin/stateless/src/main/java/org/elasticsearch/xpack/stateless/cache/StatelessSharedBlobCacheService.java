@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
@@ -155,7 +156,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final long evictionDegradationPeriodMillis;
     private volatile long evictionDegradationStartMillis = -1L;
 
-    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -168,24 +168,30 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this(
             environment,
             settings,
+            clusterService.getClusterSettings(),
             threadPool,
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            System::nanoTime,
+            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
             metricsHolder
         );
     }
 
-    // for tests
+    /// The constructor the public one delegates to, and for tests that want to alter/inject behavior.
     protected StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
+        ClusterSettings clusterSettings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         EvictionPolicy<FileCacheKey> evictionPolicy,
+        LongSupplier relativeTimeInNanosSupplier,
+        Executor shardReadThreadPoolExecutor,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, evictionPolicy);
-        this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
+        this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
@@ -196,49 +202,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         assert evictionDegradationThreshold >= 0 && evictionDegradationThreshold <= numRegions
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
         assert evictionDegradationPeriodMillis >= 0 : evictionDegradationPeriodMillis + " < 0";
-    }
-
-    // for tests
-    public StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        LongSupplier relativeTimeInNanosSupplier,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
-        this(
-            environment,
-            settings,
-            threadPool,
-            blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            relativeTimeInNanosSupplier,
-            metricsHolder
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            enabled -> this.evictObsoleteRegionsEnabled = enabled
         );
-    }
-
-    // for tests
-    protected StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        EvictionPolicy<FileCacheKey> evictionPolicy,
-        LongSupplier relativeTimeInNanosSupplier,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.shardReadThreadPoolExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
-        this.metricsHolder = metricsHolder;
-        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
-        this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
-        this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
-            .getAsRatio());
-        this.evictionDegradationPeriodMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
     }
 
     /**
@@ -415,13 +382,5 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
     public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
-    }
-
-    /// Enable or disable asynchronous force-eviction of cache regions corresponding to obsolete segments that are not referenced anymore.
-    /// - Enabling will only kick in on the next commit notification, if there are obsolete segments, force-eviction will be queued async.
-    /// - Disabling will mean commit notifications won't kick off an async force-eviction, but an existing one for the commit might
-    /// already be queued/executing.
-    public void setEvictObsoleteRegionsEnabled(boolean evictObsoleteRegionsEnabled) {
-        this.evictObsoleteRegionsEnabled = evictObsoleteRegionsEnabled;
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.env.NodeEnvironment;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -103,14 +105,18 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 evicted.set(true);
             }
         };
+        final var clusterService = TestUtils.mockClusterService(settings);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new StatelessSharedBlobCacheService(
                 environment,
                 settings,
+                clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
                 new BlobCacheMetrics(new RecordingMeterRegistry()),
                 neverEvict,
+                () -> 0L,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
@@ -143,7 +149,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
         // policy that always rejects eviction and records how many times its predicate is called
         final AtomicInteger policyCallCount = new AtomicInteger(0);
-        final EvictionPolicy<FileCacheKey> countingNeverEvict = new EvictionPolicy<>() {
+        final EvictionPolicy<FileCacheKey> neverEvict = new EvictionPolicy<>() {
             @Override
             public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
                 return region -> {
@@ -158,14 +164,18 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             @Override
             public void onEvicted(CacheRegion<FileCacheKey> region) {}
         };
+        final var clusterService = TestUtils.mockClusterService(settings);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new StatelessSharedBlobCacheService(
                 environment,
                 settings,
+                clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
                 new BlobCacheMetrics(new RecordingMeterRegistry()),
-                countingNeverEvict,
+                neverEvict,
+                () -> 0L,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
@@ -230,14 +240,18 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             public void onEvicted(CacheRegion<FileCacheKey> region) {}
         };
 
+        final var clusterService = TestUtils.mockClusterService(settings);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new StatelessSharedBlobCacheService(
                 environment,
                 settings,
+                clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
                 new BlobCacheMetrics(new RecordingMeterRegistry()),
                 neverEvict,
+                () -> 0L,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {

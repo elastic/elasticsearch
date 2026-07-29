@@ -403,9 +403,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var cacheWriteTokens = event.usage().cacheWriteInputTokens();
 
         var promptTokens = inputTokens + Objects.requireNonNullElse(cacheReadTokens, 0) + Objects.requireNonNullElse(cacheWriteTokens, 0);
-        var promptTokensDetails = cacheReadTokens == null && cacheWriteTokens == null
-            ? null
-            : new PromptTokensDetails(cacheReadTokens, cacheWriteTokens);
+        var promptTokensDetails = PromptTokensDetails.ofNullable(cacheReadTokens, cacheWriteTokens);
 
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
             outputTokens,

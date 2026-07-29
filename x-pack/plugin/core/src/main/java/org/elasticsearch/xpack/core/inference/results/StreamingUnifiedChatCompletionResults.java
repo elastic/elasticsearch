@@ -477,6 +477,14 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     this(in.readOptionalVInt(), in.readOptionalVInt());
                 }
 
+                @Nullable
+                public static PromptTokensDetails ofNullable(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+                    if (cachedTokens == null && cacheWriteTokens == null) {
+                        return null;
+                    }
+                    return new PromptTokensDetails(cachedTokens, cacheWriteTokens);
+                }
+
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeOptionalVInt(cachedTokens);
@@ -513,8 +521,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 if (in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED)) {
                     return in.readOptionalWriteable(PromptTokensDetails::new);
                 } else if (in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
-                    Integer cachedTokens = in.readOptionalInt();
-                    return cachedTokens == null ? null : new PromptTokensDetails(cachedTokens, null);
+                    return PromptTokensDetails.ofNullable(in.readOptionalInt(), null);
                 }
 
                 return null;

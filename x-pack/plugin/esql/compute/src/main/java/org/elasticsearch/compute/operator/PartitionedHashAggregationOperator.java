@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -78,12 +77,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         });
     }
 
-    /**
-     * An aggregator plus the raw-input channel(s) it reads from. The channel list must not exceed
-     * the aggregator's intermediate state block count so the same list can serve both raw-input and
-     * intermediate-state reads during the evaluate-intermediate / {@code addIntermediateInput} path
-     * in {@link PartitionedHashMergeOperator}.
-     */
+    /** An aggregator plus the raw-input channel(s) it reads from on the data node. */
     public record AggregatorSpec(AggregatorFunctionSupplier supplier, List<Integer> rawChannels) {}
 
     public static class Builder {
@@ -136,13 +130,9 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
     }
 
     public static class Factory implements OperatorFactory {
-        private final List<Integer> groupChannels;
-        private final List<BlockHash.GroupSpec> internalGroupSpecs;
+        private final List<BlockHash.GroupSpec> groupSpecs;
         private final List<AggregatorSpec> aggregatorSpecs;
         private final List<GroupingAggregator.Factory> aggregatorFactories;
-        private final List<List<Integer>> aggregatorRawChannels;
-        private final int[] combinedChannelStart;
-        private final int internalPageWidth;
         private final int partitionCount;
         private final int emitKeysThreshold;
         private final int partitionThreshold;
@@ -150,40 +140,17 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         private final int aggregationBatchSize;
 
         private Factory(Builder builder) {
-            var mapping = AbstractPartitionedHashAggregationOperator.buildGroupChannelMapping(builder.groupSpecs);
-            this.groupChannels = mapping.groupChannels();
-            this.internalGroupSpecs = mapping.internalGroupSpecs();
+            this.groupSpecs = java.util.Objects.requireNonNull(builder.groupSpecs, "groupSpecs");
             this.aggregatorSpecs = java.util.Objects.requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
-            List<List<Integer>> rawChannelsList = new ArrayList<>(aggregatorSpecs.size());
-            int[] combinedStart = new int[aggregatorSpecs.size()];
-            int nextChannel = groupChannels.size();
-            for (int i = 0; i < aggregatorSpecs.size(); i++) {
-                AggregatorSpec spec = aggregatorSpecs.get(i);
+            for (AggregatorSpec spec : aggregatorSpecs) {
                 AggregatorFunctionSupplier supplier = spec.supplier();
-                int intermediateBlockCount = supplier.groupingIntermediateStateDesc().size();
-                if (spec.rawChannels().size() > intermediateBlockCount) {
-                    throw new IllegalArgumentException(
-                        "aggregator ["
-                            + supplier.describe()
-                            + "] needs "
-                            + spec.rawChannels().size()
-                            + " raw channel(s) but only has "
-                            + intermediateBlockCount
-                            + " intermediate state field(s); PartitionedHashAggregationOperator requires "
-                            + "intermediateBlockCount >= raw channel count so one channel list can serve both"
-                    );
-                }
-                combinedStart[i] = nextChannel;
-                List<Integer> combinedChannels = new ArrayList<>(intermediateBlockCount);
-                for (int c = 0; c < intermediateBlockCount; c++) {
-                    combinedChannels.add(nextChannel + c);
-                }
+                List<Integer> rawChannels = List.copyOf(spec.rawChannels());
                 factories.add(new GroupingAggregator.Factory() {
                     @Override
                     public GroupingAggregator apply(DriverContext driverContext) {
-                        return new GroupingAggregator(supplier.groupingAggregator(driverContext, combinedChannels), AggregatorMode.INITIAL);
+                        return new GroupingAggregator(supplier.groupingAggregator(driverContext, rawChannels), AggregatorMode.INITIAL);
                     }
 
                     @Override
@@ -191,13 +158,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
                         return supplier.describe();
                     }
                 });
-                rawChannelsList.add(spec.rawChannels());
-                nextChannel += intermediateBlockCount;
             }
             this.aggregatorFactories = List.copyOf(factories);
-            this.aggregatorRawChannels = List.copyOf(rawChannelsList);
-            this.combinedChannelStart = combinedStart;
-            this.internalPageWidth = nextChannel;
 
             this.partitionCount = builder.partitionCount;
             this.emitKeysThreshold = builder.emitKeysThreshold;
@@ -209,12 +171,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         @Override
         public PartitionedHashAggregationOperator get(DriverContext driverContext) {
             return new PartitionedHashAggregationOperator(
-                groupChannels,
-                internalGroupSpecs,
+                groupSpecs,
                 aggregatorFactories,
-                aggregatorRawChannels,
-                combinedChannelStart,
-                internalPageWidth,
                 partitionCount,
                 emitKeysThreshold,
                 partitionThreshold,
@@ -240,12 +198,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     // ---- Instance fields (beyond those inherited from HashAggregationOperator) ----
 
-    private final List<Integer> groupChannels;
-    private final List<BlockHash.GroupSpec> internalGroupSpecs;
-    /** Per-aggregator raw-input channel indices; used by {@link #toRawInternalLayout}. */
-    private final List<List<Integer>> aggregatorChannels;
-    private final int[] combinedChannelStart;
-    private final int internalPageWidth;
+    private final int keyCount;
     private final int partitionCount;
     private final int emitKeysThreshold;
     private final int partitionThreshold;
@@ -259,12 +212,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
-        List<Integer> groupChannels,
-        List<BlockHash.GroupSpec> internalGroupSpecs,
+        List<BlockHash.GroupSpec> groupSpecs,
         List<GroupingAggregator.Factory> aggregatorFactories,
-        List<List<Integer>> aggregatorRawChannels,
-        int[] combinedChannelStart,
-        int internalPageWidth,
         int partitionCount,
         int emitKeysThreshold,
         int partitionThreshold,
@@ -275,7 +224,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         super(
             AggregatorMode.INITIAL,
             aggregatorFactories,
-            () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
+            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
             Integer.MAX_VALUE, // shouldEmitPartialResultsPeriodically() always returns false; this value is never used
             1.0,
             maxPageSize,
@@ -288,17 +237,13 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (emitKeysThreshold <= 0) {
             throw new IllegalArgumentException("emitKeysThreshold must be greater than 0; got " + emitKeysThreshold);
         }
-        this.groupChannels = groupChannels;
-        this.internalGroupSpecs = internalGroupSpecs;
-        this.aggregatorChannels = aggregatorRawChannels;
-        this.combinedChannelStart = combinedChannelStart;
-        this.internalPageWidth = internalPageWidth;
+        this.keyCount = groupSpecs.size();
         this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
         this.partitionThreshold = partitionThreshold;
         boolean success = false;
         try {
-            this.probeHash = buildProbeHash(aggregationBatchSize);
+            this.probeHash = buildProbeHash(groupSpecs, aggregationBatchSize);
             success = true;
         } finally {
             if (success == false) {
@@ -307,12 +252,21 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         }
     }
 
-    private BlockHash buildProbeHash(int batchSize) {
+    /**
+     * Builds a routing-only hash over the key columns of HAO's evaluation output.
+     * HAO always places keys at channels 0..keyCount-1 in GroupSpec order, so the
+     * probe specs are simply index-keyed copies of the external specs' element types.
+     */
+    private BlockHash buildProbeHash(List<BlockHash.GroupSpec> groupSpecs, int batchSize) {
+        List<BlockHash.GroupSpec> probeSpecs = new ArrayList<>(groupSpecs.size());
+        for (int k = 0; k < groupSpecs.size(); k++) {
+            probeSpecs.add(new BlockHash.GroupSpec(k, groupSpecs.get(k).elementType()));
+        }
         int size = Math.min(batchSize, Operator.TARGET_PAGE_SIZE);
-        BlockHash hash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), size, false);
+        BlockHash hash = BlockHash.build(probeSpecs, driverContext.blockFactory(), size, false);
         if (hash.router() == null) {
             hash.close();
-            hash = BlockHash.buildPackedValuesBlockHash(internalGroupSpecs, driverContext.blockFactory(), size);
+            hash = BlockHash.buildPackedValuesBlockHash(probeSpecs, driverContext.blockFactory(), size);
         }
         return hash;
     }
@@ -328,29 +282,19 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     @Override
     public void addInput(Page page) {
-        List<Block> ownedPlaceholders = new ArrayList<>();
         try {
-            Page internal = toRawInternalLayout(page, ownedPlaceholders);
-            processPage(internal);
+            processPage(page);
             if (blockHash.numKeys() >= emitKeysThreshold) {
                 partitioned = true;
                 emit();
             }
         } finally {
-            Releasables.closeExpectNoException(ownedPlaceholders.toArray(Block[]::new));
             page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
         }
     }
 
-    /**
-     * Evaluates the accumulated table to intermediate pages, splits each by
-     * {@code hash(key) % partitionCount}, and tags each non-empty partition slice with its
-     * partition id. Called at the emit threshold (mid-stream) and at finish (final drain).
-     * The inherited {@link HashAggregationOperator#maybeReinitializeAfterPeriodicallyEmitted()}
-     * resets the hash table and aggregators at the start of the next {@link #processPage} call.
-     */
     /**
      * Evaluates the accumulated table to intermediate pages and either partitions them (tagging each
      * sub-page with its partition id) or emits them untagged for the small-query path.
@@ -414,45 +358,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
     }
 
     /**
-     * Builds an internal-layout page for raw {@link AggregatorMode#INITIAL} input, remapping
-     * external channels to internal positions and filling placeholder slots (those beyond an
-     * aggregator's raw channel count) with constant non-null blocks.
-     * <p>
-     *     This prevents INITIAL-mode aggregators from misreading the placeholder as "all-null
-     *     input": COUNT(*) is created with {@code combinedChannels} (so {@code countAll == false}),
-     *     and reads from its first combined channel during raw processing. If that channel held an
-     *     all-null group key (as produced by ENRICH with no matches), COUNT would return null from
-     *     {@code prepareProcessRawInputPage} and count 0 instead of the correct row count.
-     * </p>
-     * <p>
-     *     Caller must close every block appended to {@code owned} after the page has been
-     *     consumed — those blocks are not referenced by the original page and would otherwise leak.
-     * </p>
-     */
-    private Page toRawInternalLayout(Page page, List<Block> owned) {
-        Block[] blocks = new Block[internalPageWidth];
-        for (int k = 0; k < groupChannels.size(); k++) {
-            blocks[k] = page.getBlock(groupChannels.get(k));
-        }
-        for (int a = 0; a < aggregatorChannels.size(); a++) {
-            List<Integer> channels = aggregatorChannels.get(a);
-            int base = combinedChannelStart[a];
-            for (int j = 0; j < channels.size(); j++) {
-                blocks[base + j] = page.getBlock(channels.get(j));
-            }
-            int totalCount = (a + 1 < combinedChannelStart.length ? combinedChannelStart[a + 1] : internalPageWidth) - base;
-            for (int j = channels.size(); j < totalCount; j++) {
-                // Placeholder slot: fill with a non-null constant so INITIAL-mode aggregators
-                // that read this slot (e.g. COUNT(*)) count all rows rather than 0.
-                Block sentinel = driverContext.blockFactory().newConstantIntBlockWith(0, page.getPositionCount());
-                owned.add(sentinel);
-                blocks[base + j] = sentinel;
-            }
-        }
-        return new Page(blocks);
-    }
-
-    /**
      * Splits {@code intermediatePage} by partition hash and appends a tagged sub-page for each
      * non-empty partition to {@code out}. Ownership of the sub-pages is transferred to {@code out};
      * the caller retains (and is responsible for releasing) {@code intermediatePage}.
@@ -463,7 +368,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         int[] counts = new int[partitionCount];
         AbstractPartitionedHashAggregationOperator.fillPartitionAssignments(
             probeHash,
-            internalGroupSpecs.size(),
+            keyCount,
             intermediatePage,
             partitionCount,
             partitionOf,

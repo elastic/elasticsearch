@@ -9,24 +9,20 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
 /**
- * Shared base for {@link PartitionedHashAggregationOperator} and {@link PartitionedHashMergeOperator}.
+ * Shared base for {@link PartitionedHashMergeOperator}.
  *
- * <p>Holds the channel-mapping fields, routing hash, output iterator, and helper methods
- * both operators use for page layout remapping, operator evaluation, and state checks.
- * Both operators compose N+1 {@link HashAggregationOperator} instances internally and use
- * {@link #toInternalLayout} to normalize external channels to a compact internal layout.
+ * <p>Holds the routing hash, output iterator, and helper methods for operator evaluation,
+ * partition assignment, and state checks.
  */
 abstract class AbstractPartitionedHashAggregationOperator implements Operator {
 
@@ -40,28 +36,15 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
 
     // ---- Shared instance fields ----
 
-    /** External channel index for each grouping key. */
-    protected final List<Integer> groupChannels;
-    /** Remapped group specs with channels 0..keyCount-1 (the internal convention). */
-    protected final List<BlockHash.GroupSpec> internalGroupSpecs;
-    /**
-     * Per-aggregator list of external channel indices used by {@link #toInternalLayout}.
-     * {@link PartitionedHashAggregationOperator} passes raw-input channels;
-     * {@link PartitionedHashMergeOperator} passes intermediate-state channels.
-     */
-    protected final List<List<Integer>> aggregatorChannels;
-    /** Offset into the internal page where each aggregator's state blocks begin. */
-    protected final int[] combinedChannelStart;
-    /** Total number of blocks in an internal-layout page. */
-    protected final int internalPageWidth;
+    /** Number of grouping keys. */
+    protected final int keyCount;
     protected final int partitionCount;
     protected final int maxPageSize;
     protected final DriverContext driverContext;
 
     /**
      * Routing-only hash used to compute partition IDs via {@link BlockHash.Router#partitionHashOfRow};
-     * never used for aggregation. {@link PartitionedHashAggregationOperator} sets it lazily in
-     * {@code convertToPartitioned}; {@link PartitionedHashMergeOperator} sets it in the constructor.
+     * never used for aggregation.
      */
     protected BlockHash probeHash;
     /** Iterator of output pages; non-null while the operator has output to drain. */
@@ -69,21 +52,8 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
     /** Set to {@code true} once {@link #finish()} has been called. */
     protected boolean finishCalled;
 
-    protected AbstractPartitionedHashAggregationOperator(
-        List<Integer> groupChannels,
-        List<BlockHash.GroupSpec> internalGroupSpecs,
-        List<List<Integer>> aggregatorChannels,
-        int[] combinedChannelStart,
-        int internalPageWidth,
-        int partitionCount,
-        int maxPageSize,
-        DriverContext driverContext
-    ) {
-        this.groupChannels = groupChannels;
-        this.internalGroupSpecs = internalGroupSpecs;
-        this.aggregatorChannels = aggregatorChannels;
-        this.combinedChannelStart = combinedChannelStart;
-        this.internalPageWidth = internalPageWidth;
+    protected AbstractPartitionedHashAggregationOperator(int keyCount, int partitionCount, int maxPageSize, DriverContext driverContext) {
+        this.keyCount = keyCount;
         this.partitionCount = partitionCount;
         this.maxPageSize = maxPageSize;
         this.driverContext = driverContext;
@@ -92,33 +62,6 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
     @Override
     public boolean needsInput() {
         return output == null && finishCalled == false;
-    }
-
-    /**
-     * Rearranges {@code page} into the internal channel convention: grouping keys at channels
-     * 0..keyCount-1, each aggregator's blocks at {@link #combinedChannelStart}[i] onward.
-     * <p>
-     *     Builds a new {@link Page} that references the original blocks directly (no value
-     *     copies). Never {@link Page#close}/{@link Page#releaseBlocks} it — {@code page} itself
-     *     remains the sole owner. Slots beyond an aggregator's actual channel count (valid only
-     *     for intermediate consumption) are filled with the first key block so that
-     *     {@code Page}'s position-count assertion always holds.
-     * </p>
-     */
-    protected final Page toInternalLayout(Page page) {
-        Block[] blocks = new Block[internalPageWidth];
-        Arrays.fill(blocks, page.getBlock(groupChannels.get(0)));
-        for (int k = 0; k < groupChannels.size(); k++) {
-            blocks[k] = page.getBlock(groupChannels.get(k));
-        }
-        for (int a = 0; a < aggregatorChannels.size(); a++) {
-            List<Integer> channels = aggregatorChannels.get(a);
-            int base = combinedChannelStart[a];
-            for (int j = 0; j < channels.size(); j++) {
-                blocks[base + j] = page.getBlock(channels.get(j));
-            }
-        }
-        return new Page(blocks);
     }
 
     /**
@@ -206,30 +149,25 @@ abstract class AbstractPartitionedHashAggregationOperator implements Operator {
 
             @Override
             public void close() {
-                Releasables.close(delegate::close, op);
+                Releasables.close(delegate, op);
             }
         };
     }
 
     /**
-     * Validates {@code externalSpecs}, then derives the internal channel mapping:
-     * {@code groupChannels} (external channel per key) and {@code internalGroupSpecs}
-     * (remapped so key channels are 0..keyCount-1). Both factories use this as the first
-     * step of their constructors to eliminate the duplicated spec-derivation loop.
+     * Validates {@code externalSpecs} and derives internal group specs with channels remapped
+     * to 0..keyCount-1. Used by {@link PartitionedHashMergeOperator.Factory} to build the
+     * internal blockHash configuration for noneOp and workerOps.
      */
-    protected static GroupChannelMapping buildGroupChannelMapping(List<BlockHash.GroupSpec> externalSpecs) {
+    protected static List<BlockHash.GroupSpec> buildInternalGroupSpecs(List<BlockHash.GroupSpec> externalSpecs) {
         requireNonNull(externalSpecs, "groupSpecs");
         if (externalSpecs.isEmpty()) {
             throw new IllegalArgumentException("groupSpecs must not be empty");
         }
-        List<Integer> channels = new ArrayList<>(externalSpecs.size());
         List<BlockHash.GroupSpec> internalSpecs = new ArrayList<>(externalSpecs.size());
         for (int k = 0; k < externalSpecs.size(); k++) {
-            channels.add(externalSpecs.get(k).channel());
             internalSpecs.add(new BlockHash.GroupSpec(k, externalSpecs.get(k).elementType()));
         }
-        return new GroupChannelMapping(List.copyOf(channels), List.copyOf(internalSpecs));
+        return List.copyOf(internalSpecs);
     }
-
-    protected record GroupChannelMapping(List<Integer> groupChannels, List<BlockHash.GroupSpec> internalGroupSpecs) {}
 }

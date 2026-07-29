@@ -131,13 +131,10 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
     }
 
     public static class Factory implements OperatorFactory {
-        private final List<Integer> groupChannels;
         private final List<BlockHash.GroupSpec> internalGroupSpecs;
         private final List<AggregatorSpec> aggregatorSpecs;
         private final List<GroupingAggregator.Factory> noneAggFactories;
         private final List<GroupingAggregator.Factory> workerAggFactories;
-        private final int[] combinedChannelStart;
-        private final int internalPageWidth;
         private final int partitionCount;
         private final int workerCount;
         private final int maxPageSize;
@@ -145,15 +142,12 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         private final Executor executor;
 
         private Factory(Builder builder) {
-            var mapping = AbstractPartitionedHashAggregationOperator.buildGroupChannelMapping(builder.groupSpecs);
-            this.groupChannels = mapping.groupChannels();
-            this.internalGroupSpecs = mapping.internalGroupSpecs();
+            this.internalGroupSpecs = AbstractPartitionedHashAggregationOperator.buildInternalGroupSpecs(builder.groupSpecs);
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> noneFactories = new ArrayList<>(aggregatorSpecs.size());
             List<GroupingAggregator.Factory> workerFactories = new ArrayList<>(aggregatorSpecs.size());
-            int[] combinedStart = new int[aggregatorSpecs.size()];
-            int nextChannel = groupChannels.size();
+            int nextChannel = internalGroupSpecs.size();
             for (int i = 0; i < aggregatorSpecs.size(); i++) {
                 AggregatorSpec spec = aggregatorSpecs.get(i);
                 int intermediateBlockCount = spec.supplier().groupingIntermediateStateDesc().size();
@@ -161,7 +155,6 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
                 for (int c = 0; c < intermediateBlockCount; c++) {
                     internalChannels.add(nextChannel + c);
                 }
-                combinedStart[i] = nextChannel;
                 List<Integer> frozenChannels = List.copyOf(internalChannels);
                 noneFactories.add(new GroupingAggregator.Factory() {
                     @Override
@@ -195,8 +188,6 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             }
             this.noneAggFactories = List.copyOf(noneFactories);
             this.workerAggFactories = List.copyOf(workerFactories);
-            this.combinedChannelStart = combinedStart;
-            this.internalPageWidth = nextChannel;
             this.partitionCount = builder.partitionCount;
             this.workerCount = Math.min(builder.workerCount, builder.partitionCount);
             this.maxPageSize = builder.maxPageSize;
@@ -207,13 +198,9 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         @Override
         public PartitionedHashMergeOperator get(DriverContext driverContext) {
             return new PartitionedHashMergeOperator(
-                groupChannels,
                 internalGroupSpecs,
-                aggregatorSpecs,
                 noneAggFactories,
                 workerAggFactories,
-                combinedChannelStart,
-                internalPageWidth,
                 partitionCount,
                 workerCount,
                 maxPageSize,
@@ -278,13 +265,9 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
 
     @SuppressWarnings("this-escape")
     PartitionedHashMergeOperator(
-        List<Integer> groupChannels,
         List<BlockHash.GroupSpec> internalGroupSpecs,
-        List<AggregatorSpec> aggregatorSpecs,
         List<GroupingAggregator.Factory> noneAggFactories,
         List<GroupingAggregator.Factory> workerAggFactories,
-        int[] combinedChannelStart,
-        int internalPageWidth,
         int partitionCount,
         int workerCount,
         int maxPageSize,
@@ -292,16 +275,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         Executor executor,
         DriverContext driverContext
     ) {
-        super(
-            groupChannels,
-            internalGroupSpecs,
-            aggregatorSpecs.stream().map(AggregatorSpec::channels).toList(),
-            combinedChannelStart,
-            internalPageWidth,
-            partitionCount,
-            maxPageSize,
-            driverContext
-        );
+        super(internalGroupSpecs.size(), partitionCount, maxPageSize, driverContext);
         this.workerCount = workerCount;
         this.executor = executor;
 
@@ -379,9 +353,8 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
             workerBuffers[partitionId].addPage(page);
             // Ownership transferred to buffer — do NOT call page.releaseBlocks()
         } else {
-            Page internal = toInternalLayout(page);
             try {
-                noneOp.processPage(internal);
+                noneOp.processPage(page);
             } finally {
                 page.releaseBlocks();
             }
@@ -505,9 +478,8 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
                         HashAggregationOperator op = workerOps[p];
                         Page page;
                         while ((page = buffer.pollPage()) != null) {
-                            Page internal = toInternalLayout(page);
                             try {
-                                op.processPage(internal);
+                                op.processPage(page);
                             } finally {
                                 page.releaseBlocks();
                             }
@@ -595,9 +567,8 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
     private void drainBufferOnDriverThread(int p) {
         Page page;
         while ((page = workerBuffers[p].pollPage()) != null) {
-            Page internal = toInternalLayout(page);
             try {
-                workerOps[p].processPage(internal);
+                workerOps[p].processPage(page);
             } finally {
                 page.releaseBlocks();
             }
@@ -644,7 +615,7 @@ public class PartitionedHashMergeOperator extends AbstractPartitionedHashAggrega
         int positions = intermediatePage.getPositionCount();
         int[] partitionOf = new int[positions];
         int[] counts = new int[partitionCount];
-        fillPartitionAssignments(probeHash, groupChannels.size(), intermediatePage, partitionCount, partitionOf, counts);
+        fillPartitionAssignments(probeHash, keyCount, intermediatePage, partitionCount, partitionOf, counts);
         BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
         for (int p = 0; p < partitionCount; p++) {
             int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];

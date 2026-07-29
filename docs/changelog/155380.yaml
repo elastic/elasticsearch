@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 155380
+summary: Deny bare git commit in Cursor project CLI config
+type: enhancement

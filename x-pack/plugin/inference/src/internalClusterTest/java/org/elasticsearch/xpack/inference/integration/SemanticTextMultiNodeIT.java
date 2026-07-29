@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +28,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
@@ -32,43 +38,30 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/154748">GitHub issue #154748</a>:
- * the {@code diversify} retriever returns empty hits when the diversification field is a
- * {@code semantic_text} field and the coordinating node does not host all of the queried shards.
- *
- * <p>The bug is a serialization failure: when the inner sub-search fetches {@code _inference_fields},
- * the value fetcher returns raw {@code SemanticTextField} objects as {@link org.elasticsearch.common.document.DocumentField}
- * values. When those hits are transported from a data node back to the coordinator,
- * {@code StreamOutput.writeGenericValue} throws because {@code SemanticTextField} was not registered
- * as a generic-writable type. The shard failure is swallowed and the result is empty.
- *
- * <p>This test uses a coordinating-only node ({@code numClientNodes = 1}) as the search client, with
- * all index shards on the separate data nodes, so every matching hit must cross the transport boundary
- * — deterministically exercising the failing serialization path.
+ * Multi-node integration tests for {@code semantic_text} fields that exercise the transport boundary
+ * between data nodes and a coordinating-only node.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
-public class SemanticTextDiversifyRetrieverIT extends ESIntegTestCase {
+public class SemanticTextMultiNodeIT extends ESIntegTestCase {
 
     private static final String INFERENCE_ID = "dense-test-endpoint";
-    private static final String CONTENT_FIELD = "content";
-
-    // Dimension count must match the mock dense service settings.
-    private static final int DIMS = 4;
-
-    // A literal query vector (dims = 4) used as the MMR diversity vector.
-    private static final float[] QUERY_VECTOR = { 0.4f, 0.2f, 0.3f, 0.3f };
-
     private static final Map<String, Object> DENSE_SERVICE_SETTINGS = Map.of(
         "model",
         "my_model",
         "dimensions",
-        DIMS,
+        4,
         "similarity",
         "cosine",
         "api_key",
@@ -96,22 +89,17 @@ public class SemanticTextDiversifyRetrieverIT extends ESIntegTestCase {
     }
 
     /**
-     * Creates an index with a single {@code semantic_text} field backed by a mock dense embedding endpoint,
-     * spreads shards across data nodes, indexes several documents, then runs the {@code diversify}
-     * retriever issued through the coordinating-only node.
-     *
-     * <p>Pre-fix: the coordinating node fails to deserialize the {@code SemanticTextField} values
-     * transported from the data nodes → all shards fail → zero hits.
-     * Post-fix: all shards succeed and the retriever returns {@code size} hits.
+     * Test for <a href="https://github.com/elastic/elasticsearch/issues/154748">#154748</a>
      */
-    public void testDiversifyRetrieverOverSemanticTextFieldMultiNode() throws Exception {
+    public void testDiversifyRetrieverWithSemanticText() throws Exception {
         IntegrationTestUtils.createInferenceEndpoint(client(), TaskType.TEXT_EMBEDDING, INFERENCE_ID, DENSE_SERVICE_SETTINGS);
 
         indexName = randomIdentifier();
+        String fieldName = randomAlphaOfLength(5);
         int numDataNodes = internalCluster().numDataNodes();
         Settings indexSettings = Settings.builder().put("index.number_of_shards", numDataNodes).put("index.number_of_replicas", 0).build();
 
-        XContentBuilder mapping = IntegrationTestUtils.generateSemanticTextMapping(Map.of(CONTENT_FIELD, INFERENCE_ID));
+        XContentBuilder mapping = IntegrationTestUtils.generateSemanticTextMapping(Map.of(fieldName, INFERENCE_ID));
         assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mapping));
 
         // Index enough documents so the diversify retriever has something to actually trim.
@@ -127,24 +115,25 @@ public class SemanticTextDiversifyRetrieverIT extends ESIntegTestCase {
 
         BulkRequestBuilder bulk = client().prepareBulk(indexName);
         for (String doc : docs) {
-            bulk.add(client().prepareIndex(indexName).setSource(Map.of(CONTENT_FIELD, doc)));
+            bulk.add(client().prepareIndex(indexName).setSource(Map.of(fieldName, doc)));
         }
-        bulk.setRefreshPolicy("wait_for").get(TEST_REQUEST_TIMEOUT);
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.get(TEST_REQUEST_TIMEOUT);
         ensureGreen(indexName);
 
         int diversifySize = 3;
         int rankWindowSize = 10;
 
         RetrieverSource inner = RetrieverSource.from(
-            new StandardRetrieverBuilder(new SemanticQueryBuilder(CONTENT_FIELD, "wireless noise cancelling headphones"))
+            new StandardRetrieverBuilder(new SemanticQueryBuilder(fieldName, "wireless noise cancelling headphones"))
         );
         DiversifyRetrieverBuilder retriever = new DiversifyRetrieverBuilder(
             inner,
             ResultDiversificationType.MMR,
-            CONTENT_FIELD,
+            fieldName,
             rankWindowSize,
             diversifySize,
-            new VectorData(QUERY_VECTOR),
+            new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
             null,
             0.9f
         );
@@ -168,6 +157,71 @@ public class SemanticTextDiversifyRetrieverIT extends ESIntegTestCase {
                 response.getHits().getHits().length,
                 equalTo(diversifySize)
             );
+        });
+    }
+
+    public void testFetchInferenceFieldsViaFieldsApi() throws Exception {
+        IntegrationTestUtils.createInferenceEndpoint(client(), TaskType.TEXT_EMBEDDING, INFERENCE_ID, DENSE_SERVICE_SETTINGS);
+
+        indexName = randomIdentifier();
+        String fieldName = randomAlphaOfLength(5);
+        int numDataNodes = internalCluster().numDataNodes();
+        Settings indexSettings = Settings.builder().put("index.number_of_shards", numDataNodes).put("index.number_of_replicas", 0).build();
+
+        XContentBuilder mapping = IntegrationTestUtils.generateSemanticTextMapping(Map.of(fieldName, INFERENCE_ID));
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mapping));
+
+        BulkRequestBuilder bulk = client().prepareBulk(indexName);
+        bulk.add(client().prepareIndex(indexName).setSource(Map.of(fieldName, SemanticTextFieldTests.randomSemanticTextInput())));
+        bulk.add(client().prepareIndex(indexName).setSource(Map.of(fieldName, SemanticTextFieldTests.randomSemanticTextInput())));
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.get(TEST_REQUEST_TIMEOUT);
+        ensureGreen(indexName);
+
+        SearchRequest request = new SearchRequest(new String[] { indexName }).source(
+            new SearchSourceBuilder().query(matchAllQuery()).fetchField(InferenceMetadataFieldsMapper.NAME)
+        );
+
+        // Issue the search from the coordinating-only node: it holds no shards, so every hit
+        // must be serialized from a data node across the transport layer.
+        assertResponse(internalCluster().coordOnlyNodeClient().search(request), response -> {
+            assertThat("Expected no shard failures, but got: " + response.getFailedShards(), response.getFailedShards(), equalTo(0));
+            assertThat("All shards should have succeeded", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat("Expected 2 hits", response.getHits().getHits().length, equalTo(2));
+
+            for (var hit : response.getHits().getHits()) {
+                var inferenceField = hit.field(InferenceMetadataFieldsMapper.NAME);
+                assertThat("Each hit should have an _inference_fields DocumentField", inferenceField, notNullValue());
+
+                List<Object> values = inferenceField.getValues();
+                assertThat("_inference_fields should have exactly one value (a map)", values.size(), equalTo(1));
+                assertThat("_inference_fields value should be a Map", values.get(0), instanceOf(Map.class));
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inferenceMap = (Map<String, Object>) values.get(0);
+                assertThat("The _inference_fields map should contain an entry for [" + fieldName + "]", inferenceMap, hasKey(fieldName));
+
+                assertThat(inferenceMap.get(fieldName), instanceOf(SemanticTextField.class));
+                SemanticTextField semanticTextField = (SemanticTextField) inferenceMap.get(fieldName);
+                assertThat(semanticTextField.fieldName(), equalTo(fieldName));
+
+                SemanticTextField.InferenceResult inference = semanticTextField.inference();
+                assertThat(inference.inferenceId(), equalTo(INFERENCE_ID));
+
+                MinimalServiceSettings modelSettings = inference.modelSettings();
+                assertThat(modelSettings, notNullValue());
+                assertThat(modelSettings.taskType(), equalTo(TaskType.TEXT_EMBEDDING));
+                assertThat(modelSettings.dimensions(), equalTo(4));
+                assertThat(modelSettings.similarity(), equalTo(SimilarityMeasure.COSINE));
+
+                assertThat(inference.chunks(), hasKey(fieldName));
+                List<SemanticTextField.Chunk> chunks = inference.chunks().get(fieldName);
+                assertThat(chunks, not(empty()));
+                for (SemanticTextField.Chunk chunk : chunks) {
+                    assertThat("Each chunk should carry raw embeddings", chunk.rawEmbeddings(), notNullValue());
+                    assertThat(chunk.rawEmbeddings().length(), greaterThan(0));
+                }
+            }
         });
     }
 }

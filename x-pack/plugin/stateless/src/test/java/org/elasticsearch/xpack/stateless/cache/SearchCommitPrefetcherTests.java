@@ -271,15 +271,32 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = taskQueue.getThreadPool();
 
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING
+            )
+        );
+
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService cacheService = new StatelessSharedBlobCacheService(
                 environment,
                 settings,
+                clusterSettings,
                 threadPool,
                 BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<FileCacheKey>(),
                 System::nanoTime,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             ) {
                 @Override
@@ -300,20 +317,6 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 }
             }
         ) {
-            final ClusterSettings clusterSettings = new ClusterSettings(
-                Settings.EMPTY,
-                Sets.addToCopy(
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                    SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
-                    SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
-                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                    SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
-                )
-            );
-
             final CacheBlobReader cacheBlobReader = new CacheBlobReader() {
                 @Override
                 public ByteRange getRange(long position, int length, long remainingFileLength) {

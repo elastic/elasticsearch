@@ -58,55 +58,6 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         this.current = new LongIntVectorOnlyBlockHash(blockFactory);
     }
 
-    /**
-     * Returns a {@link Router} that computes partition hashes for (LONG, INT) key pairs
-     * without any hash-table insertion. Uses the same mixing function as
-     * {@code LongLongSwissHash.hash(key1, key2)} so that the partition assignment is stable
-     * and well-distributed.
-     *
-     * <p>Only {@link Router#partitionHashOfRow} is supported; callers that use this router for
-     * partition routing insert rows through the partition table's own {@link BlockHash#add}.
-     */
-    @Override
-    public Router router() {
-        return new Router() {
-            @Override
-            public int partitionHashOfRow(Page page, int position) {
-                long k1 = ((LongBlock) page.getBlock(longChannel)).getLong(position);
-                long k2 = ((IntBlock) page.getBlock(intChannel)).getInt(position);
-                return (int) LongLongSwissHash.hash(k1, k2);
-            }
-
-            @Override
-            public void fillPartitions(
-                Page page,
-                int count,
-                int keyCount,
-                int partitionCount,
-                int nullPartition,
-                int[] partitionOf,
-                int[] counts
-            ) {
-                // asVector() returns non-null only for dense, null-free blocks; when either key
-                // block has nulls or is multi-valued, fall back to the default which handles nulls.
-                LongVector longVec = ((LongBlock) page.getBlock(longChannel)).asVector();
-                IntVector intVec = ((IntBlock) page.getBlock(intChannel)).asVector();
-                if (longVec == null || intVec == null) {
-                    Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
-                    return;
-                }
-                for (int i = 0; i < count; i++) {
-                    long k1 = longVec.getLong(i);
-                    long k2 = intVec.getInt(i);
-                    int hash = (int) LongLongSwissHash.hash(k1, k2);
-                    int part = Math.floorMod(hash, partitionCount);
-                    partitionOf[i] = part;
-                    counts[part]++;
-                }
-            }
-        };
-    }
-
     @Override
     public IntUnaryOperator partitioner(int partitionCount) {
         return current.partitioner(partitionCount);

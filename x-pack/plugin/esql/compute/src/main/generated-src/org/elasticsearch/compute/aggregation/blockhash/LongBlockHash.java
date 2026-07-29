@@ -208,42 +208,6 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
-    public Router router() {
-        if (hash instanceof LongSwissHash swiss) {
-            return new Router() {
-                @Override
-                public int partitionHashOfRow(Page page, int position) {
-                    return LongSwissHash.hash(((LongBlock) page.getBlock(channel)).getLong(position));
-                }
-
-                @Override
-                public void fillPartitions(
-                    Page page,
-                    int count,
-                    int keyCount,
-                    int partitionCount,
-                    int nullPartition,
-                    int[] partitionOf,
-                    int[] counts
-                ) {
-                    LongBlock block = (LongBlock) page.getBlock(channel);
-                    LongVector vec = block.asVector();
-                    if (vec == null) {
-                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
-                        return;
-                    }
-                    for (int i = 0; i < count; i++) {
-                        int part = Math.floorMod(LongSwissHash.hash(vec.getLong(i)), partitionCount);
-                        partitionOf[i] = part;
-                        counts[part]++;
-                    }
-                }
-            };
-        }
-        return null;
-    }
-
-    @Override
     public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
         if (hash instanceof LongSwissHash swiss) {
             return groupId -> {

@@ -222,7 +222,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     public void testLongBytesRefPartitions() {
-        // LONG+BYTES_REF uses PackedValuesBlockHash with a VariableWidthBatchWork router.
+        // LONG+BYTES_REF uses PackedValuesBlockHash with VariableWidthBatchWork.
         Map<String, Long> oracle = new HashMap<>();
         List<Page> input = randomLongBytesRefInput(3_000, 50, oracle);
 

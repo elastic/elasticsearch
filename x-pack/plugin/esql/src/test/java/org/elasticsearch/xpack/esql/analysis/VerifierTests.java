@@ -1628,7 +1628,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDoubleRangeUnsupportedOperations() {
-        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V1.isEnabled());
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V2.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
@@ -2024,7 +2024,9 @@ public class VerifierTests extends ESTestCase {
                 containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
             );
         }
-
+        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled()) {
+            fullText().query("from test | highlight \"data\" on title | where " + functionInvocation);
+        }
     }
 
     public void testFullTextFunctionsAfterFork() {
@@ -4591,7 +4593,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
@@ -4600,7 +4602,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidOptionValues() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         assertInvalidHighlightOptionValue("analyzer", "123", containsString("Option [analyzer] must be a string"));
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
@@ -4639,7 +4641,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAcceptsValidQueries() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         defaultAnalyzer().query("FROM test | HIGHLIGHT \"\\\"quick fox\\\" OR (ca* AND jump~) OR /f[ao]x/\" ON first_name");
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") ON title");
         fullText().query("FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON title");
@@ -4649,6 +4651,7 @@ public class VerifierTests extends ESTestCase {
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
         fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
         fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT \"fox\" ON title");
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
         fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
@@ -4657,7 +4660,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAnalyzerOption() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             containsString("[not_a_real_analyzer] is not a registered analyzer")
@@ -4674,7 +4677,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidQueries() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"x\" ON salary",
             containsString("HIGHLIGHT ON field [salary] must be [text] or [keyword], found [integer]")

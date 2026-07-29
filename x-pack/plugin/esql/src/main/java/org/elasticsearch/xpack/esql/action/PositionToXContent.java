@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -218,6 +220,15 @@ public abstract class PositionToXContent {
                     return builder.value(dateRangeToString(from, to));
                 }
             };
+            case DOUBLE_RANGE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    var from = ((DoubleRangeBlock) block).getDoubleFromBlock().getDouble(valueIndex);
+                    var to = ((DoubleRangeBlock) block).getDoubleToBlock().getDouble(valueIndex);
+                    return builder.value(doubleRangeToString(from, to));
+                }
+            };
             case NULL -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -258,8 +269,8 @@ public abstract class PositionToXContent {
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
                 }
             };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG,
-                DOUBLE_RANGE -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
+                throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }
 }

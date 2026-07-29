@@ -7,80 +7,92 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator.DefaultValue;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.SequencedMap;
 
 /**
- * Wraps an {@link Aggregate} whose groupings include one or more {@link Bucket}s (or {@link TBucket}s) with the option
- * {@code {"include_empty_buckets": true}} in a coordinator-only {@link InsertEmptyBuckets} node. This new node generates
- * the empty buckets. This must run before {@link TranslateTimeSeriesAggregate}, which rips the aggregate and buckets
- * apart.
+ * Inserts a coordinator-only {@link InsertEmptyBuckets} above each {@link Aggregate} whose groupings include one or more
+ * {@link Bucket}s (or {@link TBucket}s) with {@code {"include_empty_buckets": true}}, and attaches default values for
+ * aggregate outputs (zero for {@link Count}/{@link CountDistinct}, null otherwise).
+ * <p>
+ * Runs in the Substitutions batch after {@link ReplaceAggregateAggExpressionWithEval} and surrogate aggregation rewrites,
+ * so defaults target the decomposed aggregate outputs (e.g. {@code AVG} → {@code SUM}/{@code COUNT}) and so
+ * {@link InsertEmptyBuckets} sits directly above the Aggregate — including under {@code UnpackDims} for time-series
+ * aggregations with dimensions, where groupings already use the packed attribute.
+ * <p>
+ * Bucket expressions are rediscovered from the Aggregate's groupings and from {@link Eval} nodes below it (where
+ * {@link ReplaceAggregateNestedExpressionWithEval} extracts evaluatable grouping functions). {@link TimeSeriesAggregate}
+ * first-pass nodes are skipped; empty buckets are filled against the second-pass {@link Aggregate}.
  */
-public class InsertEmptyBucketsAfterAggregate extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
+public final class InsertEmptyBucketsAfterAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
 
-    @Override
-    protected boolean skipResolved() {
-        // The aggregates are fully resolved by the time we want to wrap them.
-        return false;
+    public InsertEmptyBucketsAfterAggregate() {
+        super(OptimizerRules.TransformDirection.UP);
     }
 
-    /**
-     * This wraps the children of {@code plan}, so that the parent context is here.
-     * Children of {@link InlineStats} must not be wrapped.
-     */
     @Override
-    protected LogicalPlan rule(LogicalPlan plan) {
-        if (plan instanceof InlineStats || plan instanceof InsertEmptyBuckets) {
-            return plan;
-        }
-        List<LogicalPlan> newChildren = plan.children()
-            .stream()
-            .map(child -> child instanceof Aggregate aggregate ? maybeWrap(aggregate) : child)
-            .toList();
-        return newChildren.equals(plan.children()) ? plan : plan.replaceChildren(newChildren);
-    }
-
-    private static LogicalPlan maybeWrap(Aggregate aggregate) {
-        if (aggregate.resolved() == false) {
-            // This runs during analysis (before verification) with skipResolved()==false, so it also sees not-yet-resolved plans. Reading
-            // the options off a BUCKET/TBUCKET grouping via includeEmptyBuckets() throws on invalid options; skip unresolved aggregates so
-            // the Verifier can instead surface a clean VerificationException.
+    protected LogicalPlan rule(Aggregate aggregate) {
+        if (aggregate instanceof TimeSeriesAggregate) {
+            // First-pass TS agg; empty buckets are filled against the second-pass Aggregate above.
             return aggregate;
         }
-        SequencedMap<Attribute, Bucket> buckets = new LinkedHashMap<>();
-        List<Attribute> groups = new ArrayList<>();
-        for (var grouping : aggregate.groupings()) {
+
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        aggregate.forEachExpressionDown(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
+        AttributeMap<Expression> aliases = aliasesBuilder.build();
+
+        AttributeMap.Builder<Bucket> bucketsBuilder = AttributeMap.builder();
+        AttributeSet.Builder groupsBuilder = AttributeSet.builder();
+        for (Expression grouping : aggregate.groupings()) {
             Attribute attribute = Expressions.attribute(grouping);
-            Expression g = Alias.unwrap(grouping);
-            if (g instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
-                buckets.put(attribute, bucket);
-            } else if (g instanceof TBucket tbucket && tbucket.includeEmptyBuckets()) {
-                // TBUCKET is only rewritten to a BUCKET later, by SubstituteSurrogateExpressions; detect it here, while it is
-                // still inline in the grouping, and store its surrogate BUCKET (which carries the include_empty_buckets option).
-                buckets.put(attribute, (Bucket) tbucket.surrogate());
+            Expression expression = aliases.resolve(attribute, grouping);
+            if (expression instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                bucketsBuilder.put(attribute, bucket);
             } else {
-                groups.add(attribute);
+                groupsBuilder.add(attribute);
             }
         }
-        if (buckets.isEmpty()) {
-            return aggregate;
+        AttributeMap<Bucket> buckets = bucketsBuilder.build();
+        AttributeSet groups = groupsBuilder.build();
+        return buckets.isEmpty()
+            ? aggregate
+            : new InsertEmptyBuckets(aggregate.source(), aggregate, buckets, groups, defaultValues(aggregate, buckets, groups));
+    }
+
+    private static AttributeMap<DefaultValue> defaultValues(Aggregate aggregate, AttributeMap<Bucket> buckets, AttributeSet groups) {
+        AttributeMap.Builder<DefaultValue> defaultValues = AttributeMap.builder();
+        for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+            Attribute attribute = aggregateExpression.toAttribute();
+            if (buckets.containsKey(attribute) || groups.contains(attribute)) {
+                // Grouping field: the operator sources its value/type from the bucket cursor / representative row.
+                continue;
+            }
+            Expression aggFn = Alias.unwrap(aggregateExpression);
+            Object value = (aggFn instanceof Count) || (aggFn instanceof CountDistinct) ? 0L : null;
+            defaultValues.put(attribute, new DefaultValue(PlannerUtils.toElementType(attribute.dataType()), value));
         }
-        // Set default values to null here; PushdownInsertEmptyBucketsAndSetDefaultValues
-        // will determine them later, after ReplaceAggregateAggExpressionWithEval has run.
-        return new InsertEmptyBuckets(aggregate.source(), aggregate, buckets, groups, null);
+        return defaultValues.build();
     }
 }

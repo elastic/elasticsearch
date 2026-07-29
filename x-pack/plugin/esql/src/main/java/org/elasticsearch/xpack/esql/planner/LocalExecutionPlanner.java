@@ -2108,7 +2108,6 @@ public class LocalExecutionPlanner {
             .toList();
 
         // One entry per value channel (= every input channel that is neither a bucket nor a group).
-        // PushdownInsertEmptyBucketsAndSetDefaultValues assigns defaults for aggregate outputs.
         Map<Integer, InsertEmptyBucketsOperator.DefaultValue> defaultValues = new HashMap<>();
         if (insertEmptyBuckets.defaultValues() != null) {
             insertEmptyBuckets.defaultValues().forEach((attribute, defaultValue) -> {

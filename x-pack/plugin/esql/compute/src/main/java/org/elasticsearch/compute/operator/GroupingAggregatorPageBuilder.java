@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -21,6 +22,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Builds output pages from a {@link BlockHash} and its aggregators' current state: the
@@ -79,6 +81,100 @@ public final class GroupingAggregatorPageBuilder {
             return result;
         } finally {
             Releasables.close(prepared);
+        }
+    }
+
+    /**
+     * Evaluates the hash table into one {@link Page} per non-empty partition, assigning each group
+     * to a partition via {@code partitioner.applyAsInt(groupId)}. The returned array has exactly
+     * {@code partitionCount} slots; empty partitions are {@code null}. The caller owns all returned
+     * pages and must release them.
+     *
+     * <p>The {@code partitioner} receives the raw group ids from {@link BlockHash#nonEmpty()}, which
+     * are always in ascending order. Within each partition the group ids also remain in ascending
+     * order (the bucket-sort is stable), satisfying the
+     * {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PreparedForEvaluation}
+     * contract that selected ids are ascending.
+     */
+    public Page[] buildPartitioned(int partitionCount, IntUnaryOperator partitioner, GroupingAggregatorEvaluationContext ctx) {
+        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+        PreparedForEvaluation prepared = new PreparedForEvaluation(ctx);
+        Page[] result = new Page[partitionCount];
+        boolean success = false;
+        try {
+            IntVector allOrdinals = prepared.selected.keys;
+            int n = allOrdinals.getPositionCount();
+
+            int[] partitionOf = new int[n];
+            int[] counts = new int[partitionCount];
+            for (int i = 0; i < n; i++) {
+                int part = partitioner.applyAsInt(allOrdinals.getInt(i));
+                partitionOf[i] = part;
+                counts[part]++;
+            }
+
+            // Bucket sort by partition; stable, so ordinals within each partition stay ascending.
+            int[] offsets = new int[partitionCount + 1];
+            for (int p = 0; p < partitionCount; p++) {
+                offsets[p + 1] = offsets[p] + counts[p];
+            }
+            int[] cursor = Arrays.copyOf(offsets, offsets.length);
+            int[] sorted = new int[n];
+            for (int i = 0; i < n; i++) {
+                sorted[cursor[partitionOf[i]]++] = i;
+            }
+
+            BlockFactory bf = ctx.blockFactory();
+            for (int p = 0; p < partitionCount; p++) {
+                int start = offsets[p], end = offsets[p + 1];
+                if (start == end) {
+                    continue;
+                }
+                int count = end - start;
+                IntVector partitionOrdinals = null;
+                Selected partSelected = null;
+                boolean innerSuccess = false;
+                try {
+                    try (var builder = bf.newIntVectorFixedBuilder(count)) {
+                        for (int j = 0; j < count; j++) {
+                            builder.appendInt(j, allOrdinals.getInt(sorted[start + j]));
+                        }
+                        partitionOrdinals = builder.build();
+                    }
+                    IntVector[] partitionAggs = new IntVector[aggregators.size()];
+                    try {
+                        for (int a = 0; a < aggregators.size(); a++) {
+                            partitionAggs[a] = customizeSelected.customize(aggregators.get(a), partitionOrdinals);
+                        }
+                        innerSuccess = true;
+                    } finally {
+                        if (innerSuccess == false) {
+                            Releasables.close(partitionAggs);
+                        }
+                    }
+                    // partSelected takes ownership: keys (1 ref) + aggs (each incRef'd by customize)
+                    partSelected = new Selected(partitionOrdinals, partitionAggs);
+                    partitionOrdinals = null;
+                    result[p] = prepared.buildPage(partSelected, aggBlockCounts);
+                    innerSuccess = true;
+                } finally {
+                    Releasables.close(partSelected);
+                    if (innerSuccess == false && partitionOrdinals != null) {
+                        partitionOrdinals.close();
+                    }
+                }
+            }
+            success = true;
+            return result;
+        } finally {
+            prepared.close();
+            if (success == false) {
+                for (Page page : result) {
+                    if (page != null) {
+                        page.releaseBlocks();
+                    }
+                }
+            }
         }
     }
 

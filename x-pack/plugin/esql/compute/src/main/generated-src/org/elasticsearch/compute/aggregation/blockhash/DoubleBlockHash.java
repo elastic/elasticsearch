@@ -217,6 +217,17 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof LongSwissHash swiss) {
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod(LongSwissHash.hash(swiss.get(groupId - 1)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+    @Override
     public void close() {
         hash.close();
     }

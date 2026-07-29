@@ -515,6 +515,33 @@ $if(BytesRef)$
     }
 
 $endif$
+$if(long || int || double)$
+    @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof LongSwissHash swiss) {
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod(LongSwissHash.hash(swiss.get(groupId - 1)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+$endif$
+$if(BytesRef)$
+    @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof BytesRefSwissHash swiss) {
+            BytesRef scratch = new BytesRef();
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod((int) BytesRefSwissHash.hash64(swiss.get(groupId - 1, scratch)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+$endif$
     @Override
     public void close() {
 $if(BytesRef)$

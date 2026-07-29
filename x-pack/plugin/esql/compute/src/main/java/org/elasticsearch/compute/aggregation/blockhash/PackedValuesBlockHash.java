@@ -45,6 +45,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Maps any number of columns to a group ids with every unique combination resulting
@@ -735,6 +736,26 @@ final class PackedValuesBlockHash extends BlockHash {
                     }
                     return allVectors;
                 }
+            };
+        }
+        return null;
+    }
+
+    @Override
+    public IntUnaryOperator partitioner(int partitionCount) {
+        if ((batchWork instanceof FixedWidthBatchWork fw) && (bytesRefHash instanceof BytesRefSwissHash)) {
+            byte[] scratch = new byte[fw.keyLength];
+            BytesRef scratchRef = new BytesRef(scratch, 0, fw.keyLength);
+            return groupId -> {
+                bytesRefHash.get(groupId, scratchRef);
+                return Math.floorMod((int) BytesRefSwissHash.hash64(scratch, 0, fw.keyLength), partitionCount);
+            };
+        }
+        if ((batchWork instanceof VariableWidthBatchWork) && (bytesRefHash instanceof BytesRefSwissHash)) {
+            BytesRef scratch = new BytesRef();
+            return groupId -> {
+                bytesRefHash.get(groupId, scratch);
+                return Math.floorMod((int) BytesRefSwissHash.hash64(scratch), partitionCount);
             };
         }
         return null;

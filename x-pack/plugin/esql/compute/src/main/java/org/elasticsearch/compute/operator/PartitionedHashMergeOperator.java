@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -36,16 +37,14 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntUnaryOperator;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.BucketSort;
 import static org.elasticsearch.compute.operator.PartitionedAggregation.buildInternalGroupSpecs;
 import static org.elasticsearch.compute.operator.PartitionedAggregation.checkState;
 import static org.elasticsearch.compute.operator.PartitionedAggregation.closeOpOnClose;
 import static org.elasticsearch.compute.operator.PartitionedAggregation.evaluateOp;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.fillPartitionAssignments;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.sortPositionsByPartition;
 
 /**
  * Coordinator-side merge operator for partitioned hash aggregation.
@@ -229,12 +228,9 @@ public class PartitionedHashMergeOperator implements Operator {
 
     // ---- Instance fields ----
 
-    private final int keyCount;
     private final int partitionCount;
     private final int maxPageSize;
     private final DriverContext driverContext;
-    /** Routing-only hash used to compute partition IDs; never used for aggregation. */
-    private BlockHash probeHash;
     /** Iterator of output pages; non-null while the operator has output to drain. */
     private ReleasableIterator<Page> output;
     private boolean finishCalled;
@@ -292,7 +288,6 @@ public class PartitionedHashMergeOperator implements Operator {
         Executor executor,
         DriverContext driverContext
     ) {
-        this.keyCount = internalGroupSpecs.size();
         this.partitionCount = partitionCount;
         this.maxPageSize = maxPageSize;
         this.driverContext = driverContext;
@@ -329,7 +324,6 @@ public class PartitionedHashMergeOperator implements Operator {
                     driverContext.withBlockFactory(wf)
                 );
             }
-            this.probeHash = BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false);
             this.workerBuffers = new ExchangeBuffer[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
                 workerBuffers[p] = new ExchangeBuffer(2 * partitionCount);
@@ -462,7 +456,7 @@ public class PartitionedHashMergeOperator implements Operator {
         }
         // Close output BEFORE releasing worker block factories: operators inside output return
         // bytes to their worker-specific LocalCircuitBreakers, which must still be open.
-        Releasables.close(noneOp, probeHash, output);
+        Releasables.close(noneOp, output);
         noneOp = null;
         output = null;
         closed = true;
@@ -601,9 +595,9 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     /**
-     * Evaluates the none operator (INTERMEDIATE mode → intermediate pages), splits each page by
-     * partition hash, and enqueues each slice into the owning worker's {@link ExchangeBuffer}.
-     * Closes and nulls {@link #noneOp} on return.
+     * Evaluates the none operator (INTERMEDIATE mode → per-partition pages) and enqueues each
+     * partition's page into the owning worker's {@link ExchangeBuffer}. Closes and nulls
+     * {@link #noneOp} on return.
      */
     private void reconcileNoneToBuffers() {
         if (noneOp.blockHash.numKeys() == 0) {
@@ -612,11 +606,26 @@ public class PartitionedHashMergeOperator implements Operator {
             noneOp = null;
             return;
         }
-        try (ReleasableIterator<Page> nonePages = evaluateOp(noneOp, maxPageSize, driverContext)) {
-            while (nonePages.hasNext()) {
-                try (Page p = nonePages.next()) {
-                    distributeIntermediatePageToBuffers(p);
-                }
+        IntUnaryOperator partitioner = noneOp.blockHash.partitioner(partitionCount);
+        if (partitioner == null) {
+            partitioner = groupId -> 0;
+        }
+        var pageBuilder = new GroupingAggregatorPageBuilder(
+            noneOp.blockHash,
+            noneOp.aggregators,
+            Integer.MAX_VALUE,
+            PartitionedAggregation.NO_CUSTOMIZATION
+        );
+        Page[] perPartition = pageBuilder.buildPartitioned(
+            partitionCount,
+            partitioner,
+            new GroupingAggregatorEvaluationContext(driverContext)
+        );
+        for (int p = 0; p < partitionCount; p++) {
+            Page page = perPartition[p];
+            if (page != null) {
+                page.allowPassingToDifferentDriver();
+                workerBuffers[p].addPage(page);
             }
         }
         saveNoneOpTiming();
@@ -628,29 +637,6 @@ public class PartitionedHashMergeOperator implements Operator {
         HashAggregationOperator.Status s = (HashAggregationOperator.Status) noneOp.status();
         savedHashNanos += s.hashNanos();
         savedAggNanos += s.aggregationNanos();
-    }
-
-    /**
-     * Distributes a single intermediate page across {@link #workerBuffers} by partition hash.
-     * Uses an O(N+P) bucket-sort pass to collect each partition's positions, then creates a
-     * filtered sub-page per partition (physically reordered rows) and enqueues it; the caller is
-     * responsible for closing the original {@code intermediatePage}.
-     */
-    private void distributeIntermediatePageToBuffers(Page intermediatePage) {
-        int positions = intermediatePage.getPositionCount();
-        int[] partitionOf = new int[positions];
-        int[] counts = new int[partitionCount];
-        fillPartitionAssignments(probeHash, keyCount, intermediatePage, partitionCount, partitionOf, counts);
-        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
-        for (int p = 0; p < partitionCount; p++) {
-            int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
-            if (start == end) {
-                continue;
-            }
-            Page subPage = intermediatePage.filter(false, sorted.sortedPositions(), start, end - start);
-            subPage.allowPassingToDifferentDriver();
-            workerBuffers[p].addPage(subPage);
-        }
     }
 
     private void buildOutput() {

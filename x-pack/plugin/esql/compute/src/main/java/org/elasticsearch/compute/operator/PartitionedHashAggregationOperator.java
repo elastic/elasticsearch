@@ -14,16 +14,13 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.function.IntUnaryOperator;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.BucketSort;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.fillPartitionAssignments;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.sortPositionsByPartition;
 
 /**
  * Aggregates raw input {@link Page}s into partitioned intermediate output using a single hash table.
@@ -201,7 +198,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     // ---- Instance fields (beyond those inherited from HashAggregationOperator) ----
 
-    private final int keyCount;
     private final int partitionCount;
     private final int emitKeysThreshold;
     private final int partitionThreshold;
@@ -210,8 +206,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * the final one) are partitioned regardless of key count.
      */
     private boolean partitioned;
-    /** Routing-only hash for computing {@code hash(key) % partitionCount}; never used for aggregation. */
-    private BlockHash probeHash;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -240,38 +234,9 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (emitKeysThreshold <= 0) {
             throw new IllegalArgumentException("emitKeysThreshold must be greater than 0; got " + emitKeysThreshold);
         }
-        this.keyCount = groupSpecs.size();
         this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
         this.partitionThreshold = partitionThreshold;
-        boolean success = false;
-        try {
-            this.probeHash = buildProbeHash(groupSpecs, aggregationBatchSize);
-            success = true;
-        } finally {
-            if (success == false) {
-                close();
-            }
-        }
-    }
-
-    /**
-     * Builds a routing-only hash over the key columns of HAO's evaluation output.
-     * HAO always places keys at channels 0..keyCount-1 in GroupSpec order, so the
-     * probe specs are simply index-keyed copies of the external specs' element types.
-     */
-    private BlockHash buildProbeHash(List<BlockHash.GroupSpec> groupSpecs, int batchSize) {
-        List<BlockHash.GroupSpec> probeSpecs = new ArrayList<>(groupSpecs.size());
-        for (int k = 0; k < groupSpecs.size(); k++) {
-            probeSpecs.add(new BlockHash.GroupSpec(k, groupSpecs.get(k).elementType()));
-        }
-        int size = Math.min(batchSize, Operator.TARGET_PAGE_SIZE);
-        BlockHash hash = BlockHash.build(probeSpecs, driverContext.blockFactory(), size, false);
-        if (hash.router() == null) {
-            hash.close();
-            hash = BlockHash.buildPackedValuesBlockHash(probeSpecs, driverContext.blockFactory(), size);
-        }
-        return hash;
     }
 
     /**
@@ -320,15 +285,28 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             if (blockHash.numKeys() > 0) {
                 boolean shouldPartition = partitioned || blockHash.numKeys() >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
-                try (ReleasableIterator<Page> pages = pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext))) {
-                    while (pages.hasNext()) {
-                        Page page = pages.next();
-                        if (shouldPartition) {
-                            try (page) {
-                                appendTaggedPages(page, resultPages);
-                            }
-                        } else {
-                            resultPages.add(page); // ownership transferred to PageListIterator
+                if (shouldPartition) {
+                    IntUnaryOperator partitioner = blockHash.partitioner(partitionCount);
+                    if (partitioner == null) {
+                        partitioner = groupId -> 0;
+                    }
+                    Page[] perPartition = pageBuilder.buildPartitioned(
+                        partitionCount,
+                        partitioner,
+                        new GroupingAggregatorEvaluationContext(driverContext)
+                    );
+                    for (int p = 0; p < partitionCount; p++) {
+                        Page page = perPartition[p];
+                        if (page != null) {
+                            Page tagged = page.withPartitionId(p);
+                            page.releaseBlocks();
+                            resultPages.add(tagged);
+                        }
+                    }
+                } else {
+                    try (ReleasableIterator<Page> pages = pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext))) {
+                        while (pages.hasNext()) {
+                            resultPages.add(pages.next());
                         }
                     }
                 }
@@ -345,7 +323,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     @Override
     public void close() {
-        Releasables.close(probeHash, super::close);
+        super.close();
     }
 
     @Override
@@ -358,29 +336,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             + ", partitionThreshold="
             + partitionThreshold
             + "]";
-    }
-
-    /**
-     * Splits {@code intermediatePage} by partition hash and appends a tagged sub-page for each
-     * non-empty partition to {@code out}. Ownership of the sub-pages is transferred to {@code out};
-     * the caller retains (and is responsible for releasing) {@code intermediatePage}.
-     */
-    private void appendTaggedPages(Page intermediatePage, List<Page> out) {
-        int positions = intermediatePage.getPositionCount();
-        int[] partitionOf = new int[positions];
-        int[] counts = new int[partitionCount];
-        fillPartitionAssignments(probeHash, keyCount, intermediatePage, partitionCount, partitionOf, counts);
-        BucketSort sorted = sortPositionsByPartition(partitionOf, counts, partitionCount);
-        for (int p = 0; p < partitionCount; p++) {
-            int start = sorted.offsets()[p], end = sorted.offsets()[p + 1];
-            if (start == end) {
-                continue;
-            }
-            Page subPage = intermediatePage.filter(false, sorted.sortedPositions(), start, end - start);
-            Page tagged = subPage.withPartitionId(p);
-            subPage.releaseBlocks();
-            out.add(tagged);
-        }
     }
 
     /**

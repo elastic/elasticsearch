@@ -25,9 +25,6 @@ final class PartitionedAggregation {
 
     private PartitionedAggregation() {}
 
-    /** Partition that every null grouping key is routed to. */
-    static final int NULL_PARTITION = 0;
-
     static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
         selected.incRef();
         return selected;
@@ -35,23 +32,6 @@ final class PartitionedAggregation {
 
     /** Result of {@link #sortPositionsByPartition}: per-partition offsets and sorted row indices. */
     record BucketSort(int[] offsets, int[] sortedPositions) {}
-
-    /**
-     * Assigns each row in {@code page} to a partition, filling {@code partitionOf[i]} with the
-     * partition index for row {@code i} and incrementing {@code counts[partition]} for each row.
-     * Null grouping keys are routed to {@link #NULL_PARTITION}.
-     * When no {@link BlockHash.Router} is available for the current grouping shape, all rows are
-     * routed to {@link #NULL_PARTITION}.
-     */
-    static void fillPartitionAssignments(BlockHash probeHash, int keyCount, Page page, int nPartitions, int[] partitionOf, int[] counts) {
-        BlockHash.Router router = probeHash.router();
-        if (router == null) {
-            counts[NULL_PARTITION] = page.getPositionCount();
-            // partitionOf is already all zeros (NULL_PARTITION) — Java default
-            return;
-        }
-        router.fillPartitions(page, page.getPositionCount(), keyCount, nPartitions, NULL_PARTITION, partitionOf, counts);
-    }
 
     /**
      * Stable bucket-sort of row indices by partition. Given {@code partitionOf[i]} (the partition

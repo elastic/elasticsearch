@@ -326,6 +326,18 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof BytesRefSwissHash swiss) {
+            BytesRef scratch = new BytesRef();
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod((int) BytesRefSwissHash.hash64(swiss.get(groupId - 1, scratch)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+    @Override
     public void close() {
         prefetchBarrier.flush();
         hash.close();

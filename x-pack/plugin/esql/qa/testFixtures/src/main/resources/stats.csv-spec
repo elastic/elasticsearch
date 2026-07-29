@@ -4736,15 +4736,47 @@ s1:long | s2:long
 null    | null
 ;
 
-isNotNullInferenceNotAppliedThroughIsNull
+isNotNullInferenceNotAppliedThroughIsNotNull1
 required_capability: fix_infer_is_not_null_allowlist
-// "languages IS NULL" never returns null, so "(languages IS NULL) IS NOT NULL" is always true and
-// must match every row.
 FROM employees
 | WHERE (languages IS NULL) IS NOT NULL
 | STATS c = COUNT(*)
 ;
 
+// "languages IS NULL" never returns null
+// so "(languages IS NULL) IS NOT NULL" is always true
+// so every row is counted
+c:long
+100
+;
+
+isNotNullInferenceNotAppliedThroughIsNotNull2
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| EVAL a = salary > 50000, b = languages > 3
+| WHERE (a OR b) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// languages > 3 is true/false for 90 employees
+// languages > 3 is null for 10 employees
+// of those cases:
+// salary > 50000 is true for 4 employees (true OR null = true)
+// salary > 50000 is false for 6 employees (false OR null = null)
+// so the final result should be 94 employees
+c:long
+94
+;
+
+isNotNullInferenceNotAppliedThroughIsNotNull3
+FROM employees
+| WHERE (salary + COALESCE(languages, 0)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// "salary + COALESCE(languages, 0)" never returns null
+// so "(salary + COALESCE(languages, 0)) IS NOT NULL" is always true
+// so every row is counted
 c:long
 100
 ;

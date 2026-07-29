@@ -26,11 +26,7 @@ public class FireworksAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         // Handle error status codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {

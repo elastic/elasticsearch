@@ -50,8 +50,10 @@ import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -147,7 +149,8 @@ class NodeServiceProvider {
         String nodeId,
         LinkedProjectConfigService linkedProjectConfigService,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
     ) {
         return new TransportService(
             settings,
@@ -161,7 +164,8 @@ class NodeServiceProvider {
             linkedProjectConfigService,
             telemetryProvider,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            transportMessageListenerProviders
         );
     }
 

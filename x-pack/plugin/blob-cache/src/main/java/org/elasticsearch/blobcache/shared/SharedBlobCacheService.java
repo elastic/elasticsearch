@@ -386,7 +386,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
 
     // executor to run reading from the blobstore on
     private final Executor ioExecutor;
@@ -397,7 +397,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private final int rangeSize;
     private final int recoveryRangeSize;
 
-    private final int numRegions;
+    protected final int numRegions;
     private final ConcurrentLinkedQueue<SharedBytes.IO> freeRegions = new ConcurrentLinkedQueue<>();
 
     private final Cache<KeyType, CacheFileRegion<KeyType>> cache;
@@ -506,11 +506,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             threadPool.generic()
         );
         logger.info(
-            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}], eviction policy=[{}]",
+            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}]",
             ByteSizeValue.ofBytes(cacheSize),
             ByteSizeValue.ofBytes(regionSize),
-            numRegions,
-            evictionPolicy.getClass().getSimpleName()
+            numRegions
         );
     }
 
@@ -935,6 +934,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
+    // used by tests
+    EvictionPolicy<KeyType> getEvictionPolicy() {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.evictionPolicy;
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
     private static void throwAlreadyClosed(String message) {
         throw new AlreadyClosedException(message);
     }
@@ -1091,6 +1098,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     @Override
     public void close() {
+        cache.close();
         sharedBytes.decRef();
     }
 
@@ -2141,6 +2149,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
     }
 
+    protected Predicate<CacheRegion<KeyType>> createEvictionPredicate(
+        EvictionPolicy<KeyType> evictionPolicy,
+        CacheRegion<KeyType> incoming
+    ) {
+        return evictionPolicy.createPredicate(incoming);
+    }
+
     @FunctionalInterface
     public interface RangeAvailableHandler {
         /**
@@ -2325,6 +2340,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public void close() {
             decayAndNewEpochTask.close();
+            evictionPolicy.close();
         }
 
         // used by tests
@@ -2786,7 +2802,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long startNanos = relativeNanosProvider.getAsLong();
             final int[] entriesScanned = new int[1];
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming.chunk);
+            final Predicate<CacheRegion<KeyType>> canEvict = createEvictionPredicate(evictionPolicy, incoming.chunk);
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned, canEvict);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
@@ -2921,7 +2937,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
             synchronized (SharedBlobCacheService.this) {
                 afterLockAndBeforeScanningNanoTime = relativeNanosProvider.getAsLong();
-                final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming);
+                final Predicate<CacheRegion<KeyType>> canEvict = createEvictionPredicate(evictionPolicy, incoming);
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
                     if (canEvict.test(entry.chunk) == false) {

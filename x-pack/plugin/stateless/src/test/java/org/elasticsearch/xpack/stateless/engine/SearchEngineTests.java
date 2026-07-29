@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.engine.Engine.SearcherSupplier;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -152,6 +153,30 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertNotNull("expected shard field stats after commits processed", after);
             assertTrue("expected at least one segment after indexing/flushing", after.numSegments() >= 1);
             assertTrue("expected non-zero total fields after indexing", after.totalFields() > 0);
+            // randomDoc indexes _seq_no points; BKD reader estimate must be non-zero.
+            assertTrue("expected points bytes from leaf FieldInfos", after.pointsInMemoryBytes() > 0);
+            assertEquals("no soft deletes yet", 0L, after.liveDocsBytes());
+            // Postings tracking requires node-level stateless.enabled; without it the attribute is absent.
+            long expectedPostings = 0L;
+            for (var sci : searchEngine.getLastCommittedSegmentInfos()) {
+                expectedPostings += DirectoryReaderHeapEstimator.postingsBytes(sci);
+            }
+            assertEquals(expectedPostings, after.postingsInMemoryBytes());
+
+            indexEngine.delete(new Engine.Delete("0", Uid.encodeId("0"), 1L));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            ShardFieldStats withDeletes = searchEngine.shardFieldStats();
+            assertTrue("soft-deleted segment must report live-docs bytes", withDeletes.liveDocsBytes() > 0);
+            long expected = 0L;
+            for (var sci : searchEngine.getLastCommittedSegmentInfos()) {
+                if (sci.getSoftDelCount() > 0) {
+                    expected += DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci);
+                }
+            }
+            assertEquals(expected, withDeletes.liveDocsBytes());
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "

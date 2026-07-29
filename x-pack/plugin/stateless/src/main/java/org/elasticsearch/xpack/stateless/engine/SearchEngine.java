@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -970,6 +971,20 @@ public class SearchEngine extends Engine {
     @Override
     public SegmentInfos getLastCommittedSegmentInfos() {
         return segmentInfosAndCommit.segmentInfos();
+    }
+
+    /**
+     * Stateless byte terms from {@link #getLastCommittedSegmentInfos()} via {@link DirectoryReaderHeapEstimator}
+     * — the same commit the current reader is on and the reservation charged for that reader. Not on the
+     * autoscaling publication path today (index tier publishes); kept correct for {@code IndexShard} cache
+     * refresh and Phase-3 readiness.
+     */
+    @Override
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", SearcherScope.INTERNAL)) {
+            // Reuse IndexEngine's assembly: same estimator terms, different SegmentInfos source.
+            return IndexEngine.shardFieldStats(searcher.getLeafContexts(), getLastCommittedSegmentInfos());
+        }
     }
 
     @Override

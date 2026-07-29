@@ -125,7 +125,7 @@ public abstract class BlockTransformBenchmark {
         "NEAR_CONSTANT_OUTLIERS" })
     protected String pattern;
 
-    @Param({ "512" })
+    @Param({ "512", "8192" })
     protected int blockSize;
 
     /**

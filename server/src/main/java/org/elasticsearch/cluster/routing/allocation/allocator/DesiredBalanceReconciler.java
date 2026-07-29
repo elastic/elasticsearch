@@ -520,7 +520,12 @@ public class DesiredBalanceReconciler {
 
                     final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    final BalancedShardsAllocator.MoveType moveType;
+                    if (canRemainDecision.type() == Decision.Type.NO) {
+                        moveType = BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                    } else if (canRemainDecision.type() == Decision.Type.NOT_PREFERRED) {
+                        moveType = BalancedShardsAllocator.MoveType.NOT_PREFERRED;
+                    } else {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                         continue;
                     }
@@ -533,7 +538,6 @@ public class DesiredBalanceReconciler {
                             shardRouting.currentNodeId(),
                             moveTarget.getId()
                         );
-                        BalancedShardsAllocator.MoveType moveType = getMoveType(canRemainDecision);
                         routingNodes.relocateShard(
                             shardRouting,
                             moveTarget.getId(),
@@ -562,17 +566,6 @@ public class DesiredBalanceReconciler {
                     }
                 }
             }
-        }
-
-        private static BalancedShardsAllocator.MoveType getMoveType(Decision canRemainDecision) {
-            return switch (canRemainDecision.type()) {
-                case NO -> BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
-                case NOT_PREFERRED -> BalancedShardsAllocator.MoveType.NOT_PREFERRED;
-                default -> {
-                    assert false : "All moves should have canRemain NO or NOT_PREFERRED";
-                    yield null;
-                }
-            };
         }
 
         private DesiredBalanceMetrics.AllocationStats balance() {

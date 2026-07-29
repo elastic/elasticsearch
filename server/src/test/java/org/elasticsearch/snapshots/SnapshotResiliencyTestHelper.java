@@ -76,7 +76,6 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
@@ -641,7 +640,6 @@ public class SnapshotResiliencyTestHelper {
                     settings,
                     clusterService,
                     rerouteService,
-                    new RecoveryDirectCancellationService(transportService, clusterService, allocationService, rerouteService),
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,

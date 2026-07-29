@@ -14,7 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
@@ -32,6 +34,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -39,7 +42,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -59,14 +61,14 @@ import java.util.concurrent.Executor;
 ///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
 ///   the next allocation round can move the shard.
 ///
-/// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshot]): when a snapshot shard is in
+/// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when snapshot shards are in
 ///   [SnapshotsInProgress.ShardState#WAITING] state because the primary is relocating, we attempt to cancel the
 ///   recovery of the relocation target if it has not started yet, to let the snapshot proceed. Relocations driven by
-///   a node shutdown are left untouched.
+///   a node shutdown are left untouched. This path is driven by [ClusterStateListener#clusterChanged].
 ///
 /// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
 /// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
-public class RecoveryDirectCancellationService {
+public class RecoveryDirectCancellationService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryDirectCancellationService.class);
 
@@ -91,7 +93,7 @@ public class RecoveryDirectCancellationService {
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
     private final Executor genericExecutor;
-    private volatile boolean enableDirectRecoveryCancellations;
+    private volatile boolean enableDirectRecoveryCancellations = false;
 
     /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
@@ -118,11 +120,37 @@ public class RecoveryDirectCancellationService {
             .setMaximumWeight(MAX_CANCELLATIONS_CACHE_SIZE)
             .setExpireAfterWrite(CANCELLATION_CACHE_TTL)
             .build();
+    }
+
+    @Override
+    protected void doStart() {
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
                 value -> this.enableDirectRecoveryCancellations = value
             );
+        clusterService.addListener(this);
+    }
+
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+    }
+
+    @Override
+    protected void doClose() {}
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
+        final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        if ((newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged())
+            && snapshotsInProgress.asStream().anyMatch(SnapshotsInProgress.Entry::hasShardsInWaitingState)) {
+            cancelRecoveriesBlockingSnapshots();
+        }
     }
 
     /// Asynchronously computes which initializing shards are no longer desired on their current nodes according to the given
@@ -216,15 +244,15 @@ public class RecoveryDirectCancellationService {
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
-    /// Called when a new snapshot is started and has shard snapshots in [SnapshotsInProgress.ShardState#WAITING] state.
-    /// Asynchronously identifies queued relocation recoveries that are blocking those WAITING shards and cancels them
-    /// if they have not started yet. Recoveries whose source node is shutting down are left alone.
-    public void cancelRecoveriesBlockingSnapshot(Snapshot snapshot) {
+    /// Asynchronously samples the current cluster state for WAITING snapshot shards blocked by queued primary
+    /// relocations and cancels those recoveries if they have not started yet.
+    private void cancelRecoveriesBlockingSnapshots() {
+        // TODO: we should maybe try coalescing runs since we are always checking the latest cluster state
         genericExecutor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 final ClusterState currentState = clusterService.state();
-                final var requests = computeCancellationCandidatesForSnapshot(snapshot, currentState);
+                final var requests = computeCancellationCandidatesForSnapshots(currentState);
                 if (requests.isEmpty()) {
                     return;
                 }
@@ -233,27 +261,28 @@ public class RecoveryDirectCancellationService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "failed to compute or send snapshot-blocking recovery cancellations for snapshot [" + snapshot + "]", e);
+                logger.warn("failed to compute or send snapshot recovery cancellations", e);
             }
         });
     }
 
     // visible for testing
-    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeCancellationCandidatesForSnapshot(
-        Snapshot snapshot,
-        ClusterState state
-    ) {
-        // The snapshot may have advanced or completed while this task was waiting to be scheduled. Bail out if so.
-        final SnapshotsInProgress.Entry inProgressSnapshot = SnapshotsInProgress.get(state).snapshot(snapshot);
-        if (inProgressSnapshot == null || inProgressSnapshot.hasShardsInWaitingState() == false) {
-            return Map.of();
-        }
-
+    static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeCancellationCandidatesForSnapshots(ClusterState state) {
         final Set<ShardId> waitingSnapshotShards = new HashSet<>();
-        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : inProgressSnapshot.shards().entrySet()) {
-            if (shard.getValue().state() == SnapshotsInProgress.ShardState.WAITING) {
-                waitingSnapshotShards.add(shard.getKey());
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+
+        snapshotsInProgress.asStream().forEach(snapshotInProgress -> {
+            if (snapshotInProgress.isClone() || snapshotInProgress.hasShardsInWaitingState() == false) {
+                return;
             }
+            for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : snapshotInProgress.shards().entrySet()) {
+                if (shard.getValue().state() == SnapshotsInProgress.ShardState.WAITING) {
+                    waitingSnapshotShards.add(shard.getKey());
+                }
+            }
+        });
+        if (waitingSnapshotShards.isEmpty()) {
+            return Map.of();
         }
 
         final RoutingNodes routingNodes = state.getRoutingNodes();
@@ -262,25 +291,23 @@ public class RecoveryDirectCancellationService {
         final long version = state.version();
 
         final Map<DiscoveryNode, List<ShardRecoveryCancellation>> nodeToBlockingShards = new HashMap<>();
-        for (RoutingNode routingNode : routingNodes) {
-            for (ShardRouting shardRouting : routingNode) {
-                if (waitingSnapshotShards.contains(shardRouting.shardId()) == false) {
-                    continue;
-                }
-                if (shardRouting.initializing() == false || shardRouting.relocatingNodeId() == null) {
-                    continue;
-                }
-                if (nodesShutdownMetadata.contains(shardRouting.relocatingNodeId())) {
-                    continue;
-                }
-                nodeToBlockingShards.computeIfAbsent(routingNode.node(), n -> new ArrayList<>())
-                    .add(new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), false));
+        for (ShardId shardId : waitingSnapshotShards) {
+            // activePrimary is the relocating source
+            final ShardRouting primary = routingNodes.activePrimary(shardId);
+            if (primary == null || primary.relocating() == false) {
+                continue;
             }
+            // Leave shutdown-driven moves alone: the source is the node being removed
+            if (nodesShutdownMetadata.contains(primary.currentNodeId())) {
+                continue;
+            }
+            final ShardRouting target = primary.getTargetRelocatingShard();
+            nodeToBlockingShards.computeIfAbsent(state.nodes().get(target.currentNodeId()), n -> new ArrayList<>())
+                .add(new ShardRecoveryCancellation(primary.shardId(), target.allocationId().getId(), false));
         }
-
         final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
         nodeToBlockingShards.forEach(
-            (node, shards) -> cancellationRequests.put(node, new CancelRecoveriesAction.Request(term, version, shards))
+            (node, cancellations) -> cancellationRequests.put(node, new CancelRecoveriesAction.Request(term, version, cancellations))
         );
         return cancellationRequests;
     }

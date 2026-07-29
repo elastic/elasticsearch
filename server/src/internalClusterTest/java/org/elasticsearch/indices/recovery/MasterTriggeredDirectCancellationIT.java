@@ -525,7 +525,13 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         awaitRecoveryCountStats(Map.of(targetNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
         waitNoPendingTasksOnAll();
 
-        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var shard = clusterService().state()
+            .getRoutingNodes()
+            .node(getNodeId(sourceNode))
+            .shardsWithState(ShardRoutingState.RELOCATING)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("shard should be relocating"));
+        assertThat(shard.getIndexName(), equalTo(indexName));
 
         // Capture the snapshot-blocking cancellation (cancelIfStarted=false) for the relocating shard
         final var cancellationSent = new CountDownLatch(1);
@@ -533,7 +539,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
                 if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
                     final var cancellations = cancelRequest.cancellations();
-                    if (cancellations.size() == 1 && cancellations.getFirst().shardId().equals(shardId)) {
+                    if (cancellations.size() == 1 && cancellations.getFirst().shardId().equals(shard.shardId())) {
                         assertFalse(cancellations.getFirst().cancelIfStarted());
                         cancellationSent.countDown();
                     }

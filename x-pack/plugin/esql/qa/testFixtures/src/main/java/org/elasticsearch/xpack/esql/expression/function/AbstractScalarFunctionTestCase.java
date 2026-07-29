@@ -50,6 +50,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -145,9 +146,17 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public final void testEvaluate() {
+        testEvaluate(false);
+    }
+
+    /**
+     * @param testAnyNullIsNull If false, execute the testcase as is
+     *                          If true, if the testcase does not contain any nulls,
+     *                          replace a random entry with null, and assert the result is null
+     */
+    private void testEvaluate(boolean testAnyNullIsNull) {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        boolean readFloating = randomBoolean();
-        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
@@ -164,16 +173,28 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
-            Page row = row(testCase.getDataValues());
+            List<Object> dataValues = testCase.getDataValues();
+            if (testAnyNullIsNull && dataValues.stream().noneMatch(Objects::isNull)) {
+                int randomIndex = randomInt(dataValues.size() - 1);
+                logger.info("testAnyNullIsNull: setting index " + randomIndex + " to null");
+                dataValues.set(randomIndex, null);
+            }
+            Page row = row(dataValues);
             try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
                 result = toJavaObject(block, 0);
-                extraBlockTests(row, block);
+                if (testAnyNullIsNull == false) {
+                    extraBlockTests(row, block);
+                }
             } finally {
                 row.releaseBlocks();
             }
         }
-        assertTestCaseResultAndWarnings(result);
+        if (testAnyNullIsNull) {
+            assertThat(result, nullValue());
+        } else {
+            assertTestCaseResultAndWarnings(result);
+        }
     }
 
     /**
@@ -194,45 +215,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 + " must implement "
                 + AnyNullIsNull.class.getSimpleName()
                 + " or be registered in EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL",
-            expression instanceof AnyNullIsNull || EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL.contains(expression.getClass()),
+            expression instanceof AnyNullIsNull ^ EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL.contains(expression.getClass()),
             is(true)
         );
 
         assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
 
-        List<TestCaseSupplier.TypedData> data = testCase.getData();
-        List<DataType> fieldTypes = data.stream().filter(d -> d.isForceLiteral() == false).map(TestCaseSupplier.TypedData::type).toList();
-
-        DriverContext context = driverContext();
-        BlockFactory blockFactory = context.blockFactory();
-        Page basePage = row(testCase.getDataValues());
-        try (ExpressionEvaluator eval = evaluator(expression).get(context)) {
-            for (int nullField = 0; nullField < fieldTypes.size(); nullField++) {
-                Block[] blocks = new Block[fieldTypes.size()];
-                for (int b = 0; b < fieldTypes.size(); b++) {
-                    ElementType elementType = PlannerUtils.toElementType(fieldTypes.get(b));
-                    try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
-                        if (b == nullField) {
-                            builder.appendNull();
-                        } else {
-                            builder.copyFrom(basePage.getBlock(b), 0, 1);
-                        }
-                        blocks[b] = builder.build();
-                    }
-                }
-                Page page = new Page(1, blocks);
-                try (Block result = eval.eval(page)) {
-                    assertThat(
-                        "[" + expression.getClass().getSimpleName() + "] must return null when field argument " + nullField + " is null",
-                        result.isNull(0),
-                        is(true)
-                    );
-                } finally {
-                    page.releaseBlocks();
-                }
-            }
-        } finally {
-            basePage.releaseBlocks();
+        if (testCase.getDataValues().isEmpty() == false) {
+            testEvaluate(true);
         }
     }
 

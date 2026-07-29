@@ -2115,15 +2115,19 @@ public class DateFormatters {
         } else if (FAST_DATE_PATTERN.equals(input)) { // fast formatter/parser for yyyy-MM-dd
             return FAST_DATE;
         } else {
-            try {
-                return newDateFormatter(
-                    input,
-                    new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
-                );
-            } catch (IllegalArgumentException | ClassCastException e) {
-                // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
-                throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
-            }
+            return genericPatternFormatter(input);
+        }
+    }
+
+    static DateFormatter genericPatternFormatter(String input) {
+        try {
+            return newDateFormatter(
+                input,
+                new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
+            );
+        } catch (IllegalArgumentException | ClassCastException e) {
+            // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
+            throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
         }
     }
 

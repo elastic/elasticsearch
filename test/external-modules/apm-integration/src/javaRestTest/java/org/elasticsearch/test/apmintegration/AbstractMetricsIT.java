@@ -169,8 +169,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
 
         CountDownLatch finished = new CountDownLatch(2);
         apmServer().addMessageConsumer(msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
-                && "elasticsearch".equals(m.instrumentationScopeName())) {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
                 for (String name : List.of(
                     TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
                     TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME

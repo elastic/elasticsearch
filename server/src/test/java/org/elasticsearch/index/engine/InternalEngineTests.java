@@ -250,12 +250,8 @@ public class InternalEngineTests extends EngineTestCase {
      */
     private EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
         int n = operations.size();
-        // Build a flat IndexOperationBatch from the Engine.Index list.
-        // Using fromIndexOps ensures the seqNoBytes/primaryTermBytes/versionBytes arrays are shared
-        // by reference between the IndexOperationBatch and the MappedColumns, so engine stamping via
-        // MappedColumns.setSeqNo is immediately visible via IndexOperationBatch.seqNo().
-        final IndexOperationBatch indexBatch = IndexOperationBatch.fromIndexOps(operations, batch);
-        final MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup().getSortedMetadataMappers();
+        final IndexOperationBatch indexBatch = fromIndexOps(operations, batch);
+        final MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup().getMapping().getSortedMetadataMappers();
         final BatchMappingContext ctx = new BatchMappingContext(indexBatch, mapperService.mappingLookup(), defaultSettings);
         for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.preColumnarParse(ctx);

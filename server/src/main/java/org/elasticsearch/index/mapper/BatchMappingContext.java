@@ -90,26 +90,26 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the mutable {@code _seq_no} backing byte array. Delegated to the underlying
+     * Returns the mutable {@code _seq_no} buffer. Delegated to the underlying
      * {@link IndexOperationBatch#seqNoBytes()}; see that method for the aliasing contract.
      */
-    public byte[] seqNos() {
+    public BytesRef seqNos() {
         return batch.seqNoBytes();
     }
 
     /**
-     * Returns the mutable {@code _primary_term} backing byte array. Delegated to the underlying
+     * Returns the mutable {@code _primary_term} buffer. Delegated to the underlying
      * {@link IndexOperationBatch#primaryTermBytes()}.
      */
-    public byte[] primaryTerms() {
+    public BytesRef primaryTerms() {
         return batch.primaryTermBytes();
     }
 
     /**
-     * Returns the mutable {@code _version} backing byte array. Delegated to the underlying
+     * Returns the mutable {@code _version} buffer. Delegated to the underlying
      * {@link IndexOperationBatch#versionBytes()}.
      */
-    public byte[] versions() {
+    public BytesRef versions() {
         return batch.versionBytes();
     }
 

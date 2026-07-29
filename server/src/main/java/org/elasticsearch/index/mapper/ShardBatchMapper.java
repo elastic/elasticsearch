@@ -151,13 +151,6 @@ public final class ShardBatchMapper {
         Engine.Operation.Origin origin
     ) {
         final IndexSettings indexSettings = shard.indexSettings();
-        for (FieldMapper mapper : resolution.columnMappers()) {
-            if (mapper != null && mapper.supportsColumnarParse(indexSettings) == false) {
-                logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
-                return null;
-            }
-        }
-
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
         for (MetadataFieldMapper mapper : metadataMappers) {
@@ -166,6 +159,13 @@ public final class ShardBatchMapper {
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
                     mapper.typeName()
                 );
+                return null;
+            }
+        }
+
+        for (FieldMapper mapper : resolution.columnMappers()) {
+            if (mapper != null && mapper.supportsColumnarParse(indexSettings) == false) {
+                logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
                 return null;
             }
         }

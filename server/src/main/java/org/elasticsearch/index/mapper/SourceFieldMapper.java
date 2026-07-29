@@ -651,7 +651,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
         }
         context.addColumn(
-            MappedColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+            MappedColumns.longColumn(
+                new BytesRef(sizes),
+                RECOVERY_SOURCE_SIZE_NAME,
+                NumericDocValuesField.TYPE,
+                LongColumn.NumericKind.LONG
+            )
         );
     }
 

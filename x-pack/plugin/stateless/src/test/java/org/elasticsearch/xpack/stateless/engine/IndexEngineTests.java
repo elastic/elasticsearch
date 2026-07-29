@@ -28,6 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -528,7 +529,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
      * index the batch.
      */
     private static EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) {
-        final IndexOperationBatch indexBatch = IndexOperationBatch.fromIndexOps(operations, batch);
+        final IndexOperationBatch indexBatch = EngineTestCase.fromIndexOps(operations, batch);
         final BytesRef[] sources = new BytesRef[operations.size()];
         for (int i = 0; i < operations.size(); i++) {
             sources[i] = operations.get(i).source().originalBytes().toBytesRef();

@@ -115,7 +115,7 @@ public final class Mapping implements ToXContentFragment {
         return meta;
     }
 
-    MetadataFieldMapper[] getSortedMetadataMappers() {
+    public MetadataFieldMapper[] getSortedMetadataMappers() {
         return metadataMappers;
     }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -173,7 +172,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected boolean assertPrimaryCanOptimizeAddDocument(final Engine.Index index) {
+    protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
             : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;

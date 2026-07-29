@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -243,7 +244,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
-        IndexOperationBatch batch = IndexOperationBatch.initFromRequests(requests);
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
         BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
 
         mapper.preColumnarParse(context);

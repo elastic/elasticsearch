@@ -2057,7 +2057,6 @@ public abstract class Engine implements Closeable {
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }
-
     }
 
     public static class Delete extends Operation {

@@ -1729,7 +1729,7 @@ public class InternalEngine extends Engine {
      * versionMap lookups are performed per operation, but any operations that miss the versionMap are resolved in a
      * single {@link #performActionWithDirectoryReader} call, amortizing reader acquisition overhead across the batch.
      */
-    private IndexingStrategy[] planPrimarySubBatch(IndexOperationBatch subBatch, int count) throws IOException {
+    private IndexingStrategy[] planPrimarySubBatch(IndexOperationBatch subBatch, int count) {
         final VersionValue[] resolvedVersions = new VersionValue[count];
         final boolean[] optimizeAppendOnly = new boolean[count];
         final boolean[] needsLucene = new boolean[count];
@@ -1861,7 +1861,7 @@ public class InternalEngine extends Engine {
      * @param versionValue the resolved version, or null if the document was not found
      */
     private IndexingStrategy planIndexingAsPrimaryWithVersion(
-        final Engine.Index index,
+        final Index index,
         final VersionValue versionValue,
         final boolean optimizeAppendOnly,
         final int reservingDocs
@@ -1942,7 +1942,7 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return false for the created flag in favor of code simplicity
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
-        if (hasBeenProcessedBefore((Operation) index)) {
+        if (hasBeenProcessedBefore(index)) {
             // the operation seq# was processed and thus the same operation was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
             // part of the lucene commit (either from a peer recovery or a local translog)
@@ -1957,7 +1957,7 @@ public class InternalEngine extends Engine {
             plan = IndexingStrategy.optimizedAppendOnly(index.version(), 0);
         } else {
             versionMap.enforceSafeAccess();
-            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo((Operation) index);
+            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processAsStaleOp(index.version(), 0);
             } else {
@@ -2162,7 +2162,7 @@ public class InternalEngine extends Engine {
     /**
      * Asserts that the doc in the index operation really doesn't exist
      */
-    private boolean assertDocDoesNotExist(final Engine.Index index, final boolean allowDeleted) throws IOException {
+    private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
         // NOTE this uses direct access to the version map since we are in the assertion code where we maintain a secondary
         // map in the version map such that we don't need to refresh if we are unsafe;
         final VersionValue versionValue = versionMap.getVersionForAssert(index.uid());
@@ -2285,12 +2285,8 @@ public class InternalEngine extends Engine {
     }
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
-        return tryAcquireInFlightDocs(operation.origin(), operation.seqNo(), addingDocs);
-    }
-
-    private Exception tryAcquireInFlightDocs(Operation.Origin origin, long seqNo, int addingDocs) {
-        assert origin == Operation.Origin.PRIMARY : "expected PRIMARY but got " + origin;
-        assert seqNo == UNASSIGNED_SEQ_NO : "expected UNASSIGNED but got " + seqNo;
+        assert operation.origin() == Operation.Origin.PRIMARY : operation;
+        assert operation.seqNo() == UNASSIGNED_SEQ_NO : operation;
         assert addingDocs > 0 : addingDocs;
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {

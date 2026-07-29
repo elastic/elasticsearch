@@ -713,11 +713,6 @@ public final class MappingLookup {
         return mapping;
     }
 
-    /** Returns the metadata field mappers sorted by field name. Used by the columnar batch mapping path. */
-    public MetadataFieldMapper[] getSortedMetadataMappers() {
-        return mapping.getSortedMetadataMappers();
-    }
-
     /**
      * Check if the provided {@link MappedFieldType} shadows a dimension
      * or metric field.

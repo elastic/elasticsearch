@@ -20,7 +20,6 @@ import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.AbstractVectorTestCase;
-import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

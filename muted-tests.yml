@@ -577,3 +577,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsFirstLastIT
   method: test {csv-spec:stats_first_last.Test retrieval of last long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155302
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/add time series mappings}
+  issue: https://github.com/elastic/elasticsearch/issues/155331
+- class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
+  method: testContinuousEvents
+  issue: https://github.com/elastic/elasticsearch/issues/153782

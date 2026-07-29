@@ -742,11 +742,9 @@ public class SplitSourceService {
             permitAcquirer = new RefCountedAcquirer(
                 releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE),
                 SplitSourceService.this.indicesService.clusterService().threadPool().relativeTimeInMillisSupplier(),
-                acquiredDuration -> {
-                    SplitSourceService.this.reshardIndexService.getReshardMetrics()
-                        .indexingBlockedDurationHistogram()
-                        .record(acquiredDuration);
-                }
+                acquiredDuration -> SplitSourceService.this.reshardIndexService.getReshardMetrics()
+                    .indexingBlockedDurationHistogram()
+                    .record(acquiredDuration)
             );
         }
 

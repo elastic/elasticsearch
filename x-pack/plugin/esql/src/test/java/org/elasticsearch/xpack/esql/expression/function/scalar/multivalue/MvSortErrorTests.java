@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     private static final String FIELD_TYPES = "any type except counter, spatial types, dense_vector, "
-        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, or flattened";
+        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, double_range, or flattened";
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -73,6 +74,7 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             || type == HISTOGRAM
             || type == TDIGEST
             || type == DATE_RANGE
+            || type == DOUBLE_RANGE
             || type == FLATTENED;
     }
 

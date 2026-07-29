@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -181,6 +188,96 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runTasksUpToTimeInOrder(degradationPeriodMillis + 1);
             evictRandomly(cacheService, regionSize, decayed);
             assertThat(policyCallCount.get(), greaterThan(0));
+        }
+    }
+
+    public void testEvictionDegradationShortCircuitsSubsequentPolicyChecks() throws Exception {
+        // In a single eviction scan, when degradation is triggered, we set degradation startMillis and log a warning message once.
+        // Subsequent calls to the policy predicate for other regions in the same scan is skipped.
+        // For simplicity, the degradation threshold is set to 0 so that it is triggered immediately on the first rejection.
+        // There are two regions, we incref the 1st region to simulate an active reader so that its IO cannot be released which
+        // forces the scan to continue on the 2nd region for eviction. This time, the policy predicate is skipped since we are
+        // already in degradation mode.
+        final int numRegions = 2;
+        final long regionSize = cacheRegionSizeInBytes(1L);
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "0%")
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m")
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+
+        final AtomicInteger policyCallCount = new AtomicInteger(0);
+        final EvictionPolicy<FileCacheKey> neverEvict = new EvictionPolicy<>() {
+            @Override
+            public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
+                return region -> {
+                    policyCallCount.incrementAndGet();
+                    return false;
+                };
+            }
+
+            @Override
+            public void onCached(CacheRegion<FileCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<FileCacheKey> region) {}
+        };
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new StatelessSharedBlobCacheService(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                neverEvict,
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            )
+        ) {
+            getFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0);
+            // This is the 1st region since the entry is inserted at the head of freq list.
+            final RefCounted firstRegion = getFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0);
+            // Decay synchronously (DecayAndNewEpochTask uses DIRECT_EXECUTOR_SERVICE, which runs tasks inline).
+            final boolean decayed = randomBoolean();
+            if (decayed) {
+                maybeScheduleDecayAndNewEpochForCacheService(cacheService);
+            }
+            taskQueue.runAllRunnableTasks();
+            firstRegion.mustIncRef(); // incref to force scan to pick the 2nd region
+
+            // We should observe the warning log only once and policy predicate is also called only once
+            final var seenLoggingOnce = new AtomicBoolean(false);
+            final var cacheServiceLogger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
+            final var mockAppender = new AbstractAppender("mock", null, null, false, Property.EMPTY_ARRAY) {
+                @Override
+                public void append(LogEvent event) {
+                    if (event.getLevel() != Level.WARN
+                        || event.getMessage().getFormattedMessage().contains("Eviction policy degraded") == false) {
+                        return;
+                    }
+                    if (seenLoggingOnce.compareAndSet(false, true) == false) {
+                        throw new AssertionError("degradation warning logged more than once");
+                    }
+                }
+            };
+            mockAppender.start();
+            Loggers.addAppender(cacheServiceLogger, mockAppender);
+
+            try {
+                evictRandomly(cacheService, regionSize, decayed);
+                assertThat(policyCallCount.get(), equalTo(1));
+                assertThat(seenLoggingOnce.get(), is(true));
+            } finally {
+                firstRegion.decRef();
+                Loggers.removeAppender(cacheServiceLogger, mockAppender);
+                mockAppender.stop();
+            }
         }
     }
 

@@ -378,13 +378,17 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
             @Override
             public boolean test(CacheRegion<FileCacheKey> region) {
+                if (rejectedCount > evictionDegradationThreshold) {
+                    return true;
+                }
                 if (policyPredicate.test(region)) {
                     return true;
                 }
                 if (++rejectedCount > evictionDegradationThreshold) {
+                    assert rejectedCount == evictionDegradationThreshold + 1 : rejectedCount + " !=" + (evictionDegradationThreshold + 1);
                     evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
                     logger.warn(
-                        "Eviction policy degraded: policy rejected over {}/{} regions; bypassing policy for {}",
+                        "Eviction policy degraded: policy rejected over [{}/{}] regions; bypassing policy for {}",
                         evictionDegradationThreshold,
                         numRegions,
                         TimeValue.timeValueMillis(evictionDegradationPeriodMillis)

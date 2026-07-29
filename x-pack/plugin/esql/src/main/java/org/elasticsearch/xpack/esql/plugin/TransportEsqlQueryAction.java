@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -150,7 +151,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.datasetResolver = new DatasetResolver(client, requestExecutor, crossProjectModeDecider);
+        this.datasetResolver = new DatasetResolver(
+            client,
+            requestExecutor,
+            crossProjectModeDecider,
+            Federation.isAvailable(clusterService.getSettings())
+        );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(

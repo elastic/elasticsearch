@@ -9,6 +9,8 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
+import org.apache.lucene.util.NumericUtils;
+
 /**
  * Deterministic numeric data shapes for the ColumNAR benchmarks. A given workload always produces the
  * same values, so every format sees identical input.
@@ -41,7 +43,7 @@ final class NumericData {
                     int posInRun = i % runsOf;
                     yield 1_700_000_000_000L + (long) run * 100_000L - (long) posInRun * 1_000L;
                 }
-                case "SENSOR_DOUBLES" -> Double.doubleToRawLongBits(20.0 + (i % 1000) * 0.1);
+                case "SENSOR_DOUBLES" -> NumericUtils.doubleToSortableLong(20.0 + (i % 1000) * 0.1);
                 case "CONSTANT" -> 1_700_000_000_000L;
                 case "DECREASING" -> 1_700_000_000_000L - (long) i * 1_000L;
                 case "GCD_FRIENDLY" -> ((long) rng.nextInt(1000) + 1) * 1_000_000L;

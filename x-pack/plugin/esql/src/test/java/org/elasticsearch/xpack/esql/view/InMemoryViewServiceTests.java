@@ -1017,6 +1017,29 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
+     * Views matched only via wildcards are silently skipped in TS commands — the relation is
+     * returned unchanged so field-caps' {@code _index_mode:time_series} filter excludes them
+     * naturally. Concrete view names in TS patterns are still rejected (see
+     * {@link #testViewNotSupportedAsSoleTsSource} and friends).
+     */
+    public void testTsWildcardSkipsViews() {
+        assumeTrue("Requires TS wildcard skipping views", EsqlCapabilities.Cap.TS_COMMAND_WILDCARDS_SKIP_VIEWS.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(replaceViews(query("TS *")), matchesPlan(query("TS *")));
+    }
+
+    /**
+     * Exclusion wildcards (e.g. {@code -.*}) in a TS pattern are not concrete view names, so they
+     * must not trigger a rejection either. The plan is returned unchanged; field-caps handles the
+     * exclusion on real indices.
+     */
+    public void testTsWildcardWithExclusionSkipsViews() {
+        assumeTrue("Requires TS wildcard skipping views", EsqlCapabilities.Cap.TS_COMMAND_WILDCARDS_SKIP_VIEWS.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(replaceViews(query("TS *,-.*")), matchesPlan(query("TS *,-.*")));
+    }
+
+    /**
      * Reproduces https://github.com/elastic/elasticsearch/issues/146665
      * FORK queries that reference no views should succeed even when circular views exist on the cluster.
      */

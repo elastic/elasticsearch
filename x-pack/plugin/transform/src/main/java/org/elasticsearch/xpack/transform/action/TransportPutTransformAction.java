@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -116,6 +117,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        super.doExecute(task, request, ActionListener.releaseAfter(listener, request));
+    }
+
+    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         if (request.isDeferValidation() == false && TransformNodes.hasNoTransformNodes(clusterState)) {
@@ -153,9 +165,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <4> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
-        // sees no caller credential and responds with a null tokenId).
+        // sees no caller credential and responds with a null tokenId). Passes the request's own
+        // credential directly (no copy needed): mint runs after <3> below, which already dispatched
+        // and closed its own independent copy, so nothing else still needs this reference. The
+        // outer doExecute-level releaseAfter(listener, request) closing the same instance again once
+        // the whole PUT resolves is a safe, idempotent no-op.
         ActionListener<ValidateTransformAction.Response> validateTransformListener = mintCredentialListener
-            .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, l));
+            .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, request.getCloudCredential(), l));
 
         // <3> Validate source and destination indices
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -166,11 +182,16 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
             // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
             // Request.close() is null-safe so this path is identical for non-UIAM callers.
+            //
+            // Uses an independent copy of the credential: TransportValidateTransformAction
+            // unconditionally closes whatever credential this request carries once validate resolves
+            // (it has to, to cover the redirect-to-another-node case), which would zero out the
+            // request's own credential before <4> above gets to mint with it.
             var validateRequest = new ValidateTransformAction.Request(
                 config,
                 request.isDeferValidation(),
                 request.ackTimeout(),
-                cloudCredentialManager.currentCallerCredential()
+                CloudCredential.copyOf(request.getCloudCredential())
             );
             ClientHelper.executeAsyncWithOrigin(
                 parentTaskClient,

@@ -22,11 +22,17 @@ public interface RecoverySchedulingListener {
     /// Listener that ignores every lifecycle event.
     RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
 
+    /// Called when a recovery is directly cancelled by the master node, before it even reached the queue.
+    default void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {}
+
     /// Called when a recovery is queued on this data node.
     default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a queued recovery is discarded without having ever run.
     default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
+
+    /// Called when a queued recovery is directly cancelled by the master node, before it started running.
+    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a recovery has been dispatched for execution on this data node.
     default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -79,8 +80,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private CircuitBreakerService breakerService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -106,8 +106,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         if (transportService != null) {
             transportService.close();
         }
@@ -397,22 +396,13 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         long taskId = 456L;
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
         action.doExecute(createTask(taskId), request, future);
-        expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
-
-        // doExecute adds bytes to the REQUEST breaker before SearchHit.readFrom() throws on the
-        // invalid payload. closeInternal (triggered when the stream's refCount reaches zero after
-        // cleanup) releases those bytes, so zero bytes is the reliable signal that the stream is
-        // fully cleaned up. Polling acquireResponseStream instead would tryIncRef on every failed
-        // attempt and leak refs, preventing closeInternal from ever firing.
-        assertBusy(
-            () -> assertThat(
-                "breaker bytes must be zero once stream closeInternal has completed",
-                breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(),
-                equalTo(0L)
-            )
+        Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(
+            "expected a deserialization failure but got: " + failure,
+            ExceptionsHelper.unwrap(failure, EOFException.class),
+            notNullValue()
         );
-        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
-        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
+        assertBusy(() -> assertFalse(activeFetchPhaseTasks.isRegistered(taskId, TEST_SHARD_ID)));
     }
 
     public void testDoExecutePreservesContextIdInFinalResult() throws Exception {
@@ -516,8 +506,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
                 equalTo(0L)
             )
         );
-        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
-        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
+        assertBusy(() -> assertFalse(activeFetchPhaseTasks.isRegistered(taskId, TEST_SHARD_ID)));
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {

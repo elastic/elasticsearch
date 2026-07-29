@@ -34,6 +34,10 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         this.xContentRegistry = xContentRegistry;
     }
 
+    public DataExtractorFactory getDelegate() {
+        return dataExtractorFactory;
+    }
+
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
@@ -48,6 +52,16 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
+    }
+
+    @Override
+    public void excludeProject(String projectAlias) {
+        dataExtractorFactory.excludeProject(projectAlias);
+    }
+
+    @Override
+    public void includeProject(String projectAlias) {
+        dataExtractorFactory.includeProject(projectAlias);
     }
 
     private ChunkedDataExtractorContext.TimeAligner newTimeAligner() {

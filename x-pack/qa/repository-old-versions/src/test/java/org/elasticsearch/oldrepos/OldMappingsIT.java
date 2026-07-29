@@ -65,6 +65,13 @@ public class OldMappingsIT extends ESRestTestCase {
     public void setupIndex() throws IOException {
         final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         if (afterRestart) {
+            List<String> indices = new ArrayList<>(List.of("filebeat", "custom", "nested", "standard_token_filter", "similarity"));
+            if (oldVersion.before(Version.fromString("6.0.0"))) {
+                indices.add("winlogbeat");
+            }
+            for (String index : indices) {
+                ensureGreen(index);
+            }
             return;
         }
 

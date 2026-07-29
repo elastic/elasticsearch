@@ -22,8 +22,7 @@ import java.util.function.IntUnaryOperator;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
- * with finalizing nearby pre-established clusters and generate
- * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ * with finalizing nearby pre-established clusters
  *
  * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */

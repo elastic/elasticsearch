@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -233,7 +232,9 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             return Translatable.YES;
         }
         if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-            return Translatable.YES;
+            // Candidate range against the keyed sub-field; RECHECK keeps the predicate in the
+            // FilterOperator to null out multi-valued documents the range let through.
+            return Translatable.RECHECK;
         }
         return Translatable.NO;
     }
@@ -250,17 +251,16 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     /**
-     * Translates a closed range over {@code field_extract(root, "key")} to a {@link RangeQuery}
+     * Translates a closed range over {@code field_extract(root, "key")} to a candidate {@link RangeQuery}
      * on the synthetic data-node field name {@code root.key}. The data node's
      * {@code FieldTypeLookup} resolves that name to a {@code KeyedFlattenedFieldType} which
      * prefixes both bounds with {@code key + "\0"} at search time, keeping the range inside the
      * key's slice of the {@code _keyed} term space.
      * <p>
-     * The result is wrapped in {@link SingleValueQuery} so that the multi-valued-sub-key
-     * semantics match the per-row evaluator's "multi-value compares to null" rule (consistent
-     * with how {@code Equals}/{@code NotEquals}/{@code In} on {@code field_extract} wrap their
-     * {@code TermQuery}/{@code TermsQuery}). {@code useSyntheticSourceDelegate} is {@code false}
-     * because the keyed sub-field is not addressed via a synthetic-source delegate.
+     * The range is not wrapped in a {@code SingleValueQuery}: {@link #translatable} reports
+     * {@code RECHECK} (consistent with how {@code Equals}/{@code NotEquals}/{@code In} on
+     * {@code field_extract} push a bare candidate query), so the FilterOperator re-applies the range on
+     * the extracted keyword column and nulls out multi-valued documents the candidate range let through.
      */
     private Query translateFieldExtractRange(String keyedName) {
         Object lo = literalValueOf(lower);
@@ -271,17 +271,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         if (hi instanceof BytesRef br) {
             hi = br.utf8ToString();
         }
-        RangeQuery rangeQuery = new RangeQuery(
-            source(),
-            keyedName,
-            lo,
-            includeLower,
-            hi,
-            includeUpper,
-            /* format */ null,
-            /* zoneId */ null
-        );
-        return new SingleValueQuery(rangeQuery, keyedName, false);
+        return new RangeQuery(source(), keyedName, lo, includeLower, hi, includeUpper, /* format */ null, /* zoneId */ null);
     }
 
     private RangeQuery translate(TranslatorHandler handler) {

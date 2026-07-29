@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -248,6 +249,53 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
             var remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
             assertThat(remoteCluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+    }
+
+    /**
+     * When all remote clusters have skip_unavailable=true and the lookup index is missing on all of them,
+     * each remote cluster is skipped individually inside {@code receiveLookupIndexResolution}.
+     * If the local cluster is also part of the query and holds the lookup index, the query succeeds
+     * with both remotes reported as SKIPPED.
+     * If the query targets only remote clusters (no local source), the lookup field-caps request
+     * returns an invalid resolution before the per-cluster skip logic is reached, so the query
+     * currently fails with a VerificationException (pre-existing limitation).
+     */
+    public void testLookupJoinAllRemoteClustersSkipped() throws IOException {
+        setupClusters(3);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        // lookup index is intentionally absent from both remote clusters
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+        try {
+            // Local source + both remotes: remote clusters are skipped because the lookup is missing
+            // on them; local cluster succeeds and contributes 10 rows.
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM logs-*, *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                    randomBoolean()
+                )
+            ) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(10));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(executionInfo.getCluster(REMOTE_CLUSTER_2).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            }
+
+            // Pure-remote source: lookup field-caps for the qualified remote expressions returns
+            // notFound (no responses) before per-cluster skip logic runs, so both remotes
+            // end up in a VerificationException rather than being skipped cleanly.
+            // FIXME: ideally this should return 0 rows with both remotes SKIPPED.
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [cluster-a:values_lookup,remote-b:values_lookup]"),
+                () -> runQuery("FROM *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+            );
+        } finally {
+            clearSkipUnavailable(3);
         }
     }
 
@@ -796,6 +844,219 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
     }
 
+    public void testCoordinatorLookupJoin() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "cluster", "remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "cluster", "remote-2"));
+
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(
+            LOCAL_CLUSTER,
+            "lookup",
+            lookupSettings,
+            Map.of("key", 1, "mode", "coordinator"),
+            Map.of("key", 2, "mode", "coordinator")
+        );
+        createIndexWithDocument(REMOTE_CLUSTER_1, "remote-lookup", lookupSettings, Map.of("key", 1, "mode", "remote"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "remote-lookup", lookupSettings, Map.of("key", 2, "mode", "remote"));
+
+        // remote data node lookup join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN remote-lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote"),
+                        List.of(2L, "remote-2", "remote")
+                    )
+                )
+            );
+        }
+
+        // remote data node lookup on local index
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [cluster-a:lookup,remote-b:lookup]"),
+            () -> runQuery("FROM *:data | LOOKUP JOIN lookup ON key", randomBoolean()).close()
+        );
+
+        // coordinator lookup join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup index is not found
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [remote-lookup]"),
+            () -> runQuery("FROM *:data | LOOKUP JOIN _coordinator:remote-lookup ON key", randomBoolean()).close()
+        );
+
+        // coordinator lookup join after pipeline breaker (stats)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | STATS c = count() BY key, cluster
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup join after pipeline breaker (limit by)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup join after pipeline breaker (limit)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 2
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup join after sort and limit
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | SORT key
+            | LIMIT 1
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // remote lookup then coordinator lookup
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN remote-lookup ON key
+            | RENAME mode AS mode1
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | RENAME mode AS mode2
+            | KEEP key, cluster, mode1, mode2
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote", "coordinator"),
+                        List.of(2L, "remote-2", "remote", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // can not execute coordinator lookup then remote lookup
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LOOKUP JOIN _coordinator:lookup ON key]"),
+            () -> runQuery("""
+                FROM *:data
+                | LOOKUP JOIN _coordinator:lookup ON key
+                | RENAME mode AS mode1
+                | LOOKUP JOIN remote-lookup ON key
+                | RENAME mode AS mode2
+                | KEEP key, cluster, mode1, mode2
+                | SORT key
+                """, randomBoolean()).close()
+        );
+    }
+
+    public void testCoordinatorLookupJoinConflictsWithRemoteClusterName() throws Exception {
+        setupClusters(2);
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1));
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(LOCAL_CLUSTER, "lookup", lookupSettings, Map.of("key", 1));
+
+        // register a remote cluster under the reserved "_coordinator" alias
+        var remoteCluster = cluster(REMOTE_CLUSTER_1);
+        var seedAddresses = Arrays.stream(remoteCluster.getNodeNames())
+            .map(node -> remoteCluster.getInstance(TransportService.class, node).boundAddress().publishAddress())
+            .toList();
+        configureRemoteClusterWithSeedAddresses("_coordinator", seedAddresses);
+        try {
+            expectThrows(
+                VerificationException.class,
+                containsString("coordinator LOOKUP JOIN is not supported with a remote cluster [_coordinator]. Please rename it."),
+                () -> runQuery("FROM cluster-a:data | LOOKUP JOIN _coordinator:lookup ON key", randomBoolean()).close()
+            );
+        } finally {
+            removeRemoteCluster("_coordinator");
+        }
+    }
+
     @SafeVarargs
     private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object>... sources) {
         var client = client(clusterAlias);
@@ -849,5 +1110,4 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         assertAcked(client.admin().indices().prepareCreate(indexName + "_map").setMapping());
         client.admin().indices().prepareRefresh(indexName + "_map").get();
     }
-
 }

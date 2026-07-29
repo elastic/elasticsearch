@@ -816,7 +816,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
@@ -843,7 +843,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
@@ -912,7 +912,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
@@ -1006,7 +1006,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
@@ -1038,7 +1038,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
@@ -1066,7 +1066,7 @@ public class TransportService extends AbstractLifecycleComponent
      * If {@code request} is a {@link BytesTransportRequest} then it is not re-serialized, and is released when the request message has been
      * fully sent. This is the recommended way for high-volume callers to keep track of the size of their unsent outbound requests.
      * <p>
-     * This method also retains a reference to {@code handler} until it is is complete. Usually that means we received a response from the
+     * This method also retains a reference to {@code handler} until it is complete. Usually that means we received a response from the
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.

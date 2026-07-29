@@ -47,6 +47,9 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
 
     private final BiConsumer<String, String> newCredentialsConsumer;
+    @Nullable // if any Authorization header is acceptable
+    private final Supplier<String> authorizationTokenSupplier;
+    private final boolean podIdentityCredentialsResponse;
     private final Map<String, String> instanceAddresses;
     private final Set<String> validCredentialsEndpoints;
     private final boolean dynamicProfileNames;
@@ -57,6 +60,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     public Ec2ImdsHttpHandler(
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
+        @Nullable Supplier<String> authorizationTokenSupplier,
+        boolean podIdentityCredentialsResponse,
         Collection<String> alternativeCredentialsEndpoints,
         Supplier<String> availabilityZoneSupplier,
         @Nullable ToXContent instanceIdentityDocument,
@@ -64,6 +69,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     ) {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
+        this.authorizationTokenSupplier = authorizationTokenSupplier;
+        this.podIdentityCredentialsResponse = podIdentityCredentialsResponse;
         this.instanceAddresses = instanceAddresses;
 
         if (alternativeCredentialsEndpoints.isEmpty()) {
@@ -133,20 +140,32 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
+                    if (authorizationTokenSupplier != null
+                        && Objects.equals(
+                            exchange.getRequestHeaders().getFirst("Authorization"),
+                            authorizationTokenSupplier.get()
+                        ) == false) {
+                        exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), -1);
+                        return;
+                    }
                     final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);
+                    // EKS Pod Identity credentials carry an AccountId and no RoleArn, unlike the EC2 IMDS / ECS responses.
+                    // https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html
+                    final String principalFieldName = podIdentityCredentialsResponse ? "AccountId" : "RoleArn";
                     final byte[] response = Strings.format(
                         """
                             {
                               "AccessKeyId": "%s",
                               "Expiration": "%s",
-                              "RoleArn": "%s",
+                              "%s": "%s",
                               "SecretAccessKey": "%s",
                               "Token": "%s"
                             }""",
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
+                        principalFieldName,
                         randomIdentifier(),
                         randomSecretKey(),
                         sessionToken

@@ -111,6 +111,10 @@ report_one merged "$OUT/merged.exec"
 SUMMARY=$("$ROOT/.buildkite/scripts/coverage/summarise.sh" "$REPORT" | tee "$OUT/summary.txt")
 echo "$SUMMARY"
 
+# Numbers into the metrics cluster, so a run contributes to a trend rather than only to its own
+# build. Never fails the step - see the script for why.
+"$ROOT/.buildkite/scripts/coverage/index-results.sh" "$REPORT" || true
+
 # --- publish + annotate --------------------------------------------------------------------------
 
 LINK="report is in this step's artifacts (build/coverage/report/)"

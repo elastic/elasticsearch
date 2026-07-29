@@ -170,6 +170,11 @@ steps:
             .buildkite/scripts/coverage/status.sh merged failure "merge failed"
           fi
           exit $$rc
+        env:
+          # Makes the pre-command hook fetch the metrics-cluster credentials from Vault, which is
+          # how the microbenchmarks ship their numbers too. Only this step needs them: the per-layer
+          # legs report a layer, and a layer on its own is not a coverage figure.
+          USE_PERF_CREDENTIALS: "true"
         timeout_in_minutes: 60
         artifact_paths:
           - "build/coverage/report/**/*"

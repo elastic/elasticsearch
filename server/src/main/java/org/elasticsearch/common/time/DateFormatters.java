@@ -198,7 +198,7 @@ public class DateFormatters {
      * allocation-heavy generic java.time parsing. These are not registered format names, so without these they would
      * otherwise fall through to the generic path in {@link #forPattern(String)}. See {@link #fastDateFieldFormatterOrNull(String)}.
      */
-    private static final String FAST_DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+    private static final String ISO_LOCAL_DATE_TIME_NO_T_PATTERN = "yyyy-MM-dd HH:mm:ss";
     private static final String FAST_DATE_PATTERN = "yyyy-MM-dd";
 
     /*
@@ -206,10 +206,10 @@ public class DateFormatters {
      * strict_date_hour_minute_second (uuuu-MM-dd'T'HH:mm:ss) except that the date and time components are separated by a
      * space instead of 'T'. The printer is built from the literal pattern so format() output is identical to the generic path.
      */
-    private static final DateFormatter FAST_DATE_TIME = new JavaDateFormatter(
-        FAST_DATE_TIME_PATTERN,
+    private static final DateFormatter ISO_LOCAL_DATE_TIME_NO_T = new JavaDateFormatter(
+        ISO_LOCAL_DATE_TIME_NO_T_PATTERN,
         new JavaTimeDateTimePrinter(
-            new DateTimeFormatterBuilder().appendPattern(FAST_DATE_TIME_PATTERN)
+            new DateTimeFormatterBuilder().appendPattern(ISO_LOCAL_DATE_TIME_NO_T_PATTERN)
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
@@ -1950,8 +1950,8 @@ public class DateFormatters {
      * {@link org.elasticsearch.index.mapper.DateFieldMapper}) so the behavior of {@link #forPattern(String)} is unchanged.
      */
     public static DateFormatter fastDateFieldFormatterOrNull(String pattern) {
-        if (FAST_DATE_TIME_PATTERN.equals(pattern)) {
-            return FAST_DATE_TIME;
+        if (ISO_LOCAL_DATE_TIME_NO_T_PATTERN.equals(pattern)) {
+            return ISO_LOCAL_DATE_TIME_NO_T;
         }
         if (FAST_DATE_PATTERN.equals(pattern)) {
             return FAST_DATE;

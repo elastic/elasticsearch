@@ -7,6 +7,8 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.core.Releasable;
+
 import java.util.function.Predicate;
 
 /**
@@ -23,7 +25,7 @@ import java.util.function.Predicate;
  *
  * @param <KeyType> the cache key type
  */
-public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> {
+public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> extends Releasable {
 
     /**
      * Creates a predicate that returns {@code true} if a region can be evicted to make room for {@code incoming}.
@@ -63,4 +65,11 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * have both been removed from the cache.
      */
     void onEvicted(CacheRegion<KeyType> region);
+
+    /**
+     * Called when the policy is closed so that it has a chance to perform any cleanup if needed. This is needed
+     * because policy can be dynamically configured at runtime so that the old policy must be closed.
+     * This method must not perform I/O.
+     */
+    default void close() {}
 }

@@ -114,10 +114,7 @@ public final class ApmIntakeMessageParser {
             Object c = sample.get("counts");
             // APM agent message (with midpoints for non-zero counts only)
             Object v = sample.get("values");
-            // OTel message (explicit bounds for all counts)
-            Object b = sample.get("bounds");
             List<Double> midpoints = new ArrayList<>();
-            List<Double> bounds = new ArrayList<>();
             if (v instanceof List<?> vList) {
                 for (Object o : vList) {
                     if (o instanceof Number n) {
@@ -127,6 +124,9 @@ public final class ApmIntakeMessageParser {
                     }
                 }
             }
+            // OTel message (explicit bounds for all counts)
+            Object b = sample.get("bounds");
+            List<Double> bounds = new ArrayList<>();
             if (b instanceof List<?> bList) {
                 for (Object o : bList) {
                     if (o instanceof Number n) {

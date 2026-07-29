@@ -1097,7 +1097,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             );
         final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
 
-        // All-WAITING snapshots are skipped for now so we do end up racing and fighting back and forth against reroute
+        // Only-WAITING snapshots are skipped for now so we do end up racing and fighting back and forth against reroute
         // (the decider will not throttle based on snapshots with only WAITING shards).
         final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
         assertThat(requests.entrySet(), hasSize(0));

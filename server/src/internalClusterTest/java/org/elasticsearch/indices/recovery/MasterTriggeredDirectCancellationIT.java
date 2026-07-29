@@ -622,12 +622,12 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 .orElse(false);
         });
         waitNoPendingTasksOnAll();
-        assertFalse("all-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
+        assertFalse("only-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
         ensureGreen(indexName, blockingIndexName);
-        assertFalse("all-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
+        assertFalse("only-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
     }
 
     public void testSnapshotCancellationDoesNotCancelNonRelocatingShards() throws Exception {

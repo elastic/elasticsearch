@@ -43,8 +43,9 @@ import java.util.TreeSet;
  * all rows, then replaces that column with one dedicated {@code keyword} column per
  * unique field name. Rows that do not carry a given field get {@code null} in that column.
  * <p>
- * TODO we double parse the JSON here: once for computing the union of all the field names, and the second for the actual expansion. We
- *  could avoid that if we used a different structure instead of JSON, e.g., one column for names and one column for values.
+ * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
+ *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
+ *  names and one of values — would let us build the union while reading and expand without re-parsing.
  */
 class ExpandUnmappedFieldsPostProcessor {
     /**
@@ -60,6 +61,8 @@ class ExpandUnmappedFieldsPostProcessor {
         }
 
         List<String> sortedFieldNames = new ArrayList<>(collectFieldNames(result, unmappedIdx));
+        // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
+        // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
         List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
         List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory);
 
@@ -73,7 +76,12 @@ class ExpandUnmappedFieldsPostProcessor {
         );
     }
 
-    /** Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages. */
+    /**
+     * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
+     * <p>
+     * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
+     *  heterogeneous index can blow the response up into thousands of columns.
+     */
     private static SortedSet<String> collectFieldNames(Result result, int unmappedIdx) {
         TreeSet<String> fieldNames = new TreeSet<>();
         BytesRef scratch = new BytesRef();
@@ -117,12 +125,11 @@ class ExpandUnmappedFieldsPostProcessor {
     /** Rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name. */
     private static List<Page> rewritePages(Result result, int unmappedIdx, int blockCount, List<String> fieldNames, BlockFactory factory) {
         int originalColumnCount = result.schema().size();
-        BytesRef scratch = new BytesRef();
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, blockCount, fieldNames, factory, p, scratch, originalColumnCount));
+                newPages.add(rewritePage(unmappedIdx, blockCount, fieldNames, factory, p, originalColumnCount));
             }
             success = true;
             return newPages;
@@ -139,7 +146,6 @@ class ExpandUnmappedFieldsPostProcessor {
         List<String> fieldNames,
         BlockFactory blockFactory,
         Page page,
-        BytesRef scratch,
         int originalColumnCount
     ) {
 
@@ -160,9 +166,17 @@ class ExpandUnmappedFieldsPostProcessor {
         BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
         try (var ignored = Releasables.wrap(builders)) {
             Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
-            var bytesRefBuilder = new BytesRefBuilder();
+            // Both grow to the largest value seen in this page, so they are per-page rather than per-result.
+            var jsonScratch = new BytesRef();
+            var scratch = new BytesRefBuilder();
             for (int row = 0; row < page.getPositionCount(); row++) {
-                var rowMap = unmappedBlock.isNull(row) ? Map.of() : parseJson(getBytesRef(unmappedBlock, row, scratch));
+                var rowMap = unmappedBlock.isNull(row) ? Map.of() : parseJson(getBytesRef(unmappedBlock, row, jsonScratch));
+                if (rowMap.isEmpty()) {
+                    for (BytesRefBlock.Builder builder : builders) {
+                        builder.appendNull();
+                    }
+                    continue;
+                }
                 int builderIndex = 0;
                 for (String fieldName : fieldNames) {
                     var builder = builders[builderIndex++];
@@ -170,14 +184,13 @@ class ExpandUnmappedFieldsPostProcessor {
                     if (val == null) {
                         builder.appendNull();
                     } else {
-                        bytesRefBuilder.copyChars(String.valueOf(val));
-                        builder.appendBytesRef(bytesRefBuilder.get());
+                        scratch.copyChars(String.valueOf(val));
+                        builder.appendBytesRef(scratch.get());
                     }
                 }
             }
             for (int i = 0; i < builders.length; i++) {
                 allBlocks[retainedBlockCount + i] = builders[i].build();
-                builders[i] = null;
             }
             var result = new Page(allBlocks);
             // Release _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.

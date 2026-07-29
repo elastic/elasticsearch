@@ -2161,14 +2161,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             if (unmappedResolution != UnmappedResolution.DEFAULT) {
+                UnmatchedPatterns unmatchedPatterns = unmappedResolution == UnmappedResolution.LOAD_ALL
+                    ? UnmatchedPatterns.IGNORE
+                    : UnmatchedPatterns.FAIL;
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
-                    inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmappedResolution == UnmappedResolution.LOAD_ALL),
-                    patternForKeep(keep.projections(), keep.child().output())
+                    inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns),
+                    unmappedResolution == UnmappedResolution.LOAD_ALL ? patternForKeep(keep.projections()) : UnmappedFieldsPattern.ALL
                 );
             }
-            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), false);
+            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
             // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
             // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
             // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
@@ -2190,47 +2193,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Computes the {@link UnmappedFieldsPattern} for a KEEP command from its projection list.
+         * Computes the {@link UnmappedFieldsPattern} for a {@code KEEP} command from its projection list.
          *
-         * <p>All projection terms from this single KEEP form one OR group: a source field survives if
-         * it matches any listed pattern. Wildcard projections ({@code *} or {@code foo*}) are added to
-         * that group directly. Explicit named projections are classified by checking {@code childOutput}:
-         * <ul>
-         *   <li>If the name is <em>not</em> in {@code childOutput}, the field is absent from the
-         *       mapped schema and will be demand-loaded from {@code _source} — it is added to
-         *       that KEEP's OR group so that it can be filtered by the block loader (and then excluded via
-         *       {@code withAdditionalExcludes} because it appears in {@code esr.output()} after
-         *       demand loading).</li>
-         *   <li>If the name <em>is</em> in {@code childOutput}, the field is a regular mapped
-         *       column. It never appears in {@code _unmapped_fields} and must not restrict the
-         *       include set — it is silently skipped.</li>
-         * </ul>
-         * When the resulting include list is empty — a {@code KEEP} that lists only already-mapped columns
-         * (e.g., {@code KEEP @timestamp, dim, val}) — the pattern keeps no unmapped source field.
-         * {@code KEEP} is an exhaustive projection, so selecting only mapped columns implies that no
-         * (currently unmapped) source field survives to the output.
+         * <p>All projection terms from this single {@code KEEP} form one OR group: a source field survives if it
+         * matches any listed term. An explicitly named term is included just like a wildcard is; a name that turns
+         * out to be an already-visible column is filtered out downstream anyway, because
+         * {@code DetermineUnmappedFieldsToKeep} excludes every {@code EsRelation.output()} name — which covers both
+         * mapped columns and the fields {@code ResolveUnmapped} demand-loads for explicit references.
+         *
+         * <p>An empty include list — a {@code KEEP} listing nothing at all — keeps no unmapped source field.
          */
-        private static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
-            Set<String> childOutputNames = childOutput.stream().map(Attribute::name).collect(Collectors.toSet());
-            List<String> result = new ArrayList<>();
+        private static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections) {
+            List<String> includes = new ArrayList<>();
             for (NamedExpression proj : projections) {
                 switch (proj) {
                     case UnresolvedStar ignored -> {
                         return UnmappedFieldsPattern.ALL;
                     }
-                    case UnresolvedNamePattern unp -> result.add(unp.pattern());
-                    case UnresolvedAttribute ua -> {
-                        // A named field absent from the child's mapped output will be demand-loaded from
-                        // _source as an unmapped field, so restrict includes to it. A mapped field already
-                        // in the child output is never in _unmapped_fields and must not constrain includes.
-                        if (childOutputNames.contains(ua.name()) == false) {
-                            result.add(ua.name());
-                        }
-                    }
+                    case UnresolvedNamePattern unp -> includes.add(unp.pattern());
+                    case UnresolvedAttribute ua -> includes.add(ua.name());
                     default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
                 }
             }
-            return UnmappedFieldsPattern.includes(result);
+            return UnmappedFieldsPattern.includes(includes);
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -2247,10 +2232,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return filtered;
         }
 
+        /** What a wildcard projection that matches nothing in the child output should do. */
+        private enum UnmatchedPatterns {
+            /** Drop the wildcard, letting the {@code _unmapped_fields} expansion apply it later. */
+            IGNORE,
+            /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
+            FAIL
+        }
+
         private static List<NamedExpression> keepResolver(
             List<? extends NamedExpression> projections,
             List<Attribute> childOutput,
-            boolean ignoreUnmatchedPatterns
+            UnmatchedPatterns unmatchedPatterns
         ) {
             List<NamedExpression> resolvedProjections;
             // start with projections
@@ -2275,7 +2268,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
                         // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
                         // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
-                        if (ignoreUnmatchedPatterns && matched.size() == 1 && matched.getFirst() instanceof UnresolvedAttribute) {
+                        if (unmatchedPatterns == UnmatchedPatterns.IGNORE
+                            && matched.size() == 1
+                            && matched.getFirst() instanceof UnresolvedAttribute) {
                             continue;
                         }
                         resolved = matched;
@@ -2311,30 +2306,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 ? new ResolvingProject(
                     drop.source(),
                     drop.child(),
-                    inputAttributes -> dropResolver(drop.removals(), inputAttributes, true),
-                    patternForDrop(drop.removals())
+                    inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE),
+                    unmappedResolution == UnmappedResolution.LOAD_ALL ? patternForDrop(drop.removals()) : UnmappedFieldsPattern.ALL
                 )
-                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), false));
+                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
         }
 
         /**
-         * Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list.
+         * Computes the {@link UnmappedFieldsPattern} for a {@code DROP} command from its removal list.
          *
-         * <p>Unlike {@link #patternForKeep}, this does not consult {@code childOutput}: planning cannot
-         * know which unmapped source fields will be loaded, so DROP patterns must always be retained to
-         * exclude matching names from the unmapped-field set, whether or not those names are already
-         * mapped columns in the child output.
+         * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
+         * will match, so the pattern has to be applied during the {@code _unmapped_fields} expansion. An explicitly
+         * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
+         * {@code EsRelation.output()} name — which covers both mapped columns and the fields
+         * {@code ResolveUnmapped} demand-loads for explicit references.
          */
         private static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
             return UnmappedFieldsPattern.excludes(
-                removals.stream().map(removal -> removal instanceof UnresolvedNamePattern up ? up.pattern() : removal.name()).toList()
+                removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).pattern()).toList()
             );
         }
 
         private static List<NamedExpression> dropResolver(
             List<NamedExpression> removals,
             List<Attribute> childOutput,
-            boolean ignoreUnmatchedPatterns
+            UnmatchedPatterns unmatchedPatterns
         ) {
             // DROP must operate over the full childOutput — including any external metadata
             // (`_file.*`, partition columns) the user already pulled in via KEEP — so it can
@@ -2349,7 +2345,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (ne instanceof UnresolvedNamePattern np) {
                     resolved = resolveAgainstList(np, childOutput);
                     // A wildcard that matches no field resolves to a single unresolved UnresolvedAttribute.
-                    if (ignoreUnmatchedPatterns && resolved.size() == 1 && resolved.getFirst() instanceof UnresolvedAttribute) {
+                    if (unmatchedPatterns == UnmatchedPatterns.IGNORE
+                        && resolved.size() == 1
+                        && resolved.getFirst() instanceof UnresolvedAttribute) {
                         continue;
                     }
                 } else if (ne instanceof UnresolvedAttribute ua) {
@@ -2376,14 +2374,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
-            // Each alias target name shadows any source field with that name.
+            // No pattern to capture: each alias target name shadows the source field with that name, and
+            // DetermineUnmappedFieldsToKeep derives that from the projection's output on its own.
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
                     inputAttributes -> projectionsForRename(rename, inputAttributes, log),
-                    UnmappedFieldsPattern.excludes(rename.renamings().stream().map(Alias::name).toList())
+                    UnmappedFieldsPattern.ALL
                 );
         }
 

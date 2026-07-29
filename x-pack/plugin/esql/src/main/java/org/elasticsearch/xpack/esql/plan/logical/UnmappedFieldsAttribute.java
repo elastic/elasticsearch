@@ -26,16 +26,22 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The synthetic {@code _unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"}
+ * The synthetic {@code $$unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"}
  * is in effect.
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
  * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
  * (currently unmapped) source fields are loaded into the JSON object value of the column.
+ *
+ * <p>Note that {@link #synthetic()} stays {@code false} despite the synthetic name:
+ * {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute for which it returns
+ * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
+ * before the coordinator ever got to expand it. The {@code $$} name is what keeps the column
+ * unreachable from a query — user field names cannot start with it.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
 
-    public static final String ATTRIBUTE_NAME = "_unmapped_fields";
+    public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -93,7 +99,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static UnmappedFieldsAttribute readFrom(StreamInput in) throws IOException {
         return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
             Source source = Source.readFrom((PlanStreamInput) stream);
-            stream.readString(); // attribute name constant _unmapped_fields
+            stream.readString(); // attribute name, always ATTRIBUTE_NAME
             DataType dataType = DataType.readFrom(stream);
             stream.readOptionalString(); // qualifier, no longer used
             Nullability nullability = stream.readEnum(Nullability.class);

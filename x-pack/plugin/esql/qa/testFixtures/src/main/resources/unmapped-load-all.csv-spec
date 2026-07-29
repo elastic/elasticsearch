@@ -1,6 +1,6 @@
-############################
-# Baseline: all unmapped fields expanded
-############################
+##########################################
+# Baseline: all unmapped fields expanded #
+##########################################
 
 fromNoProjection
 required_capability: optional_fields_load_all
@@ -115,9 +115,9 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | null
 ;
 
-############################
-# More command coverage
-############################
+#########################
+# More command coverage #
+#########################
 
 dropMappedColumn
 required_capability: optional_fields_load_all
@@ -240,23 +240,27 @@ FROM partial_mapping_sample_data
 ;
 
 @timestamp:datetime      | unmapped_message:keyword | unmapped_event_duration:long | language_code:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450             | 4                     | g
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764             | 3                     | f
-2024-10-23T13:33:34.937Z | 42                     | 1232             | 2                     | e
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!   | 3450                         | 4                     | g
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!   | 2764                         | 3                     | f
+2024-10-23T13:33:34.937Z | 42                       | 1232                         | 2                     | e
 ;
 
-// An index with no mapping at all: LOAD_ALL expands every source field into its own keyword column.
 allFieldsUnmapped
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM no_mapping_sample_data
 | SORT @timestamp
-| LIMIT 1
 ;
 
-@timestamp:keyword        | client_ip:keyword | event_duration:keyword | language_code:keyword | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z  | 173.21.2.162      | 3450232                | 4                     | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
+@timestamp:keyword       | client_ip:keyword | event_duration:keyword | language_code:keyword | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162      | 3450232                | 4                     | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113      | 2764888                | 3                     | Connected to 10.1.0.2! | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5        | 1232381                | 2                     | 42                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15       | 725447                 | 1                     | Connection error?      | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15       | 8268152                | 3                     | Connection error?      | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15       | 5033754                | 2                     | Connection error?      | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15       | 1756466                | 1                     | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 // A DROP pattern that only matches unmapped source fields excludes those fields from expansion,
@@ -303,9 +307,31 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-############################
-# Gap coverage: known-failing tests documenting intended behaviour
-############################
+// Same data and mapping as fromNoProjection, but with synthetic source. Unmapped fields survive (dynamic: false
+// keeps them in _ignored_source), with one difference: synthetic source reconstructs the dotted key
+// "unmapped.nested" as a nested object, and since only top-level keys are expanded the column is named "unmapped"
+// and holds the stringified object. That last part is objectsGap below, not something specific to synthetic source.
+syntheticSource
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM synthetic_source_partial_mapping
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | {nested=g}       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | {nested=f}       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | {nested=e}       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | {nested=d}       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | {nested=c}       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | {nested=b}       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | {nested=a}       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+####################################################################
+# Gap coverage: known-failing tests documenting intended behaviour #
+####################################################################
 
 arraysGap-Ignore
 required_capability: optional_fields_load_all
@@ -335,8 +361,12 @@ id:keyword | extra:keyword
 2          | "{""baz"":""world""}"
 ;
 
-// (gap): for a field mapped on only some shards, the source value from the shards where it is
-// unmapped is silently dropped, with no representation in the output.
+// (gap): for a field mapped on only some indices, the source value from the indices where it is unmapped is
+// silently dropped, with no representation in the output. The cause is that a partially mapped field is in the
+// union EsRelation.output(), so DetermineUnmappedFieldsToKeep excludes it from _unmapped_fields — nothing then
+// loads its unmapped leg from _source. LOAD does not have this problem: it turns the field into a
+// PotentiallyUnmappedKeywordEsField that reads _source where the mapping is missing. See the passing control case
+// crossMappingLoadsBothLegs in unmapped-load.csv-spec.
 crossMappingGap-Ignore
 required_capability: optional_fields_load_all
 

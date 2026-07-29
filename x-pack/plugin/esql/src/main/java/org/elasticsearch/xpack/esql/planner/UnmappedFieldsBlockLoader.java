@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
@@ -94,20 +93,22 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
-            // ValuesSourceReaderOperator separately reserves source-parsing overhead; this scoped
-            // reservation covers the filtered map and JSON re-serialization performed here.
+            // Covers the parsed map and the JSON we build from it, both of which are proportional to _source.
+            // TODO the _source read itself is still charged a flat BlockSourceReader.ESTIMATED_SIZE by
+            // BlockStoredFieldsReader, so an unusually large _source is under-accounted. Engine-wide, pre-existing.
             long reservation = source.internalSourceRef().length();
             breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
             try {
                 Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType())
                     .v2();
-                // Not Collectors.toMap: _source may carry null values, which its merge function rejects.
-                TreeMap<String, Object> filtered = sourceMap.entrySet()
-                    .stream()
-                    .filter(entry -> pattern.matches(entry.getKey()))
-                    .collect(TreeMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()), TreeMap::putAll);
                 try (XContentBuilder json = XContentFactory.jsonBuilder()) {
-                    json.map(filtered);
+                    json.startObject();
+                    for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
+                        if (pattern.matches(entry.getKey())) {
+                            json.field(entry.getKey(), entry.getValue());
+                        }
+                    }
+                    json.endObject();
                     ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
                 }
             } finally {

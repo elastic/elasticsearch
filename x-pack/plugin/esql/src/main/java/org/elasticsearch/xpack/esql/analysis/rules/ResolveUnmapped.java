@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -95,18 +94,17 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
-            case UnmappedResolution.NULLIFY -> resolve(plan, false, false);
-            case UnmappedResolution.LOAD -> resolve(plan, true, false);
-            case UnmappedResolution.LOAD_ALL -> resolve(plan, true, true);
+            case UnmappedResolution.NULLIFY -> resolve(plan, false);
+            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolve(plan, true);
         };
     }
 
-    private static LogicalPlan resolve(LogicalPlan plan, boolean load, boolean leaveUnmappedFieldsColumnUnresolved) {
+    private static LogicalPlan resolve(LogicalPlan plan, boolean load) {
         if (plan.childrenResolved() == false) {
             return plan;
         }
 
-        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan, leaveUnmappedFieldsColumnUnresolved);
+        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan);
         if (unresolvedByName.isEmpty()) {
             return plan;
         }
@@ -388,15 +386,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, grouped by name (preserving insertion order), but
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
-    private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(
-        LogicalPlan plan,
-        boolean leaveUnmappedFieldsColumnUnresolved
-    ) {
+    private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
         Consumer<UnresolvedAttribute> sink = ua -> {
-            if (leaveUnresolved(ua, leaveUnmappedFieldsColumnUnresolved) == false
+            if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
                 && aliasedGroupings.contains(ua.name()) == false) {
@@ -465,13 +460,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
     }
 
-    private static boolean leaveUnresolved(UnresolvedAttribute attribute, boolean leaveUnmappedFieldsColumnUnresolved) {
+    private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
         return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
         // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
-            || MetadataAttribute.isSupported(attribute.name())
-            // Under LOAD_ALL, _unmapped_fields is a synthetic column: an explicit reference to it must fail as an
-            // "Unknown column" rather than being demand-loaded as an ordinary keyword.
-            || (leaveUnmappedFieldsColumnUnresolved && UnmappedFieldsAttribute.ATTRIBUTE_NAME.equals(attribute.name()));
+            || MetadataAttribute.isSupported(attribute.name());
     }
 
     /**

@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -223,29 +222,47 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl());
     }
 
-    public void testLoadAllUnmappedFieldsColumnNotDirectlyReferenceable() {
-        test().statementError(
-            setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"),
-            containsString("Unknown column [_unmapped_fields]")
-        );
+    public void testKeepMultipleUnmatchedWildcards() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP nomatch1*, nomatch2*")));
+        assertKept(pattern, "nomatch1_a", "nomatch2_b");
+        assertNotKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl());
     }
 
-    public void testDropUnmappedFieldsColumn() {
-        test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("Unknown column [_unmapped_fields]"));
+    public void testDropExactUnmappedName() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP unmapped_extra")));
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("unmapped_extra"));
     }
 
-    public void testRenameUnmappedFieldsColumn() {
-        test().statementError(
-            setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"),
-            containsString("Unknown column [_unmapped_fields]")
-        );
+    /**
+     * {@code _unmapped_fields} is not a reserved name: the synthetic column is called
+     * {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}, which no query can spell. So a query referencing
+     * {@code _unmapped_fields} gets an ordinary source field demand-loaded as a keyword — which in turn puts
+     * the name into {@code EsRelation.output()} and therefore out of the expansion pattern.
+     */
+    public void testKeepUnmappedFieldsIsAnOrdinarySourceField() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | KEEP _unmapped_fields")));
+        assertNotKept(pattern, "_unmapped_fields", "unmapped_extra");
+        assertNotKept(pattern, excl());
     }
 
-    public void testScalarFunctionOnUnmappedFieldsColumn() {
-        test().statementError(
-            setUnmappedLoadAll("FROM test | EVAL len = LENGTH(_unmapped_fields)"),
-            containsString("Unknown column [_unmapped_fields]")
-        );
+    public void testDropUnmappedFieldsIsAnOrdinarySourceField() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | DROP _unmapped_fields")));
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl("_unmapped_fields"));
+    }
+
+    public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras")));
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl("_unmapped_fields", "extras"));
+    }
+
+    public void testScalarFunctionOnUnmappedFieldsIsAnOrdinarySourceField() {
+        UnmappedFieldsPattern pattern = patternOf(test().statement(setUnmappedLoadAll("FROM test | EVAL len = LENGTH(_unmapped_fields)")));
+        assertKept(pattern, "unmapped_extra");
+        assertNotKept(pattern, excl("_unmapped_fields", "len"));
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

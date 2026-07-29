@@ -18,8 +18,6 @@ Possible values are:
   [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
   absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
 {applies_to}`stack: preview =9.4, ga 9.5+`
-- `LOAD_ALL` : Loads all source fields not present in the index mapping, expanding each unmapped field into its own
-  dedicated `keyword` output column. {applies_to}`stack: preview =9.5`
 
 [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 

@@ -4112,3 +4112,19 @@ FROM sample_data
 @timestamp:date          | client_ip:ip | event_duration:long
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
+
+// foo is mapped only in cross_mapping_a and bar only in cross_mapping_b, so each index has the other field in
+// _source only. LOAD makes both partially mapped and loads the unmapped leg from _source, so no value is lost.
+// The control case for crossMappingGap-Ignore in unmapped-load-all.csv-spec, which does lose them.
+crossMappingLoadsBothLegs
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| SORT foo
+;
+
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | cross_mapping_a
+b2          | a2          | cross_mapping_b
+;

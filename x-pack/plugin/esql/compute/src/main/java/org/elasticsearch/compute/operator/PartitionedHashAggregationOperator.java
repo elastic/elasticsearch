@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -308,16 +309,60 @@ public class PartitionedHashAggregationOperator extends AbstractPartitionedHashA
         try {
             checkState(needsInput(), "Operator is already finishing");
             requireNonNull(page, "page is null");
-            Page internal = toInternalLayout(page);
-            singleOp.processPage(internal);
-            if (singleOp.blockHash.numKeys() >= emitKeysThreshold) {
-                emitIntermediate();
+            List<Block> ownedPlaceholders = new ArrayList<>();
+            try {
+                Page internal = toRawInternalLayout(page, ownedPlaceholders);
+                singleOp.processPage(internal);
+                if (singleOp.blockHash.numKeys() >= emitKeysThreshold) {
+                    emitIntermediate();
+                }
+            } finally {
+                Releasables.closeExpectNoException(ownedPlaceholders.toArray(Block[]::new));
             }
         } finally {
             page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
         }
+    }
+
+    /**
+     * Builds an internal-layout page for raw {@link AggregatorMode#INITIAL} input, similar to
+     * {@link #toInternalLayout} but replacing placeholder slots (those beyond an aggregator's
+     * raw channel count) with constant non-null blocks rather than the group key block.
+     * <p>
+     *     This prevents INITIAL-mode aggregators from misreading the placeholder as "all-null
+     *     input": COUNT(*) is created with {@code combinedChannels} (so {@code countAll == false}),
+     *     and reads from its first combined channel during raw processing. If that channel held an
+     *     all-null group key (as produced by ENRICH with no matches), COUNT would return null from
+     *     {@code prepareProcessRawInputPage} and count 0 instead of the correct row count.
+     * </p>
+     * <p>
+     *     Caller must close every block appended to {@code owned} after the page has been
+     *     consumed — those blocks are not referenced by the original page and would otherwise leak.
+     * </p>
+     */
+    private Page toRawInternalLayout(Page page, List<Block> owned) {
+        Block[] blocks = new Block[internalPageWidth];
+        for (int k = 0; k < groupChannels.size(); k++) {
+            blocks[k] = page.getBlock(groupChannels.get(k));
+        }
+        for (int a = 0; a < aggregatorChannels.size(); a++) {
+            List<Integer> channels = aggregatorChannels.get(a);
+            int base = combinedChannelStart[a];
+            for (int j = 0; j < channels.size(); j++) {
+                blocks[base + j] = page.getBlock(channels.get(j));
+            }
+            int totalCount = (a + 1 < combinedChannelStart.length ? combinedChannelStart[a + 1] : internalPageWidth) - base;
+            for (int j = channels.size(); j < totalCount; j++) {
+                // Placeholder slot: fill with a non-null constant so INITIAL-mode aggregators
+                // that read this slot (e.g. COUNT(*)) count all rows rather than 0.
+                Block sentinel = driverContext.blockFactory().newConstantIntBlockWith(0, page.getPositionCount());
+                owned.add(sentinel);
+                blocks[base + j] = sentinel;
+            }
+        }
+        return new Page(blocks);
     }
 
     @Override

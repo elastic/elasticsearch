@@ -277,6 +277,47 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     /**
+     * Regression test: COUNT(*) must count all rows even when the grouping key is entirely null
+     * (e.g. produced by ENRICH with no matching records). PHAO creates COUNT with
+     * {@code combinedChannels} rather than {@code rawChannels}, so its {@code countAll} flag is
+     * false. The internal layout fills the placeholder combined channel with a constant non-null
+     * block; without that fix, an all-null group key would propagate to the placeholder channel
+     * and cause COUNT to return 0 instead of the correct row count.
+     */
+    public void testCountAllWithAllNullGroupKey() {
+        int totalRows = 20;
+        // One page: grouping key is entirely null (simulates ENRICH with no matches).
+        BytesRefBlock.Builder keyBuilder = blockFactory.newBytesRefBlockBuilder(totalRows);
+        for (int i = 0; i < totalRows; i++) {
+            keyBuilder.appendNull();
+        }
+        BytesRefBlock keyBlock = keyBuilder.build();
+        List<Page> input = List.of(new Page(keyBlock));
+
+        PartitionedHashAggregationOperator.Builder builder = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF))
+        )
+            .aggregators(List.of(countAllFactory()))
+            .partitionCount(8)
+            .emitKeysThreshold(100_000)
+            .maxPageSize(10_000)
+            .aggregationBatchSize(10_000);
+
+        List<TaggedPage> results = runOperator(builder, input);
+        // All rows have a null key, so there is exactly one group (the null group) with count=20.
+        long totalCount = 0;
+        for (TaggedPage tp : results) {
+            Page page = tp.page;
+            assertThat(page.getBlockCount(), equalTo(3)); // key + count + seen
+            LongBlock counts = page.getBlock(1);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                totalCount += counts.getLong(i);
+            }
+        }
+        assertThat("COUNT(*) must count all rows even with all-null group key", totalCount, equalTo((long) totalRows));
+    }
+
+    /**
      * Regression test: after finish() drains the operator, {@code singleOp} is null.
      * {@code toString()} must not throw in that state.
      */

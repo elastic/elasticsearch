@@ -1258,11 +1258,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             List<NamedExpression> resolvedFields = new ArrayList<>();
+            // Dedupe on NameId: `title, title` or overlapping patterns (`title, titl*`) resolve to the same attribute;
+            // embedding it twice would double the inference cost and generate shadowing duplicate output columns.
+            Set<NameId> seen = new HashSet<>();
             for (NamedExpression field : p.fields()) {
                 if (field instanceof UnresolvedStar) {
                     // "*" -> every non-metadata field; keep only the text ones, silently skip the rest (wildcard semantics)
                     for (Attribute a : excludeExternalMetadata(childrenOutput)) {
-                        if (DataType.isString(a.dataType())) {
+                        if (DataType.isString(a.dataType()) && seen.add(a.id())) {
                             resolvedFields.add(a);
                         }
                     }
@@ -1270,13 +1273,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // wildcard pattern -> keep resolved text matches only; a no-match or a non-text match is silently
                     // skipped for now (DECISION-014: wildcard-matches-nothing is silent, final behavior deferred)
                     for (Attribute a : resolveAgainstList(up, childrenOutput)) {
-                        if (a.resolved() && DataType.isString(a.dataType())) {
+                        if (a.resolved() && DataType.isString(a.dataType()) && seen.add(a.id())) {
                             resolvedFields.add(a);
                         }
                     }
                 } else if (field instanceof UnresolvedAttribute ua) {
                     // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
-                    resolvedFields.addAll(resolveAgainstList(ua, childrenOutput));
+                    for (NamedExpression resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved instanceof Attribute a && a.resolved()) {
+                            if (seen.add(a.id())) {
+                                resolvedFields.add(a);
+                            }
+                        } else {
+                            // keep unresolved results so verification can report the unknown column
+                            resolvedFields.add(resolved);
+                        }
+                    }
                 } else {
                     resolvedFields.add(field);
                 }

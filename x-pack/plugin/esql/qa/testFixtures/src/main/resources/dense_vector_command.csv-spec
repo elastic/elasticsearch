@@ -150,3 +150,38 @@ book_no:keyword | publisher:text      | publisher_dense_vector:dense_vector
 7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
 7670            | Courier Corporation | [45.0, 49.0, 55.0]
 ;
+
+
+dense_vector command on a null value produces a null vector
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| EVAL maybe_title = CASE(book_no == "7480", title)
+| DENSE_VECTOR maybe_title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, maybe_title, maybe_title_dense_vector
+;
+
+book_no:keyword | maybe_title:keyword | maybe_title_dense_vector:dense_vector
+7480            | The Hobbit          | [50.0, 49.0, 48.0]
+8605            | null                | null
+;
+
+
+// For multi-valued fields only the FIRST value (in stored order) is embedded — shared embedding
+// input semantics, see AbstractEmbeddingRequestIterator (same as the TEXT_EMBEDDING function).
+dense_vector command on a multi-valued field embeds the first value
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR author WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, author, author_dense_vector
+;
+
+book_no:keyword | author:text                                          | author_dense_vector:dense_vector
+2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
+;

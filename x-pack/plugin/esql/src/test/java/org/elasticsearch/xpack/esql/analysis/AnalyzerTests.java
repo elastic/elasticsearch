@@ -4599,6 +4599,31 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(getAttributeByName(denseVector.output(), "year_dense_vector"), nullValue());
     }
 
+    public void testDenseVectorDuplicateFieldIsDeduped() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorOverlappingWildcardIsDeduped() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, titl* WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = defaultMapping().query("""
             FROM test

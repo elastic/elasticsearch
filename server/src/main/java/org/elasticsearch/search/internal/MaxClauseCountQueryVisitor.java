@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * can charge the request circuit breaker once per top-level call instead of once per leaf builder.
  * <p>
  * When a non-null {@link CircuitBreaker} is supplied, the visitor trips it mid-walk as soon as the
- * projected total (breaker baseline plus running estimate) exceeds the limit, so pathological
+ * projected total (live {@code breaker.getUsed()} plus running estimate) exceeds the limit, so pathological
  * queries fail before their full Lucene tree is materialised.
  * <p>
  * {@link IndexOrDocValuesQuery} is counted as one clause and its inner queries are ignored;
@@ -58,7 +58,6 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     @Nullable
     private final CircuitBreaker breaker;
-    private long breakerBaseline;
 
     @Nullable
     private final Predicate<Query> preCharged;
@@ -74,7 +73,6 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable Predicate<Query> preCharged) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
-        this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
         this.preCharged = preCharged;
     }
 
@@ -99,15 +97,12 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     /**
-     * Clears the accumulated clause count and byte estimate, and recaptures the breaker baseline
-     * from {@code breaker.getUsed()} when a breaker is configured.
+     * Clears the accumulated clause count and byte estimate. The breaker projection reads
+     * {@code breaker.getUsed()} live, so there is no cached baseline to recapture.
      */
     public void reset() {
         numClauses = 0;
         estimatedBytes = 0L;
-        if (breaker != null) {
-            breakerBaseline = breaker.getUsed();
-        }
     }
 
     public void merge(MaxClauseCountQueryVisitor other) {
@@ -158,7 +153,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
             return;
         }
 
-        long projected = breakerBaseline + estimatedBytes;
+        long projected = breaker.getUsed() + estimatedBytes;
         if (projected > limit) {
             // Throw-only: circuitBreak bumps trippedCount and throws, but does NOT touch the breaker's
             // used counter. The accumulated estimate is committed in a single addCircuitBreakerMemory

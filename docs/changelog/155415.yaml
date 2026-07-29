@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 154748
+pr: 155415
+summary: Allow `_inference_fields` to be fetched through the fields API
+type: bug

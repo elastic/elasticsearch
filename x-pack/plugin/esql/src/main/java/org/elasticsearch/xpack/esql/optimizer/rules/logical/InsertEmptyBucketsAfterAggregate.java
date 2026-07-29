@@ -26,12 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SequencedMap;
-
 /**
  * Inserts a coordinator-only {@link InsertEmptyBuckets} above each {@link Aggregate} whose groupings include one or more
  * {@link Bucket}s (or {@link TBucket}s) with {@code {"include_empty_buckets": true}}, and attaches default values for

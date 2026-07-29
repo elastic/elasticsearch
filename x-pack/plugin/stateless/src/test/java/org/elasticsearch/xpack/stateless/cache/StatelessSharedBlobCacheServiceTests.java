@@ -43,10 +43,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.freeRegionCountFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.getFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeEvictLeastUsedFromCacheService;
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpochForCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.cacheRegion;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.freeRegionCount;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeEvictLeastUsed;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpoch;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING;
@@ -255,13 +255,13 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
-            getFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
             // This is the 1st region since the entry is inserted at the head of freq list.
-            final RefCounted firstRegion = getFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0);
+            final RefCounted firstRegion = cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
             // Decay synchronously (DecayAndNewEpochTask uses DIRECT_EXECUTOR_SERVICE, which runs tasks inline).
             final boolean decayed = randomBoolean();
             if (decayed) {
-                maybeScheduleDecayAndNewEpochForCacheService(cacheService);
+                maybeScheduleDecayAndNewEpoch(cacheService);
             }
             taskQueue.runAllRunnableTasks();
             firstRegion.mustIncRef(); // incref to force scan to pick the 2nd region
@@ -298,11 +298,11 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
     private boolean fillAndMaybeDecay(SharedBlobCacheService<FileCacheKey> cacheService, DeterministicTaskQueue taskQueue) {
         final boolean shouldDecay = randomBoolean();
-        while (freeRegionCountFromCacheService(cacheService) > 0) {
-            getFromCacheService(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0);
+        while (freeRegionCount(cacheService) > 0) {
+            cacheRegion(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0);
         }
         if (shouldDecay) {
-            maybeScheduleDecayAndNewEpochForCacheService(cacheService);
+            maybeScheduleDecayAndNewEpoch(cacheService);
         }
         taskQueue.runAllRunnableTasks();
         return shouldDecay;
@@ -310,9 +310,9 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
     private void evictRandomly(SharedBlobCacheService<FileCacheKey> cacheService, long regionSize, boolean decayed) {
         if (decayed == false) {
-            getFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
         } else {
-            assertThat(maybeEvictLeastUsedFromCacheService(cacheService, generateFileCacheKey(), regionSize, 0), is(true));
+            assertThat(maybeEvictLeastUsed(cacheService, generateFileCacheKey(), regionSize, 0), is(true));
         }
     }
 

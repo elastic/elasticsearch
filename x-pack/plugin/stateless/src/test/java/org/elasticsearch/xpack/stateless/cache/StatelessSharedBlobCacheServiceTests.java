@@ -82,7 +82,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             );
         }
         if (randomBoolean()) {
-            settingBuilder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m");
+            settingBuilder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.getKey(), "5m");
         }
         final Settings settings = settingBuilder.build();
         final AtomicInteger policyCallCount = new AtomicInteger(0);
@@ -130,7 +130,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testEvictionDegradationPeriodLifecycle() throws Exception {
+    public void testEvictionDegradationDurationLifecycle() throws Exception {
         final int numRegions = randomIntBetween(4, 20);
         final long regionSize = cacheRegionSizeInBytes(1L);
         final long degradationPeriodMillis = TimeUnit.SECONDS.toMillis(10);
@@ -142,7 +142,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "50%")
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "10s")
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.getKey(), "10s")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -217,7 +217,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "0%")
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m")
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.getKey(), "5m")
             .put("path.home", createTempDir())
             .build();
 

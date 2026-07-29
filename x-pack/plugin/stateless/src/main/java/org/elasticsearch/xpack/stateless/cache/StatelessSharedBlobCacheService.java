@@ -105,7 +105,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
      * scan before the cache enters a node-wide eviction degradation period. When {@code rejectedCount / numRegions} exceeds
-     * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
+     * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING}.
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
      */
@@ -122,8 +122,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
      */
-    public static final Setting<TimeValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING = Setting.timeSetting(
-        "stateless.cache_boost_preference.eviction_policy_degradation.period",
+    public static final Setting<TimeValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING = Setting.timeSetting(
+        "stateless.cache_boost_preference.eviction_policy_degradation.duration",
         TimeValue.timeValueMinutes(5),
         TimeValue.ZERO,
         Setting.Property.NodeScope
@@ -153,7 +153,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private volatile boolean evictObsoleteRegionsEnabled;
 
     private final int evictionDegradationThreshold;
-    private final long evictionDegradationPeriodMillis;
+    private final long evictionDegradationDurationMillis;
     private volatile long evictionDegradationStartMillis = -1L;
 
     public StatelessSharedBlobCacheService(
@@ -195,13 +195,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
-        this.evictObsoleteRegionsEnabled = STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.get(settings);
         this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
             .getAsRatio());
-        this.evictionDegradationPeriodMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
+        this.evictionDegradationDurationMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.get(settings).millis();
         assert evictionDegradationThreshold >= 0 && evictionDegradationThreshold <= numRegions
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
-        assert evictionDegradationPeriodMillis >= 0 : evictionDegradationPeriodMillis + " < 0";
+        assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
@@ -331,14 +330,16 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         EvictionPolicy<FileCacheKey> evictionPolicy,
         CacheRegion<FileCacheKey> incoming
     ) {
-        if (evictionDegradationThreshold == numRegions || evictionDegradationPeriodMillis == 0) {
+        if (evictionDegradationThreshold == numRegions || evictionDegradationDurationMillis == 0) {
             // Degradation is disabled, just use the eviction policy's predicate directly.
             return super.createEvictionPredicate(evictionPolicy, incoming);
         }
 
         final long startMillis = evictionDegradationStartMillis;
-        if (startMillis >= 0 && threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationPeriodMillis) {
-            // In degradation period, bypass the eviction policy
+        if (startMillis >= 0 && threadPool.absoluteTimeInMillis() - startMillis < evictionDegradationDurationMillis) {
+            // In the degradation period, bypass the eviction policy. This checked once before creating the predicate, which
+            // means it does not detect degradation triggered by another thread. This thread can still on its own trigger
+            // degradation.
             return Predicates.always();
         }
 
@@ -357,12 +358,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                 }
                 if (++rejectedCount > evictionDegradationThreshold) {
                     assert rejectedCount == evictionDegradationThreshold + 1 : rejectedCount + " !=" + (evictionDegradationThreshold + 1);
+                    // There could be races in setting the start time. It is ok since it does not have to be super accurate.
                     evictionDegradationStartMillis = threadPool.absoluteTimeInMillis();
                     logger.warn(
                         "Eviction policy degraded: policy rejected over [{}/{}] regions; bypassing policy for {}",
                         evictionDegradationThreshold,
                         numRegions,
-                        TimeValue.timeValueMillis(evictionDegradationPeriodMillis)
+                        TimeValue.timeValueMillis(evictionDegradationDurationMillis)
                     );
                     return true;
                 }

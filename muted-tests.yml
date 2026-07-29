@@ -706,9 +706,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.centroidFromAirportsFilteredCountry}
   issue: https://github.com/elastic/elasticsearch/issues/155030
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.nulls in groups}
-  issue: https://github.com/elastic/elasticsearch/issues/155111
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testRemoteFailureSkipUnavailableTrue
   issue: https://github.com/elastic/elasticsearch/issues/155120
@@ -739,36 +736,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testPopulateCacheWithSharedSourceInputStreamFactory
   issue: https://github.com/elastic/elasticsearch/issues/154597
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:ip.cidrMatchFieldArg}
-  issue: https://github.com/elastic/elasticsearch/issues/155281
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testPitRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/155284
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
-  issue: https://github.com/elastic/elasticsearch/issues/155113
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCompletesWithMultipleHandlers
   issue: https://github.com/elastic/elasticsearch/issues/153747
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecSpatialIT
-  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/155125
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
-  method: test {csv-spec:change_point.values null column}
-  issue: https://github.com/elastic/elasticsearch/issues/155152
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:ip.cdirMatchMultipleArgs}
-  issue: https://github.com/elastic/elasticsearch/issues/155296
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
-  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
-  issue: https://github.com/elastic/elasticsearch/issues/155167
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
-  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155144
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327

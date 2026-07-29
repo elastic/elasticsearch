@@ -640,7 +640,7 @@ public class DesiredBalanceReconciler {
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                             BalancedShardsAllocator.MoveType.REBALANCE.reason(),
                             allocation.changes(),
-                            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+                            BalancedShardsAllocator.MoveType.REBALANCE.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());

@@ -237,7 +237,7 @@ public class ManifoldModelTests extends ESTestCase {
 
         CalibrationSource neyshaburSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
-            dim,
+            liftedDim,
             fixture.fvv(),
             fixture.queryOrdinals(),
             dim,

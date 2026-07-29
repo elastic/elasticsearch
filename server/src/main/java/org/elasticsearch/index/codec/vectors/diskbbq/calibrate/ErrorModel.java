@@ -67,7 +67,7 @@ public final class ErrorModel {
         QuantizedErrorScratch scratch
     ) throws IOException {
         VectorSimilarityFunction sim = source.similarityFunction();
-        int dim = source.workingDim();
+        int dimWork = source.workingDim();
         boolean cosine = source.cosine();
 
         int nDocClusters = docCentroids.length;
@@ -83,7 +83,7 @@ public final class ErrorModel {
             docCentroidAssignments = new int[nDocClusters];
         } else {
             int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
-            KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dim);
+            KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dimWork);
             var queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
             queryCentroids = queryClustering.centroids();
             docCentroidAssignments = queryClustering.assignments();
@@ -116,7 +116,7 @@ public final class ErrorModel {
             int qc = docCentroidAssignments[docAssignments[i]];
             corpusDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[qc], doc);
             var qr = quantizer.scalarQuantize(doc, residualScratch, quantizeScratch, (byte) dbits, docCentroids[docAssignments[i]]);
-            ESVectorUtil.packAsBytes(quantizeScratch, docQuantized[i], dim);
+            ESVectorUtil.packAsBytes(quantizeScratch, docQuantized[i], dimWork);
             docLower[i] = qr.lowerInterval();
             docUpper[i] = qr.upperInterval();
             docL1[i] = qr.quantizedComponentSum();
@@ -132,7 +132,7 @@ public final class ErrorModel {
         float[] queryLower = new float[actualQueryClusters];
         float[] queryUpper = new float[actualQueryClusters];
         int[] queryL1 = new int[actualQueryClusters];
-        byte[][] queryQuantized = new byte[actualQueryClusters][dim];
+        byte[][] queryQuantized = new byte[actualQueryClusters][dimWork];
 
         float[] queryScratch = scratch.queryScratch;
         float[] preconditionScratch = scratch.preconditionScratch;
@@ -168,7 +168,7 @@ public final class ErrorModel {
                 source.vectors(),
                 queryOrdinal,
                 source.baseDim(),
-                dim,
+                dimWork,
                 cosine,
                 source.neyshabur(),
                 source.preconditioner(),
@@ -178,7 +178,7 @@ public final class ErrorModel {
             );
             for (int qc = 0; qc < actualQueryClusters; qc++) {
                 var qr = quantizer.scalarQuantize(queryScratch, residualScratch, quantizeScratch, (byte) qbits, queryCentroids[qc]);
-                ESVectorUtil.packAsBytes(quantizeScratch, queryQuantized[qc], dim);
+                ESVectorUtil.packAsBytes(quantizeScratch, queryQuantized[qc], dimWork);
                 queryLower[qc] = qr.lowerInterval();
                 queryUpper[qc] = qr.upperInterval();
                 queryL1[qc] = qr.quantizedComponentSum();
@@ -226,7 +226,7 @@ public final class ErrorModel {
                 double aq = queryLower[qc];
                 double lq = qScale * (queryUpper[qc] - queryLower[qc]);
 
-                double dotEst = ad * aq * dim + aq * ld * docL1[i] + ad * lq * queryL1[qc] + ld * lq * intDots[i];
+                double dotEst = ad * aq * dimWork + aq * ld * docL1[i] + ad * lq * queryL1[qc] + ld * lq * intDots[i];
 
                 dotEst += corpusDotCentroid[i] + queryDotCentroid[dc] - centroidDotCentroid[dc];
 

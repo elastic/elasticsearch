@@ -49,10 +49,6 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), "95%");
     }
 
-    private static Settings currentPersistentSettings() {
-        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get().getState().metadata().persistentSettings();
-    }
-
     public void testCanAllocateDeprioritizesOversubscribedNode() throws Exception {
         startMasterOnlyNode();
         startIndexNode();
@@ -243,8 +239,9 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String divergentNodeId = getNodeId(divergentNode);
         final String healthyNodeId = getNodeId(healthyNode);
 
+        // Assert default accounting mode (BOOSTED) up front so switching to TOTAL below is a genuine, visible change.
         assertThat(
-            SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.get(currentPersistentSettings()),
+            clusterService().getClusterSettings().get(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING),
             equalTo(SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED)
         );
 
@@ -319,7 +316,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
 
         // canRemain is enabled by default; assert that up front so disabling it below is a genuine, visible state change.
-        assertTrue(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.get(currentPersistentSettings()));
+        assertTrue(clusterService().getClusterSettings().get(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING));
 
         // Disable canRemain before faking any oversubscription. Reroute is triggered for all sorts of reasons outside this test's
         // control, so if the oversubscription were faked first, an incidental reroute landing in the window before this setting

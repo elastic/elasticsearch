@@ -52,9 +52,14 @@ fi
 # This agent ran no tests, so the measured projects have to be compiled here. The legs populated
 # the remote build cache, so this is mostly cache hits.
 
+# Only projects with Java main sources have a compileJava task. Asking Gradle for a task that does
+# not exist fails the whole invocation - 13 of 41 matched projects here are qa or grouping projects
+# with no main sources, which is what broke the first run.
 compile_tasks=()
 while IFS= read -r p; do
-  [[ -n "$p" ]] && compile_tasks+=("$p:compileJava")
+  [[ -n "$p" ]] || continue
+  d=$(coverage_project_dir "$ROOT" "$p")
+  [[ -d "$d/src/main/java" ]] && compile_tasks+=("$p:compileJava")
 done < <(coverage_projects "$ROOT" "$PROJECTS")
 if [[ ${#compile_tasks[@]} -eq 0 ]]; then
   echo "no projects match $PROJECTS" >&2
@@ -62,7 +67,9 @@ if [[ ${#compile_tasks[@]} -eq 0 ]]; then
 fi
 echo "--- compiling ${#compile_tasks[@]} projects for report classfiles"
 # shellcheck disable=SC2086
-$GRADLE --continue "${compile_tasks[@]}" || true
+if ! $GRADLE --continue "${compile_tasks[@]}"; then
+  echo "--- some projects failed to compile; the report will cover only what did"
+fi
 
 PATH_ARGS=()
 while IFS= read -r a; do PATH_ARGS+=("$a"); done < <(coverage_report_path_args "$ROOT" "$PROJECTS" "$INCLUDES")

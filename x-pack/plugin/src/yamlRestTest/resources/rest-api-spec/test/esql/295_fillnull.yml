@@ -117,7 +117,7 @@ setup:
         body:
           # client_ip is ip in events_ip and keyword in events_keyword, so the analyzer
           # exposes it as an InvalidMappedField. FILLNULL targeting it must fail at verify time.
-          query: 'FROM events_ip,events_keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip'
+          query: 'FROM events_ip,events_keyword | FILLNULL "missing" ON client_ip | KEEP event_id, client_ip'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Cannot use field [client_ip]' }
@@ -129,7 +129,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM events_ip,events_keyword | FILLNULL WITH 0 event_id | KEEP event_id | SORT event_id | LIMIT 100'
+          query: 'FROM events_ip,events_keyword | FILLNULL 0 ON event_id | KEEP event_id | SORT event_id | LIMIT 100'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - length: { values: 2 }
@@ -143,7 +143,7 @@ setup:
       esql.query:
         body:
           # `nonexistent_field` is not in any mapping. Resolution fails before postAnalysisVerification.
-          query: 'FROM events_ip | FILLNULL WITH 0 nonexistent_field'
+          query: 'FROM events_ip | FILLNULL 0 ON nonexistent_field'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Unknown column [nonexistent_field]' }
@@ -163,7 +163,7 @@ setup:
         body:
           # `extra_tag` is in _source but not in the mapping. With explicit default mode the
           # analyzer must reject it as an unknown column, identical to the implicit default.
-          query: 'SET unmapped_fields="default"; FROM events_partial | FILLNULL WITH "missing" extra_tag'
+          query: 'SET unmapped_fields="default"; FROM events_partial | FILLNULL "missing" ON extra_tag'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Unknown column [extra_tag]' }
@@ -183,7 +183,7 @@ setup:
           # Under SET nullify the unmapped field surfaces as a NULL-typed all-null column.
           # FILLNULL targeting it must not throw and must leave the column unchanged
           # (NULL columns cannot be promoted to another type by FILLNULL).
-          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL WITH "missing" extra_tag | SORT event_id | LIMIT 10'
+          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL "missing" ON extra_tag | SORT event_id | LIMIT 10'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: extra_tag }
@@ -207,7 +207,7 @@ setup:
           # Under SET load the unmapped field surfaces as KEYWORD loaded from _source. The data
           # has values for every row so FILLNULL is a no-op on the values, but the column type
           # and content must be preserved through the FILLNULL surrogate.
-          query: 'SET unmapped_fields="load"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL WITH "missing" extra_tag | SORT event_id | LIMIT 10'
+          query: 'SET unmapped_fields="load"; FROM events_partial | KEEP event_id, extra_tag | FILLNULL "missing" ON extra_tag | SORT event_id | LIMIT 10'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: extra_tag }
@@ -232,7 +232,7 @@ setup:
           # AFTER the all-fields FILLNULL first materialized its fill aliases. The all-fields FILLNULL must still fill
           # the loaded keyword column: event_id 21 has no extra_tag (null when loaded) and must become "filled";
           # event_id 20 keeps its value. Regression for the FILLNULL materialization-ordering gap.
-          query: 'SET unmapped_fields="load"; FROM events_partial_nulls | FILLNULL WITH "filled" | KEEP event_id, extra_tag | SORT event_id | LIMIT 10'
+          query: 'SET unmapped_fields="load"; FROM events_partial_nulls | FILLNULL "filled" ON * | KEEP event_id, extra_tag | SORT event_id | LIMIT 10'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: extra_tag }
@@ -256,7 +256,7 @@ setup:
           # All-fields FILLNULL with a string value must leave NULL-typed columns unchanged.
           # event_id (integer) is skipped because it is incompatible with the keyword fill;
           # message (keyword, no nulls in data) is a no-op; extra_tag (NULL) stays all-null.
-          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, message, extra_tag | FILLNULL WITH "missing" | SORT event_id | LIMIT 10'
+          query: 'SET unmapped_fields="nullify"; FROM events_partial | KEEP event_id, message, extra_tag | FILLNULL "missing" ON * | SORT event_id | LIMIT 10'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: message }
@@ -272,7 +272,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM events_ip,events_keyword,events_extra_keyword | EVAL client_ip = client_ip::keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip | SORT event_id | LIMIT 100'
+          query: 'FROM events_ip,events_keyword,events_extra_keyword | EVAL client_ip = client_ip::keyword | FILLNULL "missing" ON client_ip | KEEP event_id, client_ip | SORT event_id | LIMIT 100'
   - match: { columns.0.name: event_id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: client_ip }

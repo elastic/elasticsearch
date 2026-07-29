@@ -405,11 +405,11 @@ qualifiedNames
     ;
 
 fillnullCommand
-    : DEV_FILLNULL (WITH fillnullValue)? (qualifiedName (COMMA qualifiedName)*)?
+    : DEV_FILLNULL fillnullValue ON qualifiedNamePatterns
     ;
 
 fillnullValue
-    : NULL | integerValue | decimalValue | booleanValue | string | parameter
+    : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand

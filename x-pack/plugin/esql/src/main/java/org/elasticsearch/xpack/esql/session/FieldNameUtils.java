@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -260,6 +261,9 @@ public class FieldNameUtils {
                         currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
+                    } else if (p instanceof FillNull) {
+                        // FILLNULL wildcard target: request the matched fields (added above) but, unlike KEEP/DROP, it does
+                        // not narrow the schema, so treat it as a plain reference (not tracked in keepRefs/dropWildcardRefs).
                     } else {
                         throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
                     }

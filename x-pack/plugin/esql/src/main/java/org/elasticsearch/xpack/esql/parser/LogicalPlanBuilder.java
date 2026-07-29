@@ -479,19 +479,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var source = source(ctx);
         EsqlBaseParser.FillnullValueContext valueCtx = ctx.fillnullValue();
         final Expression fillValue;
-
-        if (valueCtx == null) {
+        // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
+        if (valueCtx.DEFAULT() != null) {
             fillValue = null;
         } else if (valueCtx.NULL() != null) {
             fillValue = new Literal(source(valueCtx), null, DataType.NULL);
         } else {
             fillValue = expression(valueCtx);
         }
-        List<Attribute> targetFields = new ArrayList<>();
-        for (EsqlBaseParser.QualifiedNameContext nameCtx : ctx.qualifiedName()) {
-            UnresolvedAttribute attr = visitQualifiedName(nameCtx);
-            targetFields.add(attr);
-        }
+
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> patterns = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar) {
+                hasSeenStar.set(Boolean.TRUE);
+            }
+        });
+        // `ON *` (or `*` co-listed with names/patterns) is the lenient all-columns form, represented as an empty list;
+        // explicit names/patterns are strict and kept for resolution.
+        List<NamedExpression> targetFields = hasSeenStar.get() ? List.of() : patterns;
         return input -> new FillNull(source, input, fillValue, targetFields);
     }
 

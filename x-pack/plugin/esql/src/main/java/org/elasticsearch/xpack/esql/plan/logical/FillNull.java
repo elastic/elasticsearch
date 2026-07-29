@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,20 +42,31 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Replaces nulls in the given fields (or all fields) with a fill value or type-appropriate defaults, expanding into
- * a {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are
+ * Replaces nulls in the targeted columns with a fill value or type-appropriate defaults, expanding into a
+ * {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are
  * materialized during analysis like {@link Eval#fields()}; see #148232.
  * <p>
- * A string {@code WITH} value is implicitly cast to the types the language casts string literals to (datetime,
- * date_nanos, ip, version, boolean), mirroring {@code Analyzer.ImplicitCasting}. A column whose type has no default
- * fill value and that receives no {@code WITH} value is left unchanged; {@code WarnUnfillableFillNull} then surfaces a
- * response-header warning for it. An explicit {@code WITH null} fills nothing: every targeted column is left unchanged,
- * with no type default applied (unlike bare {@code FILLNULL}) and no warning emitted.
+ * Syntax is {@code FILLNULL <value> ON <fields>}. The targets are resolved like {@code KEEP}: explicit names and
+ * wildcard patterns ({@code latency_*}) are strict (an incompatible value is a verification error), while {@code ON *}
+ * targets every column leniently (an incompatible column is silently skipped). {@code ON *} - including a {@code *}
+ * co-listed with other names/patterns - is represented here as an empty {@link #targetFields}; any other list is non-empty.
+ * <p>
+ * The value is mandatory. {@code DEFAULT} fills each column with a type-appropriate default and is represented as a
+ * {@code null} fill value; a column whose type has no default is left unchanged, and {@code WarnUnfillableFillNull}
+ * surfaces a response-header warning for it. An explicit {@code NULL} value fills nothing: every targeted column is
+ * left unchanged, with no type default applied (unlike {@code DEFAULT}) and no warning emitted. A string value is
+ * implicitly cast to the types the language casts string literals to (datetime, date_nanos, ip, version, boolean),
+ * mirroring {@code Analyzer.ImplicitCasting}.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
     private final @Nullable Expression fillValue;
-    private final List<Attribute> targetFields;
+    /**
+     * The columns to fill. Empty means the {@code ON *} (all-columns, lenient) form. Otherwise holds the parsed
+     * targets - {@link org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute} names and
+     * {@code UnresolvedNamePattern} wildcards - which the analyzer resolves (KEEP-style) into concrete attributes.
+     */
+    private final List<NamedExpression> targetFields;
     /**
      * The {@code col = COALESCE(col, default)} aliases, or {@code null} until materialized during analysis;
      * empty means nothing to fill (no-op).
@@ -63,7 +75,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     private List<Attribute> lazyOutput;
 
-    public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<Attribute> targetFields) {
+    public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<NamedExpression> targetFields) {
         this(source, child, fillValue, targetFields, null);
     }
 
@@ -71,7 +83,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         Source source,
         LogicalPlan child,
         @Nullable Expression fillValue,
-        List<Attribute> targetFields,
+        List<NamedExpression> targetFields,
         @Nullable List<Alias> fields
     ) {
         super(source, child);
@@ -85,7 +97,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         return fillValue;
     }
 
-    public List<Attribute> targetFields() {
+    public List<NamedExpression> targetFields() {
         return targetFields;
     }
 
@@ -136,7 +148,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         if (fillValue != null && fillValue.resolved() == false) {
             return false;
         }
-        for (Attribute field : targetFields) {
+        for (NamedExpression field : targetFields) {
             if (field.resolved() == false) {
                 return false;
             }
@@ -147,7 +159,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     @Override
     public boolean expressionsResolved() {
         // Stay unresolved until the aliases are materialized so ResolveRefs (which skips resolved nodes) runs
-        // resolveFillNull - including the all-fields form `... | FILLNULL`, which has no unresolved targets.
+        // resolveFillNull - including the all-fields form `... | FILLNULL <value> ON *`, which has no unresolved targets.
         if (inputsResolved() == false || fields == null) {
             return false;
         }
@@ -177,7 +189,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         return new FillNull(source(), newChild, fillValue, targetFields, fields);
     }
 
-    public FillNull withTargetFields(List<Attribute> newTargetFields) {
+    public FillNull withTargetFields(List<NamedExpression> newTargetFields) {
         return new FillNull(source(), child(), fillValue, newTargetFields, fields);
     }
 
@@ -185,10 +197,16 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
      * Builds the fill aliases against the resolved child output and returns a copy carrying them.
      */
     public FillNull materialize(List<Attribute> childOutput, Configuration configuration) {
-        List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
-        Set<String> fillNames = new HashSet<>(fieldsToFill.size());
-        for (Attribute a : fieldsToFill) {
-            fillNames.add(a.name());
+        // A null fillNames set marks the `ON *` (all-columns) form; otherwise only the resolved target names are filled.
+        // Iterating childOutput once naturally de-duplicates overlapping targets - a column is filled at most once.
+        final Set<String> fillNames;
+        if (targetFields.isEmpty()) {
+            fillNames = null;
+        } else {
+            fillNames = new HashSet<>(targetFields.size());
+            for (NamedExpression ne : targetFields) {
+                fillNames.add(ne.name());
+            }
         }
 
         Map<String, Alias> existing;
@@ -201,9 +219,9 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             }
         }
 
-        List<Alias> built = new ArrayList<>(fieldsToFill.size());
+        List<Alias> built = new ArrayList<>(childOutput.size());
         for (Attribute field : childOutput) {
-            if (fillNames.contains(field.name())) {
+            if (fillNames == null || fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
                 // Reuse the existing alias (keeping its id) only while valid: resolved and same type
                 if (previous != null && previous.resolved() && previous.dataType() == field.dataType().noText()) {
@@ -258,7 +276,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (fillValue != null && targetFields.isEmpty() == false) {
-            for (Attribute field : targetFields) {
+            for (NamedExpression field : targetFields) {
                 if (field.resolved() == false) {
                     continue;
                 }
@@ -296,12 +314,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 }
             }
         }
-        Set<String> seen = new HashSet<>();
-        for (Attribute field : targetFields) {
-            if (seen.add(field.name()) == false) {
-                failures.add(fail(field, "[FILLNULL] duplicate field [{}]", field.name()));
-            }
-        }
+        // Columns targeted more than once (e.g. `ON a, a` or overlapping patterns) are intentionally NOT an error;
+        // they are de-duplicated during materialization so the column is filled exactly once.
     }
 
     @Override
@@ -374,8 +388,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     /**
      * The explicitly-targeted fields (or, in the all-fields form, the child columns) that will not be filled because
-     * their type has no default fill value and no WITH value was provided. Only meaningful once {@link #fields} has been
-     * materialized.
+     * their type has no default fill value and only {@code DEFAULT} (no explicit fill value) was provided. Only meaningful
+     * once {@link #fields} has been materialized.
      */
     public List<Attribute> unfillableTargets() {
         Set<String> filled = new HashSet<>();
@@ -384,11 +398,18 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 filled.add(a.name());
             }
         }
-        List<Attribute> consider = targetFields.isEmpty() ? child().output() : targetFields;
         List<Attribute> result = new ArrayList<>();
-        for (Attribute attr : consider) {
-            if (attr.resolved() && filled.contains(attr.name()) == false) {
-                result.add(attr);
+        if (targetFields.isEmpty()) {
+            for (Attribute attr : child().output()) {
+                if (attr.resolved() && filled.contains(attr.name()) == false) {
+                    result.add(attr);
+                }
+            }
+        } else {
+            for (NamedExpression ne : targetFields) {
+                if (ne.resolved() && ne instanceof Attribute attr && filled.contains(attr.name()) == false) {
+                    result.add(attr);
+                }
             }
         }
         return result;

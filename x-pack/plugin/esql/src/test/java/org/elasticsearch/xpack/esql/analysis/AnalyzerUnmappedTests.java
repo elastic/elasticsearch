@@ -788,7 +788,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testAllFieldsFillNullFillsLoadInjectedUnmappedColumn() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL | KEEP emp_no, does_not_exist"));
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL DEFAULT ON * | KEEP emp_no, does_not_exist"));
 
         Holder<FillNull> holder = new Holder<>();
         plan.forEachDown(FillNull.class, holder::set);

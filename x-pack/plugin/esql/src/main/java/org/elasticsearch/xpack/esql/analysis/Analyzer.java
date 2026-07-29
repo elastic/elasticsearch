@@ -1942,16 +1942,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
             FillNull result = fillNull;
+            // An empty target list is the `ON *` (all-columns) form and needs no resolution. Otherwise resolve the
+            // explicit names and KEEP-style wildcard patterns against the child output, de-duplicating overlapping
+            // targets (by NameId, via the LinkedHashSet); a name or pattern that matches nothing stays unresolved so
+            // the Verifier reports it.
             if (fillNull.targetFields().isEmpty() == false) {
-                List<Attribute> resolved = new ArrayList<>(fillNull.targetFields().size());
-                for (Attribute attr : fillNull.targetFields()) {
-                    if (attr instanceof UnresolvedAttribute ua) {
-                        resolved.add(maybeResolveAttribute(ua, childrenOutput));
+                LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
+                for (NamedExpression target : fillNull.targetFields()) {
+                    if (target instanceof UnresolvedAttribute ua && ua.customMessage()) {
+                        // A name / pattern that already failed to resolve on an earlier pass carries a custom "no match"
+                        // message. Re-resolving it would return an empty list (see potentialCandidatesIfNoMatchesFound),
+                        // which would silently drop the target and collapse to the all-columns form. Keep it instead so
+                        // the Verifier reports it. This also covers UnresolvedPattern (a subtype of UnresolvedAttribute).
+                        resolved.add(ua);
+                    } else if (target instanceof UnresolvedNamePattern up) {
+                        resolved.addAll(resolveAgainstList(up, childrenOutput));
+                    } else if (target instanceof UnresolvedAttribute ua) {
+                        resolved.addAll(resolveAgainstList(ua, childrenOutput));
                     } else {
-                        resolved.add(attr);
+                        resolved.add(target);
                     }
                 }
-                result = fillNull.withTargetFields(resolved);
+                result = fillNull.withTargetFields(new ArrayList<>(resolved));
             }
             // Materialize the fill aliases as NodeInfo state once inputs resolve, in the same post-order ResolveRefs
             // pass that builds the output so downstream consumers see the filled schema. See FillNull#materialize.

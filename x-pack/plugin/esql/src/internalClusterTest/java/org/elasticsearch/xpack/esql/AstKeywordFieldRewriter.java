@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -83,12 +84,12 @@ import java.util.TreeSet;
  *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it
  *       to the multi-value {@code keyword} that {@code MV_EXPAND} can split into rows &mdash; and
  *       then leaves scope.</li>
- *   <li>{@code FILLNULL [WITH <value>] <field>...} accepts only bare attributes in its target slot
- *       and would see a flattened field as a single wrapper object, so an in-scope target is hoisted
- *       into an {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash;
- *       rebinding it to {@code keyword} so {@code FILLNULL} fills and emits {@code keyword} &mdash;
- *       and then leaves scope. The all-fields form (no targets) references no field and is left to
- *       tail-end recovery.</li>
+ *   <li>{@code FILLNULL <value> ON <field>...} accepts only bare attributes / wildcard patterns in its
+ *       target slot and would see a flattened field as a single wrapper object, so each in-scope target
+ *       (named or matched by a wildcard pattern such as {@code latency_*}) is hoisted into an
+ *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it to
+ *       {@code keyword} so {@code FILLNULL} fills and emits {@code keyword} &mdash; and then leaves scope.
+ *       The all-fields form ({@code ON *}) references no specific field and is left to tail-end recovery.</li>
  *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
  *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
  *       wrapped.</li>
@@ -575,24 +576,32 @@ public final class AstKeywordFieldRewriter {
         }
 
         /**
-         * Processes a {@code FILLNULL [WITH <value>] <field>[, <field>]*}. The target-field slot
-         * accepts only a bare attribute, so wrapping an in-scope target in {@code field_extract(...)}
+         * Processes a {@code FILLNULL <value> ON <field>[, <field>]*}. The target-field slot accepts only a
+         * bare attribute or wildcard pattern, so wrapping an in-scope target in {@code field_extract(...)}
          * (the default {@code node.expressions()} handling would do exactly that) produces an
-         * unparseable {@code FILLNULL ... field_extract(field, "v")}. Moreover a {@code flattened}
+         * unparseable {@code FILLNULL ... ON field_extract(field, "v")}. Moreover a {@code flattened}
          * field reaches the command as a single wrapper object, so filling it would neither match
          * nulls per the spec nor emit the {@code keyword} the expected results declare. Mirroring
-         * {@link #processMvExpand}, each in-scope target is hoisted into an
-         * {@code EVAL <field> = field_extract(<field>, "v")} inserted before the command &mdash;
-         * rebinding it to {@code keyword} so {@code FILLNULL} operates on, and emits, {@code keyword}
-         * &mdash; and then leaves scope. The all-fields form ({@code FILLNULL [WITH <value>]} with no
-         * targets) references no field here, so it is left untouched and any converted column it
-         * passes through is recovered by the end-of-pipeline tail recovery instead.
+         * {@link #processMvExpand}, each in-scope target &mdash; whether an explicit name or a column matched
+         * by a wildcard pattern ({@code latency_*}) &mdash; is hoisted into an
+         * {@code EVAL <field> = field_extract(<field>, "v")} inserted before the command, rebinding it to
+         * {@code keyword} so {@code FILLNULL} operates on, and emits, {@code keyword}, and then leaves scope.
+         * The all-fields form ({@code FILLNULL <value> ON *}) targets no specific field here, so it is left
+         * untouched and any converted column it passes through is recovered by the end-of-pipeline tail
+         * recovery instead.
          */
         private Set<String> processFillNull(FillNull fillNull, Set<String> scope) {
             Set<String> hoist = new HashSet<>();
             for (var target : fillNull.targetFields()) {
                 if (target instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
                     hoist.add(attr.name());
+                } else if (target instanceof UnresolvedNamePattern pattern) {
+                    // Wildcard target: hoist every in-scope flattened-keyword field it matches, like an explicit name.
+                    for (String name : scope) {
+                        if (pattern.match(name)) {
+                            hoist.add(name);
+                        }
+                    }
                 }
             }
             if (hoist.isEmpty()) {

@@ -273,7 +273,7 @@ setup:
         body:
           query: 'from test
             | keep message
-            | fillnull with "n/a"
+            | fillnull "n/a" ON *
             | limit 100'
 
   - do: { xpack.usage: { } }

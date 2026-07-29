@@ -107,7 +107,20 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testFillNullExplicitFieldThenStats() {
         assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assertFieldNames("from employees | fillnull with 0 salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+        assertFieldNames("from employees | fillnull 0 ON salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+    }
+
+    public void testFillNullWildcardPatternThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A wildcard FILLNULL target must be collected as a field-caps pattern (like KEEP/DROP) rather than throwing.
+        assertFieldNames("from employees | fillnull 0 ON salary* | stats c = count(*)", Set.of("_index", "salary*"));
+    }
+
+    public void testFillNullStarMixedThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `ON *, salary` is the all-columns form (empty targets), so the co-listed `salary` is dropped and contributes no
+        // field-caps reference; a downstream STATS COUNT(*) references nothing else, so only _index metadata is requested.
+        assertFieldNames("from employees | fillnull 0 ON *, salary | stats c = count(*)", INDEX_METADATA_FIELD);
     }
 
     public void testSort1() {

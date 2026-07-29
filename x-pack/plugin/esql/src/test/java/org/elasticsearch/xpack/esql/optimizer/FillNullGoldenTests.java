@@ -29,7 +29,7 @@ public class FillNullGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | KEEP emp_no, gender
-            | FILLNULL WITH "Unknown" gender
+            | FILLNULL "Unknown" ON gender
             """, STAGES);
     }
 
@@ -37,7 +37,7 @@ public class FillNullGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | KEEP emp_no, salary, gender
-            | FILLNULL
+            | FILLNULL DEFAULT ON *
             """, STAGES);
     }
 
@@ -45,7 +45,7 @@ public class FillNullGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | KEEP emp_no, salary, gender
-            | FILLNULL WITH "Unknown"
+            | FILLNULL "Unknown" ON *
             """, STAGES);
     }
 
@@ -53,8 +53,8 @@ public class FillNullGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | KEEP emp_no, gender, hire_date
-            | FILLNULL WITH "Unknown" gender
-            | FILLNULL WITH 0 emp_no
+            | FILLNULL "Unknown" ON gender
+            | FILLNULL 0 ON emp_no
             """, STAGES);
     }
 
@@ -63,7 +63,7 @@ public class FillNullGoldenTests extends GoldenTestCase {
             FROM employees
             | KEEP emp_no, languages
             | EVAL languages = languages + 1
-            | FILLNULL WITH 0 languages
+            | FILLNULL 0 ON languages
             | EVAL bonus = languages + 10
             """, STAGES);
     }
@@ -71,7 +71,7 @@ public class FillNullGoldenTests extends GoldenTestCase {
     public void testFillNullThenKeepReorders() {
         runGoldenTest("""
             FROM employees
-            | FILLNULL WITH "Unknown" gender
+            | FILLNULL "Unknown" ON gender
             | KEEP first_name, gender, emp_no
             """, STAGES);
     }

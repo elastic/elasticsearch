@@ -28,8 +28,8 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
         var plan = plan("""
             ROW a = null, b = null
             | EVAL a = a::keyword, b = b::integer
-            | FILLNULL WITH "unknown" a
-            | FILLNULL WITH 0 b
+            | FILLNULL "unknown" ON a
+            | FILLNULL 0 ON b
             | FORK (WHERE true | LIMIT 300) (WHERE true)
             | LIMIT 300
             | WHERE _fork == "fork1"
@@ -43,8 +43,8 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
         var plan = plan("""
             ROW a = null, b = null
             | EVAL a = a::keyword, b = b::integer
-            | FILLNULL WITH "unknown" a
-            | FILLNULL WITH 0 b
+            | FILLNULL "unknown" ON a
+            | FILLNULL 0 ON b
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
         assertThat(Expressions.names(plan.output()), containsInAnyOrder("a", "b"));
@@ -55,7 +55,7 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
         var plan = plan("""
             ROW a = null, x = 1
             | EVAL a = a::integer
-            | FILLNULL WITH 0 a
+            | FILLNULL 0 ON a
             | EVAL sum = a + x
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
@@ -67,12 +67,12 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
         var plan = plan("""
             ROW d = null
             | EVAL d = d::datetime
-            | FILLNULL d
+            | FILLNULL DEFAULT ON d
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
         assertWarnings(
             "Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; "
-                + "provide a value using WITH"
+                + "provide an explicit value"
         );
     }
 
@@ -81,12 +81,12 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
         var plan = plan("""
             ROW d = null, a = null, i = null
             | EVAL d = d::datetime, a = a::ip, i = i::integer
-            | FILLNULL
+            | FILLNULL DEFAULT ON *
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
         assertWarnings(
             "Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left "
-                + "unchanged: [d, a]; provide a value using WITH"
+                + "unchanged: [d, a]; provide an explicit value"
         );
     }
 
@@ -98,12 +98,12 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
             | EVAL d1 = d1::datetime, d2 = d2::datetime, d3 = d3::datetime, d4 = d4::datetime, d5 = d5::datetime,
                 d6 = d6::datetime, d7 = d7::datetime, d8 = d8::datetime, d9 = d9::datetime, d10 = d10::datetime,
                 d11 = d11::datetime
-            | FILLNULL
+            | FILLNULL DEFAULT ON *
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
         assertWarnings(
             "Line 6:3: [FILLNULL] the following fields have no default fill value for their type and were left "
-                + "unchanged: [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10]; provide a value using WITH; "
+                + "unchanged: [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10]; provide an explicit value; "
                 + "only the first 10 of 11 fields are shown"
         );
     }
@@ -114,7 +114,7 @@ public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogica
             ROW a = null, b = 1
             | EVAL a = a::integer
             | WHERE a IS NULL
-            | FILLNULL WITH 0 a
+            | FILLNULL 0 ON a
             | WHERE a IS NOT NULL
             """);
         assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));

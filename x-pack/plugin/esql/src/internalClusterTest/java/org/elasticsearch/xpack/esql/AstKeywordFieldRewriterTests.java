@@ -223,10 +223,41 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
      */
     public void testFillNullTargetHoistedBeforeCommand() {
         assumeFillNullSupported();
-        RewriteResult result = rewrite("FROM employees | FILLNULL first_name | KEEP first_name", Set.of("first_name"));
+        RewriteResult result = rewrite("FROM employees | FILLNULL DEFAULT ON first_name | KEEP first_name", Set.of("first_name"));
         assertTrue(result.modified());
         // The hoist rebinds the field before the command; the FILLNULL target itself stays a bare attribute.
-        assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL first_name"));
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL DEFAULT ON first_name")
+        );
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
+    /**
+     * An in-scope field matched by a {@code FILLNULL} wildcard pattern target is hoisted into a preceding {@code EVAL}
+     * (the pattern itself is left untouched in the command), just like an explicit-name target.
+     */
+    public void testFillNullWildcardPatternTargetHoistedBeforeCommand() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL DEFAULT ON first_* | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        // The wildcard `first_*` matches the in-scope `first_name`, which is rebound before the command; the pattern stays.
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL DEFAULT ON first_*")
+        );
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
+    /** The wildcard-target hoist behaves the same with an explicit fill value as with {@code DEFAULT}. */
+    public void testFillNullWildcardPatternTargetHoistedWithExplicitValue() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL \"x\" ON first_* | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL \"x\" ON first_*")
+        );
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 

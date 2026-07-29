@@ -27,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -118,7 +120,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -420,11 +421,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
-            if (pt.getRawType() == LinkedHashMap.class || pt.getRawType() == SequencedMap.class) {
+            if (pt.getRawType() == LinkedHashMap.class) {
                 return makeOrderedMap(toBuildClass, pt);
             }
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
+            }
+            if (pt.getRawType() == AttributeMap.class) {
+                return makeAttributeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt);
@@ -531,6 +535,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
             Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
             return new DefaultValue(type, value);
+        } else if (argClass == AttributeSet.class) {
+            // AttributeSet has a private constructor / cannot be mocked.
+            return makeAttributeSet(toBuildClass);
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();
@@ -715,6 +722,25 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             map.put(key, value);
         }
         return map;
+    }
+
+    private static AttributeSet makeAttributeSet(Class<? extends Node<?>> toBuildClass) throws Exception {
+        return AttributeSet.of(makeAttributeMap(toBuildClass, Integer.class).keySet());
+    }
+
+    private static Object makeAttributeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        return makeAttributeMap(toBuildClass, pt.getActualTypeArguments()[0]);
+    }
+
+    private static AttributeMap<?> makeAttributeMap(Class<? extends Node<?>> toBuildClass, Type valueType) throws Exception {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        int size = randomSizeForCollection(toBuildClass);
+        while (builder.keySet().size() < size) {
+            Attribute key = (Attribute) makeArg(toBuildClass, Attribute.class);
+            Object value = makeArg(toBuildClass, valueType);
+            builder.put(key, value);
+        }
+        return builder.build();
     }
 
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {

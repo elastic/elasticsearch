@@ -10,8 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.escf.EscfColumnKind;
-import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -20,8 +18,8 @@ import java.io.IOException;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
- * The {@link AbstractColumnarMapperCompatibilityTestCase} harness drives leaf mappers automatically via
- * {@link EscfEncoder}; no subclass override is needed.
+ * The {@link AbstractColumnarMapperCompatibilityTestCase} harness drives leaf mappers automatically
+ * via {@code EscfEncoder}; no subclass override is needed.
  */
 public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -73,21 +71,14 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    @AwaitsFix(bugUrl = "Uses null. Needs union column mapping support")
     public void testArrayValuesWithNull() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
             columnarSettings(),
-            batch("array values", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{}"))
+            batch("array values with null", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{}"))
         );
     }
 
-    /**
-     * Mixing scalar and array values in the same batch causes {@link EscfEncoder} to promote the column
-     * to {@link EscfColumnKind#UNION}; deferred until UNION support is added to
-     * {@link KeywordFieldMapper#mapColumnBatch}.
-     */
-    @AwaitsFix(bugUrl = "Mixes arrays and scalars. Needs union column mapping support")
     public void testMixedBatch() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
@@ -103,11 +94,109 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    public void testLongValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch(
+                "long values",
+                1L,
+                doc("d1", 1L, "{\"f\":42}"),
+                doc("d2", 2L, "{\"f\":-7}"),
+                doc("d3", 3L, "{\"f\":9876543210}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    public void testDoubleValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch(
+                "double values",
+                1L,
+                doc("d1", 1L, "{\"f\":3.14}"),
+                doc("d2", 2L, "{\"f\":1.5}"),
+                doc("d3", 3L, "{\"f\":-2.5}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    public void testBooleanValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("boolean values", 1L, doc("d1", 1L, "{\"f\":true}"), doc("d2", 2L, "{\"f\":false}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testLongArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("long array", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testDoubleArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("double array", 1L, doc("d1", 1L, "{\"f\":[1.5,2.5]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testBooleanArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("boolean array", 1L, doc("d1", 1L, "{\"f\":[true,false]}"), doc("d2", 2L, "{\"f\":[]}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testMixedLongDouble() throws IOException {
+        // A batch with one long and one double value promotes the column to UNION.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("mixed long and double", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":2.5}"))
+        );
+    }
+
+    public void testNullValueSubstitution() throws IOException {
+        // An explicit JSON null is substituted with the configured null_value.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL").endObject()),
+            columnarSettings(),
+            batch("null_value substitution", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{\"f\":\"a\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testArrayWithNull() throws IOException {
+        // An array containing an explicit null element produces a null slot in the doc-values blob.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("array with null element", 1L, doc("d1", 1L, "{\"f\":[\"a\",null,\"b\"]}"), doc("d2", 2L, "{}"))
+        );
+    }
+
     public void testNoIndexTermsAbsent() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject()),
             columnarSettings(),
             batch("no-index single value", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"))
+        );
+    }
+
+    public void testNestedArray() throws IOException {
+        // Nested arrays are flattened, matching the row-path behaviour in DocumentParser.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarSettings(),
+            batch("nested array", 1L, doc("d1", 1L, "{\"f\":[[1,2],[3]]}"), doc("d2", 2L, "{}"))
         );
     }
 

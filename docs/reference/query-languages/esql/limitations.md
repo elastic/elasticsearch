@@ -172,6 +172,10 @@ When searching expressions:
 * `MATCH` on an expression does not contribute to the relevance score when
   using `METADATA _score`.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+
 For example, this query is valid:
 
 ```esql

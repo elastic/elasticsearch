@@ -199,6 +199,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         // https://github.com/elastic/elasticsearch/pull/153514
         "can't lookup values from LongRangeBlock",
+        "can't lookup values from DoubleRangeBlock",
 
         // https://github.com/elastic/elasticsearch/issues/154079
         "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",

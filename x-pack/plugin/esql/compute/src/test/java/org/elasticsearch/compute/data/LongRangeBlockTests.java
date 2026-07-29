@@ -59,8 +59,8 @@ public class LongRangeBlockTests extends BlockTestCase<LongRangeBlock, LongRange
         List<LongRangeBlockBuilder.LongRange> values = new ArrayList<>(end - start);
         LongRangeBlockBuilder.LongRange scratch = new LongRangeBlockBuilder.LongRange();
         for (int i = start; i < end; i++) {
-            LongRangeBlockBuilder.LongRange range = block.getLongRange(i, scratch);
-            values.add(new LongRangeBlockBuilder.LongRange(range.from(), range.to()));
+            block.getLongRange(i, scratch);
+            values.add(new LongRangeBlockBuilder.LongRange(scratch.from(), scratch.to()));
         }
         return values;
     }

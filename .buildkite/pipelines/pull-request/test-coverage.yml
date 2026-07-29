@@ -51,3 +51,29 @@ steps:
       machineType: n4-custom-32-98304
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
+
+  # Reconciliation. The legs above measure one layer each; this merges their execution data into
+  # the union, which is the only honest total. Layers overlap, so percentages cannot be added or
+  # averaged - a line covered by two layers is one covered line. Runs even if a leg failed, so a
+  # partial result is still reported, clearly as a lower bound.
+  - label: test-coverage / merged
+    key: test-coverage-merged
+    depends_on: test-coverage
+    allow_dependency_failure: true
+    command: |
+      .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
+      if [[ -f build/coverage/summary.txt ]]; then
+        { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+          | buildkite-agent annotate --style info --context coverage-merged
+      fi
+      exit $$rc
+    timeout_in_minutes: 60
+    artifact_paths:
+      - "build/coverage/report/**/*"
+      - "build/coverage/summary.txt"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

@@ -38,8 +38,7 @@ public interface TestClustersAware extends Task {
         if (cluster.getName().equals(getName())) {
             for (ElasticsearchNode node : cluster.getNodes()) {
                 for (ElasticsearchDistribution distro : node.getDistributions()) {
-                    ElasticsearchDistribution frozenDistro = distro.maybeFreeze();
-                    dependsOn(frozenDistro);
+                    dependsOn(distro);
                 }
             }
             dependsOn(cluster.getPluginAndModuleConfigurations());

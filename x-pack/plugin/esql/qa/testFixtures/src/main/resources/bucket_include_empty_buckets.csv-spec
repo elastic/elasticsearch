@@ -909,3 +909,26 @@ hires_per_month:long | month:date
 4                    | 1985-11-01T00:00:00.000Z
 0                    | 1985-12-01T00:00:00.000Z
 ;
+
+
+Null bucket keys
+required_capability: bucket_include_empty_buckets
+
+FROM employees_no_mv
+| WHERE salary_change < 0 OR salary_change IS NULL
+| STATS c = COUNT(*) BY b = BUCKET(salary_change, 10, -20, 80, {"include_empty_buckets": true})
+;
+
+c:long | b:double
+0      | -20.0
+44     | -10.0
+0      | 0.0
+0      | 10.0
+0      | 20.0
+0      | 30.0
+0      | 40.0
+0      | 50.0
+0      | 60.0
+0      | 70.0
+21     | null
+;

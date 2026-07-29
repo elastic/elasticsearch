@@ -487,8 +487,8 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
 
     private int compareBucketCursorToRow(int row) {
         if (bucketCursorExhausted) {
-            // If the cursor is exhausted, report that the next cursor bucket is larger, so the input bucket gets added
-            // instead of the (non-existing) cursor bucket.
+            // If the cursor is exhausted, report that the next cursor bucket is larger,
+            // so the input bucket gets added instead of the (non-existing) cursor bucket.
             return 1;
         }
         long pointer = sortedRowPointers.get(row);
@@ -498,6 +498,11 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             BucketCursor cursor = entry.getValue();
             Block block = page.getBlock(entry.getKey());
             int valueIndex = block.getFirstValueIndex(pos);
+            if (block.isNull(valueIndex)) {
+                // If the input bucket is null, report that the cursor bucket is larger,
+                // so that the cursor bucket gets added and the null comes at the end.
+                return -1;
+            }
             int cmp = switch (cursor.type()) {
                 case LONG -> Long.compare(((DateCursor) cursor).currentLong(), ((LongBlock) block).getLong(valueIndex));
                 case DOUBLE -> Double.compare(((NumericCursor) cursor).currentDouble(), ((DoubleBlock) block).getDouble(valueIndex));

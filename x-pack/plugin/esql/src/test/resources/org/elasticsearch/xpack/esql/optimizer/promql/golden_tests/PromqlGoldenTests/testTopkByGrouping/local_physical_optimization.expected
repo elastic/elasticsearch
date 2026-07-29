@@ -13,7 +13,7 @@ ProjectExec[[result{r}#0, step{r}#1, _timeseries{r}#2 AS _timeseries#3]]
                       \_ProjectExec[[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#19, $$LASTOVERTIME_$1$values{r}#20, $$_timeseries$values{r}#21, $$pod$values{r}#22]]
                         \_EvalExec[[_timeseries{f$}#23 AS _timeseries#21, pod{f}#5 AS pod#22]]
                           \_FieldExtractExec[_timeseries{f$}#23]<[],[],[]>
-                            \_FieldExtractExec[pod{f}#5]<[],[],[]>
+                            \_ReadDimsExec[pod{f}#5]<tsid=_tsid{m}#12>
                               \_TimeSeriesAggregateExec[[_tsid{m}#12, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#13,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#14) AS LASTOVERTIME_$1#8, step{r}#1, FIRSTDOCID(_doc{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#25],INITIAL,[_tsid{m}#12, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#19, $$LASTOVERTIME_$1$values{r}#20, _doc{r}#26],236,BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION])]
                                 \_FieldExtractExec[_tsid{m}#12, network.bytes_in{f}#13]<[],[],[]>
                                   \_EvalExec[[BUCKET(@timestamp{f}#14,PT1H[TIME_DURATION]) AS step#1]]

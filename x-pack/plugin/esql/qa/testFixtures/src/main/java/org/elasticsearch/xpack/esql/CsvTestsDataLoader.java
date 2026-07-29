@@ -172,7 +172,7 @@ public class CsvTestsDataLoader {
         ),
         new TestDataset(
             "synthetic_source_partial_mapping",
-            "mapping-synthetic_source_partial_mapping.json",
+            "mapping-partial_mapping_sample_data.json",
             "partial_mapping_sample_data.csv",
             "synthetic-source-settings.json"
         ),

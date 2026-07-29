@@ -21,11 +21,13 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -58,14 +60,22 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     private final CircuitBreaker breaker;
     private long breakerBaseline;
 
+    @Nullable
+    private final Predicate<Query> preCharged;
+
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
     }
 
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker) {
+        this(maxClauseCount, breaker, null);
+    }
+
+    public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable Predicate<Query> preCharged) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
+        this.preCharged = preCharged;
     }
 
     public int getMaxClauseCount() {
@@ -118,6 +128,13 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
      */
     private void chargeBytesFor(Query query, int termMultiplier) {
         assert termMultiplier > 0 : "termMultiplier must be positive, got " + termMultiplier;
+
+        if (preCharged != null && preCharged.test(query)) {
+            // Retained bytes were already charged to the breaker at construction time (e.g. wildcard / regexp automata under
+            // their dedicated category); skip so the same leaf is not counted twice.
+            return;
+        }
+
         long bytes;
         if (query instanceof FuzzyQuery fq) {
             bytes = FuzzyQueries.estimateBytes(fq);
@@ -146,7 +163,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
             // Throw-only: circuitBreak bumps trippedCount and throws, but does NOT touch the breaker's
             // used counter. The accumulated estimate is committed in a single addCircuitBreakerMemory
             // call at the end of AbstractQueryBuilder#toQuery, which the throw unwinds before reaching.
-            breaker.circuitBreak("query", projected);
+            breaker.circuitBreak(ChildMemoryCircuitBreaker.CATEGORY_QUERY, projected);
         }
     }
 

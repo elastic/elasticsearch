@@ -799,6 +799,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             TermRangeQuery query = new TermRangeQuery(name(), lower, upper, lowerInclusive, upperInclusive);
             context.addCircuitBreakerMemory(query.ramBytesUsed(), ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":" + name());
+            context.markQueryMemoryPreCharged(query);
             return query;
         }
 

@@ -953,7 +953,7 @@ public final class DocumentParser {
                 // Absorb the null slot so columnar array order (e.g. [1, null, 3]) is preserved for the unmapped field.
                 FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup()
                     .getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-                sink.absorbUnmappedNull(context, context.path().pathAsText(lastFieldName));
+                sink.indexValueAtPath(context, context.path().pathAsText(lastFieldName));
             }
         }
     }

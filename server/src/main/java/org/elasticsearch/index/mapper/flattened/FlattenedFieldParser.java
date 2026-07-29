@@ -294,21 +294,17 @@ class FlattenedFieldParser {
     }
 
     /**
-     * Indexes a single unmapped value at {@code fullPath} (already a full dotted key from the document root) reusing {@link #addField}.
+     * Indexes the current parser value at {@code path} (already a full dotted key from the document root). A null token records a null
+     * slot via {@link #addNull} to preserve columnar array order; any other token is indexed via {@link #addField}.
      */
-    void absorbUnmappedValue(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String fullPath)
+    void indexValueAtPath(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String path)
         throws IOException {
         Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
-        addField(context, new ContentPath(), fullPath, documentParserContext.parser().text());
-    }
-
-    /**
-     * Records an unmapped null slot at {@code fullPath} reusing {@link #addNull} so columnar array order is preserved.
-     */
-    void absorbUnmappedNull(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String fullPath)
-        throws IOException {
-        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
-        addNull(context, new ContentPath(), fullPath);
+        if (documentParserContext.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            addNull(context, new ContentPath(), path);
+        } else {
+            addField(context, new ContentPath(), path, documentParserContext.parser().text());
+        }
     }
 
     private void validateDepthLimit(ContentPath path) {

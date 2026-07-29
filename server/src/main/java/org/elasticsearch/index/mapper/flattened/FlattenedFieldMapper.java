@@ -1657,7 +1657,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
-    private final boolean unmappedSink;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1692,8 +1691,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
-        // Sink-ness is gated on the setting so a user-declared flattened field named _unmapped on a non-feature index is a normal field.
-        this.unmappedSink = builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     public PreserveLeafArrays preserveLeafArrays() {
@@ -1800,23 +1797,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
     /**
      * Whether this mapper is the implicit {@code _unmapped} sink; other flattened fields (including user-declared ones) return false.
+     * Computed on demand rather than stored: sink-ness is a pure function of the index setting and the field name, both fixed for the
+     * life of the mapper. The setting gate is load-bearing, since a user may declare a flattened field named {@code _unmapped} on a
+     * non-feature index and it must stay a normal field.
      */
     public boolean isUnmappedSink() {
-        return unmappedSink;
+        return builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     /**
-     * Absorbs a single unmapped leaf value under its full dotted path from the document root, indexing it as a keyed flattened value.
+     * Indexes the current parser value (including a null token) into this flattened field under {@code path} (a full dotted key), via
+     * the normal keyed write path rather than by walking a subtree. Lets a caller route a leaf sourced elsewhere in the document here.
      */
-    public void absorbUnmappedValue(DocumentParserContext context, String fullPath) throws IOException {
-        fieldParser.absorbUnmappedValue(context, arrayContext(context), fullPath);
-    }
-
-    /**
-     * Absorbs an unmapped null so columnar array order is preserved; mirrors the flattened parser's own null-slot handling.
-     */
-    public void absorbUnmappedNull(DocumentParserContext context, String fullPath) throws IOException {
-        fieldParser.absorbUnmappedNull(context, arrayContext(context), fullPath);
+    public void indexValueAtPath(DocumentParserContext context, String path) throws IOException {
+        fieldParser.indexValueAtPath(context, arrayContext(context), path);
     }
 
     @Override

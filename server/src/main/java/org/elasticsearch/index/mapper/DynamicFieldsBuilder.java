@@ -33,7 +33,7 @@ final class DynamicFieldsBuilder {
     private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
     static final DynamicFieldsBuilder DYNAMIC_TRUE = new DynamicFieldsBuilder(CONCRETE);
     static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(new Runtime());
-    static final DynamicFieldsBuilder DYNAMIC_FLATTENED = new DynamicFieldsBuilder(new Absorb());
+    static final DynamicFieldsBuilder DYNAMIC_FLATTENED = new DynamicFieldsBuilder(new FlattenedSink());
 
     private final Strategy strategy;
 
@@ -444,41 +444,41 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Absorbs unmapped leaf values into the implicit flattened {@code _unmapped} sink. Used when the resolved dynamic mode is
+     * Sinks unmapped leaf values into the implicit flattened {@code _unmapped} sink. Used when the resolved dynamic mode is
      * {@link ObjectMapper.Dynamic#FLATTENED}. Dynamic templates still win, since {@link #createDynamicFieldFromValue} tries a matching
      * template before falling back to the strategy.
      */
-    private static final class Absorb implements Strategy {
+    private static final class FlattenedSink implements Strategy {
 
-        private static boolean absorb(DocumentParserContext context, String name) throws IOException {
+        private static boolean sink(DocumentParserContext context, String name) throws IOException {
             FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-            sink.absorbUnmappedValue(context, context.path().pathAsText(name));
+            sink.indexValueAtPath(context, context.path().pathAsText(name));
             return true;
         }
 
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
-            return absorb(context, name);
+            return sink(context, name);
         }
 
         @Override
         public boolean newDynamicLongField(DocumentParserContext context, String name) throws IOException {
-            return absorb(context, name);
+            return sink(context, name);
         }
 
         @Override
         public boolean newDynamicDoubleField(DocumentParserContext context, String name) throws IOException {
-            return absorb(context, name);
+            return sink(context, name);
         }
 
         @Override
         public boolean newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            return absorb(context, name);
+            return sink(context, name);
         }
 
         @Override
         public boolean newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) throws IOException {
-            return absorb(context, name);
+            return sink(context, name);
         }
 
         @Override

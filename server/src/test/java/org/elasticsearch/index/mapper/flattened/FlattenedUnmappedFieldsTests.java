@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         return createMapperService(columnarSettings(), topMapping(mapping));
     }
 
-    private static boolean isSink(MapperService mapperService) {
+    private static boolean isUnmappedSink(MapperService mapperService) {
         return ((FlattenedFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME)).isUnmappedSink();
     }
 
@@ -61,10 +62,10 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
      * {@code key\0value} slot inline. This checks that byte sequence is present, which is the write-path signal that a value was absorbed.
      */
     private static boolean hasKeyedSlot(ParsedDocument doc, String keyedSlot) {
+        byte[] term = keyedSlot.getBytes(StandardCharsets.UTF_8);
         for (IndexableField field : doc.rootDoc().getFields(KEYED)) {
             BytesRef blob = field.binaryValue();
-            // ISO-8859-1 maps bytes 1:1 to chars, so contains() on the decoded blob is an exact byte-subsequence search for the ASCII slot.
-            if (blob != null && new String(blob.bytes, blob.offset, blob.length, StandardCharsets.ISO_8859_1).contains(keyedSlot)) {
+            if (blob != null && ESVectorUtil.contains(blob.bytes, blob.offset, blob.length, term, 0, term.length)) {
                 return true;
             }
         }
@@ -92,7 +93,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     public void testSinkPresentButNotSerialized() throws IOException {
         MapperService mapperService = columnarService(b -> {});
-        assertTrue(isSink(mapperService));
+        assertTrue(isUnmappedSink(mapperService));
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
     }
 
@@ -191,7 +192,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         MapperService mapperService = columnarService(b -> {});
         merge(mapperService, mapping(b -> b.startObject("mapped").field("type", "keyword").endObject()));
 
-        assertTrue(isSink(mapperService));
+        assertTrue(isUnmappedSink(mapperService));
         String serialized = mapperService.documentMapper().mappingSource().toString();
         assertThat(serialized, not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
         assertThat(serialized, containsString("mapped"));
@@ -209,7 +210,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             settings,
             mapping(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field("type", "flattened").endObject())
         );
-        assertFalse(isSink(mapperService));
+        assertFalse(isUnmappedSink(mapperService));
         // It serializes normally (not skipped), and unmapped fields are dynamically mapped rather than absorbed.
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("other", randomAlphanumericOfLength(5))));

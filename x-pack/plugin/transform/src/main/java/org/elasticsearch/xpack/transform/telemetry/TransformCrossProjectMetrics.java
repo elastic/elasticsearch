@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -60,7 +61,7 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
     /** APM metric name for running transforms broken down by whether their last search went cross-project. */
     public static final String TRANSFORM_CPS_ACTIVE_CURRENT = "es.transform.cps.active.current";
 
-    /** How often the background poll refreshes the cached counts. The 1s floor exists so integration tests can poll fast. */
+    /** How often the background poll refreshes the cached counts. The 10s floor exists so integration tests can poll fast. */
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.transform.cps.metrics.poll_interval",
         TimeValue.timeValueMinutes(1),
@@ -142,7 +143,13 @@ public final class TransformCrossProjectMetrics extends AbstractLifecycleCompone
 
     @Override
     protected void doStart() {
-        scheduledPoll = threadPool.scheduleWithFixedDelay(this::poll, pollInterval, threadPool.generic());
+        try {
+            scheduledPoll = threadPool.scheduleWithFixedDelay(this::poll, pollInterval, threadPool.generic());
+        } catch (EsRejectedExecutionException e) {
+            if (e.isExecutorShutdown() == false) {
+                throw e;
+            }
+        }
     }
 
     /** Iterates the running tasks and refreshes the cached counts. */

@@ -236,6 +236,9 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/155421
+- class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
+  method: testLocalRequestAlwaysSucceeds
+  issue: https://github.com/elastic/elasticsearch/issues/155425
 
 # Examples:
 #

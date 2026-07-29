@@ -350,6 +350,12 @@ final class AlpDoubleUtils {
      * yields a candidate.
      */
     static int findBestEFForBlock(final long[] values, int valueCount, final int[] efOut, final int[] candCounts) {
+        if (valueCount == 0) {
+            efOut[0] = -1;
+            efOut[1] = -1;
+            return 0;
+        }
+
         Arrays.fill(candCounts, 0);
 
         boolean anyCandidate = false;
@@ -357,26 +363,18 @@ final class AlpDoubleUtils {
         for (int i = 0; i < valueCount; i += step) {
             final double value = Double.longBitsToDouble(sortableToDoubleBits(values[i]));
             final int packed = bestEFForValue(value);
-            final int e = packed >>> 16;
-            final int f = packed & 0xFFFF;
-            candCounts[candidateKey(e, f)]++;
-            anyCandidate = true;
+            if (packed != 0) {
+                candCounts[candidateKey(packed >>> 16, packed & 0xFFFF)]++;
+                anyCandidate = true;
+            }
         }
 
         if (anyCandidate == false) {
-            if (valueCount == 0) {
-                efOut[0] = -1;
-                efOut[1] = -1;
-                return valueCount;
-            }
             int minP = MAX_EXPONENT;
-            int maxP = 0;
             final int precStep = Math.max(1, valueCount / SAMPLE_SIZE);
             for (int i = 0; i < valueCount; i += precStep) {
                 final double value = Double.longBitsToDouble(sortableToDoubleBits(values[i]));
-                final int p = estimatePrecision(value);
-                minP = Math.min(minP, p);
-                maxP = Math.max(maxP, p);
+                minP = Math.min(minP, estimatePrecision(value));
             }
             for (int e = minP; e <= MAX_EXPONENT; e++) {
                 for (int f = 0; f <= e; f++) {

@@ -15,6 +15,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Round-trip tests for {@link AlpDoubleTransform} covering sensor-like doubles, constant doubles,
@@ -137,6 +138,22 @@ public class AlpDoubleTransformTests extends ESTestCase {
             block[i] = NumericUtils.doubleToSortableLong((i + 1) * 0.001);
         }
         assertRoundTripOrUnchanged(freshStage(), block, BLOCK);
+    }
+
+    public void testAllSpecialValuesDecline() throws IOException {
+        assertDeclines(NumericUtils.doubleToSortableLong(Double.NaN));
+        assertDeclines(NumericUtils.doubleToSortableLong(Double.POSITIVE_INFINITY));
+        assertDeclines(NumericUtils.doubleToSortableLong(0.0));
+    }
+
+    private void assertDeclines(long sortableLong) throws IOException {
+        long[] block = new long[BLOCK];
+        Arrays.fill(block, sortableLong);
+        long[] original = block.clone();
+        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        assertFalse(freshStage().tryEncode(block, BLOCK, params));
+        assertArrayEquals(original, block);
+        assertEquals(0L, params.size());
     }
 
     private static void assertRoundTrip(AlpDoubleTransform stage, long[] original, int valueCount) throws IOException {

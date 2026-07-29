@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -29,7 +30,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class RLike extends RegexMatch<RLikePattern> {
+public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 

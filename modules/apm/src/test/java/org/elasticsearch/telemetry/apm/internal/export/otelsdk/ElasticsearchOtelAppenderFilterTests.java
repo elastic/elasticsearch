@@ -20,13 +20,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
-import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +55,9 @@ public class ElasticsearchOtelAppenderFilterTests extends ESTestCase {
     }
 
     private void emit(String text) {
-        appender.append(Log4jLogEvent.newBuilder().setLoggerName("test").setLevel(Level.INFO).setMessage(new SimpleMessage(text)).build());
+        appender.append(
+            Log4jLogEvent.newBuilder().setLoggerName("test").setLevel(Level.INFO).setMessage(new ESLogMessage().field("data", text)).build()
+        );
     }
 
     public void testFilterDropsEvents() {
@@ -64,31 +66,8 @@ public class ElasticsearchOtelAppenderFilterTests extends ESTestCase {
         assertThat(exporter.getFinishedLogRecordItems(), hasSize(0));
     }
 
-    public void testFilterRewritesEvent() {
-        appender.addFilter(
-            event -> Log4jLogEvent.newBuilder()
-                .setLoggerName(event.getLoggerName())
-                .setLevel(event.getLevel())
-                .setMessage(new SimpleMessage("rewritten"))
-                .build()
-        );
-        emit("original");
-        List<LogRecordData> records = exporter.getFinishedLogRecordItems();
-        assertThat(records, hasSize(1));
-        assertThat(records.getFirst().getBodyValue().asString(), equalTo("rewritten"));
-    }
-
     public void testFilterRewritesAttribute() {
-        appender.addFilter(event -> {
-            if (event.getMessage() instanceof ESLogMessage msg) {
-                return Log4jLogEvent.newBuilder()
-                    .setLoggerName(event.getLoggerName())
-                    .setLevel(event.getLevel())
-                    .setMessage(new ESLogMessage().field("k", "filtered-value"))
-                    .build();
-            }
-            return event;
-        });
+        appender.addFilter(data -> Map.of("k", "filtered-value"));
         appender.append(
             Log4jLogEvent.newBuilder()
                 .setLoggerName("test")

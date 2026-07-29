@@ -109,19 +109,9 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         otelFilters = List.copyOf(next);
     }
 
-    private LogEvent applyFilters(LogEvent event) {
-        for (OtelLogEventFilter f : otelFilters) {
-            event = f.filter(event);
-            if (event == null) return null;
-        }
-        return event;
-    }
-
     @Override
     public void append(LogEvent event) {
-        LogEvent filtered = applyFilters(event);
-        if (filtered == null) return;
-        emit(openTelemetry, filtered);
+        emit(openTelemetry, event);
     }
 
     private void emit(OpenTelemetry ot, LogEvent event) {
@@ -148,7 +138,9 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
             if (ctx == Context.root()) {
                 ctx = traceContextFromMapMessage(mapMessage, ctx);
             }
-            captureMapMessage(builder, mapMessage);
+            if (captureMapMessage(builder, mapMessage) == false) {
+                return;
+            }
         } else if (message != null) {
             builder.setBody(message.getFormattedMessage());
         }
@@ -181,7 +173,8 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         return fallback;
     }
 
-    private static void captureMapMessage(LogRecordBuilder builder, MapMessage<?, ?> mapMessage) {
+    @SuppressWarnings("unchecked")
+    private boolean captureMapMessage(LogRecordBuilder builder, MapMessage<?, ?> mapMessage) {
         String body = mapMessage.getFormat();
         boolean useMessageKey = (body == null || body.isEmpty());
         if (useMessageKey) {
@@ -191,11 +184,18 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
             builder.setBody(body);
         }
 
-        mapMessage.getData().forEach((key, value) -> {
+        Map<String, Object> data = (Map<String, Object>) mapMessage.getData();
+        for (OtelLogEventFilter f : otelFilters) {
+            data = f.filter(data);
+            if (data == null) return false;
+        }
+
+        data.forEach((key, value) -> {
             if (value != null && (useMessageKey == false || MESSAGE_KEY.equals(key) == false)) {
                 setTypedAttribute(builder, key, value);
             }
         });
+        return true;
     }
 
     static <T> List<T> arrayToList(Object array, Function<Object, T> mapper) {

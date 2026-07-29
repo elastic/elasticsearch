@@ -9,8 +9,9 @@
 
 package org.elasticsearch.telemetry;
 
-import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.core.Nullable;
+
+import java.util.Map;
 
 /**
  * Filter for OTel log appenders. Implementations can inspect, rewrite, or drop a log event
@@ -21,11 +22,10 @@ import org.elasticsearch.core.Nullable;
  */
 @FunctionalInterface
 public interface OtelLogEventFilter {
-
     /**
      * @param event the log event to inspect
      * @return the event to forward (possibly rewritten), or {@code null} to drop it
      */
     @Nullable
-    LogEvent filter(LogEvent event);
+    Map<String, Object> filter(Map<String, Object> event);
 }

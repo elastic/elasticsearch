@@ -616,6 +616,17 @@ public class SnapshotResiliencyTestHelper {
                     List.of(),
                     SnapshotMetrics.NOOP
                 );
+                snapshotsService = new SnapshotsService(
+                    settings,
+                    clusterService,
+                    (reason, priority, listener) -> listener.onResponse(null),
+                    indexNameExpressionResolver,
+                    repositoriesService,
+                    transportService,
+                    EmptySystemIndices.INSTANCE,
+                    false,
+                    SnapshotMetrics.NOOP
+                );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L, projectResolver);
@@ -636,17 +647,6 @@ public class SnapshotResiliencyTestHelper {
                 );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
-                snapshotsService = new SnapshotsService(
-                    settings,
-                    clusterService,
-                    rerouteService,
-                    indexNameExpressionResolver,
-                    repositoriesService,
-                    transportService,
-                    EmptySystemIndices.INSTANCE,
-                    false,
-                    SnapshotMetrics.NOOP
-                );
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
                     settings,
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS

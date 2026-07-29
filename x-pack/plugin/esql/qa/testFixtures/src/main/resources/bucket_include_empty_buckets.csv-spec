@@ -152,7 +152,7 @@ FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1985-06-01T00:00:00Z"
 | STATS avg_languages = AVG(languages)
   BY month = BUCKET(hire_date, 10, "1985-01-01T00:00:00Z", "1985-06-01T00:00:00Z", {"include_empty_buckets": true}),
-     languages = BUCKET(languages, 5, 1, 5, {"include_empty_buckets": true}) 
+     languages = BUCKET(languages, 5, 1, 5, {"include_empty_buckets": true})
 ;
 
 avg_languages:double | month:datetime           | languages:double
@@ -187,7 +187,7 @@ FROM employees
 | STATS hire_count = COUNT(*), max_salary = MAX(salary)
   BY gender,
      month1 = BUCKET(hire_date, 10, "1985-01-01T00:00:00Z", "1985-06-01T00:00:00Z", {"include_empty_buckets": true}),
-     month2 = BUCKET(hire_date, 10, "1985-01-01T00:00:00Z", "1985-06-01T00:00:00Z", {"include_empty_buckets": true}) 
+     month2 = BUCKET(hire_date, 10, "1985-01-01T00:00:00Z", "1985-06-01T00:00:00Z", {"include_empty_buckets": true})
 ;
 
 hire_count:long | max_salary:long | gender:keyword | month1:datetime          | month2:datetime
@@ -300,6 +300,42 @@ avg:double | @timestamp:datetime      | type:keyword | pvalue:double
 0          | 2020-01-06T21:00:00.000Z | null         | null
 0          | 2020-01-06T22:00:00.000Z | null         | null
 0          | 2020-01-06T23:00:00.000Z | null         | null
+;
+
+
+No empty bucket at the end of range if there's no real data
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS count = COUNT() BY languages = BUCKET(languages, 6, 1, 6, {"include_empty_buckets": true}) 
+;
+
+// Range is half open, so don't output languages=6, because there is no data with that value
+count:long | languages:double
+15         | 1.0
+19         | 2.0
+17         | 3.0
+18         | 4.0
+21         | 5.0
+10         | null
+;
+
+
+Empty bucket at the end of range if there's real data
+required_capability: bucket_include_empty_buckets
+
+FROM employees
+| STATS count = COUNT() BY languages = BUCKET(languages, 5, 1, 5, {"include_empty_buckets": true}) 
+;
+
+// Range is half open, but output languages=5 because there is data with that value
+count:long | languages:double
+15         | 1.0
+19         | 2.0
+17         | 3.0
+18         | 4.0
+21         | 5.0
+10         | null
 ;
 
 

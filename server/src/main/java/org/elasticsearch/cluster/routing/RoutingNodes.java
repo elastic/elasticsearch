@@ -576,7 +576,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // find the relocation source
                             ShardRouting sourceShard = getByAllocationId(routing.shardId(), routing.allocationId().getRelocationId());
                             // cancel relocation and start relocation to same node again
-                            ShardRouting startedReplica = cancelRelocation(sourceShard);
+                            ShardRouting startedReplica = cancelRelocation(sourceShard, false);
                             remove(routing);
                             routingChangesObserver.shardFailed(
                                 routing,
@@ -682,7 +682,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 // relocation. No shard is left unassigned
                 ShardRouting sourceShard = getByAllocationId(failedShard.shardId(), failedShard.allocationId().getRelocationId());
                 assert sourceShard.isRelocationSourceOf(failedShard);
-                cancelRelocation(sourceShard);
+                final boolean relocationFailed = unassignedInfo.reason() != UnassignedInfo.Reason.RECOVERY_CANCELLED;
+                cancelRelocation(sourceShard, relocationFailed);
                 remove(failedShard);
             }
         } else {
@@ -766,16 +767,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Cancels a relocation of a shard that shard must relocating.
+     * Cancels a relocation of a shard that must be relocating.
      *
+     * @param relocationFailed {@code true} if this relocation attempt actually failed (increments {@code failedRelocations});
+     *                         {@code false} for intentional cancellations such as {@link UnassignedInfo.Reason#RECOVERY_CANCELLED}
      * @return the shard after cancelling relocation
      */
-    private ShardRouting cancelRelocation(ShardRouting shard) {
+    private ShardRouting cancelRelocation(ShardRouting shard, boolean relocationFailed) {
         relocatingShards--;
         if (isDedicatedFrozenNode(shard.currentNodeId())) {
             relocatingFrozenShards--;
         }
-        ShardRouting cancelledShard = shard.cancelRelocation();
+        ShardRouting cancelledShard = shard.cancelRelocation(relocationFailed);
         updateAssigned(shard, cancelledShard);
         return cancelledShard;
     }
@@ -810,7 +813,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 inactivePrimaryCount--;
             }
         } else if (shard.relocating()) {
-            shard = cancelRelocation(shard);
+            shard = cancelRelocation(shard, true);
         }
         assignedShardsRemove(shard);
         if (shard.initializing()) {

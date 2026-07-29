@@ -184,7 +184,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // cancel that relocation
-        shardRouting = shardRouting.cancelRelocation();
+        shardRouting = shardRouting.cancelRelocation(true);
         undesiredAllocationsTracker.removeTracking(shardRouting);
         assertEquals(0, undesiredAllocationsTracker.getUndesiredAllocations().size());
     }

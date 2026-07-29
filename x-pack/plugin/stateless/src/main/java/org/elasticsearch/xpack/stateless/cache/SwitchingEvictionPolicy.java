@@ -32,7 +32,13 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
         clusterService.getClusterSettings()
             .initializeAndWatch(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
-                newEvictionPolicyType -> this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool)
+                newEvictionPolicyType -> {
+                    final var oldDelegate = this.delegate;
+                    this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool);
+                    if (oldDelegate != null) {
+                        oldDelegate.close();
+                    }
+                }
             );
     }
 
@@ -46,13 +52,27 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
         return delegate.createPredicate(incoming);
     }
 
+    /**
+     * The underlying policy can change when the eviction scan is in progress. Hence, it is possible that the eviction is
+     * checked by the old delegate and onCached is called on the new delegate. This is intentional since the newly cached
+     * region should be accounted for by the current policy regardless of how eviction itself is determined. The old policy
+     * performs the necessary cleanup when its closed method is called.
+     */
     @Override
     public void onCached(CacheRegion<FileCacheKey> region) {
         delegate.onCached(region);
     }
 
+    /**
+     * See comment on {@link #onCached(CacheRegion)} for swapping delegate policy during eviction scan.
+     */
     @Override
     public void onEvicted(CacheRegion<FileCacheKey> region) {
         delegate.onEvicted(region);
+    }
+
+    @Override
+    public void close() {
+        this.delegate.close();
     }
 }

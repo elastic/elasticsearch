@@ -935,7 +935,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    public EvictionPolicy<KeyType> getEvictionPolicy() {
+    EvictionPolicy<KeyType> getEvictionPolicy() {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.evictionPolicy;
         }

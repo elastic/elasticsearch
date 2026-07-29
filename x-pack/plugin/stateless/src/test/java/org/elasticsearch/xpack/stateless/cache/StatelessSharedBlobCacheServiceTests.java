@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.getEvictionPolicy;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
@@ -112,7 +113,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
         ) {
-            assertThat(cacheService.getEvictionPolicy(), instanceOf(DefaultEvictionPolicy.class));
+            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
 
             clusterSettings.applySettings(
                 Settings.builder()
@@ -123,7 +124,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                     .build()
             );
 
-            assertThat(cacheService.getEvictionPolicy(), instanceOf(DefaultEvictionPolicy.class));
+            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
         }
     }
 
@@ -146,7 +147,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
         ) {
-            assertThat(getDelegatePolicy(cacheService.getEvictionPolicy()), instanceOf(DefaultEvictionPolicy.class));
+            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(DefaultEvictionPolicy.class));
 
             clusterSettings.applySettings(
                 Settings.builder()
@@ -157,7 +158,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                     .build()
             );
 
-            assertThat(getDelegatePolicy(cacheService.getEvictionPolicy()), instanceOf(IndexAgeEvictionPolicy.class));
+            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(IndexAgeEvictionPolicy.class));
         }
     }
 
@@ -172,6 +173,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         var settingSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING);
         settingSet.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
+        settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingSet);
     }
 

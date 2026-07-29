@@ -25,7 +25,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -36,8 +35,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -65,7 +62,6 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
-import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInferenceFieldsFromSource;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -286,17 +282,6 @@ public final class FetchPhase {
         );
         if (context.fetchSourceContext() != res.v1()) {
             context.fetchSourceContext(res.v1());
-        }
-
-        if (lookup.inferenceFields().isEmpty() == false && shouldExcludeInferenceFieldsFromSource(context.fetchSourceContext()) == false) {
-            // Rehydrate the inference fields into the {@code _source} because they were explicitly requested.
-            var oldFetchFieldsContext = context.fetchFieldsContext();
-            var newFetchFieldsContext = new FetchFieldsContext(new ArrayList<>());
-            if (oldFetchFieldsContext != null) {
-                newFetchFieldsContext.fields().addAll(oldFetchFieldsContext.fields());
-            }
-            newFetchFieldsContext.fields().add(new FieldAndFormat(InferenceMetadataFieldsMapper.NAME, null));
-            context.fetchFieldsContext(newFetchFieldsContext);
         }
 
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());

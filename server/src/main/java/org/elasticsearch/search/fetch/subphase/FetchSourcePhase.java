@@ -10,7 +10,11 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -19,7 +23,11 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInferenceFieldsFromSource;
 
 public final class FetchSourcePhase implements FetchSubPhase {
     @Override
@@ -31,12 +39,16 @@ public final class FetchSourcePhase implements FetchSubPhase {
         assert fetchSourceContext.fetchSource();
         SourceFilter sourceFilter = fetchSourceContext.filter();
         final boolean filterExcludesAll = sourceFilter != null && sourceFilter.excludesAll();
+        final ValueFetcher inferenceFieldsValueFetcher = getInferenceFieldsValueFetcher(fetchContext);
+
         return new FetchSubPhaseProcessor() {
             private int fastPath;
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-
+                if (inferenceFieldsValueFetcher != null) {
+                    inferenceFieldsValueFetcher.setNextReader(readerContext);
+                }
             }
 
             @Override
@@ -45,7 +57,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
             }
 
             @Override
-            public void process(HitContext hitContext) {
+            public void process(HitContext hitContext) throws IOException {
                 String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
                     if (sourceFilter != null) {
@@ -58,13 +70,13 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 hitExecute(hitContext);
             }
 
-            private void hitExecute(HitContext hitContext) {
+            private void hitExecute(HitContext hitContext) throws IOException {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
                 Source source = hitContext.source();
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && sourceFilter == null) {
-                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
+                    source = addInferenceMetadataFields(hitContext.hit(), hitContext.docId(), source);
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
@@ -80,25 +92,44 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
                 } else {
-                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
+                    source = addInferenceMetadataFields(hitContext.hit(), hitContext.docId(), source);
                 }
                 hitContext.hit().sourceRef(source.internalSourceRef());
             }
 
             /**
-             * Transfers the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
-             * to the original _source if it has been requested.
+             * Adds the {@link InferenceMetadataFieldsMapper#NAME} field to the {@code _source} when it has been
+             * requested.
+             *
+             * <p>If {@link org.elasticsearch.search.fetch.subphase.FetchFieldsPhase} already produced a
+             * {@link DocumentField} for {@code _inference_fields} (because the user also requested it via the fields
+             * API), that value is reused without touching the document-field entry so the fields-API output is
+             * preserved. Otherwise the value fetcher is invoked directly, mirroring the GET path in
+             * {@link org.elasticsearch.index.get.ShardGetService}.
              */
-            private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
-                if (InferenceMetadataFieldsMapper.isEnabled(fetchContext.getSearchExecutionContext().getMappingLookup()) == false) {
+            private Source addInferenceMetadataFields(SearchHit hit, int docId, Source source) throws IOException {
+                if (inferenceFieldsValueFetcher == null) {
                     return source;
                 }
 
-                var field = hit.removeDocumentField(InferenceMetadataFieldsMapper.NAME);
-                if (field == null || field.getValues().isEmpty()) {
-                    return source;
+                // Peek the value FetchFieldsPhase already produced when the user requested it via the
+                // fields API; do NOT remove it so the fields-API output remains intact.
+                DocumentField existing = hit.field(InferenceMetadataFieldsMapper.NAME);
+                final Object value;
+                if (existing != null && existing.getValues().isEmpty() == false) {
+                    assert existing.getValues().size() == 1;
+                    value = existing.getValues().getFirst();
+                } else {
+                    List<Object> values = inferenceFieldsValueFetcher.fetchValues(source, docId, List.of());
+                    if (values.isEmpty()) {
+                        return source;
+                    }
+
+                    assert values.size() == 1;
+                    value = values.getFirst();
                 }
-                return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0)));
+
+                return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, value));
             }
 
             @Override
@@ -119,5 +150,19 @@ public final class FetchSourcePhase implements FetchSubPhase {
             nestedIdentity = nestedIdentity.getChild();
         }
         return Source.fromMap(sourceMap, in.sourceContentType());
+    }
+
+    private static ValueFetcher getInferenceFieldsValueFetcher(FetchContext fetchContext) {
+        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
+        SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
+        MappingLookup mappingLookup = searchExecutionContext.getMappingLookup();
+
+        ValueFetcher valueFetcher = null;
+        if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup) && shouldExcludeInferenceFieldsFromSource(fetchSourceContext) == false) {
+            var inferenceMetadataFieldsMapper = mappingLookup.getMapping().getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
+            valueFetcher = inferenceMetadataFieldsMapper.fieldType().valueFetcher(searchExecutionContext, null);
+        }
+
+        return valueFetcher;
     }
 }

@@ -700,7 +700,7 @@ public final class IndexSettings {
     );
 
     /**
-     * Enables slice semantics for the index. When enabled, APIs accept {@code _slice} and treat it as routing.
+     * Enables slice semantics for the index. When enabled, APIs accept {@code slice} and treat it as routing.
      */
     public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
         @Override

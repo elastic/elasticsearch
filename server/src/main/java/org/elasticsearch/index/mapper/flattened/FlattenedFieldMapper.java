@@ -91,7 +91,9 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
@@ -740,8 +742,27 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
-            return new PrefixQuery(term);
+            String keyPrefix = FlattenedFieldParser.createKeyedValue(key, ""); // "key\0" — every stored value for this key starts with it
+
+            if (indexType.hasOnlyDocValues()) {
+                // DV-only storage (e.g. columnar) has no inverted terms, so a key-specific exists must scan the doc-values for the prefix.
+                if (usesBinaryDocValues) {
+                    if (usesArrayOrderBinaryDocValues) {
+                        // Columnar keyed-inline-null blob: slots carry the key\0 prefix, so scan it with a prefix predicate.
+                        return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
+                    }
+                    // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                }
+
+                // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.
+                BytesRef lower = new BytesRef(keyPrefix);
+                BytesRef upper = new BytesRef(keyPrefix);
+                upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
+
+                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+            }
+            return new PrefixQuery(new Term(name(), keyPrefix));
         }
 
         @Override

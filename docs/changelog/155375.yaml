@@ -1,4 +1,4 @@
-area: "ES|QL, Machine Learning, Search"
+area: ES|QL
 issues: []
 pr: 155375
 summary: "Log circuit breaker trips at WARN, not ERROR"

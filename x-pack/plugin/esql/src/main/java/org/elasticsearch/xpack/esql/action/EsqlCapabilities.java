@@ -1548,6 +1548,14 @@ public class EsqlCapabilities {
         FIX_TS_MIXED_WITH_NON_TS_SOURCES,
 
         /**
+         * Wildcard patterns in {@code TS} commands silently skip matching views — the relation is
+         * returned unchanged so field-caps' {@code _index_mode:time_series} filter excludes them
+         * naturally. Concrete view names in {@code TS} patterns are still rejected with a
+         * {@code VerificationException}.
+         */
+        TS_COMMAND_WILDCARDS_SKIP_VIEWS,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

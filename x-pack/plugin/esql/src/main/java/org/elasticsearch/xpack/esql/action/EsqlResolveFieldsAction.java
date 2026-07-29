@@ -135,25 +135,18 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
         // them together, so a single remote that hosts both fails with one exception naming both rather than just the
         // first kind checked.
-        var abstractionOptions = request.fieldCapsRequest().indicesOptions().indexAbstractionOptions();
+        var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
         List<String> remoteViews = abstractionOptions.resolveViews()
             ? qualify(
                 request.fieldCapsRequest().clusterAlias(),
-                getViews(
-                    request.fieldCapsRequest().indices(),
-                    request.fieldCapsRequest().indicesOptions(),
-                    request.fieldCapsRequest().getResolvedIndexExpressions()
-                )
+                getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions())
             )
             : List.of();
         // When federation is suppressed this node reports no datasets, so a FROM <remote:name> falls through to normal
         // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
         // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
         List<String> remoteDatasets = abstractionOptions.resolveDatasets() && Federation.isAvailable()
-            ? qualify(
-                request.fieldCapsRequest().clusterAlias(),
-                getDatasets(request.fieldCapsRequest().indices(), request.fieldCapsRequest().indicesOptions())
-            )
+            ? qualify(request.fieldCapsRequest().clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
             : List.of();
         boolean hasRemoteViews = remoteViews.isEmpty() == false;
         boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;

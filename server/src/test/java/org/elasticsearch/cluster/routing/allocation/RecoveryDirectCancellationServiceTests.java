@@ -1067,7 +1067,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 nonRelocatingShardId,
                 new SnapshotsInProgress.ShardSnapshotStatus("node-1", SnapshotsInProgress.ShardState.WAITING, null),
                 startedShardId,
-                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.WAITING, null)
+                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.INIT, null)
             )
         );
         final var indexRoutingTable = IndexRoutingTable.builder(index)
@@ -1075,6 +1075,29 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .addShard(TestShardRouting.newShardRouting(startedShardId, "node-2", true, STARTED));
         final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
 
+        final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
+        assertThat(requests.entrySet(), hasSize(0));
+    }
+
+    public void testSnapshotBlockingCancellationDiscardsAllWaitingSnapshotWithoutInit() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var waitingShardId = new ShardId(index, 0);
+
+        final var snapshot = snapshotWithShards(
+            Map.of(waitingShardId, new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null))
+        );
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(waitingShardId, "node-0", true, RELOCATING)
+                    .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-"))))
+                    .withRelocatingNodeId("node-1")
+                    .build()
+            );
+        final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
+
+        // All-WAITING snapshots are skipped for now so we do end up racing and fighting back and forth against reroute
+        // (the decider will not throttle based on snapshots with only WAITING shards).
         final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
         assertThat(requests.entrySet(), hasSize(0));
     }
@@ -1090,7 +1113,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 shutdownBlockedShardId,
                 new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null),
                 startedShardId,
-                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.WAITING, null)
+                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.INIT, null)
             )
         );
         final var indexRoutingTable = IndexRoutingTable.builder(index)
@@ -1124,9 +1147,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
     }
 
     public void testSnapshotAndDesiredBalanceCancellationsCacheSharing() {
-        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
+        final var initShardId = new ShardId(index, 1);
         final var sourceAllocationId = AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-")));
         final var targetAllocationId = AllocationId.newTargetRelocation(sourceAllocationId);
 
@@ -1138,9 +1162,15 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     .withAllocationId(sourceAllocationId)
                     .withRelocatingNodeId("node-1")
                     .build()
-            );
+            )
+            .addShard(newShardRouting(initShardId, "node-2", true, STARTED));
         final var snapshot = snapshotWithShards(
-            Map.of(shardId, new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null))
+            Map.of(
+                shardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null),
+                initShardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.INIT, null)
+            )
         );
         final var compatVersions = new CompatibilityVersions(TransportVersion.current(), Map.of());
         final var clusterState = ClusterState.builder(clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot))

@@ -61,10 +61,12 @@ import java.util.concurrent.Executor;
 ///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
 ///   the next allocation round can move the shard.
 ///
-/// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when snapshot shards are in
-///   [SnapshotsInProgress.ShardState#WAITING] state because the primary is relocating, we attempt to cancel the
-///   recovery of the relocation target if it has not started yet, to let the snapshot proceed. Relocations driven by
-///   a node shutdown are left untouched. This path is driven by [ClusterStateListener#clusterChanged].
+/// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has both
+///   [SnapshotsInProgress.ShardState#INIT] and [SnapshotsInProgress.ShardState#WAITING] shards, and a WAITING shard
+///   is blocked by a primary relocation, we attempt to cancel the relocation target recovery if it has not started
+///   yet, so the snapshot can proceed. Relocations driven by a node shutdown are left untouched. All-WAITING
+///   snapshots are not cancelled yet (matches [SnapshotInProgressAllocationDecider], which only throttles when INIT
+///   shards exist). This path is driven by [ClusterStateListener#clusterChanged].
 ///
 /// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
 /// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
@@ -147,8 +149,11 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
         final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        // Match [SnapshotInProgressAllocationDecider]. Only act when a snapshot also has INIT shards, so that after
+        // cancellation the decider will throttle re-relocation. All-WAITING snapshots are left alone for now.
+        // TODO: also cancel for all-WAITING snapshots and update the decider to prevent the cancel→reroute→relocate race
         if ((newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged())
-            && snapshotsInProgress.asStream().anyMatch(SnapshotsInProgress.Entry::hasShardsInWaitingState)) {
+            && snapshotsInProgress.asStream().anyMatch(entry -> entry.hasShardsInWaitingState() && entry.hasShardsInInitState())) {
             cancelRecoveriesBlockingSnapshots();
         }
     }
@@ -272,7 +277,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
 
         snapshotsInProgress.asStream().forEach(snapshotInProgress -> {
-            if (snapshotInProgress.isClone() || snapshotInProgress.hasShardsInWaitingState() == false) {
+            // see [#clusterChanged].
+            if (snapshotInProgress.isClone()
+                || snapshotInProgress.hasShardsInWaitingState() == false
+                || snapshotInProgress.hasShardsInInitState() == false) {
                 return;
             }
             for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : snapshotInProgress.shards().entrySet()) {

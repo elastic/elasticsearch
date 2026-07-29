@@ -91,7 +91,8 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                     }
 
                     var histogramExpected = histogramAssertions.get(key);
-                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignored, var counts)) {
+                    if (histogramExpected != null
+                        && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignoredMidpoints, var ignoredBounds, var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
                         // Pass once we have observed at least the expected number of counts. The retry loop below
@@ -148,7 +149,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                 }
             }
         }
-        // Build (midpoint, count) lists for non-zero buckets in ascending bucket order
+        // APM agent path: non-zero (midpoint, count) pairs in bucket order
         List<Double> expectedMidpoints = new ArrayList<>();
         List<Integer> expectedCounts = new ArrayList<>();
         for (var entry : bucketCountMap.entrySet()) {
@@ -158,14 +159,22 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
             expectedMidpoints.add(lower + (upper - lower) / 2.0);
             expectedCounts.add(entry.getValue());
         }
+        // OTLP path: full bounds list + all bucket counts including zeros
+        List<Double> expectedBounds = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.stream().map(Long::doubleValue).toList();
+        int numBuckets = TestMeterUsages.CUSTOM_LONG_BOUNDARIES.size() + 1;
+        List<Integer> expectedAllCounts = new ArrayList<>();
+        for (int i = 0; i < numBuckets; i++) {
+            expectedAllCounts.add(bucketCountMap.getOrDefault(i, 0));
+        }
 
         CountDownLatch finished = new CountDownLatch(1);
         apmServer().addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
                 && "elasticsearch".equals(m.instrumentationScopeName())) {
                 var sample = m.samples().get(TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME);
-                if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var counts)) {
-                    if (counts.equals(expectedCounts) && midpoints.equals(expectedMidpoints)) {
+                if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
+                    if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
+                        || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
                         logger.info(
                             "{} assertion PASSED (midpoints={}, counts={})",
                             TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,

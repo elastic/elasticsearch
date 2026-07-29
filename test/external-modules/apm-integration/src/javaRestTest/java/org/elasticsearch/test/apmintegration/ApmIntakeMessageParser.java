@@ -112,14 +112,27 @@ public final class ApmIntakeMessageParser {
         }
         if (sample.containsKey("counts")) {
             Object c = sample.get("counts");
+            // APM agent message (with midpoints for non-zero counts only)
             Object v = sample.get("values");
-            List<Double> values = new ArrayList<>();
+            // OTel message (explicit bounds for all counts)
+            Object b = sample.get("bounds");
+            List<Double> midpoints = new ArrayList<>();
+            List<Double> bounds = new ArrayList<>();
             if (v instanceof List<?> vList) {
                 for (Object o : vList) {
                     if (o instanceof Number n) {
-                        values.add(n.doubleValue());
+                        midpoints.add(n.doubleValue());
                     } else {
                         throw new IOException("metric sample values element is not a number");
+                    }
+                }
+            }
+            if (b instanceof List<?> bList) {
+                for (Object o : bList) {
+                    if (o instanceof Number n) {
+                        bounds.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample bounds element is not a number");
                     }
                 }
             }
@@ -132,7 +145,7 @@ public final class ApmIntakeMessageParser {
                         throw new IOException("metric sample counts element is not a number");
                     }
                 }
-                return new ReceivedTelemetry.HistogramSample(List.copyOf(values), List.copyOf(counts));
+                return new ReceivedTelemetry.HistogramSample(List.copyOf(midpoints), List.copyOf(bounds), List.copyOf(counts));
             }
             throw new IOException("metric sample counts is not a list");
         }

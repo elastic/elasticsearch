@@ -4348,7 +4348,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorSingleField() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
@@ -4356,7 +4356,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorMultipleFields() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
@@ -4364,26 +4364,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorQualifiedName() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR user.name WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("user.name"))));
     }
 
     public void testDenseVectorQuotedFieldName() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR `weird name` WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("weird name"))));
     }
 
     public void testDenseVectorWildcard() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), hasSize(1));
         assertThat(as(plan.fields().get(0), UnresolvedNamePattern.class).pattern(), equalTo("titl*"));
     }
 
     public void testDenseVectorMultipleWildcards() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR t*, a* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), hasSize(2));
         assertThat(as(plan.fields().get(0), UnresolvedNamePattern.class).pattern(), equalTo("t*"));
@@ -4391,7 +4391,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorMixedNameAndWildcard() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR title, auth* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), hasSize(2));
         assertThat(plan.fields().get(0), equalToIgnoringIds(attribute("title")));
@@ -4399,14 +4399,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorStar() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(processingCommand("DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), hasSize(1));
         assertThat(plan.fields().get(0), instanceOf(UnresolvedStar.class));
     }
 
     public void testDenseVectorWithTimeout() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var plan = as(
             processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\" }"),
             DenseVector.class
@@ -4417,17 +4417,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorMissingInferenceId() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError("FROM foo* | DENSE_VECTOR title", "Missing mandatory option [inference_id] in DENSE_VECTOR");
     }
 
     public void testDenseVectorEmptyOptions() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError("FROM foo* | DENSE_VECTOR title WITH { }", "Missing mandatory option [inference_id] in DENSE_VECTOR");
     }
 
     public void testDenseVectorUnknownOption() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
             "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
@@ -4435,7 +4435,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorInferenceIdNotString() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : 3 }",
             "Option [inference_id] must be a valid string, found [3]"
@@ -4443,7 +4443,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorTimeoutNotString() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : 3 }",
             "Option [timeout] in DENSE_VECTOR must be a string literal (e.g. \"30s\"), found [3]"
@@ -4451,7 +4451,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorInvalidTimeout() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"a long one\" }",
             "Invalid timeout value [a long one] for option [timeout] in DENSE_VECTOR: [failed to parse setting [timeout]"
@@ -4459,12 +4459,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorMissingFieldList() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "mismatched input 'WITH' expecting {");
     }
 
     public void testDenseVectorWithPositionalParameters() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "my-id")));
         var plan = as(
             TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ? }", queryParams),
@@ -4475,7 +4475,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDenseVectorWithNamedParameters() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR.isEnabled());
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "my-id")));
         var plan = as(
             TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ?inferenceId }", queryParams),

@@ -170,18 +170,18 @@ book_no:keyword | maybe_title:keyword | maybe_title_dense_vector:dense_vector
 ;
 
 
-// For multi-valued fields only the FIRST value (in stored order) is embedded — shared embedding
-// input semantics, see AbstractEmbeddingRequestIterator (same as the TEXT_EMBEDDING function).
+// For multi-valued fields only the FIRST value is embedded 
 dense_vector command on a multi-valued field embeds the first value
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 
 FROM books
 | WHERE book_no == "2924"
-| DENSE_VECTOR author WITH { "inference_id" : "test_dense_inference" }
-| KEEP book_no, author, author_dense_vector
+| EVAL sorted_author = MV_SORT(author)
+| DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, sorted_author, sorted_author_dense_vector
 ;
 
-book_no:keyword | author:text                                          | author_dense_vector:dense_vector
+book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
 2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
 ;

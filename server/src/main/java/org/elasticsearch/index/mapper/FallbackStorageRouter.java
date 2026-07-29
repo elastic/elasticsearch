@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -233,7 +234,8 @@ public final class FallbackStorageRouter {
 
     /**
      * Writes the current parser token to the fallback destination for {@code fieldPath}.
-     * Returns {@code false} only for {@link Destination#IGNORED_SOURCE} when
+     *
+     * Only returns {@code false} for {@link Destination#IGNORED_SOURCE} when
      * {@link DocumentParserContext#canAddIgnoredField()} is false; {@code true} otherwise.
      */
     public static boolean write(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
@@ -250,6 +252,31 @@ public final class FallbackStorageRouter {
                 yield true;
             }
         };
+    }
+
+    /**
+     * Like {@link #write(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
+     * (i.e. routing to {@link Destination#IGNORED_SOURCE} with {@link DocumentParserContext#canAddIgnoredField()} false).
+     */
+    public static void writeOrSkip(
+        DocumentParserContext context,
+        String fieldPath,
+        Reason reason,
+        CheckedRunnable<IOException> ifNotWritten
+    ) throws IOException {
+        if (write(context, fieldPath, reason) == false) {
+            ifNotWritten.run();
+        }
+    }
+
+    /**
+     * Like {@link #writeParent(DocumentParserContext, Reason)} but invokes {@code ifNotWritten} when the write is skipped.
+     */
+    public static void writeParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
+        throws IOException {
+        if (writeParent(context, reason) == false) {
+            ifNotWritten.run();
+        }
     }
 
     /**

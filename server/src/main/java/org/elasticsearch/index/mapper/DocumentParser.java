@@ -150,13 +150,12 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled — store as SINGLE_MAPPING_NAME at root level
-                if (FallbackStorageRouter.write(
+                FallbackStorageRouter.writeOrSkip(
                     context,
                     MapperService.SINGLE_MAPPING_NAME,
-                    FallbackStorageRouter.Reason.OBJECT_DISABLED
-                ) == false) {
-                    skipChildren(context);
-                }
+                    FallbackStorageRouter.Reason.OBJECT_DISABLED,
+                    () -> skipChildren(context)
+                );
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
             }
@@ -311,9 +310,12 @@ public final class DocumentParser {
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
             // entire object is disabled — store context.parent() itself, not a child field
-            if (FallbackStorageRouter.writeParent(context, FallbackStorageRouter.Reason.OBJECT_DISABLED) == false) {
-                skipChildren(context);
-            }
+            final DocumentParserContext disabledCtx = context;
+            FallbackStorageRouter.writeParentOrSkip(
+                disabledCtx,
+                FallbackStorageRouter.Reason.OBJECT_DISABLED,
+                () -> skipChildren(disabledCtx)
+            );
             return;
         }
         XContentParser.Token token = parser.currentToken();
@@ -562,14 +564,14 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (dynamic == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (FallbackStorageRouter.write(
-                context,
-                context.path().pathAsText(currentFieldName),
-                FallbackStorageRouter.Reason.DYNAMIC_DISABLED
-            ) == false) {
-                // not dynamic, read everything up to end object
-                skipChildren(context);
-            }
+            // not dynamic, read everything up to end object
+            final DocumentParserContext dynamicDisabledCtx = context;
+            FallbackStorageRouter.writeOrSkip(
+                dynamicDisabledCtx,
+                dynamicDisabledCtx.path().pathAsText(currentFieldName),
+                FallbackStorageRouter.Reason.DYNAMIC_DISABLED,
+                () -> skipChildren(dynamicDisabledCtx)
+            );
         } else {
             Mapper.Builder dynamicObjectBuilder;
             if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
@@ -658,13 +660,12 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            if (FallbackStorageRouter.write(
+            FallbackStorageRouter.writeOrSkip(
                 context,
                 context.path().pathAsText(currentFieldName),
-                FallbackStorageRouter.Reason.DYNAMIC_DISABLED
-            ) == false) {
-                skipChildren(context);
-            }
+                FallbackStorageRouter.Reason.DYNAMIC_DISABLED,
+                () -> skipChildren(context)
+            );
             return;
         }
         Mapper.Builder builderFromTemplate = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);

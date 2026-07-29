@@ -769,7 +769,6 @@ public class SplitSourceService {
          * @return true if the split is currently cancellable, or false if it is already uncancellable.
          */
         public boolean setUncancellable() {
-            logger.info("setUncancellable {}", cancellable.get(), new Exception("stack"));
             return cancellable.compareAndSet(true, false);
         }
     }

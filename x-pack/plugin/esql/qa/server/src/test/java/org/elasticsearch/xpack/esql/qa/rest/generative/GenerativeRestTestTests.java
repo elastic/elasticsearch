@@ -29,7 +29,7 @@ public class GenerativeRestTestTests extends ESTestCase {
         CommandGenerator.CommandDescription command = new CommandGenerator.CommandDescription(
             FillNullGenerator.FILL_NULL,
             FillNullGenerator.INSTANCE,
-            " | fillnull with 0",
+            " | fillnull 0 ON *",
             Map.of(FillNullGenerator.ALL_FIELDS, Boolean.TRUE)
         );
 
@@ -47,7 +47,7 @@ public class GenerativeRestTestTests extends ESTestCase {
         CommandGenerator.CommandDescription command = new CommandGenerator.CommandDescription(
             FillNullGenerator.FILL_NULL,
             FillNullGenerator.INSTANCE,
-            " | fillnull message",
+            " | fillnull DEFAULT ON message",
             Map.of(FillNullGenerator.FILLED_FIELDS, List.of("message"))
         );
 

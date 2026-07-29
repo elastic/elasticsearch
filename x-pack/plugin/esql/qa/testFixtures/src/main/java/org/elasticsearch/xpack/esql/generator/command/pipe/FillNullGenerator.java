@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -32,10 +34,13 @@ import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
- * Generates {@code FILLNULL} in all-fields ({@code | FILLNULL [WITH v]}) and targeted ({@code | FILLNULL [WITH v]
- * f1, f2}) shapes; a targeted fill value is type-matched to the fields (incompatible targeted fills are rejected by
- * the verifier, by design). The {@link #ALL_FIELDS} / {@link #FILLED_FIELDS} context entries let
- * {@code GenerativeRestTest#updateIndexMapped} clear the filled columns' {@code indexMapped} flag.
+ * Generates {@code FILLNULL} in all-fields ({@code | FILLNULL <value> ON *}) and targeted
+ * ({@code | FILLNULL <value> ON f1, f2}) shapes; a targeted fill value is type-matched to the fields
+ * (incompatible targeted fills are rejected by the verifier, by design). The targeted form occasionally emits a
+ * KEEP-style prefix wildcard pattern to exercise pattern resolution, but only when it matches exactly a subset of the
+ * vetted candidate columns (so it never pulls in an incompatible-type or unsupported column). The {@link #ALL_FIELDS} /
+ * {@link #FILLED_FIELDS} context entries let {@code GenerativeRestTest#updateIndexMapped} clear the filled columns'
+ * {@code indexMapped} flag; for a pattern, {@link #FILLED_FIELDS} carries the concrete matched column names.
  */
 public class FillNullGenerator implements CommandGenerator {
 
@@ -68,15 +73,18 @@ public class FillNullGenerator implements CommandGenerator {
         if (randomBoolean()) {
             StringBuilder cmd = new StringBuilder(" | fillnull");
             if (randomBoolean()) {
-                cmd.append(" with ").append(randomFillValue());
+                cmd.append(' ').append(randomFillValue());
+            } else {
+                cmd.append(" DEFAULT");
             }
+            cmd.append(" ON *");
             return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(ALL_FIELDS, Boolean.TRUE));
         }
 
         String fillValue = null;
         List<Column> candidates = null;
         if (randomBoolean()) {
-            // Targeted FILLNULL WITH <value>: restrict targets to a type family compatible with the value.
+            // Targeted FILLNULL <value> ON ...: restrict targets to a type family compatible with the value.
             Set<String> family = randomFrom(NUMERIC_TYPES, STRING_TYPES, BOOLEAN_TYPES, DATE_TYPES, IP_TYPES, VERSION_TYPES);
             candidates = previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).filter(c -> family.contains(c.type())).toList();
             if (candidates.isEmpty() == false) {
@@ -103,19 +111,62 @@ public class FillNullGenerator implements CommandGenerator {
         }
         StringBuilder cmd = new StringBuilder(" | fillnull");
         if (fillValue != null) {
-            cmd.append(" with ").append(fillValue);
+            cmd.append(' ').append(fillValue);
+        } else {
+            cmd.append(" DEFAULT");
         }
-        cmd.append(" ");
-        boolean first = true;
-        for (String name : seen) {
-            if (first == false) {
-                cmd.append(", ");
+        cmd.append(" ON ");
+
+        Set<String> candidateNames = new HashSet<>();
+        for (Column c : candidates) {
+            candidateNames.add(c.name());
+        }
+        PatternTarget pattern = randomBoolean() ? tryPrefixPattern(seen, previousOutput, candidateNames) : null;
+        if (pattern != null) {
+            cmd.append(pattern.patternText());
+            rawNames.addAll(pattern.matchedNames());
+        } else {
+            boolean first = true;
+            for (String name : seen) {
+                if (first == false) {
+                    cmd.append(", ");
+                }
+                first = false;
+                cmd.append(EsqlQueryGenerator.needsQuoting(name) ? EsqlQueryGenerator.quote(name) : name);
+                rawNames.add(name);
             }
-            first = false;
-            cmd.append(EsqlQueryGenerator.needsQuoting(name) ? EsqlQueryGenerator.quote(name) : name);
-            rawNames.add(name);
         }
         return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(FILLED_FIELDS, rawNames));
+    }
+
+    /** A wildcard target: the emitted pattern text (e.g. {@code latency_*}) and the concrete column names it matches. */
+    private record PatternTarget(String patternText, List<String> matchedNames) {}
+
+    // A target name safe to turn into a bare (unquoted) KEEP-style pattern: a plain identifier, optionally dotted.
+    private static final Pattern SAFE_PATTERN_BASE = Pattern.compile("[A-Za-z_][A-Za-z0-9_.]*");
+
+    /**
+     * Builds a KEEP-style prefix pattern from a chosen target name (e.g. {@code latency_value} -> {@code latency_*}) with
+     * the exact columns it matches, or {@code null} when no safe pattern can be formed. Only accepted when every matched
+     * column is a vetted {@code candidateName}, so the wildcard never pulls in an incompatible-type or unsupported column.
+     */
+    private static PatternTarget tryPrefixPattern(Set<String> chosen, List<Column> previousOutput, Set<String> candidateNames) {
+        List<String> bases = chosen.stream().filter(n -> SAFE_PATTERN_BASE.matcher(n).matches()).toList();
+        if (bases.isEmpty()) {
+            return null;
+        }
+        String base = randomFrom(bases);
+        String prefix = base.substring(0, randomIntBetween(1, base.length()));
+        List<String> matched = previousOutput.stream().map(Column::name).filter(n -> n.startsWith(prefix)).distinct().toList();
+        if (matched.isEmpty()) {
+            return null;
+        }
+        for (String name : matched) {
+            if (candidateNames.contains(name) == false) {
+                return null;
+            }
+        }
+        return new PatternTarget(prefix + "*", matched);
     }
 
     @Override

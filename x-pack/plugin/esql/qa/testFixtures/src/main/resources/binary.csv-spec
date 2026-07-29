@@ -2,6 +2,7 @@ load
 required_capability: binary_type
 
 FROM binary_blobs
+| KEEP id, name, blob
 | SORT id
 ;
 

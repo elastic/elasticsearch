@@ -92,6 +92,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static final Set<DataType> NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES = Set.of(
         DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.BINARY,
         DataType.COUNTER_DOUBLE,
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,

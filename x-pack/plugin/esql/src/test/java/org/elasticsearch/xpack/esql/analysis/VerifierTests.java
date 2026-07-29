@@ -2670,7 +2670,7 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
+                    + "[binary, boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
                     + "exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, "
                     + "ip, keyword, long, tdigest, text, unsigned_long or version], "
                     + "found value [\"3 days\"::date_period] type [date_period]"
@@ -4467,6 +4467,14 @@ public class VerifierTests extends ESTestCase {
     public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+    }
+
+    public void testDedupRejectsBinary() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assumeTrue("requires binary type", EsqlCapabilities.Cap.BINARY_TYPE.isEnabled());
+        analyzer().addIndex("test", "mapping-multi-field-with-nested.json")
+            .stripErrorPrefix(true)
+            .error("FROM test | KEEP binary | DEDUP", containsString("cannot group by on [binary] type for grouping [binary]"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

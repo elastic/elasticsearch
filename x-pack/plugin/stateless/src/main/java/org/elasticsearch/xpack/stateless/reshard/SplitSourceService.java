@@ -304,6 +304,21 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
+        // If the shard has already been marked as relocating before we set up the state machine, then
+        // the watcher will not immediately trigger cancellation and clone will attempt to take a permit
+        // which could block relocation until it finishes.
+        if (sourceShard.routingEntry().relocating()) {
+            String message = String.format(
+                Locale.ROOT,
+                "Split [%s -> %s]. Source shard is relocating when processing start split request. Failing the request.",
+                sourceShardId,
+                targetShardId
+            );
+            logger.info(message);
+
+            throw new StaleSplitRequestException(message);
+        }
+
         SubscribableListener.newForked(l -> {
             commitService.markSplitting(sourceShardId, targetShardId);
             l.onResponse(null);
@@ -351,10 +366,13 @@ public class SplitSourceService {
             preHandoffHook.run();
         }
 
-        var stateMachine = activeSourceShards.get(sourceShard);
+        final var stateMachine = activeSourceShards.get(sourceShard);
         if (stateMachine == null) {
             throw new AlreadyClosedException("Split source shard " + sourceShard.shardId() + " is closed");
         }
+        final var currentSplit = activeTargetRequests.get(sourceShard);
+        // must be set by setupTargetShard, the only caller
+        assert currentSplit != null;
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
@@ -368,7 +386,18 @@ public class SplitSourceService {
             engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
         }))
-            .<Releasable>andThen(acquiredPermits -> stateMachine.split().withPermits(acquiredPermits))
+            .<Releasable>andThen(acquiredPermits -> {
+                // Mark task as uncancellable before acquiring permits. Cancellation is for relocation, and once we've
+                // reached this point it is better to proceed to the end, in particular because it would complicate
+                // HandoffConvergenceObserver's logic. In principal we could remain cancellable all the way until
+                // we're about to actually send the handoff message but once we're acquiring permits we expect to
+                // be fairly quick anyway and prefer not to waste the work.
+                if (currentSplit.setUncancellable()) {
+                    stateMachine.split().withPermits(acquiredPermits);
+                } else {
+                    throw new TaskCancelledException("Split request was cancelled");
+                }
+            })
             .andThen((afterSecondFlush, permits) -> {
                 // withEngine and flush can throw, and we don't want to leak permits if it does
                 try {
@@ -721,7 +750,29 @@ public class SplitSourceService {
     }
 
     // State of split request being processed
-    private record SplitRequestState(long targetPrimaryTerm, CancellableTask task) {}
+    private class SplitRequestState {
+        final long targetPrimaryTerm;
+        final CancellableTask task;
+        // Once we have begun acquiring permits, we should not cancel on relocation because it is difficult to reason about whether
+        // we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
+        // relocation begins.
+        // On permit acquisition or on task cancellation we set this to false if it is true, otherwise fail the operation.
+        final AtomicBoolean cancellable = new AtomicBoolean(true);
+
+        SplitRequestState(long targetPrimaryTerm, CancellableTask task) {
+            this.targetPrimaryTerm = targetPrimaryTerm;
+            this.task = task;
+        }
+
+        /**
+         * Mark the split as uncancellable.
+         * @return true if the split is currently cancellable, or false if it is already uncancellable.
+         */
+        public boolean setUncancellable() {
+            logger.info("setUncancellable {}", cancellable.get(), new Exception("stack"));
+            return cancellable.compareAndSet(true, false);
+        }
+    }
 
     // Holds resources needed to manage an ongoing split
     private class Split {
@@ -729,11 +780,6 @@ public class SplitSourceService {
         // we can bump the refcount instead of waiting for them to be released and then reacquiring.
         // This speeds up handoff when multiple target shards enter handoff concurrently.
         final RefCountedAcquirer permitAcquirer;
-        // Once we have begun acquiring permits, we should not cancel on relocation because it is difficult to reason about whether
-        // we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
-        // relocation begins.
-        // On permit acquisition or on task cancellation we set this to false if it is true, otherwise fail the operation.
-        final AtomicBoolean cancellable = new AtomicBoolean(true);
 
         Split(IndexShard sourceShard) {
             // XXX figure out what to do with the timeout on acquiring the permit. I would guess that we're blocking any new requests that
@@ -750,27 +796,14 @@ public class SplitSourceService {
 
         /**
          * Calls listener when permits for the source shard are held.
-         * Fails the listener immediately if the split is marked as uncancellable, which will happen if the split is about to be cancelled.
-         * Otherwise, f they are not yet held they will be acquired before calling the listener, but if they are already held a
+         * If they are not yet held they will be acquired before calling the listener, but if they are already held a
          * reference count on them will be incremented and the listener will be called immediately.
          * The reference count will be decremented when the listener completes, and permits will be released when the reference count
          * reaches zero.
          * @param listener a listener to call when permits have been acquired
          */
         public void withPermits(ActionListener<Releasable> listener) {
-            if (setUncancellable()) {
-                permitAcquirer.acquire(listener);
-            } else {
-                listener.onFailure(new TaskCancelledException("Split is being cancelled"));
-            }
-        }
-
-        /**
-         * Mark the split as uncancellable.
-         * @return true if the split is currently cancellable, or false if it is already uncancellable.
-         */
-        public boolean setUncancellable() {
-            return cancellable.compareAndSet(true, false);
+            permitAcquirer.acquire(listener);
         }
     }
 
@@ -939,11 +972,18 @@ public class SplitSourceService {
                         return true;
                     }
 
-                    // if the source shard has been marked for relocation, exit early so that the clone step releases its permit
-                    // and doesn't block relocation. But don't exit early once we've started acquiring permits, to avoid racing
-                    // with relocation while trying to enter handoff.
-                    if (indexShard.routingEntry().relocating() && split().setUncancellable()) {
+                    // We will want to move the state currently tracked by activeTargetShards into the state machine.
+                    // Since we only split in half (rather than into thirds etc) there will only ever be one split
+                    // request per state machine, and managing its lifecycle will be much easier if we combine them.
+                    // IN THE MEANTIME
+                    // if the source shard has been marked as relocating, cancel an ongoing split request if one
+                    // is running. We may find a stale request here if cluster state moves to relocating before
+                    // a retrying setupTargetShard has found the existing split, but in that case setupTargetShard
+                    // is going to fail the new split anyway.
+                    final var currentSplit = activeTargetRequests.get(indexShard);
+                    if (indexShard.routingEntry().relocating() && currentSplit != null && currentSplit.setUncancellable()) {
                         logger.info("cancelling split from {} because it is relocating", indexShard.shardId());
+                        taskManager.cancelTaskAndDescendants(currentSplit.task, "source relocating", false, ActionListener.noop());
                         cancel();
                         return true;
                     }
@@ -974,15 +1014,6 @@ public class SplitSourceService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
-                            final var currentSplit = activeTargetRequests.get(indexShard);
-                            if (currentSplit != null) {
-                                taskManager.cancelTaskAndDescendants(
-                                    currentSplit.task(),
-                                    "source relocating",
-                                    false,
-                                    ActionListener.noop()
-                                );
-                            }
                             return;
                         }
 

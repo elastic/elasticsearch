@@ -47,6 +47,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpochForCacheService;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
+import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -74,8 +75,8 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         // Sometimes configure the defaults explicitly
         if (randomBoolean()) {
             settingBuilder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(),
-                STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(Settings.EMPTY)
+                STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(),
+                STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(Settings.EMPTY).getAsRatio()
             );
         }
         if (randomBoolean()) {
@@ -134,7 +135,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(numRegions)))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "50%")
+            .put(STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "50%")
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "10s")
             .put("path.home", createTempDir())
             .build();
@@ -205,7 +206,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(numRegions)))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "0%")
+            .put(STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "0%")
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.getKey(), "5m")
             .put("path.home", createTempDir())
             .build();

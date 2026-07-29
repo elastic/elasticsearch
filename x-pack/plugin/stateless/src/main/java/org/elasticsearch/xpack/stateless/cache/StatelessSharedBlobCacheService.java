@@ -103,7 +103,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
-     * scan before the cache enters a global eviction degradation period. When {@code rejectedCount / numRegions} exceeds
+     * scan before the cache enters a node-wide eviction degradation period. When {@code rejectedCount / numRegions} exceeds
      * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING}.
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
@@ -193,6 +193,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
             .getAsRatio());
         this.evictionDegradationPeriodMillis = STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_PERIOD_SETTING.get(settings).millis();
+        assert evictionDegradationThreshold >= 0 && evictionDegradationThreshold <= numRegions
+            : evictionDegradationThreshold + " not in [0," + numRegions + "]";
+        assert evictionDegradationPeriodMillis >= 0 : evictionDegradationPeriodMillis + " < 0";
     }
 
     // for tests
@@ -361,7 +364,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         EvictionPolicy<FileCacheKey> evictionPolicy,
         CacheRegion<FileCacheKey> incoming
     ) {
-        if (evictionDegradationThreshold == numRegions || evictionDegradationPeriodMillis <= 0) {
+        if (evictionDegradationThreshold == numRegions || evictionDegradationPeriodMillis == 0) {
             // Degradation is disabled, just use the eviction policy's predicate directly.
             return super.createEvictionPredicate(evictionPolicy, incoming);
         }

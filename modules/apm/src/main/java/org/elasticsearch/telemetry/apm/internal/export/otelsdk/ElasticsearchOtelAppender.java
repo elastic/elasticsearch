@@ -32,13 +32,13 @@ import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.telemetry.OtelLogEventFilter;
 
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;

@@ -111,11 +111,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             values row by row, which may be slower on large datasets.
             On a `keyword` expression the whole query string must equal a value exactly, matching
             the term query semantics of `match_phrase` on an indexed keyword field.
+            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
+
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match_phrase query options) are supported, except for `analyzer`: expression values are
             always analyzed with the `standard` analyzer. On `keyword` expressions options are not supported.
-            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
-            when using `METADATA _score`.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

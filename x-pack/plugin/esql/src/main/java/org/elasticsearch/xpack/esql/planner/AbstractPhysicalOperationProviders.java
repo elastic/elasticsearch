@@ -225,10 +225,7 @@ public abstract class AbstractPhysicalOperationProviders {
                 );
                 var hashGroupSpecs = groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList();
                 if (aggregatorMode == AggregatorMode.FINAL
-                    && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
-                    && partitionCount > 1
-                    && context.nodeLevelReductionActive() == false
-                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
+                    && shouldPartition(groupSpecs, partitionCount, context, hashGroupSpecs)) {
                     List<PartitionedHashMergeOperator.AggregatorSpec> mergeSpecs = new ArrayList<>();
                     aggregatesToFactory(
                         aggregateExec,
@@ -248,47 +245,44 @@ public abstract class AbstractPhysicalOperationProviders {
                         .executor(context.parallelWorkerExecutor())
                         .build();
                 } else if (aggregatorMode == AggregatorMode.INITIAL
-                    && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
-                    && partitionCount > 1
-                    && context.nodeLevelReductionActive() == false
-                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
-                        List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
-                        aggregatesToFactory(
-                            aggregateExec,
-                            aggregates,
-                            aggregatorMode,
-                            sourceLayout,
-                            true, // grouping
-                            s -> aggSpecs.add(new PartitionedHashAggregationOperator.AggregatorSpec(s.supplier, s.channels)),
-                            context
-                        );
-                        operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(hashGroupSpecs)
-                            .aggregators(aggSpecs)
-                            .partitionCount(partitionCount)
-                            .emitKeysThreshold(pragmas.partitionedAggEmitKeysThreshold(plannerSettings.partitionedAggEmitKeysThreshold()))
-                            .partitionThreshold(pragmas.partitionedAggPartitionThreshold(plannerSettings.partitionedAggPartitionThreshold()))
-                            .maxPageSize(maxPageSize)
-                            .aggregationBatchSize(aggregationBatchSize)
-                            .build();
-                    } else {
-                        var builder = new HashAggregationOperator.Builder().groups(
-                            groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
+                    && shouldPartition(groupSpecs, partitionCount, context, hashGroupSpecs)) {
+                    List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
+                    aggregatesToFactory(
+                        aggregateExec,
+                        aggregates,
+                        aggregatorMode,
+                        sourceLayout,
+                        true, // grouping
+                        s -> aggSpecs.add(new PartitionedHashAggregationOperator.AggregatorSpec(s.supplier, s.channels)),
+                        context
+                    );
+                    operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(hashGroupSpecs)
+                        .aggregators(aggSpecs)
+                        .partitionCount(partitionCount)
+                        .emitKeysThreshold(pragmas.partitionedAggEmitKeysThreshold(plannerSettings.partitionedAggEmitKeysThreshold()))
+                        .partitionThreshold(pragmas.partitionedAggPartitionThreshold(plannerSettings.partitionedAggPartitionThreshold()))
+                        .maxPageSize(maxPageSize)
+                        .aggregationBatchSize(aggregationBatchSize)
+                        .build();
+                } else {
+                    var builder = new HashAggregationOperator.Builder().groups(
+                        groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
+                    )
+                        .mode(aggregatorMode)
+                        .aggregators(aggregatorFactories)
+                        .partialEmit(
+                            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
+                            pragmas.partialAggregationEmitUniquenessThreshold(plannerSettings.partialEmitUniquenessThreshold())
                         )
-                            .mode(aggregatorMode)
-                            .aggregators(aggregatorFactories)
-                            .partialEmit(
-                                pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
-                                pragmas.partialAggregationEmitUniquenessThreshold(plannerSettings.partialEmitUniquenessThreshold())
-                            )
-                            .maxPageSize(maxPageSize)
-                            .aggregationBatchSize(aggregationBatchSize)
-                            .analysisRegistry(analysisRegistry);
-                        HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
-                        if (topAggregation != null) {
-                            builder.topAggregation(topAggregation);
-                        }
-                        operatorFactory = builder.build();
+                        .maxPageSize(maxPageSize)
+                        .aggregationBatchSize(aggregationBatchSize)
+                        .analysisRegistry(analysisRegistry);
+                    HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
+                    if (topAggregation != null) {
+                        builder.topAggregation(topAggregation);
                     }
+                    operatorFactory = builder.build();
+                }
             }
         }
         if (operatorFactory != null) {
@@ -482,6 +476,18 @@ public abstract class AbstractPhysicalOperationProviders {
      * Returns {@code null} when no external source (or no Top-N hint) is found.
      */
     @Nullable
+    private static boolean shouldPartition(
+        List<GroupSpec> groupSpecs,
+        int partitionCount,
+        LocalExecutionPlannerContext context,
+        List<BlockHash.GroupSpec> hashGroupSpecs
+    ) {
+        return partitionCount > 1
+            && context.nodeLevelReductionActive() == false
+            && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
+            && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs);
+    }
+
     private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
         ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
         return ext == null ? null : ext.pushedTopN();

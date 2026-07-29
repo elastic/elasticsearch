@@ -18,6 +18,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.function.IntUnaryOperator;
 
 import static java.util.stream.Collectors.joining;
@@ -56,6 +57,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * workers. Above it the operator partitions just as it would for an intermediate emit.
      */
     public static final int DEFAULT_PARTITION_THRESHOLD = 100_000;
+
+    private static final IntUnaryOperator PARTITION_ZERO = groupId -> 0;
 
     /**
      * Returns true if the given group specs support output-side partitioning.
@@ -140,8 +143,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         private final int aggregationBatchSize;
 
         private Factory(Builder builder) {
-            this.groupSpecs = java.util.Objects.requireNonNull(builder.groupSpecs, "groupSpecs");
-            this.aggregatorSpecs = java.util.Objects.requireNonNull(builder.aggregators, "aggregators");
+            this.groupSpecs = Objects.requireNonNull(builder.groupSpecs, "groupSpecs");
+            this.aggregatorSpecs = Objects.requireNonNull(builder.aggregators, "aggregators");
 
             List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
             for (AggregatorSpec spec : aggregatorSpecs) {
@@ -282,13 +285,14 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         List<Page> resultPages = new ArrayList<>();
         long emitStart = System.nanoTime();
         try {
-            if (blockHash.numKeys() > 0) {
-                boolean shouldPartition = partitioned || blockHash.numKeys() >= partitionThreshold;
+            int numKeys = blockHash.numKeys();
+            if (numKeys > 0) {
+                boolean shouldPartition = partitioned || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
                 if (shouldPartition) {
                     IntUnaryOperator partitioner = blockHash.partitioner(partitionCount);
                     if (partitioner == null) {
-                        partitioner = groupId -> 0;
+                        partitioner = PARTITION_ZERO;
                     }
                     Page[] perPartition = pageBuilder.buildPartitioned(
                         partitionCount,
@@ -319,11 +323,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (resultPages.isEmpty() == false) {
             output = new PageListIterator(resultPages);
         }
-    }
-
-    @Override
-    public void close() {
-        super.close();
     }
 
     @Override

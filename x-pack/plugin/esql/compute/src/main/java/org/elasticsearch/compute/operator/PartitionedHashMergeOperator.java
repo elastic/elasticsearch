@@ -81,10 +81,7 @@ public class PartitionedHashMergeOperator implements Operator {
      */
     public static final int DEFAULT_MERGE_WORKER_COUNT = 8;
 
-    private static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
-        selected.incRef();
-        return selected;
-    };
+    private static final IntUnaryOperator PARTITION_ZERO = groupId -> 0;
 
     // ---- Builder / Factory ----
 
@@ -601,32 +598,28 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@link #noneOp} on return.
      */
     private void reconcileNoneToBuffers() {
-        if (noneOp.blockHash.numKeys() == 0) {
-            saveNoneOpTiming();
-            noneOp.close();
-            noneOp = null;
-            return;
-        }
-        IntUnaryOperator partitioner = noneOp.blockHash.partitioner(partitionCount);
-        if (partitioner == null) {
-            partitioner = groupId -> 0;
-        }
-        var pageBuilder = new GroupingAggregatorPageBuilder(
-            noneOp.blockHash,
-            noneOp.aggregators,
-            Integer.MAX_VALUE,
-            NO_CUSTOMIZATION
-        );
-        Page[] perPartition = pageBuilder.buildPartitioned(
-            partitionCount,
-            partitioner,
-            new GroupingAggregatorEvaluationContext(driverContext)
-        );
-        for (int p = 0; p < partitionCount; p++) {
-            Page page = perPartition[p];
-            if (page != null) {
-                page.allowPassingToDifferentDriver();
-                workerBuffers[p].addPage(page);
+        if (noneOp.blockHash.numKeys() > 0) {
+            IntUnaryOperator partitioner = noneOp.blockHash.partitioner(partitionCount);
+            if (partitioner == null) {
+                partitioner = PARTITION_ZERO;
+            }
+            var pageBuilder = new GroupingAggregatorPageBuilder(
+                noneOp.blockHash,
+                noneOp.aggregators,
+                Integer.MAX_VALUE,
+                GroupingAggregatorPageBuilder.NO_CUSTOMIZATION
+            );
+            Page[] perPartition = pageBuilder.buildPartitioned(
+                partitionCount,
+                partitioner,
+                new GroupingAggregatorEvaluationContext(driverContext)
+            );
+            for (int p = 0; p < partitionCount; p++) {
+                Page page = perPartition[p];
+                if (page != null) {
+                    page.allowPassingToDifferentDriver();
+                    workerBuffers[p].addPage(page);
+                }
             }
         }
         saveNoneOpTiming();
@@ -725,7 +718,7 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@code maxPageSize} for normal emission.
      */
     private static ReleasableIterator<Page> evaluateOp(HashAggregationOperator op, int maxPageSizeOverride, DriverContext driverContext) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeOverride, NO_CUSTOMIZATION);
+        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeOverride, GroupingAggregatorPageBuilder.NO_CUSTOMIZATION);
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 

@@ -34,13 +34,20 @@ import java.util.function.IntUnaryOperator;
 public final class GroupingAggregatorPageBuilder {
     /**
      * Hook to further restrict the group ids selected for evaluation, beyond
-     * {@link BlockHash#nonEmpty()}; called once per aggregator. Must
-     * {@link IntVector#incRef() incRef} and return {@code selected} unchanged if it doesn't need
-     * to customize it (see {@code NO_CUSTOMIZATION}-style constants at call sites).
+     * {@link BlockHash#nonEmpty()}. Called once per aggregator for {@link #build}, and once per
+     * aggregator per non-empty partition for {@link #buildPartitioned}. Must
+     * {@link IntVector#incRef() incRef} and return {@code selected} unchanged if no customization
+     * is needed (see {@link #NO_CUSTOMIZATION}).
      */
     public interface CustomizeSelected {
         IntVector customize(GroupingAggregator aggregator, IntVector selected);
     }
+
+    /** {@link CustomizeSelected} that does nothing: increments the ref count and returns {@code selected} unchanged. */
+    public static final CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
+        selected.incRef();
+        return selected;
+    };
 
     private final BlockHash blockHash;
     private final List<GroupingAggregator> aggregators;
@@ -118,7 +125,7 @@ public final class GroupingAggregatorPageBuilder {
             for (int p = 0; p < partitionCount; p++) {
                 offsets[p + 1] = offsets[p] + counts[p];
             }
-            int[] cursor = Arrays.copyOf(offsets, offsets.length);
+            int[] cursor = Arrays.copyOf(offsets, partitionCount);
             int[] sorted = new int[n];
             for (int i = 0; i < n; i++) {
                 sorted[cursor[partitionOf[i]]++] = i;
@@ -156,7 +163,6 @@ public final class GroupingAggregatorPageBuilder {
                     partSelected = new Selected(partitionOrdinals, partitionAggs);
                     partitionOrdinals = null;
                     result[p] = prepared.buildPage(partSelected, aggBlockCounts);
-                    innerSuccess = true;
                 } finally {
                     Releasables.close(partSelected);
                     if (innerSuccess == false && partitionOrdinals != null) {

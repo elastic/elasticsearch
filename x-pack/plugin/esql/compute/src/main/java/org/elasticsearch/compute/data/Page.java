@@ -281,10 +281,7 @@ public final class Page implements Writeable, Releasable {
      * The blocks are shared (ref count incremented) with the original page.
      */
     public Page withBatchMetadata(BatchMetadata metadata) {
-        for (Block block : blocks) {
-            block.incRef();
-        }
-        return new Page(false, positionCount, blocks.clone(), metadata, partitionId);
+        return copyWith(metadata, partitionId);
     }
 
     /**
@@ -301,10 +298,14 @@ public final class Page implements Writeable, Releasable {
      * The blocks are shared (ref count incremented) with the original page.
      */
     public Page withPartitionId(int id) {
+        return copyWith(batchMetadata, id);
+    }
+
+    private Page copyWith(@Nullable BatchMetadata metadata, @Nullable Integer id) {
         for (Block block : blocks) {
             block.incRef();
         }
-        return new Page(false, positionCount, blocks.clone(), batchMetadata, id);
+        return new Page(false, positionCount, blocks.clone(), metadata, id);
     }
 
     /**
@@ -362,10 +363,7 @@ public final class Page implements Writeable, Releasable {
      * {@link Block#incRef}ing all of the {@link Block}s.
      */
     public Page shallowCopy() {
-        for (Block b : blocks) {
-            b.incRef();
-        }
-        return new Page(false, positionCount, blocks.clone(), batchMetadata, partitionId);
+        return copyWith(batchMetadata, partitionId);
     }
 
     /**

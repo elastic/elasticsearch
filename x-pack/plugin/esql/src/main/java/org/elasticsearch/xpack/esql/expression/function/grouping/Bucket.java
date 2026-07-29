@@ -538,7 +538,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         list.add(field);
         if (buckets != null) {
             // Even though buckets is a required parameter, it can be null if the function called with two
-            // parameters of which the last is the options map, like BUCKET(field, {"include_enmpty_buckets":true})
+            // parameters of which the last is the options map, like BUCKET(field, {"include_empty_buckets":true})
             // `resolveType` will catch this and return an error.
             list.add(buckets);
         }
@@ -713,7 +713,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return new TypeResolution("Unresolved children");
         }
         // Even though buckets is a required parameter, it can be null if the function called with two
-        // parameters of which the last is the options map, like BUCKET(field, {"include_enmpty_buckets":true})
+        // parameters of which the last is the options map, like BUCKET(field, {"include_empty_buckets":true})
         // In that case, return an error.
         if (buckets == null) {
             return new TypeResolution(format(null, "function [{}] expects between two and four positional arguments", sourceText()));

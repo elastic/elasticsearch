@@ -489,9 +489,13 @@ public class IndexDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * One-way latch set when the shard is closing. Merge reads on {@link BlobCacheIndexInput} and
-     * {@link ReopeningIndexInput} wired through this directory check the flag and throw
-     * {@link org.apache.lucene.index.MergePolicy.MergeAbortedException} once set.
+     * One-way latch set when the shard is closing. All reads on {@link BlobCacheIndexInput}
+     * wired through this directory throw {@link org.apache.lucene.index.MergePolicy.MergeAbortedException}
+     * once set, regardless of {@link IOContext}. Reads on {@link ReopeningIndexInput} are also
+     * aborted, but only when the read carries an explicit {@link IOContext.Context#MERGE} context
+     * (unuploaded segments always receive the real merge context via {@code openInput}).
+     * <p>
+     * The flag is set during engine close, after all engine operations have been drained.
      */
     public void abortMergeReads() {
         abortMergeReads.set(true);

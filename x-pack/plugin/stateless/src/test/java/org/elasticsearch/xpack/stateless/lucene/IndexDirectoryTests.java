@@ -524,10 +524,10 @@ public class IndexDirectoryTests extends ESTestCase {
         }
     }
 
-    public void testAbortMergeReadsIgnoresNonMergeReadAfterAbort() throws Exception {
+    public void testAbortMergeReadsThrowsOnDefaultContextRead() throws Exception {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = getThreadPool("testAbortMergeReadsIgnoresNonMergeReadAfterAbort");
+        final ThreadPool threadPool = getThreadPool("testAbortMergeReadsThrowsOnDefaultContextRead");
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
@@ -573,7 +573,7 @@ public class IndexDirectoryTests extends ESTestCase {
             directory.abortMergeReads();
             try (IndexInput input = directory.openInput(fileName, IOContext.DEFAULT)) {
                 assertThat(input, instanceOf(BlobCacheIndexInput.class));
-                input.readBytes(new byte[16], 0, 16);
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> input.readBytes(new byte[16], 0, 16));
             }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));

@@ -1739,7 +1739,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
-    public void testAbortMergeReadsIgnoresNonMergeReadAfterAbort() throws IOException {
+    public void testAbortMergeReadsThrowsOnDefaultContextRead() throws IOException {
         final AtomicBoolean abortMergeReads = new AtomicBoolean(true);
         final byte[] input = randomByteArrayOfLength(randomIntBetween(64, 512));
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(64));
@@ -1755,7 +1755,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             )
         ) {
             byte[] actual = new byte[16];
-            indexInput.readBytes(actual, 0, actual.length);
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.readBytes(actual, 0, actual.length));
         }
     }
 
@@ -1806,6 +1806,34 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    // Verifies the production HNSW path: abort fires on DEFAULT-context reads (the IOContext guard was a bug).
+    public void testAbortMergeReadsThrowsOnDefaultContextWithMemorySegmentSlice() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(
+                sharedBlobCacheService,
+                input,
+                abortMergeReads,
+                IOContext.DEFAULT
+            )
+        ) {
+            populateCache(indexInput, input);
+            abortMergeReads.set(true);
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+                throw new AssertionError("should not run");
+            }));
+        }
+    }
+
     public void testAbortMergeReadsBeforeWithMemorySegmentSlices() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
@@ -1846,6 +1874,40 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 input,
                 abortMergeReads,
                 IOContext.merge(new MergeInfo(100, 1024L, false, -1))
+            )
+        ) {
+            populateCache(indexInput, input);
+            int sliceLen = randomIntBetween(1, input.length / 4);
+            long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
+            abortMergeReads.set(true);
+            MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+            expectThrows(
+                MergePolicy.MergeAbortedException.class,
+                () -> indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
+                    throw new AssertionError("should not run");
+                })
+            );
+        }
+    }
+
+    // Verifies the production HNSW path: abort fires on DEFAULT-context reads (the IOContext guard was a bug).
+    public void testAbortMergeReadsThrowsOnDefaultContextWithSliceAddresses() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(200, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(
+                sharedBlobCacheService,
+                input,
+                abortMergeReads,
+                IOContext.DEFAULT
             )
         ) {
             populateCache(indexInput, input);

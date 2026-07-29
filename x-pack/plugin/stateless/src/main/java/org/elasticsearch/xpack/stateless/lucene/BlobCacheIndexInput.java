@@ -78,7 +78,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     private void checkMergeReadAborted() throws IOException {
-        if (cacheFileReader.isMergeReadAborted() && context.context() == IOContext.Context.MERGE) {
+        if (cacheFileReader.isMergeReadAborted()) {
             throw new MergePolicy.MergeAbortedException("shard is closing");
         }
     }

@@ -77,7 +77,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
     public void testGetIfPresentReturnsEmptyForUninitializedGauge() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.empty()));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.empty()));
     }
 
     public void testGetIfPresentReturnsValueAfterSetOnGauge() {
@@ -85,7 +85,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
         final long value = randomLong();
         metric.set(value);
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.of(value)));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.of(value)));
     }
 
     public void testGetIfPresentReturnsEmptyAfterPollOnGauge() {
@@ -93,7 +93,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
         metric.set(randomLong());
         registry.getRecorder().collect();
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.empty()));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.empty()));
     }
 
     public void testGaugeReportsAttributesAfterSet() {

@@ -56,10 +56,8 @@ public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value
         value.set(new LongWithAttributes(l, Objects.requireNonNull(attributes, "attributes")));
     }
 
-    /**
-     * Get the current value, if one has been set since the last poll.
-     */
-    public OptionalLong getIfPresent() {
+    // visible for tests
+    OptionalLong getValueIfPresent() {
         final LongWithAttributes currentValue = value.get();
         return currentValue == null ? OptionalLong.empty() : OptionalLong.of(currentValue.value());
     }

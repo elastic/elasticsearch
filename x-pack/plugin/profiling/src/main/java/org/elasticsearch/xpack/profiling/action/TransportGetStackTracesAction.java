@@ -195,7 +195,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 if (sampleCount > 0) {
                     log.debug("Using OTel index [{}] with [{}] samples.", EventsIndex.OTEL_FULL_INDEX, sampleCount);
                     searchRandomSampledProfilingEvents(
-                        submitTask, client, request, submitListener, responseBuilder, EventsIndex.OTEL_FULL_INDEX
+                        submitTask,
+                        client,
+                        request,
+                        submitListener,
+                        responseBuilder,
+                        EventsIndex.OTEL_FULL_INDEX
                     );
                 } else {
                     log.debug("OTel index [{}] is empty, falling back to standard profiling indices.", EventsIndex.OTEL_FULL_INDEX);
@@ -203,7 +208,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 }
             }, e -> {
                 if (e instanceof IndexNotFoundException) {
-                    log.debug("OTel index [{}] not found, falling back to standard profiling indices.", EventsIndex.OTEL_FULL_INDEX.getName());
+                    log.debug(
+                        "OTel index [{}] not found, falling back to standard profiling indices.",
+                        EventsIndex.OTEL_FULL_INDEX.getName()
+                    );
                     searchStandardProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
                 } else {
                     submitListener.onFailure(e);
@@ -318,30 +326,32 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(randomSampler)
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, "profiling-hosts", searchResponse -> {
-                long totalSamples = 0;
-                SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
-                Terms stacktraces = sample.getAggregations().get("group_by");
+            .execute(
+                handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, "profiling-hosts", searchResponse -> {
+                    long totalSamples = 0;
+                    SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
+                    Terms stacktraces = sample.getAggregations().get("group_by");
 
-                // When we retrieve data for generic events, we need to adapt the handler similar to searchEventGroupedByStackTrace().
+                    // When we retrieve data for generic events, we need to adapt the handler similar to searchEventGroupedByStackTrace().
 
-                // aggregation
-                Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>();
-                for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                    long count = stacktraceBucket.getDocCount();
-                    totalSamples += count;
+                    // aggregation
+                    Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>();
+                    for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                        long count = stacktraceBucket.getDocCount();
+                        totalSamples += count;
 
-                    String stackTraceID = stacktraceBucket.getKeyAsString();
+                        String stackTraceID = stacktraceBucket.getKeyAsString();
 
-                    TraceEventID eventID = new TraceEventID("", "", "", stackTraceID, DEFAULT_SAMPLING_FREQUENCY);
-                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
-                    event.count += count;
-                    subGroups.collectResults(stacktraceBucket, event);
-                }
-                responseBuilder.setTotalSamples(totalSamples);
-                log.debug("Found [{}] stacktrace events.", stackTraceEvents.size());
-                return stackTraceEvents;
-            }));
+                        TraceEventID eventID = new TraceEventID("", "", "", stackTraceID, DEFAULT_SAMPLING_FREQUENCY);
+                        TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
+                        event.count += count;
+                        subGroups.collectResults(stacktraceBucket, event);
+                    }
+                    responseBuilder.setTotalSamples(totalSamples);
+                    log.debug("Found [{}] stacktrace events.", stackTraceEvents.size());
+                    return stackTraceEvents;
+                })
+            );
     }
 
     private void searchRandomSampledProfilingEvents(
@@ -431,106 +441,121 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         )
                     )
             )
-            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, eventsIndex.hostsIndex(), searchResponse -> {
-                StopWatch watch = new StopWatch("createStackTraceEvents");
-                SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
-                InternalComposite stacktraces = sample.getAggregations().get("group_by");
-                RandomGenerator rng = new Random(rngSeed);
-                long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for profiling-events-5pow02
-                int bucketCount = stacktraces.getBuckets().size();
-                long eventCount = sample.getDocCount();
-                long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
-                    ? (long) DEFAULT_SAMPLING_FREQUENCY
-                    : getAggValueAsLong(searchResponse, "max_freq");
+            .execute(
+                handleEventsGroupedByStackTrace(
+                    submitTask,
+                    client,
+                    responseBuilder,
+                    submitListener,
+                    eventsIndex.hostsIndex(),
+                    searchResponse -> {
+                        StopWatch watch = new StopWatch("createStackTraceEvents");
+                        SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
+                        InternalComposite stacktraces = sample.getAggregations().get("group_by");
+                        RandomGenerator rng = new Random(rngSeed);
+                        long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for
+                                                                                                // profiling-events-5pow02
+                        int bucketCount = stacktraces.getBuckets().size();
+                        long eventCount = sample.getDocCount();
+                        long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
+                            ? (long) DEFAULT_SAMPLING_FREQUENCY
+                            : getAggValueAsLong(searchResponse, "max_freq");
 
-                log.debug(
-                    "Got {} events from {} buckets, indexSamplingFactor {}, upscaled events {}",
-                    eventCount,
-                    bucketCount,
-                    indexSamplingFactor,
-                    eventCount * indexSamplingFactor
-                );
+                        log.debug(
+                            "Got {} events from {} buckets, indexSamplingFactor {}, upscaled events {}",
+                            eventCount,
+                            bucketCount,
+                            indexSamplingFactor,
+                            eventCount * indexSamplingFactor
+                        );
 
-                // Since the random sampler aggregation does not support sampling rates between 0.5 and 1.0,
-                // we can have up to 2x more events in the response as requested by the user.
-                // In order to reduce latency for stacktrace and stackframe lookups, we add another sampling factor
-                // to reduce the number of events to match the user request (which reduces the number of unique stacktrace ids).
-                boolean needAdditionalDownsampling = eventCount > request.getSampleSize();
-                double downSamplingRate = needAdditionalDownsampling
-                    ? (double) request.getSampleSize() / eventCount
-                    : responseBuilder.getSamplingRate();
+                        // Since the random sampler aggregation does not support sampling rates between 0.5 and 1.0,
+                        // we can have up to 2x more events in the response as requested by the user.
+                        // In order to reduce latency for stacktrace and stackframe lookups, we add another sampling factor
+                        // to reduce the number of events to match the user request (which reduces the number of unique stacktrace ids).
+                        boolean needAdditionalDownsampling = eventCount > request.getSampleSize();
+                        double downSamplingRate = needAdditionalDownsampling
+                            ? (double) request.getSampleSize() / eventCount
+                            : responseBuilder.getSamplingRate();
 
-                eventCount = 0;
-                boolean mixedFrequency = false;
-                Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(bucketCount);
-                for (InternalComposite.InternalBucket stacktraceBucket : stacktraces.getBuckets()) {
-                    long sampledCount;
-                    if (needAdditionalDownsampling) {
-                        sampledCount = downsampleEvents(rng, downSamplingRate, stacktraceBucket.getDocCount());
-                        if (sampledCount <= 0) {
-                            bucketCount--;
-                            continue; // skip bucket
-                        }
-                    } else {
-                        sampledCount = stacktraceBucket.getDocCount();
-                    }
-
-                    long count = roundWithRandom((sampledCount * indexSamplingFactor) / downSamplingRate, rng);
-                    eventCount += sampledCount;
-
-                    TraceEventID eventID = getTraceEventID(stacktraceBucket);
-                    stackTraceEvents.compute(eventID, (k, event) -> {
-                        if (event == null) {
-                            event = new TraceEvent(count);
-                        } else {
-                            event.count += count;
-                        }
-
-                        if (aggregationFields != null && aggregationFields.length > 0) {
-                            if (event.subGroups == null) {
-                                event.subGroups = SubGroup.root(aggregationFields[0]);
+                        eventCount = 0;
+                        boolean mixedFrequency = false;
+                        Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(bucketCount);
+                        for (InternalComposite.InternalBucket stacktraceBucket : stacktraces.getBuckets()) {
+                            long sampledCount;
+                            if (needAdditionalDownsampling) {
+                                sampledCount = downsampleEvents(rng, downSamplingRate, stacktraceBucket.getDocCount());
+                                if (sampledCount <= 0) {
+                                    bucketCount--;
+                                    continue; // skip bucket
+                                }
+                            } else {
+                                sampledCount = stacktraceBucket.getDocCount();
                             }
 
-                            SubGroup parent = event.subGroups;
-                            for (String fieldName : aggregationFields) {
-                                Object o = stacktraceBucket.getKey().get(fieldName);
-                                String val = o == null ? "" : o.toString();
-                                parent.addCount(val, count);
-                                parent = parent.getSubGroup(val);
+                            long count = roundWithRandom((sampledCount * indexSamplingFactor) / downSamplingRate, rng);
+                            eventCount += sampledCount;
+
+                            TraceEventID eventID = getTraceEventID(stacktraceBucket);
+                            stackTraceEvents.compute(eventID, (k, event) -> {
+                                if (event == null) {
+                                    event = new TraceEvent(count);
+                                } else {
+                                    event.count += count;
+                                }
+
+                                if (aggregationFields != null && aggregationFields.length > 0) {
+                                    if (event.subGroups == null) {
+                                        event.subGroups = SubGroup.root(aggregationFields[0]);
+                                    }
+
+                                    SubGroup parent = event.subGroups;
+                                    for (String fieldName : aggregationFields) {
+                                        Object o = stacktraceBucket.getKey().get(fieldName);
+                                        String val = o == null ? "" : o.toString();
+                                        parent.addCount(val, count);
+                                        parent = parent.getSubGroup(val);
+                                    }
+                                }
+                                return event;
+                            });
+
+                            if (eventID.samplingFrequency() != DEFAULT_SAMPLING_FREQUENCY) {
+                                mixedFrequency = true;
                             }
                         }
-                        return event;
-                    });
 
-                    if (eventID.samplingFrequency() != DEFAULT_SAMPLING_FREQUENCY) {
-                        mixedFrequency = true;
-                    }
-                }
+                        AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
+                        if (mixedFrequency) {
+                            upscaledEventCount.set(0);
 
-                AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
-                if (mixedFrequency) {
-                    upscaledEventCount.set(0);
-
-                    // Events have different frequencies.
-                    // Scale the count up to the maximum sampling frequency.
-                    stackTraceEvents.forEach((eventID, event) -> {
-                        if (eventID.samplingFrequency() != maxSamplingFrequency) {
-                            double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
-                            event.count = roundWithRandom(event.count * samplingFactor, rng);
+                            // Events have different frequencies.
+                            // Scale the count up to the maximum sampling frequency.
+                            stackTraceEvents.forEach((eventID, event) -> {
+                                if (eventID.samplingFrequency() != maxSamplingFrequency) {
+                                    double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
+                                    event.count = roundWithRandom(event.count * samplingFactor, rng);
+                                }
+                                upscaledEventCount.addAndGet(event.count);
+                            });
                         }
-                        upscaledEventCount.addAndGet(event.count);
-                    });
-                }
 
-                log.debug(watch::report);
+                        log.debug(watch::report);
 
-                responseBuilder.setSamplingRate(downSamplingRate);
-                responseBuilder.setSamplingFrequency(maxSamplingFrequency);
-                responseBuilder.setTotalSamples(upscaledEventCount.get());
-                log.debug("Use [{}] events in [{}] buckets, upscaled to [{}] events).", eventCount, bucketCount, upscaledEventCount.get());
+                        responseBuilder.setSamplingRate(downSamplingRate);
+                        responseBuilder.setSamplingFrequency(maxSamplingFrequency);
+                        responseBuilder.setTotalSamples(upscaledEventCount.get());
+                        log.debug(
+                            "Use [{}] events in [{}] buckets, upscaled to [{}] events).",
+                            eventCount,
+                            bucketCount,
+                            upscaledEventCount.get()
+                        );
 
-                return stackTraceEvents;
-            }));
+                        return stackTraceEvents;
+                    }
+                )
+            );
     }
 
     private static long roundWithRandom(double value, RandomGenerator r) {

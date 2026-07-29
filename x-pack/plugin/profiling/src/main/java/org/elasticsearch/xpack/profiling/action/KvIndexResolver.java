@@ -84,7 +84,11 @@ public class KvIndexResolver {
                 );
             }
             List<Index> dsIndices = otelDataStream.getIndices();
-            log.debug("Resolved [{}] to OTel data stream backing indices {}.", indexPattern, dsIndices.stream().map(Index::getName).toList());
+            log.debug(
+                "Resolved [{}] to OTel data stream backing indices {}.",
+                indexPattern,
+                dsIndices.stream().map(Index::getName).toList()
+            );
             return Collections.unmodifiableList(dsIndices);
         }
 

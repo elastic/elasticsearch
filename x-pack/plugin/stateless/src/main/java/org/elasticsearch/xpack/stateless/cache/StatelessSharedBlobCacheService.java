@@ -377,6 +377,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
         final Predicate<CacheRegion<FileCacheKey>> policyPredicate = evictionPolicy.createPredicate(incoming);
         return new Predicate<>() {
+            // NOTE that the counter assumes **single** thread usage.
             int rejectedCount = 0;
 
             @Override

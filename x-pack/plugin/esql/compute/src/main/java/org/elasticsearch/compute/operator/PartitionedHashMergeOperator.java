@@ -41,10 +41,6 @@ import java.util.function.IntUnaryOperator;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.buildInternalGroupSpecs;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.checkState;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.closeOpOnClose;
-import static org.elasticsearch.compute.operator.PartitionedAggregation.evaluateOp;
 
 /**
  * Coordinator-side merge operator for partitioned hash aggregation.
@@ -84,6 +80,11 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@code partitionCount} (e.g. 8 vs 32) limits queue pressure on the thread pool.
      */
     public static final int DEFAULT_MERGE_WORKER_COUNT = 8;
+
+    private static final GroupingAggregatorPageBuilder.CustomizeSelected NO_CUSTOMIZATION = (aggregator, selected) -> {
+        selected.incRef();
+        return selected;
+    };
 
     // ---- Builder / Factory ----
 
@@ -614,7 +615,7 @@ public class PartitionedHashMergeOperator implements Operator {
             noneOp.blockHash,
             noneOp.aggregators,
             Integer.MAX_VALUE,
-            PartitionedAggregation.NO_CUSTOMIZATION
+            NO_CUSTOMIZATION
         );
         Page[] perPartition = pageBuilder.buildPartitioned(
             partitionCount,
@@ -697,6 +698,60 @@ public class PartitionedHashMergeOperator implements Operator {
                     driverContext.releaseChildBlockFactory(wf);
                 }
             }
+        }
+    }
+
+    /**
+     * Validates {@code externalSpecs} and derives internal group specs with channels remapped
+     * to 0..keyCount-1. Used by {@link Factory} to build the
+     * internal blockHash configuration for noneOp and workerOps.
+     */
+    private static List<BlockHash.GroupSpec> buildInternalGroupSpecs(List<BlockHash.GroupSpec> externalSpecs) {
+        requireNonNull(externalSpecs, "groupSpecs");
+        if (externalSpecs.isEmpty()) {
+            throw new IllegalArgumentException("groupSpecs must not be empty");
+        }
+        List<BlockHash.GroupSpec> internalSpecs = new ArrayList<>(externalSpecs.size());
+        for (int k = 0; k < externalSpecs.size(); k++) {
+            internalSpecs.add(new BlockHash.GroupSpec(k, externalSpecs.get(k).elementType()));
+        }
+        return List.copyOf(internalSpecs);
+    }
+
+    /**
+     * Evaluates {@code op}'s current aggregator state to pages using {@code maxPageSizeOverride}
+     * as the page-size cap. Pass {@link Integer#MAX_VALUE} for intermediate-only evaluations with
+     * no size limit (used when re-ingesting results internally); pass the operator's
+     * {@code maxPageSize} for normal emission.
+     */
+    private static ReleasableIterator<Page> evaluateOp(HashAggregationOperator op, int maxPageSizeOverride, DriverContext driverContext) {
+        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeOverride, NO_CUSTOMIZATION);
+        return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
+    }
+
+    /** Wraps {@code delegate} so that closing the iterator also closes {@code op}. */
+    private static ReleasableIterator<Page> closeOpOnClose(ReleasableIterator<Page> delegate, HashAggregationOperator op) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return delegate.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                return delegate.next();
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(delegate, op);
+            }
+        };
+    }
+
+    private static void checkState(boolean condition, String msg) {
+        if (condition == false) {
+            throw new IllegalArgumentException(msg);
         }
     }
 

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,8 +41,6 @@ public record ShardFieldStats(
     long liveDocsBytes,
     long pointsInMemoryBytes
 ) implements ToXContentFragment {
-
-    public static final long FIXED_BITSET_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
     static final class Fields {
         static final String SHARD_FIELD_STATS = "shard_field_stats";

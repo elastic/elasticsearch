@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -113,10 +115,12 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertThat(empty.liveDocsBytes(), equalTo(0L));
             assertThat(empty.pointsInMemoryBytes(), equalTo(0L));
 
+            // Enough docs that the FixedBitSet backing array needs multiple words (>64 bits).
             int numDocs = randomIntBetween(100, 500);
             for (int i = 0; i < numDocs; i++) {
                 engine.index(randomDoc("doc_" + i));
             }
+            engine.flush();
             engine.refresh("test");
 
             ShardFieldStats afterIndex = engine.shardFieldStats();
@@ -125,22 +129,46 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertThat(afterIndex.pointsInMemoryBytes(), greaterThan(0L));
             assertThat(afterIndex.liveDocsBytes(), equalTo(0L));
 
+            // Soft-delete + refresh without flush: reader leads lastCommitted. Using lastCommitted here
+            // would wrongly report liveDocsBytes == 0.
+            assertThat(softDeleteBitsetBytes(engine.getLastCommittedSegmentInfos()), equalTo(0L));
             engine.delete(new Engine.Delete("doc_0", Uid.encodeId("doc_0"), 1L));
             engine.refresh("test");
+            assertThat(softDeleteBitsetBytes(engine.getLastCommittedSegmentInfos()), equalTo(0L));
 
             ShardFieldStats afterDelete = engine.shardFieldStats();
-            assertThat(afterDelete.liveDocsBytes(), greaterThan(0L));
-            long expectedLiveDocs = 0L;
+            long expectedFromReader;
             try (var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                for (var sci : IndexEngine.getSegmentInfos(searcher.getDirectoryReader())) {
-                    if (sci.getSoftDelCount() > 0) {
-                        expectedLiveDocs += DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci);
-                    }
-                }
+                expectedFromReader = softDeleteBitsetBytes(IndexEngine.getSegmentInfos(searcher.getDirectoryReader()));
             }
-            assertThat(afterDelete.liveDocsBytes(), equalTo(expectedLiveDocs));
+            assertThat(expectedFromReader, greaterThan(0L));
+            assertThat(afterDelete.liveDocsBytes(), equalTo(expectedFromReader));
+            // Independent of DirectoryReaderHeapEstimator: FixedBitSet.bits2words(maxDoc) * 8.
+            assertThat(afterDelete.liveDocsBytes(), equalTo(bits2wordsLiveDocsBytes(engine)));
             assertThat(afterDelete.postingsInMemoryBytes(), greaterThan(0L));
             assertThat(afterDelete.pointsInMemoryBytes(), greaterThan(0L));
+        }
+    }
+
+    private static long softDeleteBitsetBytes(SegmentInfos infos) {
+        long total = 0L;
+        for (SegmentCommitInfo sci : infos) {
+            if (sci.getSoftDelCount() > 0) {
+                total += DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci);
+            }
+        }
+        return total;
+    }
+
+    private static long bits2wordsLiveDocsBytes(IndexEngine engine) throws IOException {
+        try (var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            long total = 0L;
+            for (SegmentCommitInfo sci : IndexEngine.getSegmentInfos(searcher.getDirectoryReader())) {
+                if (sci.getSoftDelCount() > 0) {
+                    total += (long) FixedBitSet.bits2words(sci.info.maxDoc()) * Long.BYTES;
+                }
+            }
+            return total;
         }
     }
 

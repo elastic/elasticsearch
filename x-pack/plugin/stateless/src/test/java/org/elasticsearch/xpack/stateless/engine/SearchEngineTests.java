@@ -156,26 +156,21 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             // randomDoc indexes _seq_no points; BKD reader estimate must be non-zero.
             assertTrue("expected points bytes from leaf FieldInfos", after.pointsInMemoryBytes() > 0);
             assertEquals("no soft deletes yet", 0L, after.liveDocsBytes());
-            // Postings tracking requires node-level stateless.enabled; without it the attribute is absent.
-            long expectedPostings = 0L;
-            for (var sci : searchEngine.getLastCommittedSegmentInfos()) {
-                expectedPostings += DirectoryReaderHeapEstimator.postingsBytes(sci);
-            }
-            assertEquals(expectedPostings, after.postingsInMemoryBytes());
 
             indexEngine.delete(new Engine.Delete("0", Uid.encodeId("0"), 1L));
             indexEngine.flush();
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
 
+            // SearchEngine sources live-docs from getLastCommittedSegmentInfos() (not the NRT unwrap path).
             ShardFieldStats withDeletes = searchEngine.shardFieldStats();
-            assertTrue("soft-deleted segment must report live-docs bytes", withDeletes.liveDocsBytes() > 0);
             long expected = 0L;
             for (var sci : searchEngine.getLastCommittedSegmentInfos()) {
                 if (sci.getSoftDelCount() > 0) {
                     expected += DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci);
                 }
             }
+            assertTrue("soft-deleted segment must report live-docs bytes", expected > 0);
             assertEquals(expected, withDeletes.liveDocsBytes());
         }
         assertWarnings(

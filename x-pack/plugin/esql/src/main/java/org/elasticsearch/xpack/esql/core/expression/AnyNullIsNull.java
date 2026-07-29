@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 /**
- * Marker interface for expressions that propagate null through <b>all</b> of their arguments: if any argument evaluates
- * to {@code null} at a given position, the expression itself evaluates to {@code null} at that position.
+ * Marker interface for expressions that propagate {@code null} through <b>all</b>
+ * of their arguments: if any argument evaluates to {@code null} at a given position,
+ * the expression itself evaluates to {@code null} at that position.
  * <p>
- * This includes most expressions. If not, it must be on the list
- * {@code AbstractScalarFunctionTestCase.EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL}.
+ * If a function has this property, it <b>must</b> be marked with this interface,
+ * so that optimizer rules can apply.
  */
 public interface AnyNullIsNull {}

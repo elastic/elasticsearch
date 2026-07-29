@@ -143,6 +143,9 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    /** Pilot: batch-merge local top-K heaps into {@link SharedGlobalTopK} before publishing to Lucene. */
+    public record GlobalTopKMergeConfig(SharedGlobalTopK.Supplier globalTopK, int batchPages) {}
+
     public record TopNOperatorFactory(
         int topCount,
         List<ElementType> elementTypes,
@@ -152,6 +155,7 @@ public class TopNOperator implements Operator, Accountable {
         long jumboPageBytes,
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitive,
+        @Nullable GlobalTopKMergeConfig globalTopKMerge,
         @Nullable ParallelWorkerConfig parallelWorkerConfig
     ) implements OperatorFactory {
         public TopNOperatorFactory(
@@ -164,7 +168,32 @@ public class TopNOperator implements Operator, Accountable {
             InputOrdering inputOrdering,
             @Nullable SharedMinCompetitive.Supplier minCompetitive
         ) {
-            this(topCount, elementTypes, encoders, sortOrders, maxPageRows, jumboPageBytes, inputOrdering, minCompetitive, null);
+            this(topCount, elementTypes, encoders, sortOrders, maxPageRows, jumboPageBytes, inputOrdering, minCompetitive, null, null);
+        }
+
+        public TopNOperatorFactory(
+            int topCount,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            int maxPageRows,
+            long jumboPageBytes,
+            InputOrdering inputOrdering,
+            @Nullable SharedMinCompetitive.Supplier minCompetitive,
+            @Nullable ParallelWorkerConfig parallelWorkerConfig
+        ) {
+            this(
+                topCount,
+                elementTypes,
+                encoders,
+                sortOrders,
+                maxPageRows,
+                jumboPageBytes,
+                inputOrdering,
+                minCompetitive,
+                null,
+                parallelWorkerConfig
+            );
         }
 
         public TopNOperatorFactory {
@@ -188,6 +217,7 @@ public class TopNOperator implements Operator, Accountable {
                 jumboPageBytes,
                 inputOrdering,
                 minCompetitive,
+                globalTopKMerge,
                 parallelWorkerConfig
             );
         }
@@ -238,6 +268,18 @@ public class TopNOperator implements Operator, Accountable {
 
     @Nullable
     private final SharedMinCompetitive.Supplier minCompetitiveSupplier;
+
+    @Nullable
+    private final GlobalTopKMergeConfig globalTopKMergeConfig;
+
+    @Nullable
+    private SharedGlobalTopK globalTopK;
+
+    @Nullable
+    private BytesRef lastMergedWorstKept;
+
+    private int globalTopKBatchPages;
+
     /**
      * How many times {@link #minCompetitive} was updated.
      */
@@ -296,6 +338,7 @@ public class TopNOperator implements Operator, Accountable {
             jumboPageBytes,
             inputOrdering,
             minCompetitiveSupplier,
+            null,
             null
         );
     }
@@ -311,23 +354,31 @@ public class TopNOperator implements Operator, Accountable {
         long jumboPageBytes,
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        @Nullable GlobalTopKMergeConfig globalTopKMergeConfig,
         @Nullable ParallelWorkerConfig parallelWorkerConfig
     ) {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
+        SharedGlobalTopK globalTopK = null;
         boolean success = false;
         try {
             inputQueue = TopNQueue.build(breaker, topCount);
             minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
+            if (globalTopKMergeConfig != null) {
+                globalTopK = globalTopKMergeConfig.globalTopK().get();
+                globalTopKBatchPages = globalTopKMergeConfig.batchPages();
+            }
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(inputQueue, minCompetitive);
+                Releasables.close(inputQueue, minCompetitive, globalTopK);
             }
         }
         this.inputQueue = inputQueue;
         this.minCompetitive = minCompetitive;
         this.minCompetitiveSupplier = minCompetitiveSupplier;
+        this.globalTopKMergeConfig = globalTopKMergeConfig;
+        this.globalTopK = globalTopK;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageRows = maxPageRows;
@@ -414,6 +465,19 @@ public class TopNOperator implements Operator, Accountable {
             pagesReceived++;
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
+            maybeMergeGlobalTopK();
+        }
+    }
+
+    private void maybeMergeGlobalTopK() {
+        if (globalTopK == null || globalTopKBatchPages <= 0 || pagesReceived % globalTopKBatchPages != 0) {
+            return;
+        }
+        if (globalTopK.mergeLocalHeap(inputQueue, lastMergedWorstKept)) {
+            minCompetitiveUpdates++;
+        }
+        if (inputQueue != null && inputQueue.size() >= inputQueue.topCount) {
+            lastMergedWorstKept = BytesRef.deepCopyOf(inputQueue.top().keys.bytesRefView());
         }
     }
 
@@ -431,8 +495,10 @@ public class TopNOperator implements Operator, Accountable {
             return;
         }
         BytesRef worstKept = inputQueue.top().keys.bytesRefView();
-        if (minCompetitive.offer(worstKept)) {
-            minCompetitiveUpdates++;
+        if (globalTopK == null) {
+            if (minCompetitive.offer(worstKept)) {
+                minCompetitiveUpdates++;
+            }
         }
         if (sortOrders.size() == 1) {
             SortOrder order = sortOrders.get(0);
@@ -444,6 +510,11 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void finish() {
+        if (globalTopK != null) {
+            if (globalTopK.mergeLocalHeapOnFinish(inputQueue)) {
+                minCompetitiveUpdates++;
+            }
+        }
         if (output == null) {
             long start = System.nanoTime();
             output = buildResult();
@@ -494,7 +565,9 @@ public class TopNOperator implements Operator, Accountable {
             maxPageRows,
             jumboPageBytes,
             inputOrdering,
-            minCompetitiveSupplier
+            minCompetitiveSupplier,
+            globalTopKMergeConfig,
+            null
         );
     }
 
@@ -517,7 +590,8 @@ public class TopNOperator implements Operator, Accountable {
              * allocated but un-emitted rows.
              */
             output,
-            minCompetitive
+            minCompetitive,
+            globalTopK
         );
         // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
         spare = null;

@@ -74,6 +74,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
@@ -821,8 +822,15 @@ public class LocalExecutionPlanner {
             // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
             // the TopNExec can never reach the operator without the readers also being wired to it.
             SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
+            TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
             if (minCompetitive == null && luceneMinCompetitivePilot != null) {
                 minCompetitive = luceneMinCompetitivePilot.supplier();
+                if (context.plannerSettings.minCompetitiveGlobalMergeEnabled() && luceneMinCompetitivePilot.globalTopK() != null) {
+                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
+                        luceneMinCompetitivePilot.globalTopK(),
+                        context.plannerSettings.minCompetitiveGlobalMergeBatchPages()
+                    );
+                }
             }
             return source.with(
                 new TopNOperatorFactory(
@@ -834,6 +842,7 @@ public class LocalExecutionPlanner {
                     context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                     topNExec.inputOrdering(),
                     minCompetitive,
+                    globalTopKMerge,
                     parallelWorkerConfig
                 ),
                 source.layout
@@ -1055,9 +1064,12 @@ public class LocalExecutionPlanner {
         if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
             return null;
         }
-        if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
+        if (topNExec.limit() instanceof Literal literal == false) {
             return null;
         }
+        Literal limitLiteral = (Literal) topNExec.limit();
+        Object limitValue = limitLiteral.value() instanceof BytesRef br ? BytesRefs.toString(br) : limitLiteral.value();
+        int limit = stringToInt(limitValue.toString());
         EsQueryExec esQuery = findEsQueryExecForMinCompetitivePilot(topNExec.child());
         if (esQuery == null) {
             return null;
@@ -1072,7 +1084,8 @@ public class LocalExecutionPlanner {
             blockFactory.breaker(),
             topNExec.minCompetitiveKeyConfig()
         );
-        return new LuceneMinCompetitivePilot(supplier, sortField.qualifiedName());
+        SharedGlobalTopK.Supplier globalTopK = limit > 0 ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), limit, supplier) : null;
+        return new LuceneMinCompetitivePilot(supplier, sortField.qualifiedName(), globalTopK);
     }
 
     @Nullable

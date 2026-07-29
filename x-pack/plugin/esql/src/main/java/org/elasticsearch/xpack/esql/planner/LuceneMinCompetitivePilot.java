@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Temporary Path B pilot wiring: shared side-channel state between {@code TopNOperator}
  * and {@code LuceneSourceOperator} for a single datetime sort key over Lucene.
  */
-public record LuceneMinCompetitivePilot(SharedMinCompetitive.Supplier supplier, String sortFieldName) {}
+public record LuceneMinCompetitivePilot(
+    SharedMinCompetitive.Supplier supplier,
+    String sortFieldName,
+    @Nullable SharedGlobalTopK.Supplier globalTopK
+) {}

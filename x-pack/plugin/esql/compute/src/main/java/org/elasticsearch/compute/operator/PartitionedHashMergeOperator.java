@@ -246,7 +246,7 @@ public class PartitionedHashMergeOperator implements Operator {
     private final PendingTasks pendingTasks;
     private volatile boolean closed = false;
     private final AtomicBoolean workerResourcesClosed = new AtomicBoolean();
-    private boolean anyTaggedSeen = false;
+    private boolean anyPartitionsSeen = false;
     /** Set to {@code true} the first time {@link #getOutput()} calls {@link #buildOutput()}, so that
      * {@link #isFinished()} does not return {@code true} before the driver has a chance to call
      * {@link #getOutput()} and actually produce the final output pages. */
@@ -363,7 +363,7 @@ public class PartitionedHashMergeOperator implements Operator {
         rowsReceived += page.getPositionCount();
         Integer partitionId = page.partitionId();
         if (partitionId != null) {
-            anyTaggedSeen = true;
+            anyPartitionsSeen = true;
             page.allowPassingToDifferentDriver();
             workerBuffers[partitionId].addPage(page);
             // Ownership transferred to buffer — do NOT call page.releaseBlocks()
@@ -564,7 +564,7 @@ public class PartitionedHashMergeOperator implements Operator {
     // ---- finish() helpers ----
 
     private void emitFinal() {
-        if (anyTaggedSeen) {
+        if (anyPartitionsSeen) {
             long start = System.nanoTime();
             distributeNoneOpToWorkers();
             reconcileNanos = System.nanoTime() - start;
@@ -628,7 +628,7 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     private void buildOutput() {
-        if (anyTaggedSeen) {
+        if (anyPartitionsSeen) {
             // Drain any pages left in buffers after allWorkersDone (e.g. from rejected worker tasks).
             // Safe here because all workers have exited — no concurrent operator access.
             for (int p = 0; p < partitionCount; p++) {

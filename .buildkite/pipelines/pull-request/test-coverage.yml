@@ -1,20 +1,24 @@
-# Code coverage, on demand.
+# Code coverage for the ES|QL surface, on demand.
 #
-# Never runs by default. Apply the `test-coverage` label to a PR, or comment
+# ONE AREA PER FILE. This file declares everything about measuring ES|QL: which label triggers it,
+# and what that measurement covers. Adding another area is another file like this one - a different
+# label, a different scope - sharing the same scripts. Nothing about ES|QL lives in the scripts.
+#
+# Never runs by default. Apply the `test-coverage` label, or comment
 # `@elasticmachine run elasticsearch-ci/test-coverage`.
 #
-# Reports coverage per test layer. It never gates: no thresholds, no failure on a number. The step
-# fails only if the instrument itself is broken, or on test failures - in which case the coverage
-# still uploads and is a lower bound.
+# Reports coverage per test layer and merged. It never gates: no thresholds, no failure on a
+# number. A leg fails only if the instrument is broken, or if its tests fail - in which case the
+# coverage still uploads and is a lower bound.
 #
-# Parameters are read from the environment; defaults measure the ES|QL surface.
+# Layers are never averaged. A line covered by two layers is one covered line, so the merged step
+# computes the union from the execution data itself. Measured on esql-datasource-s3: unit 69.1%,
+# cluster 47.0%, merged 78.7% - adding gives 116%, averaging gives 58%, both wrong.
 #
-#   COVERAGE_PROJECTS  Gradle project-path pattern, e.g. ':x-pack:plugin:esql*' or ':server'
-#   COVERAGE_INCLUDES  JaCoCo class-include pattern, colon-separated
-#
-# Layers are reported separately, one matrix leg each. They are never averaged - a line covered by
-# two layers is one covered line. To see the union, merge the legs' exec artifacts with
-# .buildkite/scripts/coverage/publish.sh.
+# Optional build environment overrides:
+#   COVERAGE_LAYERS   subset of unit,internal-cluster,cluster (default: all three)
+#   COVERAGE_PROJECTS overrides the scope below
+#   COVERAGE_INCLUDES overrides the class filter below
 config:
   auto-retry: false
   # Opt-in only, gated on the label alone. Not gated on changed-file regions: in the generator
@@ -24,10 +28,26 @@ config:
   # offered this pipeline. The trigger comment bypasses all filters, labels included.
   allow-labels: test-coverage
   trigger-phrase: '.*run\W+elasticsearch-ci/test-coverage.*'
+env:
+  # The scope of this area. Gradle project-path pattern and JaCoCo class-include pattern, each in
+  # its own tool's native syntax. These two must agree: measuring data-source projects against an
+  # ES|QL-wide class filter would put engine classes in the denominator that those tests never
+  # touch, and read as a coverage problem that is really a scoping mistake.
+  COVERAGE_PROJECTS: ":x-pack:plugin:esql*"
+  COVERAGE_INCLUDES: "org.elasticsearch.xpack.esql.*:org.elasticsearch.compute.*:org.elasticsearch.arrow.*"
+
 steps:
   - label: test-coverage / {{matrix.layer}}
     key: test-coverage
     command: |
+      # Buildkite matrices are static, so all three legs are always created. A leg the operator did
+      # not ask for exits immediately rather than measuring. Set COVERAGE_LAYERS on the build to
+      # select, e.g. COVERAGE_LAYERS=unit,internal-cluster for the fast pair.
+      WANTED="${COVERAGE_LAYERS:-unit,internal-cluster,cluster}"
+      if [[ ",$$WANTED," != *",{{matrix.layer}},"* ]]; then
+        echo "--- layer {{matrix.layer}} not requested (COVERAGE_LAYERS=$$WANTED) - NOT MEASURED"
+        exit 0
+      fi
       COVERAGE_LAYERS={{matrix.layer}} .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
       if [[ -f build/coverage/summary.txt ]]; then
         { echo '```'; cat build/coverage/summary.txt; echo '```'; } \

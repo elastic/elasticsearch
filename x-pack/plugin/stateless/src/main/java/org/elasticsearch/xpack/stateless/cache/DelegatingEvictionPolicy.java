@@ -36,6 +36,7 @@ class DelegatingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
             );
     }
 
+    // package private for tests
     EvictionPolicy<FileCacheKey> getDelegate() {
         return delegate;
     }

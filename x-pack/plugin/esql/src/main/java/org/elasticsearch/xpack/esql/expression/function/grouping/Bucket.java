@@ -477,8 +477,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     name = INCLUDE_EMPTY_BUCKETS,
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the whole "
-                        + "`from`..`to` range. Requires the four-argument (range) form of `BUCKET`. Defaults to `false`.",
+                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the "
+                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. "
+                        + "Defaults to `false`.",
                     applies_to = OPTIONS_APPLIES_TO
                 ) },
             description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",

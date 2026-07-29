@@ -178,8 +178,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
                     name = Bucket.INCLUDE_EMPTY_BUCKETS,
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the whole "
-                        + "`from`..`to` range. Requires the range form of `TBUCKET`. Defaults to `false`.",
+                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the "
+                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. "
+                        + "Defaults to `false`.",
                     applies_to = OPTIONS_APPLIES_TO
                 ) },
             description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",

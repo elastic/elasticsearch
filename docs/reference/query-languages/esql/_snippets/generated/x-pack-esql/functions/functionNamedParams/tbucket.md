@@ -3,5 +3,5 @@
 ### Supported function named parameters
 
 `include_empty_buckets` {applies_to}`{"serverless": "ga", "stack": "ga 9.6.0"}`
-:   (boolean) When `true`, empty buckets (filled with default aggregate values) are output across the whole `from`..`to` range. Requires the range form of `TBUCKET`. Defaults to `false`.
+:   (boolean) When `true`, empty buckets (filled with default aggregate values) are output across the `from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. Defaults to `false`.
 

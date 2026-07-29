@@ -168,7 +168,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool
     ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new DelegatingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
         } else {
             return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
         }

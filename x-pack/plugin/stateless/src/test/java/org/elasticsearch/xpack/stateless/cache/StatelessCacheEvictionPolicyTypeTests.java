@@ -85,14 +85,14 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.ALWAYS)
             .build();
         final var clusterService = createClusterService(settings);
-        final var delegatingPolicy = new DelegatingEvictionPolicy(
+        final var switchingPolicy = new SwitchingEvictionPolicy(
             settings,
             clusterService,
             TestUtils.mockIndicesService(clusterService),
             clusterService.threadPool()
         );
 
-        assertThat(delegatingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));
+        assertThat(switchingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));
 
         clusterService.getClusterSettings()
             .applySettings(
@@ -104,7 +104,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
                     .build()
             );
 
-        assertThat(delegatingPolicy.getDelegate(), instanceOf(IndexAgeEvictionPolicy.class));
+        assertThat(switchingPolicy.getDelegate(), instanceOf(IndexAgeEvictionPolicy.class));
     }
 
     private static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings) {

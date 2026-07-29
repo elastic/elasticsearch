@@ -23,11 +23,11 @@ import java.util.function.Predicate;
  * An {@link EvictionPolicy} that delegates to a swappable underlying policy, enabling the eviction
  * strategy to be changed at runtime without restarting the node. Only used on search nodes.
  */
-class DelegatingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
+class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     private volatile EvictionPolicy<FileCacheKey> delegate;
 
-    DelegatingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+    SwitchingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
         assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         clusterService.getClusterSettings()
             .initializeAndWatch(

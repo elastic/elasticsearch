@@ -162,8 +162,8 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
     }
 
     EvictionPolicy<FileCacheKey> getDelegatePolicy(EvictionPolicy<FileCacheKey> evictionPolicy) {
-        if (evictionPolicy instanceof DelegatingEvictionPolicy delegatingEvictionPolicy) {
-            return delegatingEvictionPolicy.getDelegate();
+        if (evictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
+            return switchingEvictionPolicy.getDelegate();
         }
         throw new AssertionError("Not a DelegatingEvictionPolicy: " + evictionPolicy);
     }

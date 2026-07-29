@@ -52,9 +52,8 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
-    // File rotation windows for the disk-buffering library.
+    // Write window for the disk-buffering library: how long a writer keeps appending before its file is rotated.
     private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = TimeValue.timeValueSeconds(30).millis();
-    private static final long DISK_BUFFER_READ_MIN_AGE_MILLIS = TimeValue.timeValueSeconds(33).millis();
 
     private final MetricExporter delegate;
     private final BufferingMetrics bufferingMetrics;
@@ -75,7 +74,7 @@ public class BufferingMetricExporter implements MetricExporter {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
-        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS, DISK_BUFFER_READ_MIN_AGE_MILLIS);
+        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS);
     }
 
     // Visible for testing
@@ -84,8 +83,7 @@ public class BufferingMetricExporter implements MetricExporter {
         Settings settings,
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier,
-        long writeWindowMillis,
-        long readMinAgeMillis
+        long writeWindowMillis
     ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
@@ -98,7 +96,6 @@ public class BufferingMetricExporter implements MetricExporter {
             .setMaxFolderSize((int) maxDiskBytes)
             .setMaxFileAgeForReadMillis(ttlMillis)
             .setMaxFileAgeForWriteMillis(writeWindowMillis)
-            .setMinFileAgeForReadMillis(readMinAgeMillis)
             // drainFiles() removes items only after a successful replay.
             .setDeleteItemsOnIteration(false)
             .build();

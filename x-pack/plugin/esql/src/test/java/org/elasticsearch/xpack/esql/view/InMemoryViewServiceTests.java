@@ -138,6 +138,33 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/147863">#147863</a>.
+     * A view that is explicitly included and then explicitly excluded alongside another concrete
+     * index must not leak the literal view name into the downstream pattern. Before the fix,
+     * {@code stripValidConcreteViewExclusions} removed {@code -view-x} but left {@code view-x}
+     * in the pattern, causing an {@code IndexNotFoundException("no such index [view-x]")} at
+     * search-shards time because the strict options there cannot resolve a view name.
+     */
+    public void testViewIncludeAndExcludeAlongsideConcreteIndex() {
+        addView("view-x", "FROM emp1");
+        LogicalPlan plan = query("FROM emp2,view-x,-view-x");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/147863">#147863</a>
+     * (wildcard-exclusion variant). A view that is explicitly included and then excluded via a
+     * wildcard alongside another concrete index must not leak the literal view name downstream.
+     * The wildcard exclusion {@code -view-*} is preserved because it may also match concrete
+     * indices; only the positive view-name inclusion is removed.
+     */
+    public void testViewIncludeAndWildcardExcludeAlongsideConcreteIndex() {
+        addView("view-x", "FROM emp1");
+        LogicalPlan plan = query("FROM emp2,view-x,-view-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2,-view-*")));
+    }
+
     public void testExclusionWithRemainingIndexMatch() {
         addView("logs-nginx", "FROM logs-1 | WHERE logs.type == nginx");
         addIndex("logs-1");

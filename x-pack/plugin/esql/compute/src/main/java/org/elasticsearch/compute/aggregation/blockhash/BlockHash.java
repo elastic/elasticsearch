@@ -127,11 +127,12 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * <p>Group ids representing {@code null} keys (always group id {@code 0} in single-type hashes)
      * are mapped to partition {@code 0}.
      *
-     * <p>Returns {@code null} when ordinal-based partitioning is unsupported (e.g. the underlying
-     * Swiss-hash implementation is unavailable on this JVM). Callers must supply a fallback.
+     * <p>Returns a constant {@code groupId -> 0} when ordinal-based partitioning is unsupported
+     * (e.g. the underlying Swiss-hash implementation is unavailable on this JVM), routing all
+     * groups to partition 0.
      */
     public IntUnaryOperator partitioner(int partitionCount) {
-        return null;
+        return groupId -> 0;
     }
 
     /**

@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.function.IntUnaryOperator;
 
 import static java.util.stream.Collectors.joining;
 
@@ -57,8 +56,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * workers. Above it the operator partitions just as it would for an intermediate emit.
      */
     public static final int DEFAULT_PARTITION_THRESHOLD = 100_000;
-
-    private static final IntUnaryOperator PARTITION_ZERO = groupId -> 0;
 
     /**
      * Returns true if the given group specs support output-side partitioning.
@@ -290,13 +287,9 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
                 boolean shouldPartition = partitioned || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
                 if (shouldPartition) {
-                    IntUnaryOperator partitioner = blockHash.partitioner(partitionCount);
-                    if (partitioner == null) {
-                        partitioner = PARTITION_ZERO;
-                    }
                     Page[] perPartition = pageBuilder.buildPartitioned(
                         partitionCount,
-                        partitioner,
+                        blockHash.partitioner(partitionCount),
                         new GroupingAggregatorEvaluationContext(driverContext)
                     );
                     for (int p = 0; p < partitionCount; p++) {

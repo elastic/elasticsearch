@@ -37,7 +37,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntUnaryOperator;
+
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -80,8 +80,6 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@code partitionCount} (e.g. 8 vs 32) limits queue pressure on the thread pool.
      */
     public static final int DEFAULT_MERGE_WORKER_COUNT = 8;
-
-    private static final IntUnaryOperator PARTITION_ZERO = groupId -> 0;
 
     // ---- Builder / Factory ----
 
@@ -480,7 +478,7 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@code w, w+workerCount, w+2*workerCount, ...}.
      *
      * <p>Pre-incrementing {@code pendingTasks} before {@code executor.execute()} ensures that
-     * tasks spawned by {@code reconcileNoneToBuffers()} (which fires {@code waitForReading}
+     * tasks spawned by {@code distributeNoneOpToWorkers()} (which fires {@code waitForReading}
      * listeners and may call {@link #maybeScheduleWorker} synchronously) are counted before
      * {@code emitFinal()} decrements the driver's reference.
      */
@@ -568,7 +566,7 @@ public class PartitionedHashMergeOperator implements Operator {
     private void emitFinal() {
         if (anyTaggedSeen) {
             long start = System.nanoTime();
-            reconcileNoneToBuffers();
+            distributeNoneOpToWorkers();
             reconcileNanos = System.nanoTime() - start;
         }
         // Signal workers that no more pages are coming.
@@ -597,12 +595,8 @@ public class PartitionedHashMergeOperator implements Operator {
      * partition's page into the owning worker's {@link ExchangeBuffer}. Closes and nulls
      * {@link #noneOp} on return.
      */
-    private void reconcileNoneToBuffers() {
+    private void distributeNoneOpToWorkers() {
         if (noneOp.blockHash.numKeys() > 0) {
-            IntUnaryOperator partitioner = noneOp.blockHash.partitioner(partitionCount);
-            if (partitioner == null) {
-                partitioner = PARTITION_ZERO;
-            }
             var pageBuilder = new GroupingAggregatorPageBuilder(
                 noneOp.blockHash,
                 noneOp.aggregators,
@@ -611,7 +605,7 @@ public class PartitionedHashMergeOperator implements Operator {
             );
             Page[] perPartition = pageBuilder.buildPartitioned(
                 partitionCount,
-                partitioner,
+                noneOp.blockHash.partitioner(partitionCount),
                 new GroupingAggregatorEvaluationContext(driverContext)
             );
             for (int p = 0; p < partitionCount; p++) {
@@ -831,7 +825,7 @@ public class PartitionedHashMergeOperator implements Operator {
         }
 
         /**
-         * Nanoseconds spent in {@code reconcileNoneToBuffers}: evaluating the untagged accumulator
+         * Nanoseconds spent in {@code distributeNoneOpToWorkers}: evaluating the untagged accumulator
          * and routing its output to per-partition worker buffers.
          */
         public long reconcileNanos() {

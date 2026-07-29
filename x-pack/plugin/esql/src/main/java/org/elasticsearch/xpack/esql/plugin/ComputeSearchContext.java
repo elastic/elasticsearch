@@ -61,6 +61,7 @@ class ComputeSearchContext implements Releasable {
 
     private void ensureNotTombstone() {
         if (searchContext == null) {
+            assert false : "ComputeSearchContext for index [" + index + "] was already closed";
             throw new AlreadyClosedException("ComputeSearchContext for index [" + index + "] was already closed");
         }
     }

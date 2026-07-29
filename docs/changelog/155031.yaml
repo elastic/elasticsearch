@@ -1,6 +1,0 @@
-area: Infra/Core
-issues:
- - 154367
-pr: 155031
-summary: Fix Renovate base branch pattern configuration
-type: bug

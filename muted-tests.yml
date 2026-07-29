@@ -568,9 +568,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155155
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsFirstLastIT
-  method: test {csv-spec:stats_first_last.Test retrieval of last long by timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/155302
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/add time series mappings}
   issue: https://github.com/elastic/elasticsearch/issues/155331

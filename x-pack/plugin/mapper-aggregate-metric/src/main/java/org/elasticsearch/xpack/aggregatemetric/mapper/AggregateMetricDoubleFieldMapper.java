@@ -632,14 +632,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             ctx -> load(ctx).getAggregateMetricValues()
                         );
                     }
-                    throw new UnsupportedOperationException(
-                        "["
+                    throw new IllegalArgumentException(
+                        "Sorting by field ["
+                            + name()
+                            + "] of type ["
                             + CONTENT_TYPE
-                            + "] supports sorting if it has configured a single metric or the metrics ["
+                            + "] is not supported unless it has configured a single metric or the ["
                             + Metric.sum
                             + ", "
                             + Metric.value_count
-                            + "]"
+                            + "] metrics"
                     );
                 }
 

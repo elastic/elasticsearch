@@ -432,6 +432,13 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public int partitionedAggPartitionThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
     public int partitionedAggMergeWorkerCount(int defaultWorkerCount) {
         if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT.getKey())) {
             return PlannerSettings.PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT.get(settings);

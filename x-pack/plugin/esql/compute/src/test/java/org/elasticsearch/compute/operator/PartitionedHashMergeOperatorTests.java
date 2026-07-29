@@ -69,8 +69,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
 
     /**
      * Data node with a high emit threshold that is not crossed mid-stream — all keys accumulate in
-     * one pass and are flushed at finish(). The single flush partitions all groups at once and tags
-     * every output page. Results must still be correct.
+     * one pass and are flushed at finish(). The small input stays below the partition threshold, so
+     * the operator emits untagged pages (the small-query path). Results must still be correct.
      */
     public void testNonPromotedPath() {
         Map<Long, Long> oracle = new HashMap<>();
@@ -79,8 +79,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         int partitionCount = between(2, 16);
         List<Page> intermediate = runDataNodeOp(raw, partitionCount, 10_000 /* not crossed mid-stream */);
         assertTrue(
-            "expected all pages to be tagged: PHAO always tags output at finish()",
-            intermediate.stream().allMatch(p -> p.partitionId() != null)
+            "expected untagged pages: small input stays below partition threshold",
+            intermediate.stream().allMatch(p -> p.partitionId() == null)
         );
 
         Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);

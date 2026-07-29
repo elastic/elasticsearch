@@ -58,8 +58,9 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
     }
 
     /**
-     * All output from PHAO is tagged with a real partition id (0..partitionCount-1); NONE_PARTITION
-     * is never emitted by the operator itself.
+     * When the early-emit threshold is crossed, all output is tagged with a real partition id
+     * (0..partitionCount-1). Untagged output is only possible when neither threshold is crossed,
+     * which cannot happen here because the low emitKeysThreshold guarantees early emits.
      */
     public void testAllOutputIsTaggedWithRealPartitions() {
         Map<Long, Long> oracle = new HashMap<>();
@@ -661,7 +662,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         Page out;
         while ((out = operator.getOutput()) != null) {
             Integer pid = out.partitionId();
-            results.add(new TaggedPage(pid != null ? pid : PartitionedHashAggregationOperator.NONE_PARTITION, out));
+            results.add(new TaggedPage(pid != null ? pid : -1, out));
         }
     }
 

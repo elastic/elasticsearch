@@ -51,6 +51,14 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
     public static final int DEFAULT_EMIT_KEYS_THRESHOLD = 500_000;
 
     /**
+     * Default key-count threshold for deciding whether to partition the final output when no
+     * intermediate emit has occurred. Below this threshold the operator emits an untagged page,
+     * which {@link PartitionedHashMergeOperator} handles on its driver thread without spawning
+     * workers. Above it the operator partitions just as it would for an intermediate emit.
+     */
+    public static final int DEFAULT_PARTITION_THRESHOLD = 100_000;
+
+    /**
      * Returns true if the given group specs support output-side partitioning.
      * <p>
      *     TopN hashes accumulate at most {@code limit} groups — never enough to trigger an emit.
@@ -70,9 +78,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         });
     }
 
-    /** Partition tag value for untagged pages; retained for {@link PartitionedHashMergeOperator} compatibility. */
-    public static final int NONE_PARTITION = -1;
-
     /**
      * An aggregator plus the raw-input channel(s) it reads from. The channel list must not exceed
      * the aggregator's intermediate state block count so the same list can serve both raw-input and
@@ -86,6 +91,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         private List<AggregatorSpec> aggregators;
         private int partitionCount = DEFAULT_PARTITION_COUNT;
         private int emitKeysThreshold = DEFAULT_EMIT_KEYS_THRESHOLD;
+        private int partitionThreshold = DEFAULT_PARTITION_THRESHOLD;
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
 
@@ -106,6 +112,11 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
         public Builder emitKeysThreshold(int emitKeysThreshold) {
             this.emitKeysThreshold = emitKeysThreshold;
+            return this;
+        }
+
+        public Builder partitionThreshold(int partitionThreshold) {
+            this.partitionThreshold = partitionThreshold;
             return this;
         }
 
@@ -134,6 +145,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         private final int internalPageWidth;
         private final int partitionCount;
         private final int emitKeysThreshold;
+        private final int partitionThreshold;
         private final int maxPageSize;
         private final int aggregationBatchSize;
 
@@ -189,6 +201,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
             this.partitionCount = builder.partitionCount;
             this.emitKeysThreshold = builder.emitKeysThreshold;
+            this.partitionThreshold = builder.partitionThreshold;
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
         }
@@ -204,6 +217,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
                 internalPageWidth,
                 partitionCount,
                 emitKeysThreshold,
+                partitionThreshold,
                 maxPageSize,
                 aggregationBatchSize,
                 driverContext
@@ -216,6 +230,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
                 + partitionCount
                 + ", emitKeysThreshold="
                 + emitKeysThreshold
+                + ", partitionThreshold="
+                + partitionThreshold
                 + ", aggs="
                 + aggregatorSpecs.stream().map(s -> s.supplier().describe()).collect(joining(", "))
                 + "]";
@@ -232,6 +248,12 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
     private final int internalPageWidth;
     private final int partitionCount;
     private final int emitKeysThreshold;
+    private final int partitionThreshold;
+    /**
+     * Set to {@code true} on the first intermediate emit; once set, all subsequent emits (including
+     * the final one) are partitioned regardless of key count.
+     */
+    private boolean partitioned;
     /** Routing-only hash for computing {@code hash(key) % partitionCount}; never used for aggregation. */
     private BlockHash probeHash;
 
@@ -245,6 +267,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         int internalPageWidth,
         int partitionCount,
         int emitKeysThreshold,
+        int partitionThreshold,
         int maxPageSize,
         int aggregationBatchSize,
         DriverContext driverContext
@@ -272,6 +295,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         this.internalPageWidth = internalPageWidth;
         this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
+        this.partitionThreshold = partitionThreshold;
         boolean success = false;
         try {
             this.probeHash = buildProbeHash(aggregationBatchSize);
@@ -309,6 +333,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             Page internal = toRawInternalLayout(page, ownedPlaceholders);
             processPage(internal);
             if (blockHash.numKeys() >= emitKeysThreshold) {
+                partitioned = true;
                 emit();
             }
         } finally {
@@ -326,20 +351,37 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * The inherited {@link HashAggregationOperator#maybeReinitializeAfterPeriodicallyEmitted()}
      * resets the hash table and aggregators at the start of the next {@link #processPage} call.
      */
+    /**
+     * Evaluates the accumulated table to intermediate pages and either partitions them (tagging each
+     * sub-page with its partition id) or emits them untagged for the small-query path.
+     * <p>
+     *     Partitioning occurs when {@link #partitioned} is already {@code true} (a previous
+     *     intermediate emit set the latch) or when the current key count meets or exceeds
+     *     {@link #partitionThreshold}. Otherwise the pages are emitted untagged so that
+     *     {@link PartitionedHashMergeOperator} can handle them on its driver thread without
+     *     spinning up background workers.
+     * </p>
+     */
     @Override
     protected void emit() {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        List<Page> taggedPages = new ArrayList<>();
+        List<Page> resultPages = new ArrayList<>();
         long emitStart = System.nanoTime();
         try {
             if (blockHash.numKeys() > 0) {
+                boolean shouldPartition = partitioned || blockHash.numKeys() >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
                 try (ReleasableIterator<Page> pages = pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext))) {
                     while (pages.hasNext()) {
-                        try (Page page = pages.next()) {
-                            appendTaggedPages(page, taggedPages);
+                        Page page = pages.next();
+                        if (shouldPartition) {
+                            try (page) {
+                                appendTaggedPages(page, resultPages);
+                            }
+                        } else {
+                            resultPages.add(page); // ownership transferred to PageListIterator
                         }
                     }
                 }
@@ -349,19 +391,26 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             emitNanos += System.nanoTime() - emitStart;
             emitCount++;
         }
-        if (taggedPages.isEmpty() == false) {
-            output = new PageListIterator(taggedPages);
+        if (resultPages.isEmpty() == false) {
+            output = new PageListIterator(resultPages);
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(probeHash, () -> super.close());
+        Releasables.close(probeHash, super::close);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[partitionCount=" + partitionCount + ", emitKeysThreshold=" + emitKeysThreshold + "]";
+        return getClass().getSimpleName()
+            + "[partitionCount="
+            + partitionCount
+            + ", emitKeysThreshold="
+            + emitKeysThreshold
+            + ", partitionThreshold="
+            + partitionThreshold
+            + "]";
     }
 
     /**

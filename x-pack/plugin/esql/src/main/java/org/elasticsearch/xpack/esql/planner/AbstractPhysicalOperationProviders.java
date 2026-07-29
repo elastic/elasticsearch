@@ -266,6 +266,7 @@ public abstract class AbstractPhysicalOperationProviders {
                             .aggregators(aggSpecs)
                             .partitionCount(partitionCount)
                             .emitKeysThreshold(pragmas.partitionedAggEmitKeysThreshold(plannerSettings.partitionedAggEmitKeysThreshold()))
+                            .partitionThreshold(pragmas.partitionedAggPartitionThreshold(plannerSettings.partitionedAggPartitionThreshold()))
                             .maxPageSize(maxPageSize)
                             .aggregationBatchSize(aggregationBatchSize)
                             .build();

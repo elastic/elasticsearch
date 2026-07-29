@@ -314,6 +314,18 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Key-count threshold below which {@link PartitionedHashAggregationOperator} emits untagged pages
+     * at finish when no intermediate emit has occurred. Above this threshold the operator partitions.
+     */
+    public static final Setting<Integer> PARTITIONED_AGGREGATION_PARTITION_THRESHOLD = Setting.intSetting(
+        "esql.partitioned_agg_partition_threshold",
+        PartitionedHashAggregationOperator.DEFAULT_PARTITION_THRESHOLD,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Integer> PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT = Setting.intSetting(
         "esql.partitioned_agg_merge_worker_count",
         PartitionedHashMergeOperator.DEFAULT_MERGE_WORKER_COUNT,
@@ -346,6 +358,7 @@ public class PlannerSettings {
             IN_SUBQUERY_HASH_JOIN_THRESHOLD,
             PARTITIONED_AGGREGATION_PARTITION_COUNT,
             PARTITIONED_AGGREGATION_EMIT_KEYS_THRESHOLD,
+            PARTITIONED_AGGREGATION_PARTITION_THRESHOLD,
             PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT
         );
     }
@@ -416,6 +429,10 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.partitionedAggEmitKeysThreshold(v))
             );
             clusterSettings.initializeAndWatch(
+                PARTITIONED_AGGREGATION_PARTITION_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.partitionedAggPartitionThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
                 PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT,
                 v -> settings.updateAndGet(s -> s.partitionedAggMergeWorkerCount(v))
             );
@@ -447,6 +464,7 @@ public class PlannerSettings {
     private final int inSubqueryHashJoinThreshold;
     private final int partitionedAggPartitionCount;
     private final int partitionedAggEmitKeysThreshold;
+    private final int partitionedAggPartitionThreshold;
     private final int partitionedAggMergeWorkerCount;
 
     /**
@@ -474,6 +492,7 @@ public class PlannerSettings {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
         PARTITIONED_AGGREGATION_PARTITION_COUNT.getDefault(Settings.EMPTY),
         PARTITIONED_AGGREGATION_EMIT_KEYS_THRESHOLD.getDefault(Settings.EMPTY),
+        PARTITIONED_AGGREGATION_PARTITION_THRESHOLD.getDefault(Settings.EMPTY),
         PARTITIONED_AGGREGATION_MERGE_WORKER_COUNT.getDefault(Settings.EMPTY)
     );
 
@@ -502,6 +521,7 @@ public class PlannerSettings {
         int inSubqueryHashJoinThreshold,
         int partitionedAggPartitionCount,
         int partitionedAggEmitKeysThreshold,
+        int partitionedAggPartitionThreshold,
         int partitionedAggMergeWorkerCount
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
@@ -525,6 +545,7 @@ public class PlannerSettings {
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
         this.partitionedAggPartitionCount = partitionedAggPartitionCount;
         this.partitionedAggEmitKeysThreshold = partitionedAggEmitKeysThreshold;
+        this.partitionedAggPartitionThreshold = partitionedAggPartitionThreshold;
         this.partitionedAggMergeWorkerCount = partitionedAggMergeWorkerCount;
     }
 
@@ -551,6 +572,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -582,6 +604,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -613,6 +636,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -658,6 +682,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -689,6 +714,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -720,6 +746,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -751,6 +778,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -782,6 +810,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -820,6 +849,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -854,6 +884,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -888,6 +919,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -919,6 +951,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -950,6 +983,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -981,6 +1015,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1012,6 +1047,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1043,6 +1079,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1074,6 +1111,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1105,6 +1143,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1136,6 +1175,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1167,6 +1207,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1177,6 +1218,38 @@ public class PlannerSettings {
 
     public int partitionedAggEmitKeysThreshold() {
         return partitionedAggEmitKeysThreshold;
+    }
+
+    public int partitionedAggPartitionThreshold() {
+        return partitionedAggPartitionThreshold;
+    }
+
+    public PlannerSettings partitionedAggPartitionThreshold(int partitionedAggPartitionThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
+            partitionedAggMergeWorkerCount
+        );
     }
 
     public PlannerSettings partitionedAggEmitKeysThreshold(int partitionedAggEmitKeysThreshold) {
@@ -1202,6 +1275,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }
@@ -1229,6 +1303,7 @@ public class PlannerSettings {
             inSubqueryHashJoinThreshold,
             partitionedAggPartitionCount,
             partitionedAggEmitKeysThreshold,
+            partitionedAggPartitionThreshold,
             partitionedAggMergeWorkerCount
         );
     }

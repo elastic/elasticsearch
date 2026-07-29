@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.LongSwissHash;
 import java.util.BitSet;
 // end generated imports
 
@@ -177,6 +178,42 @@ final class IntBlockHash extends BlockHash {
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
+    }
+
+    @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfRow(Page page, int position) {
+                    return LongSwissHash.hash((long) ((IntBlock) page.getBlock(channel)).getInt(position));
+                }
+
+                @Override
+                public void fillPartitions(
+                    Page page,
+                    int count,
+                    int keyCount,
+                    int partitionCount,
+                    int nullPartition,
+                    int[] partitionOf,
+                    int[] counts
+                ) {
+                    IntBlock block = (IntBlock) page.getBlock(channel);
+                    IntVector vec = block.asVector();
+                    if (vec == null) {
+                        Router.super.fillPartitions(page, count, keyCount, partitionCount, nullPartition, partitionOf, counts);
+                        return;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        int part = Math.floorMod(LongSwissHash.hash((long) vec.getInt(i)), partitionCount);
+                        partitionOf[i] = part;
+                        counts[part]++;
+                    }
+                }
+            };
+        }
+        return null;
     }
 
     @Override

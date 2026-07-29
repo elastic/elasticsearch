@@ -323,6 +323,17 @@ public class LocalExecutionPlanner {
         PhysicalPlan localPhysicalPlan,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, false);
+    }
+
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean nodeLevelReductionActive
+    ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
             description,
@@ -337,6 +348,8 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
+            nodeLevelReductionActive,
+            parallelWorkerExecutor,
             new Holder<>()
         );
 
@@ -2332,6 +2345,8 @@ public class LocalExecutionPlanner {
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
+        boolean nodeLevelReductionActive,
+        @Nullable Executor parallelWorkerExecutor,
         Holder<TopNExec> lastVisitedTopN
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

@@ -149,6 +149,16 @@ public class DriverContext {
         }
     }
 
+    /**
+     * Returns a new {@link DriverContext} that shares all state (bigArrays, warnings, etc.)
+     * with this context but uses a different {@link BlockFactory}. The intended use is to give
+     * background workers their own {@link LocalCircuitBreaker} (embedded in the new
+     * blockFactory) while still sharing the parent bigArrays and settings.
+     */
+    public DriverContext withBlockFactory(BlockFactory blockFactory) {
+        return new DriverContext(this.bigArrays, blockFactory, this.localBreakerSettings, this.driverDescription, this.warningsMode);
+    }
+
     /** See {@link Driver#shortDescription}. */
     @Nullable
     public String driverDescription() {

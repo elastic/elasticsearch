@@ -118,6 +118,72 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
     /**
+     * Optional capability for partitioned-hash-aggregation-style callers that need to compute
+     * a key's partition (via a hash) before deciding which sub-table's {@link BlockHash} to
+     * route it into, then insert the key into that chosen sub-table's own {@link BlockHash} —
+     * reusing the hash already computed rather than hashing the key twice.
+     * <p>
+     *     Not every {@link BlockHash} can support this: it requires a single-valued, non-null
+     *     key column backed by a hash table implementation that separates hash computation from
+     *     insertion. {@link #router} returns {@code null} when unsupported, and callers must
+     *     have a fallback for that case.
+     * </p>
+     */
+    public interface Router {
+        /**
+         * Compute the partition hash for the row at {@code position} in {@code page}, without
+         * inserting it. Only call this when no grouping-key column for that row is null — null
+         * rows have no partition hash; callers route them to a fixed agreed-upon partition.
+         */
+        int partitionHashOfRow(Page page, int position);
+
+        /**
+         * Compute partition IDs for all {@code count} rows in {@code page}, writing results to
+         * {@code partitionOf[i]} and incrementing {@code counts[partitionOf[i]]} for each row.
+         *
+         * <p>Rows where any of the {@code keyCount} leading key columns (channels 0..keyCount-1)
+         * is null are assigned {@code nullPartition}. All other rows get
+         * {@code Math.floorMod(hash, partitionCount)}.
+         *
+         * <p>Implementations may override this to hoist per-page block lookups (e.g.
+         * {@link Page#getBlock}) out of the inner loop. The default checks nulls then
+         * delegates per-row to {@link #partitionHashOfRow}.
+         */
+        default void fillPartitions(
+            Page page,
+            int count,
+            int keyCount,
+            int partitionCount,
+            int nullPartition,
+            int[] partitionOf,
+            int[] counts
+        ) {
+            for (int i = 0; i < count; i++) {
+                boolean anyNull = false;
+                for (int k = 0; k < keyCount; k++) {
+                    if (page.getBlock(k).isNull(i)) {
+                        anyNull = true;
+                        break;
+                    }
+                }
+                int part = anyNull ? nullPartition : Math.floorMod(partitionHashOfRow(page, i), partitionCount);
+                partitionOf[i] = part;
+                counts[part]++;
+            }
+        }
+    }
+
+    /**
+     * This {@link BlockHash}'s {@link Router} capability, or {@code null} if this
+     * implementation doesn't support it. See {@link Router} for what "supports" means.
+     * Returns {@code null} when SwissHash is unavailable on this JVM or when the grouping
+     * schema isn't supported (e.g. variable-width multi-column, or adaptive-hash types).
+     */
+    public Router router() {
+        return null;
+    }
+
+    /**
      * A single sort key entry in a composite {@link TopNDef}.
      *
      * @param groupingIndex index of the corresponding entry in the {@code GroupSpec} list (0 = first grouping key)

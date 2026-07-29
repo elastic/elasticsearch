@@ -34,6 +34,7 @@ import java.util.Objects;
 public final class Page implements Writeable, Releasable {
 
     private static final TransportVersion BATCH_METADATA_VERSION = TransportVersion.fromName("esql_batch_page");
+    private static final TransportVersion PARTITION_ID_VERSION = TransportVersion.fromName("esql_aggregation_partition_id");
 
     private final Block[] blocks;
 
@@ -44,6 +45,13 @@ public final class Page implements Writeable, Releasable {
      */
     @Nullable
     private final BatchMetadata batchMetadata;
+
+    /**
+     * Optional partition ID for partitioned hash aggregation pages.
+     * All rows in a page share the same partition ID. {@code null} means unpartitioned.
+     */
+    @Nullable
+    private final Integer partitionId;
 
     /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
@@ -60,7 +68,7 @@ public final class Page implements Writeable, Releasable {
      * @throws IllegalArgumentException if all blocks do not have the same number of positions
      */
     public Page(Block... blocks) {
-        this(true, determinePositionCount(blocks), blocks, null);
+        this(true, determinePositionCount(blocks), blocks, null, null);
     }
 
     /**
@@ -72,21 +80,28 @@ public final class Page implements Writeable, Releasable {
      * @param blocks the blocks
      */
     public Page(int positionCount, Block... blocks) {
-        this(true, positionCount, blocks, null);
+        this(true, positionCount, blocks, null, null);
     }
 
     /**
      * Create a new page with the given blocks and batch metadata.
      */
     public Page(BatchMetadata batchMetadata, Block... blocks) {
-        this(true, determinePositionCount(blocks), blocks, batchMetadata);
+        this(true, determinePositionCount(blocks), blocks, batchMetadata, null);
     }
 
-    private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {
+    private Page(
+        boolean copyBlocks,
+        int positionCount,
+        Block[] blocks,
+        @Nullable BatchMetadata batchMetadata,
+        @Nullable Integer partitionId
+    ) {
         Objects.requireNonNull(blocks, "blocks is null");
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
         this.batchMetadata = batchMetadata;
+        this.partitionId = partitionId;
         for (Block b : blocks) {
             assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             if (b.isReleased()) {
@@ -108,6 +123,7 @@ public final class Page implements Writeable, Releasable {
         }
         this.positionCount = prev.positionCount;
         this.batchMetadata = prev.batchMetadata;
+        this.partitionId = prev.partitionId;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
         System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
@@ -133,6 +149,8 @@ public final class Page implements Writeable, Releasable {
         this.blocks = blocks;
         // Read optional batch metadata at the end (added in BATCH_METADATA_VERSION)
         this.batchMetadata = in.getTransportVersion().supports(BATCH_METADATA_VERSION) ? in.readOptional(BatchMetadata::readFrom) : null;
+        // Read optional partition ID (added in PARTITION_ID_VERSION)
+        this.partitionId = in.getTransportVersion().supports(PARTITION_ID_VERSION) ? in.readOptionalInt() : null;
     }
 
     @Override
@@ -144,6 +162,9 @@ public final class Page implements Writeable, Releasable {
         }
         if (out.getTransportVersion().supports(BATCH_METADATA_VERSION)) {
             out.writeOptionalWriteable(batchMetadata);
+        }
+        if (out.getTransportVersion().supports(PARTITION_ID_VERSION)) {
+            out.writeOptionalInt(partitionId);
         }
     }
 
@@ -263,7 +284,27 @@ public final class Page implements Writeable, Releasable {
         for (Block block : blocks) {
             block.incRef();
         }
-        return new Page(false, positionCount, blocks.clone(), metadata);
+        return new Page(false, positionCount, blocks.clone(), metadata, partitionId);
+    }
+
+    /**
+     * The partition ID assigned to this page by a {@code PartitionedHashAggregationOperator},
+     * or {@code null} if the page is not partitioned.
+     */
+    @Nullable
+    public Integer partitionId() {
+        return partitionId;
+    }
+
+    /**
+     * Creates a new page with the same blocks but tagged with the given partition ID.
+     * The blocks are shared (ref count incremented) with the original page.
+     */
+    public Page withPartitionId(int id) {
+        for (Block block : blocks) {
+            block.incRef();
+        }
+        return new Page(false, positionCount, blocks.clone(), batchMetadata, id);
     }
 
     /**
@@ -279,7 +320,7 @@ public final class Page implements Writeable, Releasable {
      * A marker page is an empty page with isLastPageInBatch=true.
      */
     public static Page createBatchMarkerPage(long batchId, int pageIndexInBatch) {
-        return new Page(false, 0, new Block[0], BatchMetadata.createMarker(batchId, pageIndexInBatch));
+        return new Page(false, 0, new Block[0], BatchMetadata.createMarker(batchId, pageIndexInBatch), null);
     }
 
     public long ramBytesUsedByBlocks() {
@@ -324,7 +365,7 @@ public final class Page implements Writeable, Releasable {
         for (Block b : blocks) {
             b.incRef();
         }
-        return new Page(false, positionCount, blocks.clone(), batchMetadata);
+        return new Page(false, positionCount, blocks.clone(), batchMetadata, partitionId);
     }
 
     /**
@@ -349,7 +390,7 @@ public final class Page implements Writeable, Releasable {
                 mapped[b] = blocks[blockMapping[b]];
                 mapped[b].incRef();
             }
-            Page result = new Page(false, getPositionCount(), mapped, batchMetadata);
+            Page result = new Page(false, getPositionCount(), mapped, batchMetadata, partitionId);
             mapped = null;
             return result;
         } finally {
@@ -380,7 +421,7 @@ public final class Page implements Writeable, Releasable {
                 Releasables.closeExpectNoException(filteredBlocks);
             }
         }
-        return new Page(false, length, filteredBlocks, batchMetadata);
+        return new Page(false, length, filteredBlocks, batchMetadata, partitionId);
     }
 
     /**
@@ -415,6 +456,6 @@ public final class Page implements Writeable, Releasable {
                 Releasables.closeExpectNoException(slicedBlocks);
             }
         }
-        return new Page(false, endExclusive - beginInclusive, slicedBlocks, batchMetadata);
+        return new Page(false, endExclusive - beginInclusive, slicedBlocks, batchMetadata, partitionId);
     }
 }

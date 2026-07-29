@@ -19,6 +19,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PartitionedHashAggregationOperator;
+import org.elasticsearch.compute.operator.PartitionedHashMergeOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -215,21 +217,82 @@ public abstract class AbstractPhysicalOperationProviders {
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                var builder = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
-                    .mode(aggregatorMode)
-                    .aggregators(aggregatorFactories)
-                    .partialEmit(
-                        pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
-                        pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
-                    )
-                    .maxPageSize(maxPageSize)
-                    .aggregationBatchSize(aggregationBatchSize)
-                    .analysisRegistry(analysisRegistry);
-                HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
-                if (topAggregation != null) {
-                    builder.topAggregation(topAggregation);
-                }
-                operatorFactory = builder.build();
+                PlannerSettings plannerSettings = context.plannerSettings();
+                int mergeWorkerCount = pragmas.partitionedAggMergeWorkerCount(plannerSettings.partitionedAggMergeWorkerCount());
+                int partitionCount = Math.min(
+                    pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount()),
+                    mergeWorkerCount
+                );
+                var hashGroupSpecs = groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList();
+                if (aggregatorMode == AggregatorMode.FINAL
+                    && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
+                    && partitionCount > 1
+                    && context.nodeLevelReductionActive() == false
+                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
+                    List<PartitionedHashMergeOperator.AggregatorSpec> mergeSpecs = new ArrayList<>();
+                    aggregatesToFactory(
+                        aggregateExec,
+                        aggregates,
+                        aggregatorMode,
+                        sourceLayout,
+                        true, // grouping
+                        s -> mergeSpecs.add(new PartitionedHashMergeOperator.AggregatorSpec(s.supplier, s.channels)),
+                        context
+                    );
+                    operatorFactory = new PartitionedHashMergeOperator.Builder().groupSpecs(hashGroupSpecs)
+                        .aggregators(mergeSpecs)
+                        .partitionCount(partitionCount)
+                        .workerCount(mergeWorkerCount)
+                        .maxPageSize(maxPageSize)
+                        .aggregationBatchSize(aggregationBatchSize)
+                        .executor(context.parallelWorkerExecutor())
+                        .build();
+                } else if (aggregatorMode == AggregatorMode.INITIAL
+                    && groupSpecs.stream().allMatch(gs -> gs.channel() != null)
+                    && partitionCount > 1
+                    && context.nodeLevelReductionActive() == false
+                    && PartitionedHashAggregationOperator.canPartition(hashGroupSpecs)) {
+                        List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
+                        aggregatesToFactory(
+                            aggregateExec,
+                            aggregates,
+                            aggregatorMode,
+                            sourceLayout,
+                            true, // grouping
+                            s -> aggSpecs.add(new PartitionedHashAggregationOperator.AggregatorSpec(s.supplier, s.channels)),
+                            context
+                        );
+                        operatorFactory = new PartitionedHashAggregationOperator.Builder().groupSpecs(hashGroupSpecs)
+                            .aggregators(aggSpecs)
+                            .partitionCount(partitionCount)
+                            .partitionConversionThreshold(
+                                pragmas.partitionedAggConversionThreshold(plannerSettings.partitionedAggConversionThreshold())
+                            )
+                            .perPartitionEmitThreshold(
+                                pragmas.partitionedAggPerPartitionEmitThreshold(plannerSettings.partitionedAggPerPartitionEmitThreshold())
+                            )
+                            .maxPageSize(maxPageSize)
+                            .aggregationBatchSize(aggregationBatchSize)
+                            .build();
+                    } else {
+                        var builder = new HashAggregationOperator.Builder().groups(
+                            groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList()
+                        )
+                            .mode(aggregatorMode)
+                            .aggregators(aggregatorFactories)
+                            .partialEmit(
+                                pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
+                                pragmas.partialAggregationEmitUniquenessThreshold(plannerSettings.partialEmitUniquenessThreshold())
+                            )
+                            .maxPageSize(maxPageSize)
+                            .aggregationBatchSize(aggregationBatchSize)
+                            .analysisRegistry(analysisRegistry);
+                        HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
+                        if (topAggregation != null) {
+                            builder.topAggregation(topAggregation);
+                        }
+                        operatorFactory = builder.build();
+                    }
             }
         }
         if (operatorFactory != null) {

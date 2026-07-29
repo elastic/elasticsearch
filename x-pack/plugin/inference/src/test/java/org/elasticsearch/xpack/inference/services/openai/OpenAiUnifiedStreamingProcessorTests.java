@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -499,12 +500,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         @Nullable Integer cacheWriteTokens,
         @Nullable Integer reasoningTokens
     ) {
-        String cachedTokensPart = cachedTokens != null ? Strings.format("""
-            ,
-            "prompt_tokens_details": {
-                "cached_tokens": %d,
-                "cache_write_tokens": %d
-            }""", cachedTokens, cacheWriteTokens) : "";
+        String promptTokensDetailsPart = promptTokensDetailsJson(cachedTokens, cacheWriteTokens);
         String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
             ,
             "completion_tokens_details": {
@@ -518,7 +514,27 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 %s\
                 %s
             }
-            """, completionTokens, promptTokens, totalTokens, cachedTokensPart, reasoningTokensPart);
+            """, completionTokens, promptTokens, totalTokens, promptTokensDetailsPart, reasoningTokensPart);
+    }
+
+    private static String promptTokensDetailsJson(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+        if (cachedTokens == null && cacheWriteTokens == null) {
+            return "";
+        }
+
+        var fields = new ArrayList<String>();
+        if (cachedTokens != null) {
+            fields.add(Strings.format("\"cached_tokens\": %d", cachedTokens));
+        }
+        if (cacheWriteTokens != null) {
+            fields.add(Strings.format("\"cache_write_tokens\": %d", cacheWriteTokens));
+        }
+
+        return Strings.format("""
+          ,
+          "prompt_tokens_details": {
+              %s
+          }""", String.join(",\n    ", fields));
     }
 
     public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {

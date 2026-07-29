@@ -158,7 +158,9 @@ public final class FetchSourcePhase implements FetchSubPhase {
         MappingLookup mappingLookup = searchExecutionContext.getMappingLookup();
 
         ValueFetcher valueFetcher = null;
-        if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup) && shouldExcludeInferenceFieldsFromSource(fetchSourceContext) == false) {
+        if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false
+            && shouldExcludeInferenceFieldsFromSource(fetchSourceContext) == false) {
             var inferenceMetadataFieldsMapper = mappingLookup.getMapping().getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
             valueFetcher = inferenceMetadataFieldsMapper.fieldType().valueFetcher(searchExecutionContext, null);
         }

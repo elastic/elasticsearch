@@ -12,9 +12,11 @@ package org.elasticsearch.kibana;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.HashSet;
@@ -23,12 +25,13 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Rejects regular put-mapping requests that touch a field recorded in the
- * {@link TransportReplaceKibanaIndexMappingAction#DROPPED_FIELDS_METADATA_KEY} tombstones of a Kibana system index.
- * Without this, the ordinary additive put-mapping API would bypass the tombstone guardrail entirely: it sees no
- * mapping entry for a dropped field and happily re-adds it under any type, re-creating the shard-level Lucene shape
- * conflict the tombstones exist to prevent. Re-introductions (which are legal when the type is unchanged) must go
- * through the replace-mappings action, which can validate the type and clear the tombstone atomically.
+ * Rejects regular put-mapping requests that introduce net-new fields (fields absent from the current live mapping) on
+ * Kibana saved-objects system indices. New fields must go through
+ * {@link TransportReplaceKibanaIndexMappingAction}, which runs a pre-flight check against the index's Lucene
+ * FieldInfos to detect retired field names before the cluster-state update is committed.
+ * <p>
+ * Ordinary put-mapping is still permitted for updates to fields that already exist in the current mapping (adding
+ * parameters such as {@code eager_global_ordinals} or changing analyser settings where allowed by the merge rules).
  */
 public class KibanaDroppedFieldsMappingValidator implements RequestValidators.RequestValidator<PutMappingRequest> {
 
@@ -45,26 +48,18 @@ public class KibanaDroppedFieldsMappingValidator implements RequestValidators.Re
             if (indexMetadata == null) {
                 continue;
             }
-            Map<String, String> tombstones = indexMetadata.getCustomData(
-                TransportReplaceKibanaIndexMappingAction.DROPPED_FIELDS_METADATA_KEY
-            );
-            if (tombstones == null || tombstones.isEmpty()) {
-                continue;
-            }
+            Set<String> currentFields = currentMappedFields(indexMetadata.mapping());
             Set<String> requestedFields = leafFieldPaths(request.source());
             for (String field : requestedFields) {
-                String droppedType = tombstones.get(field);
-                if (droppedType != null) {
+                if (currentFields.contains(field) == false) {
                     return Optional.of(
                         new IllegalArgumentException(
                             "field ["
                                 + field
-                                + "] of ["
+                                + "] is not present in the current mapping of ["
                                 + index.getName()
-                                + "] was previously dropped (as type ["
-                                + droppedType
-                                + "]) and cannot be modified via the put mapping API; re-introduce it with the same type"
-                                + " via the Kibana replace mappings API, or use a new (versioned) field name"
+                                + "]; use the Kibana replace-mappings API to introduce new fields, "
+                                + "which performs a compatibility check against the index's Lucene field history"
                         )
                     );
                 }
@@ -74,9 +69,20 @@ public class KibanaDroppedFieldsMappingValidator implements RequestValidators.Re
     }
 
     /**
+     * Returns the set of all leaf field paths declared in the current live mapping. An absent or empty mapping
+     * returns an empty set, causing every incoming field to be treated as net-new and therefore rejected.
+     */
+    private static Set<String> currentMappedFields(MappingMetadata mappingMetadata) {
+        if (mappingMetadata == null) {
+            return Set.of();
+        }
+        return leafFieldPaths(mappingMetadata.source().string());
+    }
+
+    /**
      * Extracts the flattened leaf field paths declared in a put-mapping source by walking its {@code properties}
      * tree (including multi-fields under {@code fields}). This deliberately avoids building mapper objects: for
-     * tombstone matching only the declared names are needed, not the resulting Lucene shapes.
+     * the net-new check only the declared names are needed, not the resulting Lucene shapes.
      */
     static Set<String> leafFieldPaths(String mappingSource) {
         Set<String> paths = new HashSet<>();
@@ -84,7 +90,9 @@ public class KibanaDroppedFieldsMappingValidator implements RequestValidators.Re
             return paths;
         }
         Map<String, Object> parsed = XContentHelper.convertToMap(JsonXContent.jsonXContent, mappingSource, false);
-        if (parsed.size() == 1 && parsed.containsKey("_doc") && parsed.get("_doc") instanceof Map<?, ?> doc) {
+        if (parsed.size() == 1
+            && parsed.containsKey(MapperService.SINGLE_MAPPING_NAME)
+            && parsed.get(MapperService.SINGLE_MAPPING_NAME) instanceof Map<?, ?> doc) {
             parsed = castMap(doc);
         }
         if (parsed.get("properties") instanceof Map<?, ?> properties) {

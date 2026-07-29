@@ -46,13 +46,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
-
-    private final AtomicReference<KibanaAutoPutMappingFilter> autoPutMappingFilter = new AtomicReference<>();
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
 
@@ -151,7 +148,10 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlu
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(new ActionHandler(ReplaceKibanaIndexMappingAction.INSTANCE, TransportReplaceKibanaIndexMappingAction.class));
+        return List.of(
+            new ActionHandler(ReplaceKibanaIndexMappingAction.INSTANCE, TransportReplaceKibanaIndexMappingAction.class),
+            new ActionHandler(KibanaGetFieldInfosAction.INSTANCE, TransportKibanaGetFieldInfosAction.class)
+        );
     }
 
     @Override
@@ -160,14 +160,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin, ActionPlu
     }
 
     @Override
-    public Collection<?> createComponents(PluginServices services) {
-        autoPutMappingFilter.set(new KibanaAutoPutMappingFilter(services.clusterService()));
-        return List.of();
-    }
-
-    @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        return List.of(autoPutMappingFilter.get());
+        return List.of(new KibanaAutoPutMappingFilter());
     }
 
     @Override

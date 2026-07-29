@@ -40,8 +40,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Master-node action that installs a replacement mapping on a Kibana saved-objects system index.
@@ -49,30 +49,27 @@ import java.util.Map;
  * The flow is:
  * <ol>
  *     <li>Validate the target is a single-shard {@code .kibana_*} system index.</li>
- *     <li>Force-flush the index so any translog operations that still reference dropped fields are folded into a
- *     Lucene commit and will not be re-parsed (against the shrunken mapping) by peer recovery or replica resync.</li>
+ *     <li>Force-flush the index so any translog operations that still reference fields not in the new mapping are folded
+ *     into a Lucene commit and will not be re-parsed (against the reduced mapping) by peer recovery or replica resync.</li>
+ *     <li>Fetch the set of Lucene field names from {@link org.apache.lucene.index.FieldInfos} on the primary shard.
+ *     Lucene permanently records the shape (index options, doc-values type, etc.) of every field name a shard has ever
+ *     indexed — even after all values are purged and merged away — so introducing a field name under a different type
+ *     would be accepted by the mapping layer but fail on the first document write with a confusing shard-level error.</li>
  *     <li>Submit a cluster-state update that validates the submitted mapping in a fresh {@link MapperService}
- *     (crucially <em>not</em> pre-loaded with the existing mapping, which is what makes this a replacement instead
- *     of the usual additive merge) and writes it into {@link IndexMetadata} with a mapping version bump.</li>
+ *     (crucially <em>not</em> pre-loaded with the existing mapping, which is what makes this a replacement instead of
+ *     the usual additive merge) and checks that no net-new field in the replacement conflicts with the FieldInfos set
+ *     collected in the previous step.</li>
  * </ol>
  * Data nodes rebuild their in-memory mapper verbatim from the published mapping (see
- * {@code MapperService#updateMapping}), so no server-side changes are required for the reduced mapping to take
- * effect cluster-wide.
+ * {@code MapperService#updateMapping}), so no server-side changes are required for the reduced mapping to take effect
+ * cluster-wide.
+ * <p>
+ * No tombstone state is stored in index metadata. Lucene's own FieldInfos — which persist through merges for the
+ * lifetime of a shard whose segments are never replaced — serve as the authoritative record of retired field names.
  */
 public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNodeAction<
     ReplaceKibanaIndexMappingAction.Request,
     AcknowledgedResponse> {
-
-    /**
-     * Index-metadata custom recording fields dropped by this action, as a map of flattened field path to the ES type
-     * the field had when it was dropped. Lucene permanently remembers the shape (index options, doc-values type) of
-     * every field name a shard has ever indexed — even after all values are purged and merged away — so re-introducing
-     * a dropped name under a different type would be accepted by the mapping layer but fail on the first document
-     * write with a confusing shard-level error. These tombstones let us reject such re-introductions at
-     * mapping-replacement time instead. A field re-introduced with its recorded type is safe: it is allowed and its
-     * tombstone is cleared, since the live mapping becomes the source of truth again.
-     */
-    public static final String DROPPED_FIELDS_METADATA_KEY = "kibana_dropped_fields";
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -112,16 +109,25 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
     ) {
         final IndexMetadata indexMetadata = resolveKibanaSystemIndex(state, request.index());
         final FlushRequest flushRequest = new FlushRequest(indexMetadata.getIndex().getName()).force(true).waitIfOngoing(true);
-        client.admin()
-            .indices()
-            .flush(flushRequest, listener.delegateFailureAndWrap((l, flushResponse) -> submitReplaceMappingTask(request, l)));
+        client.admin().indices().flush(flushRequest, listener.delegateFailureAndWrap((l, ignored) -> {
+            final KibanaGetFieldInfosAction.Request fieldInfosRequest = new KibanaGetFieldInfosAction.Request(
+                indexMetadata.getIndex().getName()
+            );
+            client.execute(KibanaGetFieldInfosAction.INSTANCE, fieldInfosRequest, l.delegateFailureAndWrap((l2, fieldInfosResponse) -> {
+                submitReplaceMappingTask(request, fieldInfosResponse.fieldNames(), l2);
+            }));
+        }));
     }
 
-    private void submitReplaceMappingTask(ReplaceKibanaIndexMappingAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void submitReplaceMappingTask(
+        ReplaceKibanaIndexMappingAction.Request request,
+        Set<String> fieldInfoNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         submitUnbatchedTask("kibana-replace-mapping [" + request.index() + "]", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return applyReplacement(currentState, request);
+                return applyReplacement(currentState, request, fieldInfoNames);
             }
         });
     }
@@ -131,7 +137,11 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private ClusterState applyReplacement(ClusterState currentState, ReplaceKibanaIndexMappingAction.Request request) throws Exception {
+    private ClusterState applyReplacement(
+        ClusterState currentState,
+        ReplaceKibanaIndexMappingAction.Request request,
+        Set<String> fieldInfoNames
+    ) throws Exception {
         // Always re-resolve from the current state: the index may have changed since the request was validated.
         final IndexMetadata indexMetadata = resolveKibanaSystemIndex(currentState, request.index());
         final ProjectMetadata project = currentState.metadata().projectFor(indexMetadata.getIndex());
@@ -141,7 +151,7 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
         final IndexMetadata unmappedIndexMetadata = IndexMetadata.builder(indexMetadata).putMapping((MappingMetadata) null).build();
         try (
             MapperService newMapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata);
-            MapperService oldMapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata)
+            MapperService currentMapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata)
         ) {
             // The fresh MapperService has no existing mapping, so this merge validates and builds the submitted
             // mapping exactly as-is; nothing from the current mapping is carried over.
@@ -154,26 +164,26 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
             if (indexMetadata.mapping() != null && newMapping.source().equals(indexMetadata.mapping().source())) {
                 return currentState;
             }
-            Map<String, String> oldFields = Map.of();
+
+            // Compute the set of field paths already present in the current live mapping so we can identify which
+            // paths in the new mapping are net-new (being introduced rather than retained).
+            Set<String> currentPaths = Set.of();
             if (indexMetadata.mapping() != null) {
-                DocumentMapper oldMapper = oldMapperService.merge(
+                DocumentMapper currentMapper = currentMapperService.merge(
                     MapperService.SINGLE_MAPPING_NAME,
                     indexMetadata.mapping().source(),
                     MapperService.MergeReason.MAPPING_RECOVERY
                 );
-                oldFields = leafFieldTypes(oldMapper);
+                currentPaths = allFieldPaths(currentMapper);
             }
-            Map<String, String> newFields = leafFieldTypes(newMapper);
-            Map<String, String> tombstones = updatedTombstones(indexMetadata, oldFields, newFields);
+
+            checkNetNewFieldsAgainstFieldInfos(allFieldPaths(newMapper), currentPaths, fieldInfoNames, request.index());
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .putMapping(newMapping)
                 .putInferenceFields(newMapper.mappers().inferenceFields())
                 .mappingVersion(indexMetadata.getMappingVersion() + 1)
                 .mappingsUpdatedVersion(IndexVersion.current());
-            if (tombstones.isEmpty() == false || indexMetadata.getCustomData(DROPPED_FIELDS_METADATA_KEY) != null) {
-                indexMetadataBuilder.putCustom(DROPPED_FIELDS_METADATA_KEY, tombstones);
-            }
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             metadataBuilder.getProject(project.id()).put(indexMetadataBuilder);
             return ClusterState.builder(currentState).metadata(metadataBuilder).build();
@@ -181,66 +191,76 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
     }
 
     /**
-     * Computes the updated dropped-field tombstones for this replacement, enforcing the re-introduction guardrails:
-     * a field may never change type while mapped, may not be re-introduced under a different type than it was dropped
-     * with, and reclaims (clears) its tombstone when re-introduced with the identical type.
+     * Rejects any net-new field path (present in the new mapping but absent from the current mapping) whose name is
+     * already committed to the shard's Lucene FieldInfos. Lucene permanently records field shapes for the lifetime of
+     * the shard, so re-introducing a retired name would be accepted by the mapping layer but fail on the next write
+     * that tries to index a value for that field.
+     * <p>
+     * Also rejects net-new paths nested beneath a flattened-type ancestor: a flattened field stores all sub-key data
+     * under its own Lucene field name plus a {@code ._keyed} companion, so introducing a separately-mapped path beneath
+     * it would create a shadowing conflict at query time even without a raw Lucene shape collision.
      */
-    private static Map<String, String> updatedTombstones(
-        IndexMetadata indexMetadata,
-        Map<String, String> oldFields,
-        Map<String, String> newFields
+    private static void checkNetNewFieldsAgainstFieldInfos(
+        Set<String> newPaths,
+        Set<String> currentPaths,
+        Set<String> fieldInfoNames,
+        String indexName
     ) {
-        Map<String, String> existingTombstones = indexMetadata.getCustomData(DROPPED_FIELDS_METADATA_KEY);
-        Map<String, String> tombstones = existingTombstones == null ? new HashMap<>() : new HashMap<>(existingTombstones);
-        for (Map.Entry<String, String> field : newFields.entrySet()) {
-            String droppedType = tombstones.get(field.getKey());
-            if (droppedType != null) {
-                if (droppedType.equals(field.getValue())) {
-                    // Safe resurrection: same type as when it was dropped; the live mapping is the source of truth again.
-                    tombstones.remove(field.getKey());
-                } else {
-                    throw new IllegalArgumentException(
-                        "field ["
-                            + field.getKey()
-                            + "] was previously dropped as type ["
-                            + droppedType
-                            + "] and cannot be re-introduced as type ["
-                            + field.getValue()
-                            + "]: this shard's segments permanently remember the original Lucene field shape, so writes"
-                            + " would fail; use a new (versioned) field name instead"
-                    );
-                }
+        for (String path : newPaths) {
+            if (currentPaths.contains(path)) {
+                continue;
             }
-            String oldType = oldFields.get(field.getKey());
-            if (oldType != null && oldType.equals(field.getValue()) == false) {
+            // Exact-name check: Lucene already has this field committed under some shape.
+            if (fieldInfoNames.contains(path)) {
                 throw new IllegalArgumentException(
                     "field ["
-                        + field.getKey()
-                        + "] cannot change type from ["
-                        + oldType
-                        + "] to ["
-                        + field.getValue()
-                        + "] via mapping replacement; use a new (versioned) field name instead"
+                        + path
+                        + "] of ["
+                        + indexName
+                        + "] cannot be introduced: Lucene has permanently committed this field name from a previous mapping; "
+                        + "use a new (versioned) field name instead"
                 );
             }
-        }
-        for (Map.Entry<String, String> field : oldFields.entrySet()) {
-            if (newFields.containsKey(field.getKey()) == false) {
-                tombstones.put(field.getKey(), field.getValue());
+            // Ancestor check for flattened container types: a flattened field stores all sub-key data under its own
+            // Lucene field plus a ._keyed companion. A separately-mapped path beneath it would shadow that data.
+            int dot = path.indexOf('.');
+            while (dot != -1) {
+                String ancestor = path.substring(0, dot);
+                if (fieldInfoNames.contains(ancestor + "._keyed")) {
+                    throw new IllegalArgumentException(
+                        "field ["
+                            + path
+                            + "] of ["
+                            + indexName
+                            + "] cannot be introduced beneath ["
+                            + ancestor
+                            + "]: that path was previously a flattened field whose sub-key data is stored under the "
+                            + "ancestor's Lucene field name; use a new (versioned) ancestor name instead"
+                    );
+                }
+                dot = path.indexOf('.', dot + 1);
             }
         }
-        return tombstones;
     }
 
-    /** Flattened leaf field path to ES type name for every non-metadata field mapper (multi-fields included). */
-    private static Map<String, String> leafFieldTypes(DocumentMapper documentMapper) {
-        Map<String, String> fields = new HashMap<>();
-        for (Mapper mapper : documentMapper.mappers().fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper && mapper instanceof MetadataFieldMapper == false) {
-                fields.put(fieldMapper.fullPath(), fieldMapper.fieldType().typeName());
+    /**
+     * Returns the set of all field paths (leaf field mappers and object mapper paths, excluding the root and metadata
+     * fields) declared in the given document mapper. Both leaf paths and intermediate object paths are included so
+     * that the net-new check can detect conflicts at any level of the mapping hierarchy.
+     */
+    private static Set<String> allFieldPaths(DocumentMapper mapper) {
+        Set<String> paths = new HashSet<>();
+        for (Mapper m : mapper.mappers().fieldMappers()) {
+            if (m instanceof FieldMapper fm && m instanceof MetadataFieldMapper == false) {
+                paths.add(fm.fullPath());
             }
         }
-        return fields;
+        for (String objectPath : mapper.mappers().objectMappers().keySet()) {
+            if (objectPath.isEmpty() == false) {
+                paths.add(objectPath);
+            }
+        }
+        return paths;
     }
 
     private IndexMetadata resolveKibanaSystemIndex(ClusterState state, String indexName) {

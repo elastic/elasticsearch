@@ -204,8 +204,8 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             }
         }
 
-        safeAwait(newMasterUpdatesCompletedLatch);
         safeAwait(newMasterElectedLatch);
+        safeAwait(newMasterUpdatesCompletedLatch);
         shutdown.set(true);
         assertingThread.join();
         safeAwait(updatesCompleteLatch);

@@ -70,7 +70,14 @@ fi
 if command -v gh >/dev/null 2>&1; then
   perm=$(GH_TOKEN="$TOKEN" gh api "repos/$REPO" --jq '.permissions.push' 2>/dev/null)
   if [[ "$perm" != "true" ]]; then
-    echo "--- not committing coverage: this token cannot push to $REPO (permissions.push=${perm:-unknown})"
+    # Name the identity. A private repo is invisible to an org member who has not been granted
+    # access to it, so the failure is a repo-side grant rather than anything about the token - but
+    # that grant cannot be made without knowing which account to grant it to, and this token comes
+    # from Vault so only CI can ask.
+    who=$(GH_TOKEN="$TOKEN" gh api user --jq '.login' 2>/dev/null || echo unknown)
+    echo "--- not committing coverage: $REPO is not reachable by this token"
+    echo "    identity: $who"
+    echo "    fix: grant $who Write on $REPO (Settings > Collaborators and teams)"
     exit 0
   fi
 fi

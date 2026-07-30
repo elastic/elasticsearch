@@ -87,7 +87,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ConfigurationFunction,
         AnyNullIsNull {
 
-        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
         .quinaryConfigWithOptions(Bucket::new)
         .name("bucket", "bin");

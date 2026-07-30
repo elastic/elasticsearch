@@ -737,7 +737,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                     "ensureCancellable() threw and the cancel was aborted",
                     ShutdownPrepareService.class.getName(),
                     Level.DEBUG,
-                    "Unable to cancel reindex task*"
+                    "Unable to cancel reindex task *"
                 )
             );
 

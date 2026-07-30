@@ -12,6 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +22,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
+
+    @BeforeClass
+    public static void skipIfRemoteViewResolutionEnabled() {
+        // These tests verify the legacy "remote views are not supported" behaviour.
+        // When REMOTE_VIEW_RESOLUTION is active, remote views are silently expanded so the
+        // queries succeed — see RemoteViewsCCSIT for the new-behaviour tests.
+        assumeFalse(
+            "REMOTE_VIEW_RESOLUTION replaces this error path; see RemoteViewsCCSIT",
+            EsqlCapabilities.Cap.REMOTE_VIEW_RESOLUTION.isEnabled()
+        );
+    }
 
     @Before
     public void setupClustersAndViews() throws IOException {

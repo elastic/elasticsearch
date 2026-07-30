@@ -360,7 +360,7 @@ public class HistogramFieldMapper extends FieldMapper {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
-                return new ParseResult.Indexed();
+                return ParseResult.INDEXED;
             }
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());

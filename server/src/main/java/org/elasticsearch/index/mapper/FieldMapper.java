@@ -335,9 +335,9 @@ public abstract class FieldMapper extends Mapper {
      */
     protected final ParseResult resolveIgnoredResult(DocumentParserContext context, boolean wasAlreadyIgnored) {
         if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
-            return new ParseResult.Ignored();
+            return ParseResult.IGNORED;
         }
-        return new ParseResult.Indexed();
+        return ParseResult.INDEXED;
     }
 
     protected void doParseMultiFields(DocumentParserContext context) throws IOException {

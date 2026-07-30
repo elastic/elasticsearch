@@ -408,7 +408,7 @@ public class CompletionFieldMapper extends FieldMapper {
         Map<String, CompletionInputMetadataContainer> inputMap = Maps.newMapWithExpectedSize(1);
 
         if (token == Token.VALUE_NULL) { // ignore null values
-            return new ParseResult.Indexed();
+            return ParseResult.INDEXED;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -461,7 +461,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 );
             }
         }
-        return new ParseResult.Indexed();
+        return ParseResult.INDEXED;
     }
 
     /**

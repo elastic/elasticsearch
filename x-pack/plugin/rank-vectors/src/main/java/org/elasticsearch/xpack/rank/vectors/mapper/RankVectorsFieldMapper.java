@@ -306,7 +306,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             );
         }
         if (XContentParser.Token.VALUE_NULL == context.parser().currentToken()) {
-            return new ParseResult.Indexed();
+            return ParseResult.INDEXED;
         }
         if (XContentParser.Token.START_ARRAY != context.parser().currentToken()) {
             throw new IllegalArgumentException(
@@ -328,7 +328,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
             context.addDynamicMapper(builder, fullPath());
-            return new ParseResult.Indexed();
+            return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;
         Element element = fieldType().element;
@@ -358,7 +358,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 vectorMagnitudeFieldName,
                 new BinaryDocValuesField(vectorMagnitudeFieldName, new BytesRef(magnitudeBuffer.array()))
             );
-        return new ParseResult.Indexed();
+        return ParseResult.INDEXED;
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {

@@ -431,7 +431,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
-        return new ParseResult.Indexed();
+        return ParseResult.INDEXED;
     }
 
     @Override

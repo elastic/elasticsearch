@@ -31,4 +31,9 @@ public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ign
      * violating token for storage in {@code ._on_failure}.
      */
     record MultiValueViolation(BytesRef capturedValue) implements ParseResult {}
+
+    /** Singleton for the common indexed result; avoids repeated allocation of a zero-field record. */
+    Indexed INDEXED = new Indexed();
+    /** Singleton for the common ignored result; avoids repeated allocation of a zero-field record. */
+    Ignored IGNORED = new Ignored();
 }

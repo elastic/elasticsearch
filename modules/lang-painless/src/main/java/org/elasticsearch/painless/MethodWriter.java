@@ -466,14 +466,15 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
-        // A charging reference (annotated @allocates target under tracking) threads three extra static args — the
-        // estimator's owner/name/descriptor — so the generated lambda charges the delegate per invocation against the
-        // captured script (see LambdaBootstrap). Both paths otherwise build the same args and end with the injections.
+        // A charging reference (annotated @allocates target under tracking) threads four extra static args — the script
+        // capture index followed by the estimator's owner/name/descriptor — so the generated lambda charges the delegate per
+        // invocation against the captured script (see LambdaBootstrap). Compile-time (typed) references always capture the
+        // script first, so the index is 0. Both paths otherwise build the same args and end with the injections.
         boolean chargesAllocation = functionRef.allocationEstimator != null;
 
         int size = 7 + functionRef.delegateInjections.length;
         if (chargesAllocation) {
-            size += 3;
+            size += 4;
         }
 
         Object[] args = new Object[size];
@@ -487,6 +488,7 @@ public final class MethodWriter extends GeneratorAdapter {
         args[i++] = functionRef.isDelegateAugmented ? 1 : 0;
         if (chargesAllocation) {
             java.lang.reflect.Method estimator = functionRef.allocationEstimator;
+            args[i++] = 0;
             args[i++] = Type.getInternalName(estimator.getDeclaringClass());
             args[i++] = estimator.getName();
             args[i++] = Method.getMethod(estimator).getDescriptor();

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -286,7 +287,7 @@ public abstract class FullTextFunction extends Function
         // because join is not pushed down into subqueries yet.
         boolean checkCommandsBeforeExpression = isLookupJoinOnCondition
             || checkFullTextFunctionsAboveSubqueries
-            || hasSubqueryInChildrenPlans(plan) == false;
+            || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
@@ -316,7 +317,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
-                    && (lp instanceof Dedup == false),
+                    && (lp instanceof Dedup == false)
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -684,6 +686,20 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                // After optimization, if this filter is still directly above a coordinator join, the push-down
+                // optimizer could not move it to the data nodes. Full-text functions require a Lucene shard
+                // context that the coordinator does not have for the data-side index.
+                if (f.child() instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a WHERE clause that references both data-side and lookup-side "
+                                + "fields after LOOKUP JOIN _coordinator:",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
             }
         };
     }
@@ -717,6 +733,10 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    private static boolean hasFilterPushdownTarget(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnionAll || p instanceof Highlight);
     }
 
     /**

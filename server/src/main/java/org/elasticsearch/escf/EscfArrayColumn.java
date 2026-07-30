@@ -36,7 +36,7 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.ARRAY;
     }
 
@@ -63,7 +63,7 @@ final class EscfArrayColumn extends EscfColumn {
     // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
     // arrays. Add that when needed.
     @Override
-    LongTupleCursor longCursor() {
+    public LongTupleCursor longCursor() {
         if (!(child instanceof EscfLongColumn longChild)) {
             throw new UnsupportedOperationException("longCursor() requires a long child column, got: " + EscfColumnKind.name(child.kind()));
         }
@@ -101,7 +101,7 @@ final class EscfArrayColumn extends EscfColumn {
     // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
     // arrays. Add that when needed.
     @Override
-    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor() {
         if (!(child instanceof AbstractVarColumn varChild)) {
             throw new UnsupportedOperationException(
                 "bytesRefCursor() requires a var-width child column, got: " + EscfColumnKind.name(child.kind())

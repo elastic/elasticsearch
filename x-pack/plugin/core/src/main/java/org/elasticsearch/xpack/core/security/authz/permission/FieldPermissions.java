@@ -246,8 +246,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, IndexSettings indexSettings, Function<String, Boolean> isMapped)
-        throws IOException {
+    public DirectoryReader filter(
+        DirectoryReader reader,
+        IndexSettings indexSettings,
+        Function<String, Boolean> isMapped,
+        Function<String, String> getParentField
+    ) throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
@@ -255,7 +259,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
             reader,
             permittedFieldsAutomaton,
             IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
-            isMapped
+            isMapped,
+            getParentField
         );
     }
 

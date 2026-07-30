@@ -174,7 +174,7 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
      * attributes of bulk and search failures. Care must be taken for exceptions, since
      * two messages with the same cause and message would be different instances after
      * serialization / deserialization, and fail the default equality check. For this
-     * reason, we define custom equality below..
+     * reason, we define custom equality below.
      */
     static class BulkByPaginatedSearchResponseWrapper implements Writeable {
         private final BulkByPaginatedSearchResponse response;

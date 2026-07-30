@@ -882,7 +882,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Find the latest batched compound commit in the provided map and read it using
-     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long)}
+     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, boolean, PrimaryTermAndGeneration, long)}
      *
      * @param directory the {@link BlobStoreCacheDirectory} to use for reading the blob
      * @param blobs     a sorted map of batched compound commit blobs

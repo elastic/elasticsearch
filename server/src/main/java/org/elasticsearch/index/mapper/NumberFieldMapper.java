@@ -2807,11 +2807,13 @@ public class NumberFieldMapper extends FieldMapper {
                     + "]"
             );
         }
+        Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
             source,
             type,
             coerce(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            nullSortableLong
         );
         IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
             ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE

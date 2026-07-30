@@ -670,12 +670,12 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
-     * Traverses {@code plan} depth-first, invoking {@code consumer} for each node, with two exceptions:
+     * Traverses {@code plan} depth-first, invoking {@code consumer} for each visited node, with two exceptions:
      * <ul>
      *   <li>The right (subquery) side of any {@link AbstractSubqueryJoin} is skipped entirely — it executes independently and its nodes
      *       are not "between" the calling expression and its data source.</li>
-     *   <li>Nodes identified as synthetic boundaries produced by {@link #inlineData} are treated as opaque stops: traversal does not
-     *       recurse into their children. These nodes are implementation artifacts ({@link MarkJoin} mark {@link Eval}s and their wrapping
+     *   <li>Nodes identified as synthetic boundaries produced by {@link #inlineData} are treated as stops: traversal does not recurse
+     *       into their children. These nodes are implementation artifacts ({@link MarkJoin} mark {@link Eval}s and their wrapping
      *       {@link Project}s), not user-written commands. The user-written subtree below them — the original {@code left()} of the
      *       replaced join — was already verified before {@code inlineData} ran.</li>
      * </ul>

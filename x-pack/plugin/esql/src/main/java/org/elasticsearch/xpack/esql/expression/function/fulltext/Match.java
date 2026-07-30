@@ -155,16 +155,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
-            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
-            `MATCH` can also search expressions that are not backed by an index, such as
-            computed columns produced by `EVAL`, `STATS`, or other commands.
-            When the target is not an indexed field, the search evaluates by scanning
-            values row by row, which may be slower on large datasets.
-            When searching expressions, <<esql-function-named-params,function named parameters>>
-            (match query options) are not supported.
-            Additionally, `MATCH` on an expression does not contribute to the relevance score
-            when using `METADATA _score`.
-
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
             for the match query.
             All <<match-field-params,match query parameters>> are supported.
@@ -172,6 +162,22 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
+            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+            `MATCH` can also search expressions that are not backed by an index, such as
+            computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+            Additionally, `MATCH` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            When searching `text` expressions, <<esql-function-named-params,function named parameters>>
+            (match query options) are supported, except for `analyzer`: expression values are
+            always analyzed with the `standard` analyzer. On other expression types options are not
+            supported.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -406,7 +412,19 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        return matchQuery(getNameFromFieldAttribute(fieldAttribute));
+    }
+
+    /**
+     * Builds the same query as {@link #translate}, but uses {@code fieldName} directly instead of the mapped field name.
+     * HIGHLIGHT needs this because its per-row MemoryIndex uses ON column names and must not invoke mapped behavior such
+     * as {@code semantic_text} inference.
+     */
+    public QueryBuilder asLexicalQueryBuilder(String fieldName) {
+        return matchQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchQuery matchQuery(String fieldName) {
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
     }

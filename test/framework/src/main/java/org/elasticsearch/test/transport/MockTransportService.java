@@ -308,7 +308,8 @@ public class MockTransportService extends TransportService {
             linkedProjectConfigService,
             telemetryProvider,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            List.of()
         );
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
@@ -826,9 +827,9 @@ public class MockTransportService extends TransportService {
 
     @Override
     @SuppressWarnings("rawtypes")
-    public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
-        super.onResponseReceived(requestId, holder);
-        messageListener.onResponseReceived(requestId, holder);
+    public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
+        super.onResponseReceived(requestId, holder, networkMessageSize);
+        messageListener.onResponseReceived(requestId, holder, networkMessageSize);
     }
 
     @Override
@@ -891,9 +892,9 @@ public class MockTransportService extends TransportService {
 
         @Override
         @SuppressWarnings("rawtypes")
-        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+        public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
+                listener.onResponseReceived(requestId, holder, networkMessageSize);
             }
         }
     }

@@ -265,10 +265,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
-    /// Asynchronously samples the current cluster state for WAITING snapshot shards blocked by queued primary
-    /// relocations and cancels those recoveries if they have not started yet.
+    /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations.
+    /// Cancels those recoveries if they have not started yet.
     private void cancelRecoveriesBlockingSnapshots() {
-        // TODO: we should maybe try coalescing runs since we are always checking the latest cluster state
+        // TODO: we should probably coalesce runs since we are always checking the latest cluster state
         genericExecutor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
@@ -296,7 +296,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             // see [#clusterChanged].
             // There is a window where the last INIT shard could complete after we check but before/while the cancellation
             // lands. The snapshot may briefly have no INIT shards and the decider will not throttle. Safe/best-effort, at
-            // worst a wasted cancel and a re-relocation attempt. The completed shard does not return to WAITING.
+            // worst a wasted cancel and a re-relocation attempt.
             if (snapshotInProgress.isClone()
                 || snapshotInProgress.hasShardsInWaitingState() == false
                 || snapshotInProgress.hasShardsInInitState() == false) {

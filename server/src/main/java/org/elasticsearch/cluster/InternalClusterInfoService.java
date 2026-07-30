@@ -331,7 +331,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchPartitionSizes() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                partitionSizeCollector.collectPartitionSizes(
+                partitionSizeCollector.collectHostedShardsPartitionSizes(
                     clusterStateSupplier.get(),
                     ActionListener.releaseAfter(new ActionListener<>() {
                         @Override

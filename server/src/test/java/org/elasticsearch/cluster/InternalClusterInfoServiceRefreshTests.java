@@ -59,7 +59,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                     listener.onResponse(partitionSizes);
                 }
                 return null;
-            }).when(partitionSizeCollector).collectPartitionSizes(any(), any());
+            }).when(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
 
             final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
                 settings,
@@ -77,14 +77,14 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
             // Success populates the ClusterInfo
             ClusterInfo clusterInfo = refresh(clusterInfoService);
-            verify(partitionSizeCollector).collectPartitionSizes(any(), any());
+            verify(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
             assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(partitionSizes));
 
             // Failure returns an empty map
             Mockito.clearInvocations(partitionSizeCollector);
             failPartitionSizes.set(true);
             clusterInfo = refresh(clusterInfoService);
-            verify(partitionSizeCollector).collectPartitionSizes(any(), any());
+            verify(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
             assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
         }
     }

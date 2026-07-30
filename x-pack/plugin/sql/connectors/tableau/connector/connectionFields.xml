@@ -25,6 +25,18 @@
         </boolean-options>
     </field>
 
-    <field name="vendor1" value-type="string" category="general" label="Additional settings" optional="true"/>
+    <field name="v-timezone" value-type="string" category="advanced" label="Timezone" optional="true"/>
+    <field name="v-connectTimeout" value-type="string" category="advanced" label="Connection Timeout" optional="true"/>
+    <field name="v-networkTimeout" value-type="string" category="advanced" label="Network Timeout" optional="true"/>
+    <field name="v-pageSize" value-type="string" category="advanced" label="Page Size" optional="true"/>
+    <field name="v-pageTimeout" value-type="string" category="advanced" label="Page Timeout" optional="true"/>
+    <field name="v-queryTimeout" value-type="string" category="advanced" label="Query Timeout" optional="true"/>
+    <field name="v-proxyHttp" value-type="string" category="advanced" label="Http Proxy" optional="true"/>
+    <field name="v-proxySocks" value-type="string" category="advanced" label="SOCKS Proxy" optional="true"/>
+    <field name="v-fieldMultiValueLeniency" value-type="string" category="advanced" label="Field Multi-Value Leniency" optional="true"/>
+    <field name="v-indexIncludeFrozen" value-type="string" category="advanced" label="Include Frozen Indexes" optional="true"/>
+    <field name="v-allowPartialSearchResults" value-type="string" category="advanced" label="Allow Partial Search Results" optional="true"/>
+    <field name="v-validateProperties" value-type="string" category="advanced" label="Validate Properties" optional="true"/>
+
 
 </connection-fields>

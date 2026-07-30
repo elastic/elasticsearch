@@ -26,6 +26,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/155496
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedLoadIT
+  method: test {csv-spec:unmapped-load.loadUnmappedFieldsMultiIndexForkWithMvExpand}
+  issue: https://github.com/elastic/elasticsearch/issues/155505
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
+  method: test {csv-spec:unmapped-load.partiallyUnmappedSmallNumericFieldIsWidened}
+  issue: https://github.com/elastic/elasticsearch/issues/155505
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -250,9 +256,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/151837
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
   issue: https://github.com/elastic/elasticsearch/issues/151992
@@ -559,18 +562,12 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/155173
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testExplainApi
-  issue: https://github.com/elastic/elasticsearch/issues/155193
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/155213
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155155
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsFirstLastIT
-  method: test {csv-spec:stats_first_last.Test retrieval of last long by timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/155302
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/add time series mappings}
   issue: https://github.com/elastic/elasticsearch/issues/155331
@@ -589,3 +586,18 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicyTests
   method: testPinnedWindowEvictionPolicyEvictsOutsideWindowDataInCache
   issue: https://github.com/elastic/elasticsearch/issues/155357
+- class: org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT
+  method: testDisabledRemoteResolvesDatasetAsMissingIndex
+  issue: https://github.com/elastic/elasticsearch/issues/155382
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testPrioritizationOfWarmingTasks
+  issue: https://github.com/elastic/elasticsearch/issues/155401
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testConsecutiveRotations
+  issue: https://github.com/elastic/elasticsearch/issues/155419
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=downsample/100_downsample_histograms/Downsample histogram with last value}
+  issue: https://github.com/elastic/elasticsearch/issues/155453
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: multiple sub-objects with all three supported dynamic values}"
+  issue: https://github.com/elastic/elasticsearch/issues/155501

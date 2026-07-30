@@ -78,6 +78,11 @@ public abstract class EscfColumn implements SliceableColumn {
         };
     }
 
+    /** The number of documents in this column window (present and absent). */
+    public final int docCount() {
+        return docCount;
+    }
+
     final boolean isAbsent(int row) {
         if (row < 0 || row >= docCount) {
             return true;
@@ -85,6 +90,11 @@ public abstract class EscfColumn implements SliceableColumn {
         // validity is always null (all-present) or a FixedBitSet covering [0, docCount), so no length guard needed.
         // A set bit means present; a clear bit or null means all-present (dense).
         return validity != null && validity.get(row) == false;
+    }
+
+    /** Returns {@code true} if the document at {@code row} is present (has a value). */
+    public final boolean isPresent(int row) {
+        return isAbsent(row) == false;
     }
 
     final byte getTypeByte(int row) {
@@ -149,7 +159,7 @@ public abstract class EscfColumn implements SliceableColumn {
      * Returns a forward-only {@link LongTupleCursor} positioned before the first row. Subtypes that
      * hold long values override this; the default throws.
      */
-    LongTupleCursor longCursor() {
+    public LongTupleCursor longCursor() {
         throw notA("long");
     }
 

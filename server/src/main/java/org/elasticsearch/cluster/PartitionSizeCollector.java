@@ -21,12 +21,13 @@ public interface PartitionSizeCollector {
     /**
      * Used when no partition size collector is available.
      */
-    PartitionSizeCollector EMPTY = listener -> listener.onResponse(Map.of());
+    PartitionSizeCollector EMPTY = (clusterState, listener) -> listener.onResponse(Map.of());
 
     /**
      * Collects the partition size in bytes, keyed by node ID.
      *
+     * @param clusterState The current cluster state.
      * @param listener The listener which will receive a map of node ID to partition size in bytes.
      */
-    void collectPartitionSizes(ActionListener<Map<String, Long>> listener);
+    void collectPartitionSizes(ClusterState clusterState, ActionListener<Map<String, Long>> listener);
 }

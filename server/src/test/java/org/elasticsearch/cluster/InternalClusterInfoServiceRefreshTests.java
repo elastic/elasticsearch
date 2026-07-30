@@ -52,14 +52,14 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             final AtomicBoolean failPartitionSizes = new AtomicBoolean();
             final PartitionSizeCollector partitionSizeCollector = mock(PartitionSizeCollector.class);
             doAnswer(invocation -> {
-                final ActionListener<Map<String, Long>> listener = invocation.getArgument(0);
+                final ActionListener<Map<String, Long>> listener = invocation.getArgument(1);
                 if (failPartitionSizes.get()) {
                     listener.onFailure(new IllegalStateException("simulated partition size failure"));
                 } else {
                     listener.onResponse(partitionSizes);
                 }
                 return null;
-            }).when(partitionSizeCollector).collectPartitionSizes(any());
+            }).when(partitionSizeCollector).collectPartitionSizes(any(), any());
 
             final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
                 settings,
@@ -77,14 +77,14 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
             // Success populates the ClusterInfo
             ClusterInfo clusterInfo = refresh(clusterInfoService);
-            verify(partitionSizeCollector).collectPartitionSizes(any());
+            verify(partitionSizeCollector).collectPartitionSizes(any(), any());
             assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(partitionSizes));
 
             // Failure returns an empty map
             Mockito.clearInvocations(partitionSizeCollector);
             failPartitionSizes.set(true);
             clusterInfo = refresh(clusterInfoService);
-            verify(partitionSizeCollector).collectPartitionSizes(any());
+            verify(partitionSizeCollector).collectPartitionSizes(any(), any());
             assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
         }
     }

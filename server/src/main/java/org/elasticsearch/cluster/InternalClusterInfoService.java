@@ -331,18 +331,21 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchPartitionSizes() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                partitionSizeCollector.collectPartitionSizes(ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<String, Long> partitionSizes) {
-                        hostedShardsPartitionSizeByNodeId = partitionSizes;
-                    }
+                partitionSizeCollector.collectPartitionSizes(
+                    clusterStateSupplier.get(),
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<String, Long> partitionSizes) {
+                            hostedShardsPartitionSizeByNodeId = partitionSizes;
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("failed to fetch partition sizes", e);
-                        hostedShardsPartitionSizeByNodeId = Map.of();
-                    }
-                }, fetchRefs.acquire()));
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch partition sizes", e);
+                            hostedShardsPartitionSizeByNodeId = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
             }
         }
 

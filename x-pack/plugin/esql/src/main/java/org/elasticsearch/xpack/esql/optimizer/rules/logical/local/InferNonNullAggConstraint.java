@@ -63,6 +63,8 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
                 if (af instanceof First || af instanceof Last) {
                     // First (Last) may return null if that's first (last) value, so needs nulls.
+                    // TODO: this blocklist is a picking timebomb. Create marker interface on agg.fns
+                    // `IgnoresNulls` and take it from there.
                     return aggregate;
                 }
                 Expression field = af.field();
@@ -72,13 +74,15 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                 }
                 Collection<Expression> attributes = InferIsNotNull.resolveExpressionAsRootAttributes(field, aliases, aggregate.inputSet());
                 // make sure the field exists at the source and is indexed (not runtime)
-                attributes = attributes.stream().filter(a -> a instanceof FieldAttribute fa && stats.exists(fa.fieldName())).toList();
+                attributes = attributes.stream().filter(a -> a instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())).toList();
                 if (attributes.isEmpty()) {
+                    // bail out, because all rows are needed for this aggregation and no filter can be added
                     return aggregate;
                 }
 
                 // All attributes returned by `InferIsNotNull.resolveExpressionAsRootAttributes`
-                // must be non-null, otherwise the aggregation function returns null.
+                // must be non-null, otherwise the aggregation function receives null from this
+                // row, which is ignored.
                 // This is needed for surrogates like: AVG(x) = SUM(TO_DOUBLE(x)) / COUNT(x).
                 predicates.add(Predicates.combineAnd(attributes.stream().map(a -> new IsNotNull(aggregate.source(), a)).toList()));
             }

@@ -70,7 +70,9 @@ public class InferNonNullAggConstraintTests extends AbstractLocalLogicalPlanOpti
             "FROM test_all | STATS AVG(COALESCE(long, 7))",
             "FROM test_all | MV_EXPAND long | STATS AVG(long)",
             "FROM test_all | STATS FIRST(long, long)",
-            "FROM test_all | GROK text \"blah %{EMAILADDRESS:email} blah\" | STATS AVG(LENGTH(email))"
+            "FROM test_all | STATS AVG(long), LAST(long, long), MEDIAN(long)",
+            "FROM test_all | GROK text \"blah %{EMAILADDRESS:email} blah\" | STATS AVG(LENGTH(email))",
+            "FROM test_all | EVAL long = 2*long | STATS SUM(long)"  // SUM(long) can't see the original long (TODO: make smarter)
         )) {
             var plan = allTypes().localPlan(query);
             var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);
@@ -88,7 +90,9 @@ public class InferNonNullAggConstraintTests extends AbstractLocalLogicalPlanOpti
             "FROM test_all | STATS AVG(long) + SUM(long*long) + MEDIAN(POW(TO_DOUBLE(long), TO_LONG(3)))",
             "FROM test_all | STATS POW(MEDIAN(long+long*2-42/long), 2)",
             "FROM test_all | STATS SUM(long + COALESCE(double, 42))",
-            "FROM test_all | EVAL blah = REPEAT(\"blah\", long::integer) | STATS AVG(LENGTH(blah))"
+            "FROM test_all | EVAL blah = REPEAT(\"blah\", long::integer) | STATS AVG(LENGTH(blah))",
+            "FROM test_all | EVAL long2 = 2*long | STATS SUM(long2)",
+            "FROM test_all | RENAME long AS x | STATS SUM(x)"
         )) {
             var plan = allTypes().localPlan(query);
             var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);

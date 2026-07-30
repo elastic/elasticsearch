@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.blobcache;
 
+import org.elasticsearch.blobcache.shared.BlobCachePeriodicMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -28,7 +29,8 @@ public class BlobCachePlugin extends Plugin implements ExtensiblePlugin {
             SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING,
             SharedBlobCacheService.SHARED_CACHE_MMAP,
             SharedBlobCacheService.SHARED_CACHE_COUNT_READS,
-            SharedBlobCacheService.SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING
+            SharedBlobCacheService.SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING,
+            BlobCachePeriodicMetrics.BLOB_CACHE_METRICS_INTERVAL_SETTING
         );
     }
 }

@@ -9,6 +9,9 @@ package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.core.Releasable;
 
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -65,6 +68,20 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * have both been removed from the cache.
      */
     void onEvicted(CacheRegion<KeyType> region);
+
+    /**
+     * Policy-specific attributes for a periodic blob-cache metrics sample.
+     * <p>
+     * Implementations that need to inspect occupied regions should call {@code regions.accept(...)}
+     * at most once. This method must not perform I/O.
+     *
+     * @param regions    accepts a consumer of {@code (region, freq)} for each occupied initialized region
+     * @param numRegions cache capacity (total number of region slots), for percent attributes
+     * @return attribute map to attach to the occupancy gauge; empty by default
+     */
+    default Map<String, Object> metricAttributes(Consumer<BiConsumer<CacheRegion<KeyType>, Integer>> regions, int numRegions) {
+        return Map.of();
+    }
 
     /**
      * Called when the policy is closed so that it has a chance to perform any cleanup if needed. This is needed

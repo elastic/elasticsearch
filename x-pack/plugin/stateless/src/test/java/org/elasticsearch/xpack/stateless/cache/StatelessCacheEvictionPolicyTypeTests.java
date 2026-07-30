@@ -125,6 +125,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
     private static ClusterSettings createClusterSettings(Settings settings) {
         Set<Setting<?>> clusterSettings = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.add(PINNED_WINDOW_DURATION_SETTING);
+        clusterSettings.add(org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING);
         clusterSettings.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         return new ClusterSettings(settings, clusterSettings);
     }

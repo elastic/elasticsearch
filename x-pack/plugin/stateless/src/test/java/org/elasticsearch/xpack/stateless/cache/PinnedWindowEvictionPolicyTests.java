@@ -40,7 +40,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
@@ -152,6 +154,49 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertTrue(canEvict(policy, region(shardId, now - PINNED_WINDOW_DURATION.millis() - 1)));
     }
 
+    public void testMetricAttributesCountsPinnedAndTimestampBuckets() {
+        final long now = TimeValue.timeValueDays(365).millis() + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+        final var policy = fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId);
+        final long insideWindow = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() / 2);
+        final long outsideWindow = now - PINNED_WINDOW_DURATION.millis() - 1;
+        final int numRegions = 10;
+
+        final Map<String, Object> attributes = policy.metricAttributes(consumer -> {
+            consumer.accept(region(shardId, insideWindow), 1);
+            consumer.accept(region(shardId, UNKNOWN_TIMESTAMP), 0);
+            consumer.accept(region(shardId, BACKFILL_IN_PROGRESS_TIMESTAMP), 50);
+            consumer.accept(region(shardId, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP), 0);
+            consumer.accept(region(shardId, outsideWindow), 2);
+        }, numRegions);
+
+        // pinned: inside + unknown + backfill (minimal and outside are not pinned)
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.PINNED_ATTRIBUTE_KEY), equalTo(3L));
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.PINNED_PERCENT_ATTRIBUTE_KEY), equalTo(30L));
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.UNKNOWN_TIMESTAMP_ATTRIBUTE_KEY), equalTo(1L));
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.BACKFILL_IN_PROGRESS_ATTRIBUTE_KEY), equalTo(1L));
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.MINIMAL_TIMESTAMP_ATTRIBUTE_KEY), equalTo(1L));
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.FREQ_LOW_ATTRIBUTE_KEY), equalTo(1L)); // unknown at freq 0
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.FREQ_MID_ATTRIBUTE_KEY), equalTo(1L)); // inside at freq 1
+        assertThat(attributes.get(PinnedWindowEvictionPolicy.FREQ_HIGH_ATTRIBUTE_KEY), equalTo(1L)); // backfill at freq 50
+    }
+
+    public void testToPercentRoundsUpNonZeroCounts() {
+        assertThat(PinnedWindowEvictionPolicy.toPercent(0, 100), equalTo(0L));
+        assertThat(PinnedWindowEvictionPolicy.toPercent(1, 100), equalTo(1L));
+        assertThat(PinnedWindowEvictionPolicy.toPercent(1, 1000), equalTo(1L));
+        assertThat(PinnedWindowEvictionPolicy.toPercent(5, 100), equalTo(5L));
+        assertThat(PinnedWindowEvictionPolicy.toPercent(100, 100), equalTo(100L));
+        assertThat(PinnedWindowEvictionPolicy.toPercent(99, 100), equalTo(99L));
+    }
+
+    public void testMidBucketMaxInclusive() {
+        assertThat(PinnedWindowEvictionPolicy.midBucketMaxInclusive(1), equalTo(0));
+        assertThat(PinnedWindowEvictionPolicy.midBucketMaxInclusive(2), equalTo(1));
+        assertThat(PinnedWindowEvictionPolicy.midBucketMaxInclusive(5), equalTo(1));
+        assertThat(PinnedWindowEvictionPolicy.midBucketMaxInclusive(100), equalTo(19));
+    }
+
     public void testShrinkingPinnedWindowMakesRegionEvictable() {
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
@@ -160,7 +205,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            shardIdPredicate -> shardIdPredicate.equals(shardId)
+            candidate -> candidate.equals(shardId)
         );
         final var region = region(shardId, timestampMillis);
 
@@ -267,7 +312,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static final class FixedTimePinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {
-        private final long fixedCurrentTimeMillis;
+        private final AtomicLong fixedCurrentTimeMillis;
 
         FixedTimePinnedWindowEvictionPolicy(
             ThreadPool threadPool,
@@ -275,19 +320,14 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             long fixedCurrentTimeMillis,
             TimeValue pinnedWindowDuration
         ) {
-            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, hasShardPredicate);
-            this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
+            super(threadPool, hasShardPredicate, pinnedWindowDuration);
+            this.fixedCurrentTimeMillis = new AtomicLong(fixedCurrentTimeMillis);
         }
 
         @Override
         protected long currentTimeMillis() {
-            return fixedCurrentTimeMillis;
+            return fixedCurrentTimeMillis.get();
         }
-    }
-
-    private static ClusterSettings createClusterSettingsWithPinnedWindowDuration(TimeValue pinnedWindowDuration) {
-        final Settings settings = Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), pinnedWindowDuration).build();
-        return new ClusterSettings(settings, Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(PINNED_WINDOW_DURATION_SETTING)));
     }
 
     private static IndexMetadata indexMetadata(String indexName, String indexUuid) {
@@ -315,6 +355,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static ClusterSettings createClusterSettings(Settings settings) {
         Set<Setting<?>> settingsSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.add(PINNED_WINDOW_DURATION_SETTING);
+        settingsSet.add(SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         return new ClusterSettings(settings, settingsSet);

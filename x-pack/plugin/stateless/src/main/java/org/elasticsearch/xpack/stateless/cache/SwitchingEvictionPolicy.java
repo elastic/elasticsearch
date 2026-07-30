@@ -19,7 +19,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -76,6 +79,11 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     @Override
     public void onEvicted(CacheRegion<FileCacheKey> region) {
         delegate.onEvicted(region);
+    }
+
+    @Override
+    public Map<String, Object> metricAttributes(Consumer<BiConsumer<CacheRegion<FileCacheKey>, Integer>> regions, int numRegions) {
+        return delegate.metricAttributes(regions, numRegions);
     }
 
     @Override

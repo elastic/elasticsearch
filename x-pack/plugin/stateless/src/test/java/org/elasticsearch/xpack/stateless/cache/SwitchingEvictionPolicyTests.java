@@ -117,6 +117,7 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
     private static ClusterSettings createClusterSettings(Settings settings) {
         var settingSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(PINNED_WINDOW_DURATION_SETTING);
+        settingSet.add(org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING);
         settingSet.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         return new ClusterSettings(settings, settingSet);
     }

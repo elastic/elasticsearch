@@ -83,20 +83,4 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     public void close() {
         Releasables.closeExpectNoException(scorer, super::close);
     }
-
-    /**
-     * Evaluates the score of an expression one {@link Page} at a time.
-     */
-    public interface ExpressionScorer extends Releasable {
-        /** A Factory for creating ExpressionScorers. */
-        interface Factory {
-            ExpressionScorer get(DriverContext context);
-        }
-
-        /**
-         * Scores the expression.
-         * @return the returned Block has its own reference and the caller is responsible for releasing it.
-         */
-        DoubleBlock score(Page page);
-    }
 }

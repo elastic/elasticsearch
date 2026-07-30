@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.ScoreOperator;
 import java.io.IOException;
 
 /**
- * {@link ScoreOperator.ExpressionScorer} to run a Lucene {@link Query} during
+ * {@link ExpressionEvaluator} to run a Lucene {@link Query} during
  * the compute engine's normal execution, yielding the corresponding scores into
  * a {@link DoubleVector}.
  * Elements that don't match will have a score of {@link #NO_MATCH_SCORE}.

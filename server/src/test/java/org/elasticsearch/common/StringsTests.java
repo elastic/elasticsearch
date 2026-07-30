@@ -401,4 +401,8 @@ public class StringsTests extends ESTestCase {
             return builder;
         }
     }
+
+    public void testSplitStringContainingOnlyCommasToArray() {
+        assertArrayEquals(new String[]{","}, Strings.splitStringByCommaToArray(","));
+    }
 }

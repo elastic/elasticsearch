@@ -328,7 +328,8 @@ public final class PromqlFunctionDefinition {
      */
     public enum PromqlDocsVersion {
         V_9_4(Version.V_9_4_0),
-        V_9_5(Version.V_9_5_0);
+        V_9_5(Version.V_9_5_0),
+        V_9_6(Version.V_9_6_0);
 
         private final Version version;
 
@@ -381,6 +382,11 @@ public final class PromqlFunctionDefinition {
      * Stack availability for PromQL functions first implemented (and generally available) in 9.5.
      */
     public static final List<StackAvailability> STACK_GA_9_5 = List.of(ga(PromqlDocsVersion.V_9_5));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.6.
+     */
+    public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
@@ -628,6 +634,17 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.NONE;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
             this.params = List.of();
+            return this;
+        }
+
+        /**
+         * Builds a required-argument time-extraction function over an instant vector (e.g. {@code timestamp(v)}).
+         */
+        public PromqlFunctionDefinition.Builder unaryTimeExtraction(FunctionBuilder functionBuilder) {
+            this.functionType = FunctionType.TIME_EXTRACTION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = functionBuilder;
+            this.params = List.of(INSTANT_VECTOR);
             return this;
         }
 

@@ -382,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
   method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
   issue: https://github.com/elastic/elasticsearch/issues/153652
-- class: org.elasticsearch.exponentialhistogram.ExponentialHistogramMergerTests
-  method: testDifferenceForCumulativeHistos
-  issue: https://github.com/elastic/elasticsearch/issues/153665
 - class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
   method: testMixedSingleDoubleParams
   issue: https://github.com/elastic/elasticsearch/issues/153746

@@ -355,7 +355,7 @@ public class SearchActionTests extends ESTestCase {
         request.routing("slice-1");
         request.searchSlice("slice-1");
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.validateSearchRequest(request));
-        assertThat(e.getMessage(), equalTo("Rollup search does not support [_slice]."));
+        assertThat(e.getMessage(), equalTo("Rollup search does not support [slice]."));
     }
 
     public void testNoRollupAgg() {

@@ -504,11 +504,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             for (IndexService indexService : dataNodeIndicesService) {
                 indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
             }
-            // A periodic sync already executing before setInterval(ZERO) may have dispatched a
-            // GlobalCheckpointSyncAction via client.executeLocally(). That call registers a task in
-            // the TaskManager *before* routing the request through the GENERIC pool toward the WRITE
-            // pool. Waiting for GENERIC to be idle and for no matching TaskManager entry confirms that
-            // any such in-flight dispatch has either completed or advanced past GENERIC into WRITE.
+            // The `AsyncGlobalCheckpointTask` runs on the GENERIC thread pool. A periodic sync
+            // executing before the above setInterval(ZERO) interrupt signal may have already
+            // dispatched a GlobalCheckpointSyncAction onto the transport layer. A transport action
+            // request is registered as a task in the TransportService's TaskManager *before* it is
+            // routed through the GENERIC pool, and ultimately onto the WRITE pool. Waiting for
+            // GENERIC to quiesce, and no transport TaskManager entry matching
+            // `GlobalCheckpointSyncAction`, ensures that any async tasks have either completed or
+            // advanced past GENERIC into WRITE.
             final var genericExecutor = (EsThreadPoolExecutor) dataNodeThreadPool.executor(ThreadPool.Names.GENERIC);
             final var dataNodeTaskManager = internalCluster().getInstance(TransportService.class, dataNodeName).getTaskManager();
             assertBusy(() -> {

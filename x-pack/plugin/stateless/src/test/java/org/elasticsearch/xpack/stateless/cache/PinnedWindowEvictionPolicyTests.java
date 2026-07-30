@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
@@ -312,7 +311,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static final class FixedTimePinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {
-        private final AtomicLong fixedCurrentTimeMillis;
+        private final long fixedCurrentTimeMillis;
 
         FixedTimePinnedWindowEvictionPolicy(
             ThreadPool threadPool,
@@ -320,14 +319,25 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             long fixedCurrentTimeMillis,
             TimeValue pinnedWindowDuration
         ) {
-            super(threadPool, hasShardPredicate, pinnedWindowDuration);
-            this.fixedCurrentTimeMillis = new AtomicLong(fixedCurrentTimeMillis);
+            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, hasShardPredicate);
+            this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 
         @Override
         protected long currentTimeMillis() {
-            return fixedCurrentTimeMillis.get();
+            return fixedCurrentTimeMillis;
         }
+    }
+
+    private static ClusterSettings createClusterSettingsWithPinnedWindowDuration(TimeValue pinnedWindowDuration) {
+        final Settings settings = Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), pinnedWindowDuration).build();
+        return new ClusterSettings(
+            settings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(PINNED_WINDOW_DURATION_SETTING, SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING)
+            )
+        );
     }
 
     private static IndexMetadata indexMetadata(String indexName, String indexUuid) {

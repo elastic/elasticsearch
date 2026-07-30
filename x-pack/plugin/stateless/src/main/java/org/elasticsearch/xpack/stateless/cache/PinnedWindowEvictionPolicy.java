@@ -12,8 +12,6 @@ import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -72,7 +70,6 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
 
     private volatile TimeValue pinnedWindowDuration;
 
-    @Nullable
     private final Releasable releaseSettingsUpdaters;
 
     public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> hasShardPredicate) {
@@ -84,29 +81,6 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         this.releaseSettingsUpdaters = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value)
         );
-    }
-
-    /**
-     * For tests that configure a fixed pinned-window duration.
-     */
-    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> hasShardPredicate, TimeValue pinnedWindowDuration) {
-        this(threadPool, hasShardPredicate, pinnedWindowDuration, SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING.get(Settings.EMPTY));
-    }
-
-    /**
-     * For tests that configure a fixed pinned-window duration and max LFU frequency.
-     */
-    protected PinnedWindowEvictionPolicy(
-        ThreadPool threadPool,
-        Predicate<ShardId> hasShardPredicate,
-        TimeValue pinnedWindowDuration,
-        int maxFreq
-    ) {
-        this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
-        this.threadPool = Objects.requireNonNull(threadPool);
-        this.pinnedWindowDuration = pinnedWindowDuration;
-        this.maxFreq = maxFreq;
-        this.releaseSettingsUpdaters = null;
     }
 
     public TimeValue getPinnedWindowDuration() {

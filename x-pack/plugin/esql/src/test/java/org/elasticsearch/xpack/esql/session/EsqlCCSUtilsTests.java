@@ -29,6 +29,7 @@ import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -620,38 +621,61 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     public void testCheckForRemoteResourceErrorsWithViews() {
-        {
-            var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
-            var wrapped = new RemoteTransportException("test failure", viewEx);
-            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            expectThrows(
-                RemoteResourceNotSupportedException.class,
-                containsString(
-                    "ES|QL queries with remote views are not supported. Matched [r1:v]."
-                        + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
-                ),
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
+        if (EsqlCapabilities.Cap.REMOTE_VIEW_RESOLUTION.isEnabled()) {
+            // When REMOTE_VIEW_RESOLUTION is enabled (snapshot builds), view-only failures are silently ignored.
+            // ViewResolver has already pre-resolved remote views during the earlier view-expansion phase, so any
+            // remaining view failures in field-caps are incidental (e.g. wildcards matching an unrelated view).
+            {
+                var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+                var wrapped = new RemoteTransportException("test failure", viewEx);
+                List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+                var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+                EsqlCCSUtils.checkForRemoteResourceErrors(grouped); // must not throw
+            }
+            {
+                var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
+                var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
+                List<FieldCapabilitiesFailure> failures = List.of(
+                    new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", viewEx1)),
+                    new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, new RemoteTransportException("test failure", viewEx2))
+                );
+                var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+                EsqlCCSUtils.checkForRemoteResourceErrors(grouped); // must not throw
+            }
+        } else {
+            // When REMOTE_VIEW_RESOLUTION is disabled (release builds), view failures throw immediately.
+            {
+                var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+                var wrapped = new RemoteTransportException("test failure", viewEx);
+                List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+                var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+                expectThrows(
+                    RemoteResourceNotSupportedException.class,
+                    containsString(
+                        "ES|QL queries with remote views are not supported. Matched [r1:v]."
+                            + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
+                    ),
+                    () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+                );
+            }
+            {
+                var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
+                var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
+                List<FieldCapabilitiesFailure> failures = List.of(
+                    new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", viewEx1)),
+                    new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, new RemoteTransportException("test failure", viewEx2))
+                );
+                var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+                RemoteResourceNotSupportedException ex = expectThrows(
+                    RemoteResourceNotSupportedException.class,
+                    () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+                );
+                assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+                assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
+            }
         }
         {
-            var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
-            var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
-            var wrapped1 = new RemoteTransportException("test failure", viewEx1);
-            var wrapped2 = new RemoteTransportException("test failure", viewEx2);
-            List<FieldCapabilitiesFailure> failures = List.of(
-                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
-                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
-            );
-            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            RemoteResourceNotSupportedException ex = expectThrows(
-                RemoteResourceNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
-            );
-            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
-        }
-        {
+            // Non-view failures are never collected — no throw regardless of cap state.
             List<FieldCapabilitiesFailure> failures = List.of(
                 new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
             );

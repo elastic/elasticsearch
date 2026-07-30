@@ -9,6 +9,8 @@ package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.core.Releasable;
 
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -18,10 +20,12 @@ import java.util.function.Predicate;
  * to decide whether each entry is eligible for eviction. Implementations may skip entries that
  * should be protected.
  * <p>
- * Currently all methods are called under the cache service's monitor lock, so implementations
- * observe a fully serialized view of cache mutations. However, implementations should not depend
- * on this guarantee: it may be relaxed in the future and policies should be thread-safe and
- * remain correct under concurrent calls.
+ * {@link #createPredicate}, {@link #onCached}, and {@link #onEvicted} are currently called under
+ * the cache service's monitor lock, so those callbacks observe a fully serialized view of cache
+ * mutations. {@link #updatePeriodicMetrics} is invoked from the periodic metrics task and is
+ * <em>not</em> under the cache monitor. Implementations should not depend on the monitor-lock
+ * guarantee for the other methods either: it may be relaxed in the future and policies should be
+ * thread-safe and remain correct under concurrent calls.
  *
  * @param <KeyType> the cache key type
  */
@@ -65,6 +69,17 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * have both been removed from the cache.
      */
     void onEvicted(CacheRegion<KeyType> region);
+
+    /**
+     * Called periodically by {@link BlobCachePeriodicMetrics} so the policy can update its own metrics.
+     * <p>
+     * Implementations that need to inspect occupied regions should call {@code regions.accept(...)}
+     * at most once. This method is invoked from the periodic metrics task (not under the cache
+     * monitor). This method must not perform I/O.
+     *
+     * @param regions accepts a consumer of {@code (region, freq)} for each occupied initialized region
+     */
+    default void updatePeriodicMetrics(Consumer<BiConsumer<CacheRegion<KeyType>, Integer>> regions) {}
 
     /**
      * Called when the policy is closed so that it has a chance to perform any cleanup if needed. This is needed

@@ -67,6 +67,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -501,7 +502,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 indexSettings.getSettings(),
                 cacheClusterService,
                 TestUtils.mockIndicesService(cacheClusterService),
-                threadPool
+                threadPool,
+                MeterRegistry.NOOP
             ),
             System::nanoTime,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

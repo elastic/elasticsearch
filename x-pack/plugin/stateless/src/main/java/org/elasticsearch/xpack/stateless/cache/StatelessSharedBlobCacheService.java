@@ -32,6 +32,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -172,7 +173,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             clusterService.getClusterSettings(),
             threadPool,
             blobCacheMetrics,
-            createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            createEvictionPolicy(settings, clusterService, indicesService, threadPool, blobCacheMetrics.getMeterRegistry()),
             System::nanoTime,
             threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
             metricsHolder
@@ -212,12 +213,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
     ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool, meterRegistry);
         } else {
-            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(
+                settings,
+                clusterService,
+                indicesService,
+                threadPool,
+                meterRegistry
+            );
         }
     }
 

@@ -62,6 +62,7 @@ public class BlobCacheMetrics {
     private final LongAdder readCount = new LongAdder();
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
+    private final MeterRegistry meterRegistry;
 
     public enum CachePopulationReason {
         /**
@@ -132,6 +133,7 @@ public class BlobCacheMetrics {
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
+            meterRegistry,
             meterRegistry.registerLongCounter(
                 "es.blob_cache.miss_that_triggered_read.total",
                 "The number of times there was a cache miss that triggered a read from the blob store",
@@ -237,6 +239,7 @@ public class BlobCacheMetrics {
     }
 
     BlobCacheMetrics(
+        MeterRegistry meterRegistry,
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
         LongCounter totalEvictedCount,
@@ -252,6 +255,7 @@ public class BlobCacheMetrics {
         LongHistogram evictionScannedEntries,
         DoubleHistogram lockAcquireTime
     ) {
+        this.meterRegistry = meterRegistry;
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.totalEvictedCount = totalEvictedCount;
@@ -269,6 +273,10 @@ public class BlobCacheMetrics {
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
+
+    public MeterRegistry getMeterRegistry() {
+        return meterRegistry;
+    }
 
     public LongCounter getCacheMissCounter() {
         return cacheMissCounter;

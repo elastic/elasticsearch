@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.shared.CacheRegion;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -16,10 +17,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -28,21 +32,37 @@ import java.util.function.Predicate;
  */
 class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
+    /**
+     * Published briefly while swapping delegates so concurrent callers never observe a closed policy,
+     * while the old policy's gauges can still be deregistered before the replacement registers.
+     */
+    private static final EvictionPolicy<FileCacheKey> NOOP_DELEGATE = new DefaultEvictionPolicy<>();
+
     private volatile EvictionPolicy<FileCacheKey> delegate;
     private final Releasable closeOnce;
 
-    SwitchingEvictionPolicy(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+    SwitchingEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
         assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         final var clusterSettings = Objects.requireNonNull(clusterService).getClusterSettings();
+        Objects.requireNonNull(meterRegistry);
         this.delegate = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings)
-            .create(clusterService, indicesService, threadPool);
+            .create(clusterService, indicesService, threadPool, meterRegistry);
         final Releasable releasePolicyTypeUpdater = Releasables.releaseOnce(
             clusterSettings.addRemovableSettingsUpdateConsumer(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
                 newEvictionPolicyType -> {
                     final var oldDelegate = this.delegate;
-                    this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool);
+                    // Swap to a no-op first so concurrent createPredicate / updatePeriodicMetrics do not hit
+                    // a closed policy; then close (deregister gauges) before the replacement re-registers.
+                    this.delegate = NOOP_DELEGATE;
                     oldDelegate.close();
+                    this.delegate = newEvictionPolicyType.create(clusterService, indicesService, threadPool, meterRegistry);
                 }
             )
         );
@@ -76,6 +96,11 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     @Override
     public void onEvicted(CacheRegion<FileCacheKey> region) {
         delegate.onEvicted(region);
+    }
+
+    @Override
+    public void updatePeriodicMetrics(Consumer<BiConsumer<CacheRegion<FileCacheKey>, Integer>> regions) {
+        delegate.updatePeriodicMetrics(regions);
     }
 
     @Override

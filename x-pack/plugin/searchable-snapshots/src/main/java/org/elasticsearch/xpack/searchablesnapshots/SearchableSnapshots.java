@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.BlobCachePeriodicMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -327,6 +328,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
+            components.add(
+                new BlobCachePeriodicMetrics(sharedBlobCacheService, settings, threadPool, services.telemetryProvider().getMeterRegistry())
+            );
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(client, SNAPSHOT_BLOB_CACHE_INDEX);
             this.blobStoreCacheService.set(blobStoreCacheService);
             clusterService.addListener(

@@ -73,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -148,6 +149,36 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         SHARED_CACHE_SETTINGS_PREFIX + "concurrent_evictions",
         5,
         1,
+        Setting.Property.NodeScope
+    );
+
+    public static final TimeValue MIN_SHARED_CACHE_METRICS_INTERVAL = TimeValue.timeValueSeconds(1L);
+
+    /**
+     * How often {@link BlobCachePeriodicMetrics} will sample. A value of {@link TimeValue#MINUS_ONE} disables sampling.
+     * Enabled intervals must be at least {@link #MIN_SHARED_CACHE_METRICS_INTERVAL}.
+     * <p>
+     * Minutes frequency is cheap even at large cache sizes: a full sample walks occupied regions once without holding the
+     * cache monitor. At a 2TiB cache with 16MiB regions that is at most ~131k entries of field reads and map lookups.
+     */
+    public static final Setting<TimeValue> SHARED_CACHE_METRICS_INTERVAL_SETTING = Setting.timeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "metrics_interval",
+        settings -> DiscoveryNode.isStateless(settings) ? TimeValue.timeValueMinutes(3) : TimeValue.MINUS_ONE,
+        value -> {
+            if (TimeValue.MINUS_ONE.equals(value) == false && value.compareTo(MIN_SHARED_CACHE_METRICS_INTERVAL) < 0) {
+                throw new IllegalArgumentException(
+                    "failed to parse value ["
+                        + value.getStringRep()
+                        + "] for setting ["
+                        + SHARED_CACHE_SETTINGS_PREFIX
+                        + "metrics_interval], must be ["
+                        + TimeValue.MINUS_ONE.getStringRep()
+                        + "] to disable or >= ["
+                        + MIN_SHARED_CACHE_METRICS_INTERVAL.getStringRep()
+                        + "]"
+                );
+            }
+        },
         Setting.Property.NodeScope
     );
 
@@ -934,7 +965,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
-    // used by tests
+    /**
+     * Iterates occupied cache regions that have an assigned IO slot (fully initialized, not merely present in
+     * the key map while still initializing). The consumer receives the region and its current LFU frequency
+     * (may be stale if read without holding the cache monitor; acceptable for metrics).
+     */
+    void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
+        if (cache instanceof LFUCache lfuCache) {
+            lfuCache.iterateCachedRegions(consumer);
+            return;
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
+    // used by BlobCachePeriodicMetrics and tests
     EvictionPolicy<KeyType> getEvictionPolicy() {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.evictionPolicy;
@@ -2911,6 +2955,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             });
             return count[0];
+        }
+
+        void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
+            keyMapping.forEach((regionKey, entry) -> {
+                // Exclude still-initializing entries (no IO slot yet) so occupancy metrics cannot exceed capacity.
+                // freq is not volatile and may be stale without the monitor; acceptable for metrics sampling.
+                if (entry.chunk.isEvicted() == false && entry.chunk.volatileIO() != null) {
+                    consumer.accept(entry.chunk, entry.freq);
+                }
+            });
         }
 
         // used by tests

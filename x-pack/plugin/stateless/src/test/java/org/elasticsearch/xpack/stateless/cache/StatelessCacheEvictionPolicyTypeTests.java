@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -89,7 +90,8 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             settings,
             clusterService,
             TestUtils.mockIndicesService(clusterService),
-            clusterService.threadPool()
+            clusterService.threadPool(),
+            MeterRegistry.NOOP
         );
 
         assertThat(switchingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));
@@ -113,7 +115,8 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             settings,
             clusterService,
             TestUtils.mockIndicesService(clusterService),
-            clusterService.threadPool()
+            clusterService.threadPool(),
+            MeterRegistry.NOOP
         );
     }
 

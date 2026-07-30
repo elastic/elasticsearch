@@ -8,6 +8,8 @@ applies_to:
 # Columnar index mode [columnar-index-mode]
 
 When you turn on columnar mode, {{es}} becomes a full **analytical and search columnar store**.
+For a conceptual introduction to when and why to use it, go to [Columnar index mode](docs-content://manage-data/data-store/columnar.md). This page describes how to turn it on and configure index sorting and provides more details about`_source` modes and limitations.
+
 You activate a set of changes that collectively align the {{es}} storage model with dedicated columnar stores:
 
 - Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields remain indexed by default to support full-text search.

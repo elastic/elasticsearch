@@ -154,6 +154,9 @@ public record Message(
         if (list == null) {
             return 0L;
         }
+        // shallowSizeOf: the list wrapper object; first NUM_BYTES_ARRAY_HEADER: the backing Object[] header;
+        // second NUM_BYTES_ARRAY_HEADER: conservative buffer for capacity-vs-size and alignment discrepancies;
+        // N*NUM_BYTES_OBJECT_REF: one reference slot per element. alignObjectSize aligns to JVM 8-byte boundary.
         return RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.shallowSizeOf(list) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size()
                 * RamUsageEstimator.NUM_BYTES_OBJECT_REF

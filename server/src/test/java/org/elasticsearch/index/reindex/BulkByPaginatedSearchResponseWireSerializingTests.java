@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusWireSerializingTests.mutateStatus;
+
 public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     BulkByPaginatedSearchResponseWireSerializingTests.BulkByPaginatedSearchResponseWrapper> {
     @Override
@@ -57,7 +59,7 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
             );
             case 1 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
-                mutateRandomStatus(r.getStatus()),
+                mutateStatus(r.getStatus()),
                 r.getBulkFailures(),
                 r.getSearchFailures(),
                 r.isTimedOut()
@@ -85,19 +87,6 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
             );
             default -> throw new AssertionError();
         });
-    }
-
-    private BulkByPaginatedSearchTask.Status mutateRandomStatus(BulkByPaginatedSearchTask.Status currentStatus) {
-        while (true) {
-            BulkByPaginatedSearchTask.Status candidate = BulkByPaginatedSearchTaskStatusTests.randomStatus();
-            try {
-                BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(currentStatus, candidate);
-                // Equal → try again
-            } catch (AssertionError e) {
-                // Not equal → success
-                return candidate;
-            }
-        }
     }
 
     private List<Failure> mutateBulkFailures(List<Failure> currentFailures) {
@@ -180,12 +169,12 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
      * details that are not stable for direct equality checks.
      * <p>
      * Equality is defined in terms of wire-relevant state only: top-level fields,
-     * aggregated task status counters (via
-     * {@link BulkByPaginatedSearchTaskStatusTests#assertTaskStatusEquals}), and the stable
-     * attributes of bulk and search failures. Care must be taken for exceptions, since
-     * two messages with the same cause and message would be different instances after
-     * serialization / deserialization, and fail the default equality check. For this
-     * reason, we define custom equality below.
+     * aggregated task status (via
+     * {@link BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper#statusEquals}),
+     * and the stable attributes of bulk and search failures. Care must be taken for
+     * exceptions, since two messages with the same cause and message would be different
+     * instances after serialization / deserialization, and fail the default equality check.
+     * For this reason, we define custom equality below.
      */
     static class BulkByPaginatedSearchResponseWrapper implements Writeable {
         private final BulkByPaginatedSearchResponse response;
@@ -251,11 +240,7 @@ public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractW
     private static boolean responsesEqual(BulkByPaginatedSearchResponse a, BulkByPaginatedSearchResponse b) {
         if (a.getTook().equals(b.getTook()) == false) return false;
 
-        try {
-            BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(a.getStatus(), b.getStatus());
-            // Equal → skip to next check
-        } catch (AssertionError e) {
-            // Assertion error → not equal
+        if (BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper.statusEquals(a.getStatus(), b.getStatus()) == false) {
             return false;
         }
 

@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
  */
 public class ShutdownPrepareService {
 
+    public static final String CANNOT_RELOCATE_REINDEX_CANCEL_REASON = "node shutting down";
+
     private record ShutdownHook(String name, Runnable action) {}
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -260,7 +262,12 @@ public class ShutdownPrepareService {
                 // for them to exit the task manager before proceeding with shutdown.
                 tasks.forEach(t -> {
                     if (t instanceof CancellableTask cancellable) {
-                        taskManager.cancelTaskAndDescendants(cancellable, "node shutting down", false, ActionListener.noop());
+                        taskManager.cancelTaskAndDescendants(
+                            cancellable,
+                            CANNOT_RELOCATE_REINDEX_CANCEL_REASON,
+                            false,
+                            ActionListener.noop()
+                        );
                     }
                 });
                 awaitTasksComplete(REINDEXING_FAILURE_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);

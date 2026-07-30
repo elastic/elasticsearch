@@ -536,7 +536,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                     return true;
                 }
             }
-            if ("node shutting down".equals(response.getReasonCancelled())) {
+            if (ShutdownPrepareService.CANNOT_RELOCATE_REINDEX_CANCEL_REASON.equals(response.getReasonCancelled())) {
                 return true;
             }
         }

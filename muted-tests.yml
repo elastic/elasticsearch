@@ -577,9 +577,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155355
-- class: org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicyTests
-  method: testPinnedWindowEvictionPolicyEvictsOutsideWindowDataInCache
-  issue: https://github.com/elastic/elasticsearch/issues/155357
 - class: org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT
   method: testDisabledRemoteResolvesDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155382

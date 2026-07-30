@@ -19,10 +19,13 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
@@ -41,6 +44,11 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.NumberColumnTransform;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -83,6 +91,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -1830,7 +1839,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return false;
                 }
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+                BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
                 return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
                     || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
             }
@@ -2761,6 +2770,65 @@ public class NumberFieldMapper extends FieldMapper {
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && dimension == false;
+    }
+
+    // FieldType constants for the two SortedNumericDocValuesField variants emitted by dvFactory.addNumericField.
+    // The compat harness compares frozen FieldType, so the column must carry exactly the same type.
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
+        .fieldType();
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return indexSettings.getMode().isStrictColumnar()
+            && docValuesParameters.enabled()
+            && docValuesParameters.multiValue() == false
+            && indexed == false
+            && stored == false
+            && indexTerms == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && dimension == false
+            && ignoreMalformed.value() == false
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        switch (source.kind()) {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
+            } // handled below
+            default -> throw new UnsupportedOperationException(
+                "mapColumnBatch: ESCF column kind ["
+                    + EscfColumnKind.name(source.kind())
+                    + "] is not yet supported for field ["
+                    + fullPath()
+                    + "]"
+            );
+        }
+        Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
+            source,
+            type,
+            coerce(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            nullSortableLong
+        );
+        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
+            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
+            : SORTED_NUMERIC_DV_FIELD_TYPE;
+        ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+    }
+
+    private static LongColumn.NumericKind numericKind(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> LongColumn.NumericKind.INT;
+            case HALF_FLOAT -> LongColumn.NumericKind.FLOAT;
+            case LONG -> LongColumn.NumericKind.LONG;
+            case FLOAT -> LongColumn.NumericKind.FLOAT;
+            case DOUBLE -> LongColumn.NumericKind.DOUBLE;
+        };
     }
 
     @Override

@@ -39,6 +39,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Random;
 
 /**
@@ -103,8 +104,8 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
             lucene,
             es95,
             columnar,
-            String.format("%.2f", (double) columnar / es95),
-            String.format("%.2f", (double) columnar / lucene)
+            String.format(Locale.ROOT, "%.2f", (double) columnar / es95),
+            String.format(Locale.ROOT, "%.2f", (double) columnar / lucene)
         );
         assertEquals(workload + ": unexpected ColumNAR byte count", expectedBytes, columnar);
     }

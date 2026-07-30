@@ -229,7 +229,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)
             );
-            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES))
+                && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
                 null,
                 randomBoolean(),

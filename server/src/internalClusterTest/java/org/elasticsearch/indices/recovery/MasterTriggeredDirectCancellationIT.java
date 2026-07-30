@@ -34,7 +34,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -68,7 +70,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class));
+        plugins.addAll(List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class, MockRepository.Plugin.class));
         return plugins;
     }
 
@@ -510,7 +512,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
 
         assertAcked(
             clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
-                .setType("fs")
+                .setType("mock")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
 
@@ -550,6 +552,9 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 handler.messageReceived(request, channel, task);
             });
 
+        // Pin the STARTED shard in snapshot INIT on targetNode.
+        AbstractSnapshotIntegTestCase.blockNodeOnAnyFiles(repoName, targetNode);
+
         // Start the snapshot, the primary is relocating so the snapshot shard enters WAITING state
         final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
@@ -557,6 +562,10 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             .execute();
 
         safeAwait(cancellationSent);
+        // Keep INIT pinned until the cancelled relocation is gone and the primary is STARTED again on sourceNode.
+        // Unblocking earlier would let INIT finish and drop the SnapshotInProgressAllocationDecider throttle.
+        awaitPrimaryReassigned(indexName, shard.id(), getNodeId(sourceNode));
+        AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -595,13 +604,15 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         awaitRecoveryCountStats(Map.of(targetNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
 
         final var unexpectedCancellation = new AtomicBoolean(false);
-        MockTransportService.getInstance(targetNode)
-            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                if (request instanceof CancelRecoveriesAction.Request) {
-                    unexpectedCancellation.set(true);
-                }
-                handler.messageReceived(request, channel, task);
-            });
+        for (var node : List.of(sourceNode, targetNode)) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
+                    if (request instanceof CancelRecoveriesAction.Request) {
+                        unexpectedCancellation.set(true);
+                    }
+                    handler.messageReceived(request, channel, task);
+                });
+        }
         waitNoPendingTasksOnAll();
 
         // Start the snapshot, the single snapshot shard will enter WAITING state
@@ -882,7 +893,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         });
     }
 
-    private void awaitPrimaryReassigned(String indexName, int shardId, String expectedNodeId) throws Exception {
+    private void awaitPrimaryReassigned(String indexName, int shardId, String expectedNodeId) {
         awaitClusterState(state -> {
             final var primaryShard = state.routingTable().index(indexName).shard(shardId).primaryShard();
             return primaryShard.started() && expectedNodeId.equals(primaryShard.currentNodeId());

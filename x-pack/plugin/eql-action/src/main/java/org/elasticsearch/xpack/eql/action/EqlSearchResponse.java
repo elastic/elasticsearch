@@ -52,9 +52,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
@@ -350,7 +350,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private final boolean missing;
 
         public Event(SearchHit hit) {
-            this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
+            this(
+                buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()),
+                hit.getId(),
+                hit.getSourceRef(),
+                hit.getDocumentFields(),
+                false
+            );
         }
 
         /**

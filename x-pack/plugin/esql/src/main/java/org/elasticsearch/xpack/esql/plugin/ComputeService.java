@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1056,6 +1057,7 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
+        final boolean retainSearchContexts = RemoteFetchReductionPlanner.needsRetainedSearchContexts(dataNodePlan);
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1064,9 +1066,7 @@ public class ComputeService {
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = remoteFetchService != null
-            && RemoteFetchReductionPlanner.needsRetainedSearchContexts(dataNodePlan)
-                ? remoteFetchService.newRetainedSessionReleaser()
-                : null;
+            && retainSearchContexts ? remoteFetchService.newRetainedSessionReleaser() : null;
         listener = ActionListener.runBefore(listener, () -> {
             if (remoteFetchRetainedSessionReleaser != null) {
                 remoteFetchRetainedSessionReleaser.close();
@@ -1141,6 +1141,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            retainSearchContexts,
                             remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
@@ -1682,36 +1683,28 @@ public class ComputeService {
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory = stats -> new LocalPhysicalOptimizerContext(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            stats
+        );
 
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when remoteFetchTopN && localNodeId != null && retainedSessionId != null ->
-                RemoteFetchReductionPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                    originalPlan,
-                    localNodeId,
-                    retainedSessionId
-                )
-                    .orElseGet(
-                        () -> reduceNodeLateMaterialization
-                            ? LateMaterializationPlanner.planReduceDriverTopN(
-                                stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                                originalPlan
-                            ).orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction)
-                            : runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan())
-                            : passThroughReduction
-                    );
-            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
-                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
-                // aggregations, we also need the original plan, since we add the project in the reduction node.
-                LateMaterializationPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                    originalPlan
-                )
-                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            case PlannerUtils.TopNReduction topN -> planTopNReduction(
+                contextFactory,
+                originalPlan,
+                topN,
+                placePlanBetweenExchanges,
+                passThroughReduction,
+                runNodeLevelReduction,
+                reduceNodeLateMaterialization,
+                remoteFetchTopN,
+                localNodeId,
+                retainedSessionId
+            );
             // Not a TopN - must be an agg or a limit
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;
@@ -1734,6 +1727,46 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
+    }
+
+    private static ReductionPlan planTopNReduction(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan,
+        PlannerUtils.TopNReduction topN,
+        Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges,
+        ReductionPlan passThroughReduction,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        boolean remoteFetchTopN,
+        String localNodeId,
+        String retainedSessionId
+    ) {
+        if (remoteFetchTopN && localNodeId != null && retainedSessionId != null) {
+            var remoteFetchReduction = RemoteFetchReductionPlanner.planReduceDriverTopN(
+                contextFactory,
+                originalPlan,
+                localNodeId,
+                retainedSessionId
+            );
+            if (remoteFetchReduction.isPresent()) {
+                return remoteFetchReduction.get();
+            }
+        }
+        if (reduceNodeLateMaterialization) {
+            /*
+             * In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
+             * so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
+             * we also need the original plan, since we add the project in the reduction node.
+             */
+            var lateMaterializationReduction = LateMaterializationPlanner.planReduceDriverTopN(contextFactory, originalPlan);
+            if (lateMaterializationReduction.isPresent()) {
+                return lateMaterializationReduction.get();
+            }
+        }
+        if (runNodeLevelReduction) {
+            return placePlanBetweenExchanges.apply(topN.plan());
+        }
+        return passThroughReduction;
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

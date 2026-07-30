@@ -144,6 +144,8 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     private CurrentNodeClient currentNodeClient() throws IOException {
+        // Clusters.mixedVersionCluster creates nodes in old/current/old/current order. Do not classify by version string:
+        // detached BWC refs can report the same version as current nodes.
         List<HttpHost> oldNodes = List.of(HttpHost.create(cluster.getHttpAddress(0)), HttpHost.create(cluster.getHttpAddress(2)));
         List<HttpHost> currentNodes = List.of(HttpHost.create(cluster.getHttpAddress(1)), HttpHost.create(cluster.getHttpAddress(3)));
         return new CurrentNodeClient(buildClient(restClientSettings(), currentNodes.toArray(new HttpHost[0])), currentNodes, oldNodes);

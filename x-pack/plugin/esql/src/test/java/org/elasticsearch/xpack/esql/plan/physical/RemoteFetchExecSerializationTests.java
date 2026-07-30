@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<RemoteFetchExec> {
     private static FragmentExec randomFetchPlan() {
@@ -46,6 +51,33 @@ public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSeria
         RemoteFetchExec exec = new RemoteFetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan);
 
         assertSame(fetchPlan, exec.fetchPlan());
+    }
+
+    public void testRejectsFetchPlanWithoutRemoteFetchSource() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        FragmentExec fetchPlan = new FragmentExec(new LocalRelation(Source.EMPTY, attributesToFetch, null));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan)
+        );
+        assertThat(e.getMessage(), containsString("remote fetch plan must contain RemoteFetchSource"));
+    }
+
+    public void testRejectsUnsupportedPushdownNode() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        RemoteFetchSource fetchSource = new RemoteFetchSource(randomSource(), attributesToFetch);
+        FragmentExec fetchPlan = new FragmentExec(new Limit(randomSource(), EsqlTestUtils.of(10), fetchSource));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan)
+        );
+        assertThat(e.getMessage(), containsString("unsupported remote fetch pushdown plan [Limit]"));
     }
 
     @Override

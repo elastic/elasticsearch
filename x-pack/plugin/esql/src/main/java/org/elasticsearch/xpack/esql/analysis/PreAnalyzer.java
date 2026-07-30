@@ -63,7 +63,8 @@ public class PreAnalyzer {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         List<String> icebergPaths,
-        List<String> inferenceIds
+        List<String> inferenceIds,
+        Set<IndexPattern> eqlPatterns  // patterns of EQL source commands; used to retain their field-caps for reuse
     ) {
         public static final PreAnalysis EMPTY = new PreAnalysis(
             Map.of(),
@@ -74,7 +75,8 @@ public class PreAnalyzer {
             false,
             false,
             List.of(),
-            List.of()
+            List.of(),
+            Set.of()
         );
     }
 
@@ -105,7 +107,9 @@ public class PreAnalyzer {
         // joins the same indexes map, so preAnalyzeMainIndices resolves it once into the shared IndexResolution.
         // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
         // UnresolvedRelation conflict above (unreachable today — EQL cannot yet co-occur in a subquery with TS).
+        Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedEqlRelation.class, p -> {
+            eqlPatterns.add(p.indexPattern());
             IndexMode existing = indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
             if (existing != null && existing != IndexMode.STANDARD) {
                 throw new IllegalStateException(
@@ -216,7 +220,8 @@ public class PreAnalyzer {
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
             icebergPaths,
-            inferenceIds
+            inferenceIds,
+            eqlPatterns
         );
     }
 

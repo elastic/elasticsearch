@@ -359,6 +359,20 @@ public class IndexResolver {
     }
 
     /**
+     * Resolves an index mapping from an ALREADY-FETCHED, merged {@link FieldCapabilitiesResponse} instead of issuing a
+     * {@code _field_caps} request. Used by the ES|QL {@code EQL} source command, which has already resolved the target
+     * pattern's field-caps on the coordinator and hands the merged response through, so the EQL engine does not
+     * re-resolve. Additive: no existing caller reaches this overload.
+     */
+    public void resolveAsMergedMapping(
+        FieldCapabilitiesResponse preResolved,
+        String indexWildcard,
+        ActionListener<IndexResolution> listener
+    ) {
+        listener.onResponse(mergedMappings(typeRegistry, indexWildcard, preResolved));
+    }
+
+    /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(

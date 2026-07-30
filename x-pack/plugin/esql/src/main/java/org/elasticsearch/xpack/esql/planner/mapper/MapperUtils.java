@@ -100,7 +100,8 @@ public class MapperUtils {
                 eql.options(),
                 eql.mode(),
                 eql.output(),
-                eql.pushedLimit()
+                eql.pushedLimit(),
+                eql.preResolvedFieldCaps()
             );
         }
 

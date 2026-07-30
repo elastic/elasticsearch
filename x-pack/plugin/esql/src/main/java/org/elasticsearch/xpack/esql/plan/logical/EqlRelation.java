@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.List;
@@ -65,6 +66,13 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
      * to the ES|QL result-truncation cap. Only meaningful for {@link Mode#EVENT}.
      */
     private final Integer pushedLimit;
+    /**
+     * Coordinator-local carrier for the merged field-caps ES|QL already resolved for this pattern, so the delegated EQL
+     * search reuses it instead of re-resolving (see {@code EqlRequests}). {@link PreResolvedFieldCaps#NONE} when nothing
+     * was retained. Never serialized, and excluded from {@link #equals}/{@link #hashCode} (execution metadata, not plan
+     * semantics).
+     */
+    private final PreResolvedFieldCaps preResolvedFieldCaps;
 
     public EqlRelation(
         Source source,
@@ -74,7 +82,7 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         Mode mode,
         List<Attribute> output
     ) {
-        this(source, indexPattern, query, options, mode, output, null);
+        this(source, indexPattern, query, options, mode, output, null, PreResolvedFieldCaps.NONE);
     }
 
     public EqlRelation(
@@ -84,7 +92,8 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         Map<String, Object> options,
         Mode mode,
         List<Attribute> output,
-        Integer pushedLimit
+        Integer pushedLimit,
+        PreResolvedFieldCaps preResolvedFieldCaps
     ) {
         super(source);
         this.indexPattern = indexPattern;
@@ -93,11 +102,12 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         this.mode = mode;
         this.output = output;
         this.pushedLimit = pushedLimit;
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
     }
 
     /** Returns a copy with the row {@code LIMIT} folded into the request size (see {@link #pushedLimit}). */
     public EqlRelation withPushedLimit(int pushedLimit) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit);
+        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
     }
 
     /**
@@ -105,7 +115,12 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
      * (nullified or {@code _source}-loaded) under {@code SET unmapped_fields}. Mirrors {@code EsRelation.withAttributes}.
      */
     public EqlRelation withAttributes(List<Attribute> newOutput) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, newOutput, pushedLimit);
+        return new EqlRelation(source(), indexPattern, query, options, mode, newOutput, pushedLimit, preResolvedFieldCaps);
+    }
+
+    /** Returns a copy carrying the coordinator-resolved field-caps for reuse by the EQL delegate. */
+    public EqlRelation withPreResolvedFieldCaps(PreResolvedFieldCaps preResolvedFieldCaps) {
+        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
     }
 
     @Override
@@ -122,7 +137,7 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<EqlRelation> info() {
-        return NodeInfo.create(this, EqlRelation::new, indexPattern, query, options, mode, output, pushedLimit);
+        return NodeInfo.create(this, EqlRelation::new, indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
     }
 
     public IndexPattern indexPattern() {
@@ -131,6 +146,10 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
 
     public Integer pushedLimit() {
         return pushedLimit;
+    }
+
+    public PreResolvedFieldCaps preResolvedFieldCaps() {
+        return preResolvedFieldCaps;
     }
 
     public Expression query() {

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UntypedActionRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,6 +71,9 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
     private String projectRouting;
     private ResolvedIndexExpressions resolvedIndexExpressions;
     private transient TargetProjects resolvedTargetProjects;
+    // Coordinator-local only: an already-fetched merged field-caps response, supplied in-process by the ES|QL EQL
+    // source command so the EQL engine can skip its own _field_caps request. Never serialized (see writeTo assert).
+    private transient FieldCapabilitiesResponse preResolvedFieldCaps;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -336,6 +340,19 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
         return resolvedTargetProjects;
     }
 
+    /** Supplies an already-fetched merged field-caps response so the EQL engine skips its own resolution (see field). */
+    public EqlSearchRequest preResolvedFieldCaps(FieldCapabilitiesResponse preResolvedFieldCaps) {
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
+        return this;
+    }
+
+    /** Returns and clears the supplied field-caps (consume-once); {@code null} if none was set. */
+    public FieldCapabilitiesResponse takePreResolvedFieldCaps() {
+        FieldCapabilitiesResponse caps = preResolvedFieldCaps;
+        preResolvedFieldCaps = null;
+        return caps;
+    }
+
     public QueryBuilder filter() {
         return this.filter;
     }
@@ -507,6 +524,7 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert preResolvedFieldCaps == null : "pre-resolved field caps are coordinator-local and must never be serialized";
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);

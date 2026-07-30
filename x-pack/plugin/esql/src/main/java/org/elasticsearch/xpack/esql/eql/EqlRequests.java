@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +60,10 @@ public final class EqlRequests {
         }
         EqlSearchRequest request = new EqlSearchRequest();
         request.indices(Arrays.stream(indices.split(",")).map(String::trim).filter(s -> s.isEmpty() == false).toArray(String[]::new));
+        // Resolve and execute over the same index set: ES|QL resolved the schema under IndexResolver.DEFAULT_OPTIONS, so
+        // pin the same options here (the command surface differs from standalone _eql/search defaults). This is also the
+        // prerequisite that makes reusing the resolved field-caps sound.
+        request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
         request.query(query);
         // Fail loud rather than silently truncate: the cluster default for allow_partial_search_results is true,
         // so a shard failure would otherwise return a clean, incomplete table. A security detection command must

@@ -292,6 +292,9 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 transportService.getRemoteClusterService().crossProjectEnabled(),
                 request.getResolvedIndexExpressions()
             );
+            // Reuse the coordinator's already-fetched field-caps if the ES|QL EQL source command supplied it, so the
+            // EQL engine skips its own resolution. Consume-once; null (the default for every other caller) is a no-op.
+            cfg.preResolvedFieldCaps(request.takePreResolvedFieldCaps());
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());
                 response.setDirectoryMetrics(r.directoryMetrics());

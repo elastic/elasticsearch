@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
@@ -40,6 +41,10 @@ public class EqlSourceExec extends LeafExec {
     private final EqlRelation.Mode mode;
     private final List<Attribute> attributes;
     private final Integer pushedLimit;
+    // Coordinator-local carrier for the merged field-caps ES|QL already resolved for this pattern; the planner injects
+    // it into the EQL request so the EQL engine skips its own resolution. Never serialized (a deserialized copy carries
+    // PreResolvedFieldCaps.NONE and simply falls back); excluded from equals/hashCode (execution metadata).
+    private final PreResolvedFieldCaps preResolvedFieldCaps;
 
     public EqlSourceExec(
         Source source,
@@ -48,7 +53,8 @@ public class EqlSourceExec extends LeafExec {
         Map<String, Object> options,
         EqlRelation.Mode mode,
         List<Attribute> attributes,
-        Integer pushedLimit
+        Integer pushedLimit,
+        PreResolvedFieldCaps preResolvedFieldCaps
     ) {
         super(source);
         this.query = query;
@@ -57,6 +63,7 @@ public class EqlSourceExec extends LeafExec {
         this.mode = mode;
         this.attributes = attributes;
         this.pushedLimit = pushedLimit;
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
     }
 
     @SuppressWarnings("unchecked")
@@ -68,7 +75,8 @@ public class EqlSourceExec extends LeafExec {
             (Map<String, Object>) in.readGenericValue(),
             in.readEnum(EqlRelation.Mode.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            PreResolvedFieldCaps.NONE
         );
     }
 
@@ -91,7 +99,7 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes, pushedLimit);
+        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes, pushedLimit, preResolvedFieldCaps);
     }
 
     public String query() {
@@ -105,6 +113,11 @@ public class EqlSourceExec extends LeafExec {
     /** The row {@code LIMIT} folded into the request size, or {@code null} to fall back to the truncation cap. */
     public Integer pushedLimit() {
         return pushedLimit;
+    }
+
+    /** The coordinator-resolved field-caps to reuse for the EQL delegate; {@link PreResolvedFieldCaps#NONE} if none. */
+    public PreResolvedFieldCaps preResolvedFieldCaps() {
+        return preResolvedFieldCaps;
     }
 
     public Map<String, Object> options() {

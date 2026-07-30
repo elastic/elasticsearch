@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
+import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -926,7 +927,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Only now, after metadata is appended, fall back to NO_FIELDS: an empty mapping with a METADATA clause
             // still yields real metadata columns (mirror FROM, which always has at least one column).
             List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
-            return new EqlRelation(plan.source(), plan.indexPattern(), plan.query(), plan.options(), mode, finalOutput);
+            // Attach the coordinator-resolved field-caps (if any was retained for this pattern) so the EQL delegate
+            // reuses it; an absent entry yields an empty carrier (PreResolvedFieldCaps.NONE) → the EQL engine self-resolves.
+            PreResolvedFieldCaps preResolvedFieldCaps = new PreResolvedFieldCaps(context.eqlFieldCaps().get(plan.indexPattern()));
+            return new EqlRelation(
+                plan.source(),
+                plan.indexPattern(),
+                plan.query(),
+                plan.options(),
+                mode,
+                finalOutput,
+                null,
+                preResolvedFieldCaps
+            );
         }
 
         /** Rebuilds the unresolved node with a message, short-circuiting to avoid a rule loop (mirrors ResolveTable). */

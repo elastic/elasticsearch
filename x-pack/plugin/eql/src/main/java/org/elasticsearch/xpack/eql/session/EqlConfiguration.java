@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final String projectRouting;
     private final boolean crossProjectEnabled;
     private final ResolvedIndexExpressions resolvedIndexExpressions;
+    // Coordinator-local only: an already-fetched merged field-caps response supplied by the ES|QL EQL source command,
+    // so the EQL engine can skip its own _field_caps request. Never serialized (this is a session object).
+    private transient FieldCapabilitiesResponse preResolvedFieldCaps;
 
     @Nullable
     private final QueryBuilder filter;
@@ -130,6 +134,16 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.projectRouting = projectRouting;
         this.crossProjectEnabled = crossProjectEnabled;
         this.resolvedIndexExpressions = resolvedIndexExpressions;
+    }
+
+    /** Sets the coordinator-supplied merged field-caps (see {@link #preResolvedFieldCaps}); coordinator-local only. */
+    public void preResolvedFieldCaps(FieldCapabilitiesResponse preResolvedFieldCaps) {
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
+    }
+
+    @Nullable
+    public FieldCapabilitiesResponse preResolvedFieldCaps() {
+        return preResolvedFieldCaps;
     }
 
     public boolean crossProjectEnabled() {

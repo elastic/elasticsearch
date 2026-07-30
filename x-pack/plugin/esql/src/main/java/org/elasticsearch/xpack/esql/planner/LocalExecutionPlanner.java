@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -2011,6 +2012,13 @@ public class LocalExecutionPlanner {
             eqlSource.pushedLimit(),
             truncationCap
         );
+        // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution. take() severs
+        // the plan-side reference; only when the request adds no runtime mappings (which would change the mapping the
+        // EQL engine sees). Any doubt (empty carrier, runtime mappings) falls back to EQL resolving field-caps itself.
+        FieldCapabilitiesResponse preResolved = eqlSource.preResolvedFieldCaps().take();
+        if (preResolved != null && request.runtimeMappings().isEmpty()) {
+            request.preResolvedFieldCaps(preResolved);
+        }
         return PhysicalOperation.fromSource(
             new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
             layout.build()

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -135,6 +136,17 @@ public class EqlSession {
         String indexWildcard = configuration.indexAsWildcard();
         if (configuration.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+        // If the caller (the ES|QL EQL source command) already fetched the target pattern's merged field-caps on the
+        // coordinator, reuse it here instead of issuing a second _field_caps request.
+        FieldCapabilitiesResponse preResolvedFieldCaps = configuration.preResolvedFieldCaps();
+        if (preResolvedFieldCaps != null) {
+            indexResolver.resolveAsMergedMapping(
+                preResolvedFieldCaps,
+                indexWildcard,
+                map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
+            );
             return;
         }
         Set<String> fieldNames = fieldNames(parsed);

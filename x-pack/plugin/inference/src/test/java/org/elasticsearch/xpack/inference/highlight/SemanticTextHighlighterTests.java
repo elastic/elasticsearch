@@ -41,7 +41,7 @@ public class SemanticTextHighlighterTests extends AbstractSemanticHighlighterTes
             indexSettings(useLegacyFormat),
             Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings-semantic_text.json")).utf8ToString(),
             sourceFromFile(
-                SemanticTextHighlighterTests.class.getResource(
+                SemanticTextHighlighterTests.class.getResourceAsStream(
                     useLegacyFormat ? "sample-doc-semantic_text-legacy.json.gz" : "sample-doc-semantic_text.json.gz"
                 )
             ),

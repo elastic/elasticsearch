@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -367,8 +367,8 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         return new ShardSearchRequest(OriginalIndices.NONE, request, new ShardId("index", "index", 0), 0, 1, AliasFilter.EMPTY, 1, 0, null);
     }
 
-    static SourceToParse sourceFromFile(URL fileName) throws IOException {
-        try (var in = new GZIPInputStream(fileName.openStream())) {
+    static SourceToParse sourceFromFile(InputStream inputStream) throws IOException {
+        try (var in = new GZIPInputStream(inputStream)) {
             return new SourceToParse("0", new BytesArray(new BytesRef(in.readAllBytes())), XContentType.JSON);
         }
     }

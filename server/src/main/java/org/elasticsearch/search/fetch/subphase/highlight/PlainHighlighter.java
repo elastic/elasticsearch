@@ -154,7 +154,12 @@ public class PlainHighlighter implements Highlighter {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
-                TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
+                TextFragment[] bestTextFragments = entry.getBestTextFragments(
+                    tokenStream,
+                    text,
+                    false,
+                    cappedNumberOfFragments(numberOfFragments, text.length())
+                );
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
                         fragsList.add(new OrderedTextFragment(bestTextFragment, bestTextFragment.getFragNum() + fragNumBase));
@@ -244,6 +249,14 @@ public class PlainHighlighter implements Highlighter {
             // We've exhausted the token stream so we should just highlight everything.
             return end;
         }
+    }
+
+    /**
+     * Caps the requested number of fragments by the text length so Lucene's {@code FragmentQueue} does not eagerly
+     * allocate more slots than the text could ever produce (a fragment needs at least one character).
+     */
+    static int cappedNumberOfFragments(int requestedNumberOfFragments, int textLength) {
+        return Math.min(requestedNumberOfFragments, Math.max(1, textLength));
     }
 
     private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {

@@ -262,10 +262,16 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Must be between
+     * {@code 0} and {@link HighlightBuilder#MAX_NUMBER_OF_FRAGMENTS}.
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
+        if (numOfFragments != null && (numOfFragments < 0 || numOfFragments > HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS)) {
+            throw new IllegalArgumentException(
+                "[" + NUMBER_OF_FRAGMENTS_FIELD + "] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]"
+            );
+        }
         this.numOfFragments = numOfFragments;
         return (HB) this;
     }

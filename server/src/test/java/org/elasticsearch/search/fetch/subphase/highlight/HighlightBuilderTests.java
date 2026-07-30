@@ -66,6 +66,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.NUMBER_OF_FRAGMENTS_FIELD;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -587,6 +588,24 @@ public class HighlightBuilderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
         assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
+    }
+
+    public void testInvalidNumberOfFragments() throws IOException {
+        String expectedCause = "[number_of_fragments] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]";
+
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{ \"number_of_fragments\" : " + randomIntBetween(-100, -1) + "}"
+        );
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
+        assertThat(e.getCause().getMessage(), containsString(expectedCause));
+
+        e = expectParseThrows(
+            XContentParseException.class,
+            "{ \"number_of_fragments\" : " + (HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + randomIntBetween(1, 1000)) + "}"
+        );
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
+        assertThat(e.getCause().getMessage(), containsString(expectedCause));
     }
 
     /**

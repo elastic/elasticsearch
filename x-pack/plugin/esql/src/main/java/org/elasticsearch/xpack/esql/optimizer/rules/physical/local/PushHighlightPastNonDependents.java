@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
@@ -15,6 +17,9 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Moves {@link HighlightExec} after limits and sorts so it processes only the rows they return.
@@ -36,7 +41,7 @@ public final class PushHighlightPastNonDependents extends PhysicalOptimizerRules
     @Override
     protected PhysicalPlan rule(UnaryExec plan) {
         if (plan.child() instanceof HighlightExec highlight
-            && hoistablePast(plan)
+            && hoistablePast(plan, highlight)
             && plan.references().intersect(AttributeSet.of(highlight.generatedFields())).isEmpty()) {
             return highlight.replaceChild(plan.replaceChild(highlight.child()));
         }
@@ -49,7 +54,21 @@ public final class PushHighlightPastNonDependents extends PhysicalOptimizerRules
      * <p>
      * The logical optimizer already moves filters below the highlight.
      */
-    private static boolean hoistablePast(UnaryExec plan) {
-        return plan instanceof LimitExec || plan instanceof TopNExec || plan instanceof EvalExec;
+    private static boolean hoistablePast(UnaryExec plan, HighlightExec highlight) {
+        if (plan instanceof LimitExec || plan instanceof TopNExec) {
+            return true;
+        }
+        return plan instanceof EvalExec eval && evalShadowsHighlightName(eval, highlight) == false;
+    }
+
+    /**
+     * {@link EvalExec} and {@link HighlightExec} replace child attributes with the same name. Swapping them would change which
+     * attribute survives when an eval field has the name of a generated column. It would also hide the highlight input when an
+     * eval field has the name of an {@code ON} field. The ID-based {@code references()} check does not catch name collisions.
+     */
+    private static boolean evalShadowsHighlightName(EvalExec eval, HighlightExec highlight) {
+        Set<String> highlightNames = new HashSet<>(Expressions.names(highlight.generatedFields()));
+        highlightNames.addAll(highlight.references().names());
+        return eval.fields().stream().map(NamedExpression::name).anyMatch(highlightNames::contains);
     }
 }

@@ -1,0 +1,17 @@
+TopNExec[[Order[gender{r}#0,ASC,LAST]],10[INTEGER],null]
+\_ExchangeExec[[avg_worked_seconds{f}#1, birth_date{f}#2, emp_no{f}#3, first_name{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22, highlight_first_name{r}#23, gender{r}#0],false]
+  \_ProjectExec[[avg_worked_seconds{f}#1, birth_date{f}#2, emp_no{f}#3, first_name{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22, highlight_first_name{r}#23, gender{r}#0]]
+    \_FieldExtractExec[avg_worked_seconds{f}#1, birth_date{f}#2, emp_no{f}#3, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]<[],[],[]>
+      \_HighlightExec[highlight_,elasticsearch[KEYWORD],[first_name{f}#4],null,[highlight_first_name{r}#23]]
+        \_FieldExtractExec[first_name{f}#4]<[],[],[]>
+          \_TopNExec[[Order[gender{r}#0,ASC,LAST]],10[INTEGER],376]
+            \_EvalExec[[CONCAT(last_name{f}#16,x[KEYWORD]) AS gender#0]]
+              \_FieldExtractExec[last_name{f}#16]<[],[],[]>
+                \_EsQueryExec[employees], indexMode[standard], [_doc{f}#24], limit[], sort[] estimatedRowSize[104] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "first_name" : {
+      "query" : "elasticsearch",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

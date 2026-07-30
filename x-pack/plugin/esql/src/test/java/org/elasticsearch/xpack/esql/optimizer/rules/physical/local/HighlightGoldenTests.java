@@ -86,4 +86,52 @@ public class HighlightGoldenTests extends GoldenTestCase {
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
+
+    /**
+     * HIGHLIGHT moves past an Eval whose output name does not conflict with its input or output.
+     */
+    public void testHighlightIsHoistedPastEvalShadowingUnrelatedColumn() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | EVAL gender = CONCAT(last_name, "x")
+            | SORT gender ASC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /**
+     * HIGHLIGHT stays below an Eval that replaces the generated column.
+     */
+    public void testHighlightIsNotHoistedPastEvalShadowingGeneratedColumn() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | EVAL highlight_first_name = CONCAT(last_name, "x")
+            | SORT highlight_first_name ASC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /**
+     * HIGHLIGHT stays below an Eval that replaces its ON field.
+     */
+    public void testHighlightIsNotHoistedPastEvalShadowingOnField() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | EVAL first_name = CONCAT(last_name, "x")
+            | SORT first_name ASC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
 }

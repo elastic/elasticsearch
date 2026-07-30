@@ -105,7 +105,7 @@ The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `hist
 
 ::::{dropdown} ES|QL Data Federation
 Add [**ES|QL Data Federation**](elasticsearch://reference/query-languages/esql/esql-data-federation.md)
-management UI in {{stack-manage-app}}. This feature enables you to create and manage external
+management UI in Kibana. This feature enables you to create and manage external
 data sources (Amazon S3 initially) and query datasets using {{esql}}.
 
 This is an experimental feature and is not enabled by default. To try it out, set
@@ -6238,5 +6238,4 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
-
 

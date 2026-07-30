@@ -2019,7 +2019,7 @@ changelogs:
       title: ES|QL Data Federation
       body: |-
         Add [**ES|QL Data Federation**](elasticsearch://reference/query-languages/esql/esql-data-federation.md)
-        management UI in {{stack-manage-app}}. This feature enables you to create and manage external
+        management UI in Kibana. This feature enables you to create and manage external
         data sources (Amazon S3 initially) and query datasets using {{esql}}.
 
         This is an experimental feature and is not enabled by default. To try it out, set

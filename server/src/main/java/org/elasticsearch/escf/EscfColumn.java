@@ -51,6 +51,26 @@ public abstract class EscfColumn implements SliceableColumn {
     /** The column kind (see {@link EscfColumnKind}). */
     public abstract byte kind();
 
+    /**
+     * The kind of this column's leaf (scalar) values: this column's own {@link #kind()} for scalar
+     * columns, or the element child's kind for an {@link EscfArrayColumn}. A leaf kind of
+     * {@link EscfColumnKind#STRING} means every value is a UTF-8 byte-string that a binary Lucene
+     * column can consume without conversion, enabling zero-copy re-wrapping of the source column.
+     */
+    public byte leafValueKind() {
+        return kind();
+    }
+
+    /**
+     * Returns this column's backing data as an {@link EscfColumnData}, reusing the existing byte
+     * storage (no per-value copy). Symmetric with {@link #from(EscfColumnData)}, this enables
+     * mapper code outside this package to re-wrap a source column under a different Lucene field
+     * type without going through the value-at-a-time {@link EscfColumnBuilder}.
+     */
+    public final EscfColumnData columnData() {
+        return toColumnData();
+    }
+
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     public static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();

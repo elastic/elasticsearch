@@ -208,8 +208,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    // --- multi_value=false (single-valued binary doc values) ---
-
     public void testSingleValueMultiValueFalse() throws IOException {
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
@@ -319,6 +317,88 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         }),
             columnarSettings(),
             batch("ignore_above multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"toolongvalue\"}"), doc("d2", 2L, "{\"f\":\"short\"}"))
+        );
+    }
+
+    public void testNullValueConfiguredNoNullsMultiValueFalse() throws IOException {
+        // null_value is configured but the batch contains only real string values plus an absent doc.
+        // The fast path must not be disabled by a configured null_value; no substitution should occur
+        // because the source STRING column contains no null slots (explicit JSON nulls promote to UNION).
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "null_value configured no nulls multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"alpha\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"beta\"}")
+            )
+        );
+    }
+
+    public void testAllPresentDenseMultiValueFalse() throws IOException {
+        // Every doc has a string value; no absent docs. Exercises the dense (validity==null) wrap in
+        // the fast path.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "all present dense multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"a\"}"),
+                doc("d2", 2L, "{\"f\":\"b\"}"),
+                doc("d3", 3L, "{\"f\":\"c\"}")
+            )
+        );
+    }
+
+    public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
+        // Larger interleaved present/absent batch to stress the SPARSE wrap and the
+        // length-validation scan across many rows.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "many mixed present absent multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"v1\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"v3\"}"),
+                doc("d4", 4L, "{}"),
+                doc("d5", 5L, "{\"f\":\"v5\"}"),
+                doc("d6", 6L, "{\"f\":\"v6\"}"),
+                doc("d7", 7L, "{}")
+            )
+        );
+    }
+
+    public void testSingleElementArrayMultiValueFalse() throws IOException {
+        // A single-element array {"f":["a"]} is a legal value for a multi_value=false field.
+        // The ESCF encoder produces an ARRAY-of-STRING column; the fast path must wrap it
+        // zero-copy, matching the row path which extracts the sole element.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "single element array multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"a\"]}"),
+                doc("d2", 2L, "{\"f\":[]}"),
+                doc("d3", 3L, "{}")
+            )
         );
     }
 }

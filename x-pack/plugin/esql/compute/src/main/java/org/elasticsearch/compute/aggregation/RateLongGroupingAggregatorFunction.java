@@ -599,72 +599,63 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         var timestamps = buffer.timestamps;
         var values = buffer.values;
         if (flushQueue.valueCount == 1) {
+            int p = flushQueue.topStart();
             state.samples++;
-            long t = timestamps.get(flushQueue.top().start);
-            var v = values.get(flushQueue.top().start);
+            long t = timestamps.get(p);
+            long v = values.get(p);
             state.appendInterval(t, v, t, v);
             return;
         }
         // first
-        final long lastTimestamp;
-        final long lastValue;
-        Slice top;
-        {
-            top = flushQueue.top();
-            int position = top.next();
-            lastTimestamp = timestamps.get(position);
-            lastValue = values.get(position);
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
-            } else {
-                top = flushQueue.updateTop();
-            }
+        int position = flushQueue.consumeTop();
+        final long lastTimestamp = timestamps.get(position);
+        final long lastValue = values.get(position);
+        if (flushQueue.topExhausted()) {
+            flushQueue.popTop();
+        } else {
+            flushQueue.updateTop();
         }
-        var prevValue = lastValue;
+        long prevValue = lastValue;
         long secondNextTimestamp = flushQueue.secondNextTimestamp();
         while (flushQueue.size() > 1) {
             // If the last timestamp is greater than the maximum timestamp of the next two candidate slices,
             // there is no overlap with subsequent slices, so batch merging can be performed without comparing
             // timestamps from the buffer.
-            if (top.lastTimestamp() > secondNextTimestamp) {
-                for (int p = top.start; p < top.end; p++) {
-                    var val = values.get(p);
+            if (flushQueue.topLastTimestamp() > secondNextTimestamp) {
+                for (int p = flushQueue.topStart(); p < flushQueue.topEnd(); p++) {
+                    long val = values.get(p);
                     if (val > prevValue) {
                         state.resets += val;
                     }
                     prevValue = val;
                 }
-                flushQueue.pop();
-                top = flushQueue.top();
+                flushQueue.popTop();
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
                 continue;
             }
-            var val = values.get(top.next());
+            long val = values.get(flushQueue.consumeTop());
             if (val > prevValue) {
                 state.resets += val;
             }
             prevValue = val;
-            if (top.exhausted()) {
-                flushQueue.pop();
-                top = flushQueue.top();
+            if (flushQueue.topExhausted()) {
+                flushQueue.popTop();
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
-            } else if (top.nextTimestamp < secondNextTimestamp) {
-                top = flushQueue.updateTop();
+            } else if (flushQueue.topNextTimestamp() < secondNextTimestamp) {
+                flushQueue.updateTop();
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
             }
         }
         // last slice
-        top = flushQueue.top();
-        for (int p = top.start; p < top.end; p++) {
-            var val = values.get(p);
+        for (int p = flushQueue.topStart(); p < flushQueue.topEnd(); p++) {
+            long val = values.get(p);
             if (val > prevValue) {
                 state.resets += val;
             }
             prevValue = val;
         }
         state.samples += flushQueue.valueCount;
-        state.appendInterval(lastTimestamp, lastValue, timestamps.get(top.end - 1), prevValue);
+        state.appendInterval(lastTimestamp, lastValue, timestamps.get(flushQueue.topEnd() - 1), prevValue);
     }
 
     @Override

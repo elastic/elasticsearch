@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadata
 public class SemanticTextHighlighterTests extends AbstractSemanticHighlighterTests {
     private static final String SEMANTIC_FIELD_ELSER = "field-sparse-vector";
 
-    final Map<String, Object> queries;
+    private final Map<String, Object> queries;
 
     public SemanticTextHighlighterTests(boolean useLegacyFormat) throws IOException {
         super(

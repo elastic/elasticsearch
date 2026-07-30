@@ -89,7 +89,7 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     @SuppressWarnings("unchecked")
     public void testDenseVector() throws Exception {
         float[] vector = readDenseVector(queryData.get("embeddings"));
-        var fieldType = (SemanticTextFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
+        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
             vector,

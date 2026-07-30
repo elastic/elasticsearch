@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 
 /**
- * The outcome of parsing a single field value.
- * {@link FallbackPostMapper} switches exhaustively on this to route to exactly one fallback destination.
+ * The outcome of a {@link FieldMapper#parse} call. {@link FallbackPostMapper} switches exhaustively on this to route to
+ * exactly one fallback destination.
  */
 public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ignored, ParseResult.MultiValueViolation {
 

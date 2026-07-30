@@ -141,9 +141,9 @@ PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025
 | SORT _timeseries;
 
 result:double              | step:datetime            | _timeseries:keyword
-1472.744209..1472.744210   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
-36.198484..36.198485       | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
-27.706021..27.706022       | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+1472.74..1472.75           | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+36.19..36.20               | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+27.70..27.71               | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
 ;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -164,9 +164,9 @@ PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025
 | SORT _timeseries;
 
 result:double                | step:datetime            | _timeseries:keyword
-0.166581179..0.166581180     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
-0.011137995..0.011137996     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
-0.008197047..0.008197048     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+0.16..0.17                   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+0.01..0.02                   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+0.00..0.01                   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
 ;
 
 histogram_count_aggsum_increase_exp_histo

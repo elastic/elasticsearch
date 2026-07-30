@@ -1058,7 +1058,6 @@ steps:
               - graalvm-ce17
               - adoptopenjdk17
               - openjdk21
-              - openjdk22
               - openjdk25
               - openjdk26
             GRADLE_TASK:
@@ -1087,7 +1086,6 @@ steps:
               - graalvm-ce17
               - adoptopenjdk17
               - openjdk21
-              - openjdk22
               - openjdk25
               - openjdk26
             BWC_VERSION: ["8.19.20"]

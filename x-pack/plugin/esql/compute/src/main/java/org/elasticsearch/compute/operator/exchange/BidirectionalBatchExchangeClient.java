@@ -164,7 +164,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.serverNodeSupplier = serverNodeSupplier;
         this.responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         logger.debug(
-            "[BidirectionalBatchExchangeClient] Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
+            "Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
             sharedExchangeId,
             maxBufferSize,
             maxWorkers
@@ -178,7 +178,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * Per-server client-to-server exchanges are created lazily in getOrCreateServerConnection().
      */
     private void initialize() {
-        logger.debug("[BidirectionalBatchExchangeClient] Initializing BidirectionalBatchExchangeClient (shared state only)");
+        logger.debug("Initializing BidirectionalBatchExchangeClient (shared state only)");
 
         // Create source handler for server-to-client direction (shared for all servers)
         serverToClientSourceHandler = new ExchangeSourceHandler(maxBufferSize, executor);
@@ -188,7 +188,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // All servers send results to the same source handler, sorted by batchId
         ExchangeSource exchangeSource = serverToClientSourceHandler.createExchangeSource();
         sortedSource = new BatchSortedExchangeSource(exchangeSource);
-        logger.debug("[BidirectionalBatchExchangeClient] Created shared server-to-client sorted source: exchangeId={}", sharedExchangeId);
+        logger.debug("Created shared server-to-client sorted source: exchangeId={}", sharedExchangeId);
 
         // Tracks completion of all worker channels. The initial ref is released by finish().
         // On completion: if no failure was recorded, notify success; otherwise it was already handled.
@@ -263,12 +263,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         });
         worker.statusRef = responseRefs.acquireListener();
         initializeWorker(worker);
-        logger.debug(
-            "[BidirectionalBatchExchangeClient] Created new worker: workerId={}, serverNode={}, totalWorkers={}",
-            workerId,
-            serverNode.getId(),
-            workers.size()
-        );
+        logger.debug("Created new worker: workerId={}, serverNode={}, totalWorkers={}", workerId, serverNode.getId(), workers.size());
         return worker;
     }
 
@@ -277,7 +272,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private void initializeWorker(Worker worker) {
         logger.debug(
-            "[BidirectionalBatchExchangeClient] Initializing worker: workerId={}, node={}, clientToServerId={}",
+            "Initializing worker: workerId={}, node={}, clientToServerId={}",
             worker.workerId,
             worker.serverNode.getId(),
             worker.clientToServerId
@@ -297,7 +292,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 exchangeService.finishSinkHandler(worker.clientToServerId, e);
             })
         );
-        logger.debug("[BidirectionalBatchExchangeClient] Created client-to-server sink handler: exchangeId={}", worker.clientToServerId);
+        logger.debug("Created client-to-server sink handler: exchangeId={}", worker.clientToServerId);
 
         // Send setup request to server via callback
         serverSetupCallback.sendSetupRequest(
@@ -306,7 +301,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             worker.serverToClientId,
             ActionListener.wrap(planString -> {
                 try {
-                    logger.debug("[BidirectionalBatchExchangeClient] Server setup complete for worker={}", worker.workerId);
+                    logger.debug("Server setup complete for worker={}", worker.workerId);
                     // Pass lookup plan to consumer if provided (with workerKey for tracking)
                     if (lookupPlanConsumer != null && planString != null) {
                         String workerKey = worker.serverNode.getId() + ":worker" + worker.workerId;
@@ -320,7 +315,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         logger,
                         Level.ERROR,
                         e,
-                        "[BidirectionalBatchExchangeClient] Server setup callback failed for worker={}: {}",
+                        "Server setup callback failed for worker={}: {}",
                         worker.workerId,
                         e.getMessage()
                     );
@@ -331,14 +326,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.setupReadyListener.onFailure(e);
                 }
             }, e -> {
-                logExchangeFailure(
-                    logger,
-                    Level.ERROR,
-                    e,
-                    "[BidirectionalBatchExchangeClient] Server setup failed for worker={}: {}",
-                    worker.workerId,
-                    e.getMessage()
-                );
+                logExchangeFailure(logger, Level.ERROR, e, "Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
                 onWorkerConnectionComplete(worker, "Setup failed");
                 worker.sinkRef.onFailure(e);
                 worker.statusRef.onFailure(e);
@@ -353,7 +341,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private void connectToServerSink(Worker worker) {
         logger.debug(
-            "[BidirectionalBatchExchangeClient] Connecting to server sink for worker={}, node={}, serverToClientId={}",
+            "Connecting to server sink for worker={}, node={}, serverToClientId={}",
             worker.workerId,
             worker.serverNode.getId(),
             worker.serverToClientId
@@ -379,7 +367,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         try {
             Transport.Connection connection = transportService.getConnection(worker.serverNode);
             logger.debug(
-                "[BidirectionalBatchExchangeClient] Sending batch exchange status request for worker={}, node={}, exchangeId={}",
+                "Sending batch exchange status request for worker={}, node={}, exchangeId={}",
                 worker.workerId,
                 worker.serverNode.getId(),
                 worker.serverToClientId
@@ -392,7 +380,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 ActionListener.<BatchExchangeStatusResponse>wrap(response -> {
                     responseHeadersCollector.collect();
                     logger.debug(
-                        "[BidirectionalBatchExchangeClient] Received batch exchange status response for worker={}, success={}",
+                        "Received batch exchange status response for worker={}, success={}",
                         worker.workerId,
                         response.isSuccess()
                     );
@@ -405,7 +393,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                             logger,
                             Level.WARN,
                             failure,
-                            "[BidirectionalBatchExchangeClient] Batch exchange status response indicates failure for worker={}: {}",
+                            "Batch exchange status response indicates failure for worker={}: {}",
                             worker.workerId,
                             failure != null ? failure.getMessage() : "unknown"
                         );
@@ -418,7 +406,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         logger,
                         Level.ERROR,
                         failure,
-                        "[BidirectionalBatchExchangeClient] Failed to receive batch exchange status response for worker={}: {}",
+                        "Failed to receive batch exchange status response for worker={}: {}",
                         worker.workerId,
                         failure.getMessage()
                     );
@@ -426,7 +414,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.statusRef.onFailure(failure);
                 })
             );
-            logger.debug("[BidirectionalBatchExchangeClient] Batch exchange status request sent for worker={}", worker.workerId);
+            logger.debug("Batch exchange status request sent for worker={}", worker.workerId);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to send batch exchange status request for worker [" + worker.workerId + "]", e);
         }
@@ -442,13 +430,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private void notifyFailure(Exception failure) {
         setPrimaryFailure(failure);
         if (failureTriggered.compareAndSet(false, true)) {
-            logExchangeFailure(
-                logger,
-                Level.ERROR,
-                failure,
-                "[BidirectionalBatchExchangeClient] Notifying failure: {}",
-                failure.getMessage()
-            );
+            logExchangeFailure(logger, Level.ERROR, failure, "Notifying failure: {}", failure.getMessage());
             // Notify the operator's failure listener FIRST, before unblocking the driver.
             // This ensures that when the driver thread unblocks, the operator's failure field
             // is already set, so getOutput() will throw the real error immediately.
@@ -464,7 +446,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 logger,
                 Level.WARN,
                 failure,
-                "[BidirectionalBatchExchangeClient] Additional failure (primary={}): {}",
+                "Additional failure (primary={}): {}",
                 primaryFailure.get() == failure,
                 failure.getMessage()
             );
@@ -719,12 +701,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         startedBatchCount++;
         page.allowPassingToDifferentDriver();
         worker.clientToServerSink.addPage(page);
-        logger.trace(
-            "[BidirectionalBatchExchangeClient] Sent batch {} to worker {}, pending={}",
-            metadata.batchId(),
-            worker.workerId,
-            worker.pendingBatches
-        );
+        logger.trace("Sent batch {} to worker {}, pending={}", metadata.batchId(), worker.workerId, worker.pendingBatches);
     }
 
     /**
@@ -753,18 +730,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         if (worker != null) {
             int pending = --worker.pendingBatches;
             logger.trace(
-                "[BidirectionalBatchExchangeClient] Batch {} completed on worker {}, pending={}, total completed={}",
+                "Batch {} completed on worker {}, pending={}, total completed={}",
                 batchId,
                 worker.workerId,
                 pending,
                 completedBatchCount
             );
         } else {
-            logger.trace(
-                "[BidirectionalBatchExchangeClient] Batch {} completed (worker not found), total completed={}",
-                batchId,
-                completedBatchCount
-            );
+            logger.trace("Batch {} completed (worker not found), total completed={}", batchId, completedBatchCount);
         }
     }
 
@@ -788,10 +761,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             if (pendingWorkerConnections.get() > 0) {
                 // Don't finish yet - wait for all pending connections to be established
                 // The last connection to establish will call doFinish()
-                logger.debug(
-                    "[BidirectionalBatchExchangeClient] Deferring finish, pending worker connections={}",
-                    pendingWorkerConnections.get()
-                );
+                logger.debug("Deferring finish, pending worker connections={}", pendingWorkerConnections.get());
                 return;
             }
             doFinish();
@@ -807,7 +777,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     private void onWorkerConnectionComplete(Worker worker, String reason) {
         int remaining = pendingWorkerConnections.decrementAndGet();
-        logger.debug("[BidirectionalBatchExchangeClient] {} for worker {}, remaining pending={}", reason, worker.workerId, remaining);
+        logger.debug("{} for worker {}, remaining pending={}", reason, worker.workerId, remaining);
         if (remaining == 0 && finishRequested) {
             synchronized (sendFinishLock) {
                 doFinish();
@@ -826,10 +796,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         assert Thread.holdsLock(sendFinishLock) : "doFinish must be called while holding sendFinishLock";
         for (Worker worker : workers) {
             if (worker.clientToServerSink != null && worker.clientToServerSink.isFinished() == false && worker.finished == false) {
-                logger.debug(
-                    "[BidirectionalBatchExchangeClient] Finishing client-to-server exchange for worker={} (no more batches will be sent)",
-                    worker.workerId
-                );
+                logger.debug("Finishing client-to-server exchange for worker={} (no more batches will be sent)", worker.workerId);
                 worker.clientToServerSink.finish();
                 worker.finished = true;
             }
@@ -860,7 +827,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         try {
             finish();
         } catch (Exception e) {
-            logExchangeFailure(logger, Level.ERROR, e, "[BidirectionalBatchExchangeClient] Error calling finish()", e);
+            logExchangeFailure(logger, Level.ERROR, e, "Error calling finish()", e);
         }
 
         // Drain all sink handler buffers to release any pages, then explicitly remove the sink handler
@@ -872,25 +839,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             try {
                 if (worker.clientToServerSinkHandler != null) {
                     logger.debug(
-                        "[BidirectionalBatchExchangeClient] Draining sink handler buffer for worker={}, isFinished={}",
+                        "Draining sink handler buffer for worker={}, isFinished={}",
                         worker.workerId,
                         worker.clientToServerSinkHandler.isFinished()
                     );
                     worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client stopped"));
                 }
             } catch (Exception e) {
-                logExchangeFailure(
-                    logger,
-                    Level.ERROR,
-                    e,
-                    "[BidirectionalBatchExchangeClient] Error draining sink handler for worker=" + worker.workerId,
-                    e
-                );
+                logExchangeFailure(logger, Level.ERROR, e, "Error draining sink handler for worker=" + worker.workerId, e);
             }
             try {
                 exchangeService.finishSinkHandler(worker.clientToServerId, new TaskCancelledException("client stopped"));
             } catch (Exception e) {
-                logger.debug("[BidirectionalBatchExchangeClient] finishSinkHandler already done for worker={}", worker.workerId);
+                logger.debug("finishSinkHandler already done for worker={}", worker.workerId);
             }
         }
     }
@@ -915,7 +876,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             return;
         }
         closed = true;
-        logger.debug("[BidirectionalBatchExchangeClient] Closing BidirectionalBatchExchangeClient");
+        logger.debug("Closing BidirectionalBatchExchangeClient");
 
         stop();
 
@@ -926,52 +887,40 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         int started = startedBatchCount;
         int completed = completedBatchCount;
         if (started > 0 && completed < started && primaryFailure.get() == null) {
-            logger.warn("[BidirectionalBatchExchangeClient] Closing with incomplete batches: started={}, completed={}", started, completed);
+            logger.warn("Closing with incomplete batches: started={}, completed={}", started, completed);
         }
 
         // Finish the shared server-to-client source handler to signal completion
         try {
             if (serverToClientSourceHandler != null) {
-                logger.debug("[BidirectionalBatchExchangeClient] Finishing server-to-client source handler");
+                logger.debug("Finishing server-to-client source handler");
                 serverToClientSourceHandler.finishEarly(true, ActionListener.noop());
             }
         } catch (Exception e) {
-            logExchangeFailure(
-                logger,
-                Level.ERROR,
-                e,
-                "[BidirectionalBatchExchangeClient] Error finishing server-to-client source handler",
-                e
-            );
+            logExchangeFailure(logger, Level.ERROR, e, "Error finishing server-to-client source handler", e);
         }
 
         // Close the sorted source to release any buffered pages
         try {
             if (sortedSource != null) {
-                logger.debug("[BidirectionalBatchExchangeClient] Closing sorted source");
+                logger.debug("Closing sorted source");
                 sortedSource.close();
             }
         } catch (Exception e) {
-            logExchangeFailure(logger, Level.ERROR, e, "[BidirectionalBatchExchangeClient] Error closing sorted source", e);
+            logExchangeFailure(logger, Level.ERROR, e, "Error closing sorted source", e);
         }
 
         // Remove the source handler from the exchange service
         try {
             if (serverToClientSourceHandler != null) {
-                logger.debug("[BidirectionalBatchExchangeClient] Removing server-to-client source handler");
+                logger.debug("Removing server-to-client source handler");
                 exchangeService.removeExchangeSourceHandler(sharedExchangeId);
             }
         } catch (Exception e) {
-            logExchangeFailure(
-                logger,
-                Level.ERROR,
-                e,
-                "[BidirectionalBatchExchangeClient] Error removing server-to-client source handler",
-                e
-            );
+            logExchangeFailure(logger, Level.ERROR, e, "Error removing server-to-client source handler", e);
         }
 
-        logger.debug("[BidirectionalBatchExchangeClient] BidirectionalBatchExchangeClient closed");
+        logger.debug("BidirectionalBatchExchangeClient closed");
     }
 
     /**

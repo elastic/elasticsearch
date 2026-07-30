@@ -109,7 +109,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         this.serverToClientId = serverToClientId;
         this.clientNode = clientNode;
         logger.debug(
-            "[BidirectionalBatchExchangeServer] Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
+            "Created BidirectionalBatchExchangeServer: clientToServerId={}, serverToClientId={}, maxBufferSize={}",
             clientToServerId,
             serverToClientId,
             maxBufferSize
@@ -151,24 +151,24 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * Called automatically from the constructor.
      */
     private void initialize() {
-        logger.debug("[BidirectionalBatchExchangeServer] Initializing BidirectionalBatchExchangeServer");
+        logger.debug("Initializing BidirectionalBatchExchangeServer");
         // Create source handler for client-to-server direction
         clientToServerSourceHandler = new ExchangeSourceHandler(maxBufferSize, executor);
         exchangeService.addExchangeSourceHandler(clientToServerId, clientToServerSourceHandler);
         clientToServerSource = new ExchangeSourceOperator(clientToServerSourceHandler.createExchangeSource());
-        logger.debug("[BidirectionalBatchExchangeServer] Created client-to-server source handler: exchangeId={}", clientToServerId);
+        logger.debug("Created client-to-server source handler: exchangeId={}", clientToServerId);
 
         // Create or get sink handler for server-to-client direction
         // Uses getOrCreateSinkHandler to allow pre-registration of the handler (e.g., for test setup coordination)
         serverToClientSinkHandler = exchangeService.getOrCreateSinkHandler(serverToClientId, maxBufferSize);
         serverToClientSink = serverToClientSinkHandler.createExchangeSink(() -> {});
-        logger.debug("[BidirectionalBatchExchangeServer] Created server-to-client sink handler: exchangeId={}", serverToClientId);
+        logger.debug("Created server-to-client sink handler: exchangeId={}", serverToClientId);
 
         // Register this server with ExchangeService so it can receive BatchExchangeStatusRequest messages
         // The handler is registered once in ExchangeService.registerTransportHandler() and routes to servers
         exchangeService.registerBatchExchangeServer(serverToClientId, this);
-        logger.debug("[BidirectionalBatchExchangeServer] Registered with ExchangeService for exchangeId={}", serverToClientId);
-        logger.debug("[BidirectionalBatchExchangeServer] BidirectionalBatchExchangeServer initialized successfully");
+        logger.debug("Registered with ExchangeService for exchangeId={}", serverToClientId);
+        logger.debug("BidirectionalBatchExchangeServer initialized successfully");
     }
 
     /**
@@ -184,14 +184,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Check if server is already closing - if so, reply with failure immediately
         if (closing) {
-            logger.error(
-                "[BidirectionalBatchExchangeServer] Received BatchExchangeStatusRequest but server is already closing for exchangeId={}",
-                serverToClientId
-            );
+            logger.error("Received BatchExchangeStatusRequest but server is already closing for exchangeId={}", serverToClientId);
             try {
                 channel.sendResponse(new BatchExchangeStatusResponse(new IllegalStateException("Server is closing")));
             } catch (Exception e) {
-                logger.debug("[BidirectionalBatchExchangeServer] Failed to send failure response (server closing)", e);
+                logger.debug("Failed to send failure response (server closing)", e);
             }
             return;
         }
@@ -200,7 +197,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // This MUST be done before starting processing to ensure we can always reply on error
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
         logger.debug(
-            "[BidirectionalBatchExchangeServer] BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
+            "BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
             serverToClientId
         );
 
@@ -214,7 +211,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 logger,
                 Level.ERROR,
                 e,
-                "[BidirectionalBatchExchangeServer] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
+                "Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
                 serverToClientId,
                 e.getMessage()
             );
@@ -232,17 +229,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private void onClientReady() {
         if (driverPrepared == false) {
             String errorMsg = "Driver not prepared when BatchExchangeStatusRequest received";
-            logger.error(
-                "[BidirectionalBatchExchangeServer] onClientReady called but driver not prepared yet for exchangeId={}",
-                serverToClientId
-            );
+            logger.error("onClientReady called but driver not prepared yet for exchangeId={}", serverToClientId);
             // Reply with failure since we can't start processing
             sendBatchExchangeStatusResponse(new IllegalStateException(errorMsg));
             return;
         }
         if (closing) {
             String errorMsg = "Server is closing when BatchExchangeStatusRequest received";
-            logger.error("[BidirectionalBatchExchangeServer] Server is closing, cannot start driver for exchangeId={}", serverToClientId);
+            logger.error("Server is closing, cannot start driver for exchangeId={}", serverToClientId);
             // Reply with failure since we can't start processing
             sendBatchExchangeStatusResponse(new IllegalStateException(errorMsg));
             return;
@@ -257,11 +251,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Mark driver as started before actually starting it
         driverStarted = true;
 
-        logger.debug("[BidirectionalBatchExchangeServer] Client is ready, starting driver for exchangeId={}", serverToClientId);
+        logger.debug("Client is ready, starting driver for exchangeId={}", serverToClientId);
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
         Driver.start(threadContext, executor, batchDriver, Driver.DEFAULT_MAX_ITERATIONS, createDriverCompletionListener());
-        logger.debug("[BidirectionalBatchExchangeServer] Server driver started");
+        logger.debug("Server driver started");
     }
 
     /**
@@ -278,26 +272,17 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
-            logger.debug(
-                "[BidirectionalBatchExchangeServer] Driver completion listener onResponse called (success) for exchangeId={}",
-                serverToClientId
-            );
+            logger.debug("Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
             responseHeadersCollector.collect();
             driverFuture.onResponse(null);
-            logger.debug("[BidirectionalBatchExchangeServer] Batch processing completed successfully for exchangeId={}", serverToClientId);
+            logger.debug("Batch processing completed successfully for exchangeId={}", serverToClientId);
             // Close server resources BEFORE releasing the driver ref
             // This ensures DirectoryReader etc. are closed before client proceeds with cleanup
             Exception closeException = null;
             try {
                 close();
             } catch (Exception e) {
-                logExchangeFailure(
-                    logger,
-                    Level.ERROR,
-                    e,
-                    "[BidirectionalBatchExchangeServer] Exception during close after successful driver completion",
-                    e
-                );
+                logExchangeFailure(logger, Level.ERROR, e, "Exception during close after successful driver completion", e);
                 closeException = e;
             }
             // Release driver ref - success if close() succeeded, failure if close() threw
@@ -308,7 +293,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }
         }, failure -> {
             logger.debug(
-                "[BidirectionalBatchExchangeServer] Driver completion listener onFailure called for exchangeId={}, failure={}",
+                "Driver completion listener onFailure called for exchangeId={}, failure={}",
                 serverToClientId,
                 failure != null ? failure.getMessage() : "unknown"
             );
@@ -319,13 +304,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 close();
             } catch (Exception e) {
-                logExchangeFailure(
-                    logger,
-                    Level.ERROR,
-                    e,
-                    "[BidirectionalBatchExchangeServer] Exception during close after driver failure",
-                    e
-                );
+                logExchangeFailure(logger, Level.ERROR, e, "Exception during close after driver failure", e);
             }
             // Release driver ref with failure - the response coordinator's FailureCollector
             // will pick the best error across driver and sink channels
@@ -344,7 +323,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         ActionListener<BatchExchangeStatusResponse> listener = batchExchangeStatusListener;
         if (listener != null) {
             logger.debug(
-                "[BidirectionalBatchExchangeServer] Sending batch exchange status {} response for exchangeId={}",
+                "Sending batch exchange status {} response for exchangeId={}",
                 failure == null ? "success" : "failure",
                 serverToClientId
             );
@@ -368,16 +347,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                     logger,
                     Level.ERROR,
                     e,
-                    "[BidirectionalBatchExchangeServer] Failed to send batch exchange status response for exchangeId={}: {}",
+                    "Failed to send batch exchange status response for exchangeId={}: {}",
                     serverToClientId,
                     e.getMessage()
                 );
             }
         } else {
-            logger.error(
-                "[BidirectionalBatchExchangeServer] Cannot send batch exchange status response: listener is null for exchangeId={}",
-                serverToClientId
-            );
+            logger.error("Cannot send batch exchange status response: listener is null for exchangeId={}", serverToClientId);
         }
     }
 
@@ -395,11 +371,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         TimeValue statusInterval,
         Releasable releasable
     ) {
-        logger.debug(
-            "[BidirectionalBatchExchangeServer] Starting batch processing: sessionId={}, operators={}",
-            sessionId,
-            intermediateOperators.size()
-        );
+        logger.debug("Starting batch processing: sessionId={}, operators={}", sessionId, intermediateOperators.size());
 
         long startTime = System.currentTimeMillis();
         long startNanos = System.nanoTime();
@@ -421,23 +393,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         try (EsqlRefCountingListener responseCoordinator = new EsqlRefCountingListener(ActionListener.wrap(v -> {
             sendBatchExchangeStatusResponse(null);
         }, e -> {
-            logExchangeFailure(
-                logger,
-                Level.ERROR,
-                e,
-                "[BidirectionalBatchExchangeServer] Server failed, propagating failure to exchange sink handler",
-                e
-            );
+            logExchangeFailure(logger, Level.ERROR, e, "Server failed, propagating failure to exchange sink handler", e);
             try {
                 serverToClientSinkHandler.onFailure(e);
             } catch (Exception ex) {
-                logExchangeFailure(
-                    logger,
-                    Level.ERROR,
-                    ex,
-                    "[BidirectionalBatchExchangeServer] Exception propagating failure to sink handler",
-                    ex
-                );
+                logExchangeFailure(logger, Level.ERROR, ex, "Exception propagating failure to sink handler", ex);
             }
             sendBatchExchangeStatusResponse(e);
         }))) {
@@ -453,10 +413,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
             // Connect to the client's sink handler for client-to-server exchange
             // This should be called after the client has created its sink handler
-            logger.debug(
-                "[BidirectionalBatchExchangeServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
-                clientToServerId
-            );
+            logger.debug("Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}", clientToServerId);
             connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, sinkRef, "client sink handler");
         }
         // Signal that the remote sink has been added to the source handler.
@@ -464,7 +421,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // until the actual fetch completes. This prevents the race where the driver starts
         // before the fetch is registered.
         remoteSinkReady.onResponse(null);
-        logger.debug("[BidirectionalBatchExchangeServer] Remote sink added, signaling ready");
+        logger.debug("Remote sink added, signaling ready");
         // Create sink operator that writes to server-to-client exchange
         serverToClientSinkOperator = new ExchangeSinkOperator(serverToClientSink);
         ExchangeSinkOperator baseSinkOperator = serverToClientSinkOperator;
@@ -477,7 +434,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Driver does NOT close the releasable - everything is handled in server.close()
         this.releasableRef.set(releasable);
         logger.debug(
-            "[BidirectionalBatchExchangeServer] Stored releasable in releasableRef for cleanup: releasable={}",
+            "Stored releasable in releasableRef for cleanup: releasable={}",
             releasable != null ? releasable.getClass().getSimpleName() : "null"
         );
 
@@ -499,20 +456,17 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             statusInterval,
             () -> {
                 // No-op - server.close() will handle all cleanup
-                logger.debug("[BidirectionalBatchExchangeServer] Driver finished, releasable will be closed by server.close()");
+                logger.debug("Driver finished, releasable will be closed by server.close()");
             }
         );
-        logger.debug("[BidirectionalBatchExchangeServer] BatchDriver created");
+        logger.debug("BatchDriver created");
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;
         this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
 
         // Handler was already registered in initialize(), no need to register again
-        logger.debug(
-            "[BidirectionalBatchExchangeServer] Driver prepared, will start when BatchExchangeStatusRequest is received for exchangeId={}",
-            serverToClientId
-        );
+        logger.debug("Driver prepared, will start when BatchExchangeStatusRequest is received for exchangeId={}", serverToClientId);
 
         // Mark driver as prepared (but not started yet)
         driverPrepared = true;
@@ -525,8 +479,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         clientReadyTimeoutFuture = transportService.getThreadPool().scheduler().schedule(() -> {
             if (driverStarted == false && closing == false) {
                 logger.warn(
-                    "[BidirectionalBatchExchangeServer] Timeout waiting for BatchExchangeStatusRequest from client after {}s, "
-                        + "closing server for exchangeId={}",
+                    "Timeout waiting for BatchExchangeStatusRequest from client after {}s, " + "closing server for exchangeId={}",
                     CLIENT_READY_TIMEOUT_SECONDS,
                     serverToClientId
                 );
@@ -542,34 +495,23 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 try {
                     close();
                 } catch (Exception e) {
-                    logExchangeFailure(
-                        logger,
-                        Level.ERROR,
-                        e,
-                        "[BidirectionalBatchExchangeServer] Exception during timeout cleanup for exchangeId={}",
-                        serverToClientId,
-                        e
-                    );
+                    logExchangeFailure(logger, Level.ERROR, e, "Exception during timeout cleanup for exchangeId={}", serverToClientId, e);
                 }
             }
         }, CLIENT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        logger.debug(
-            "[BidirectionalBatchExchangeServer] Scheduled client ready timeout: {}s for exchangeId={}",
-            CLIENT_READY_TIMEOUT_SECONDS,
-            serverToClientId
-        );
+        logger.debug("Scheduled client ready timeout: {}s for exchangeId={}", CLIENT_READY_TIMEOUT_SECONDS, serverToClientId);
     }
 
     @Override
     public void close() {
         // Prevent recursive close if server is part of a releasable that includes itself
         if (closing) {
-            logger.debug("[BidirectionalBatchExchangeServer] Already closing, skipping recursive close");
+            logger.debug("Already closing, skipping recursive close");
             return;
         }
         closing = true;
 
-        logger.debug("[BidirectionalBatchExchangeServer] Closing BidirectionalBatchExchangeServer");
+        logger.debug("Closing BidirectionalBatchExchangeServer");
 
         // Cancel the client ready timeout if it's still pending
         if (clientReadyTimeoutFuture != null) {
@@ -594,31 +536,31 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         Releasable releasable = releasableRef.getAndSet(null);
         if (releasable != null) {
             try {
-                logger.debug("[BidirectionalBatchExchangeServer] Closing releasable resources (shardContext, localBreaker, etc.)");
+                logger.debug("Closing releasable resources (shardContext, localBreaker, etc.)");
                 releasable.close();
-                logger.debug("[BidirectionalBatchExchangeServer] Releasable resources closed successfully");
+                logger.debug("Releasable resources closed successfully");
             } catch (Exception e) {
-                logExchangeFailure(logger, Level.WARN, e, "[BidirectionalBatchExchangeServer] Exception closing releasable", e);
+                logExchangeFailure(logger, Level.WARN, e, "Exception closing releasable", e);
             }
         } else {
-            logger.warn("[BidirectionalBatchExchangeServer] No releasable to close (releasableRef was null)");
+            logger.warn("No releasable to close (releasableRef was null)");
         }
 
         // Don't need to close batchDriver - when driver finishes, it already closes its operators
         // and the releasable passed to it. The driver itself doesn't need explicit closing.
         if (serverToClientSink != null && serverToClientSink.isFinished() == false) {
-            logger.debug("[BidirectionalBatchExchangeServer] Finishing server-to-client sink");
+            logger.debug("Finishing server-to-client sink");
             serverToClientSink.finish();
         }
         if (clientToServerSource != null) {
-            logger.debug("[BidirectionalBatchExchangeServer] Closing client-to-server source");
+            logger.debug("Closing client-to-server source");
             clientToServerSource.close();
         }
         if (clientToServerSourceHandler != null) {
             // Drain any pages remaining in the source handler's buffer before removing.
             // When server fails, pages that were transferred from client but not yet consumed
             // would leak if we don't drain them here.
-            logger.debug("[BidirectionalBatchExchangeServer] Draining client-to-server source handler buffer and removing handler");
+            logger.debug("Draining client-to-server source handler buffer and removing handler");
             clientToServerSourceHandler.finishEarly(true, ActionListener.noop());
             exchangeService.removeExchangeSourceHandler(clientToServerId);
         }
@@ -626,15 +568,15 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             // Don't call finishSinkHandler() immediately - the client may still be reading pages.
             // Wait for the sink handler to be actually finished (all pages consumed) before cleaning up.
             serverToClientSinkHandler.addCompletionListener(ActionListener.wrap(v -> {
-                logger.debug("[BidirectionalBatchExchangeServer] Sink handler completed, finishing it");
+                logger.debug("Sink handler completed, finishing it");
                 exchangeService.finishSinkHandler(serverToClientId, null);
             }, e -> {
-                logger.debug("[BidirectionalBatchExchangeServer] Sink handler completed with error, finishing it: {}", e.getMessage());
+                logger.debug("Sink handler completed with error, finishing it: {}", e.getMessage());
                 exchangeService.finishSinkHandler(serverToClientId, e);
             }));
         }
         // Unregister this server from ExchangeService
         exchangeService.unregisterBatchExchangeServer(serverToClientId);
-        logger.debug("[BidirectionalBatchExchangeServer] BidirectionalBatchExchangeServer closed");
+        logger.debug("BidirectionalBatchExchangeServer closed");
     }
 }

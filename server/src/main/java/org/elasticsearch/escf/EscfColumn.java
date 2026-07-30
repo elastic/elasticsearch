@@ -53,9 +53,7 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * The kind of this column's leaf (scalar) values: this column's own {@link #kind()} for scalar
-     * columns, or the element child's kind for an {@link EscfArrayColumn}. A leaf kind of
-     * {@link EscfColumnKind#STRING} means every value is a UTF-8 byte-string that a binary Lucene
-     * column can consume without conversion, enabling zero-copy re-wrapping of the source column.
+     * columns, or the element child's kind for an {@link EscfArrayColumn}.
      */
     public byte leafValueKind() {
         return kind();
@@ -264,6 +262,9 @@ public abstract class EscfColumn implements SliceableColumn {
     static int[] rebasedOffsets(IntsRef ir, int count) {
         int base = ir.offset;
         int rebase = ir.ints[base];
+        if (rebase == 0 && base == 0 && ir.ints.length == count + 1) {
+            return ir.ints;
+        }
         int[] out = new int[count + 1];
         for (int i = 0; i <= count; i++) {
             out[i] = ir.ints[base + i] - rebase;
@@ -276,6 +277,9 @@ public abstract class EscfColumn implements SliceableColumn {
      * rows (i.e. {@code count + 1} offset entries — one fence post per row boundary).
      */
     static IntsRef sliceOffsets(IntsRef offsets, int from, int count) {
+        if (from == 0 && offsets.length == count + 1) {
+            return offsets;
+        }
         return new IntsRef(offsets.ints, offsets.offset + from, count + 1);
     }
 
@@ -285,7 +289,11 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     static BytesReference sliceData(IntsRef offsets, BytesReference data, int count) {
         int byteFrom = intAt(offsets, 0);
-        return data.slice(byteFrom, intAt(offsets, count) - byteFrom);
+        int byteTo = intAt(offsets, count);
+        if (byteFrom == 0 && byteTo == data.length()) {
+            return data;
+        }
+        return data.slice(byteFrom, byteTo - byteFrom);
     }
 
     /** Returns the {@code i}-th logical entry of an {@link IntsRef}, accounting for its {@code offset}. */

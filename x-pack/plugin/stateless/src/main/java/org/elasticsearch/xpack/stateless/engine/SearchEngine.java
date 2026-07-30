@@ -584,12 +584,14 @@ public class SearchEngine extends Engine {
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
                     final Map<FileCacheKey, Long> backfillTimestampsByCacheKey = ConcurrentCollections.newConcurrentMap();
+                    final boolean backfillMetadataReads = searchDirectory.timestampBackfillEnabled();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
                         searchDirectory,
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
+                        backfillMetadataReads,
                         referencedCompoundCommit -> {
                             newBlobFileRanges.putAll(
                                 computeBlobFileRanges(
@@ -611,17 +613,19 @@ public class SearchEngine extends Engine {
                             );
                         },
                         listenableFuture.map(aVoid -> {
-                            // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
-                            // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.
-                            long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
-                                latestCommit.getTimestampFieldValueRange()
-                            );
-                            backfillTimestampsByCacheKey.replaceAll(
-                                (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(
-                                    BlobFileRanges.firstKnownTimestamp(rawMillis, latestCommitTimestamp)
-                                )
-                            );
-                            searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
+                            if (backfillMetadataReads) {
+                                // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
+                                // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.
+                                long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                    latestCommit.getTimestampFieldValueRange()
+                                );
+                                backfillTimestampsByCacheKey.replaceAll(
+                                    (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(
+                                        BlobFileRanges.firstKnownTimestamp(rawMillis, latestCommitTimestamp)
+                                    )
+                                );
+                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
+                            }
                             return newBlobFileRanges;
                         })
                     );

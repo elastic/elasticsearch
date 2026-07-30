@@ -151,6 +151,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
+    private final EvictionPolicy<FileCacheKey> installedEvictionPolicy;
     private volatile boolean evictObsoleteRegionsEnabled;
 
     private final int evictionDegradationThreshold;
@@ -194,6 +195,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
         this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
         this.metricsHolder = metricsHolder;
+        this.installedEvictionPolicy = evictionPolicy;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
@@ -393,6 +395,23 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
+    }
+
+    /**
+     * Whether the active eviction policy is {@link PinnedWindowEvictionPolicy}.
+     */
+    public boolean isPinnedWindowEvictionPolicy() {
+        if (installedEvictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
+            return switchingEvictionPolicy.isPinnedWindow();
+        }
+        return installedEvictionPolicy instanceof PinnedWindowEvictionPolicy;
+    }
+
+    /**
+     * Whether time-based shards should use metadata-read timestamp backfill (sentinel stamping followed by completion backfill).
+     */
+    public boolean metadataTimestampBackfillRequired() {
+        return cacheBoostPreferenceEnabled || isPinnedWindowEvictionPolicy();
     }
 
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.

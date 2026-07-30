@@ -79,7 +79,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     private final boolean hasTimestampField;
-    private final boolean timestampBackfillEnabled;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -93,7 +92,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
-        this.timestampBackfillEnabled = hasTimestampField && cacheService.isCacheBoostPreferenceEnabled();
     }
 
     /**
@@ -104,11 +102,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Whether BCC metadata reads should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled after
-     * parsing.
+     * Whether BCC metadata reads on this shard should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled
+     * after parsing. Requires a time-based index and either cache boost preference or a pinned-window eviction policy.
      */
     public boolean timestampBackfillEnabled() {
-        return timestampBackfillEnabled;
+        return hasTimestampField && cacheService.metadataTimestampBackfillRequired();
     }
 
     @Override
@@ -131,9 +129,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      *                            stamped with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
      */
     public void backfillMetadataReadTimestamps(Map<FileCacheKey, Long> timestampByCacheKey, boolean clearOrphans) {
-        if (timestampBackfillEnabled() == false) {
-            return;
-        }
         if (clearOrphans == false && timestampByCacheKey.isEmpty()) {
             return;
         }
@@ -534,14 +529,18 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Stamps unknown regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} on time-based shards only.
+     * Creates a metadata-read clone that stamps regions according to {@code backfillMetadataReads}, which must be snapshotted once per
+     * metadata-read operation and reused for nested clones and completion backfill.
      */
     @Override
-    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
-        return createNewInstance(blobContainer.get());
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead(boolean backfillMetadataReads) {
+        return createNewInstance(blobContainer.get(), backfillMetadataReads);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(@Nullable LongFunction<BlobContainer> blobContainerFunction) {
+    private BlobStoreCacheDirectory createNewInstance(
+        @Nullable LongFunction<BlobContainer> blobContainerFunction,
+        boolean backfillMetadataReads
+    ) {
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -551,7 +550,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected long fallbackRegionTimestampMillis() {
-                return SearchDirectory.this.timestampBackfillEnabled()
+                return backfillMetadataReads
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
                     : SearchDirectory.this.fallbackRegionTimestampMillis();
             }
@@ -578,8 +577,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer);
+            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead(boolean ignored) {
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer, backfillMetadataReads);
             }
         };
     }

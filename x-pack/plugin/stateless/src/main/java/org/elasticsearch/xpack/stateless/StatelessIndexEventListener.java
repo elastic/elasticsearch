@@ -134,10 +134,10 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
-        this.cacheService = cacheService;
         this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
         );
+        this.cacheService = cacheService;
         this.snapshotsCommitService = snapshotsCommitService;
         this.clusterService = clusterService;
         this.recoveryMetricsCollector = recoveryMetricsCollector;
@@ -421,9 +421,12 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert blobContainer != null : indexShard.routingEntry();
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+        final boolean backfillMetadataReads = useInternalFilesReplicatedContentForSearchShards
+            && searchDirectory.timestampBackfillEnabled();
         final var batchedCompoundCommit = objectStoreService.readSearchShardState(
             blobContainer,
             searchDirectory,
+            backfillMetadataReads,
             indexShard.getOperationPrimaryTerm()
         );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
@@ -481,6 +484,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                             searchDirectory,
                             IOContext.DEFAULT,
                             bccHeaderReadExecutor,
+                            backfillMetadataReads,
                             referencedCompoundCommit -> {
                                 blobFileRanges.putAll(
                                     computeBlobFileRanges(
@@ -509,8 +513,13 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         entry.getValue().timestampMillis()
                                     );
                                 }
-                                // This backfill also handles the initial BCC read in readSearchShardState.
-                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                if (backfillMetadataReads) {
+                                    // This backfill also handles the initial BCC read in readSearchShardState.
+                                    searchDirectory.backfillMetadataReadTimestamps(
+                                        Collections.unmodifiableMap(timestampByCacheKey),
+                                        true
+                                    );
+                                }
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })
                         );

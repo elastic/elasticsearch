@@ -824,6 +824,7 @@ public class SharedBlobCacheWarmingService {
                                 // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
                                 // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
                                 readCommitsForSearchWarmingExecutor,
+                                false,
                                 referencedCompoundCommit -> {
                                     if (searchOfflineWarmingEnabled) {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();

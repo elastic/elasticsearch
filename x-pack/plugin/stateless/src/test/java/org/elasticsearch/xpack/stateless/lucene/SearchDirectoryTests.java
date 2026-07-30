@@ -19,9 +19,11 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,11 +33,14 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -70,6 +75,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
@@ -690,7 +696,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
-            var metadataReadDirectory = searchDirectory.createNewBlobStoreCacheDirectoryForMetadataRead();
+            var metadataReadDirectory = searchDirectory.createNewBlobStoreCacheDirectoryForMetadataRead(true);
             metadataReadDirectory.updateMetadata(
                 Map.of(
                     metadataBlobName,
@@ -725,23 +731,80 @@ public class SearchDirectoryTests extends ESTestCase {
             assertTimeBasedFallback(directory, range, rangeMidpoint);
             assertThat(
                 "with backfill enabled a metadata-read clone pins with the transient sentinel until backfill runs",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead().fallbackRegionTimestampMillis(),
+                directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
                 equalTo(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
         }
 
-        // Time-based shard but cache-boost (and thus metadata-read backfill) disabled: the fallback still floors to MINIMAL - it depends
-        // only on the presence of the timestamp field - but metadata-read clones no longer stamp the backfill sentinel.
+        // Time-based shard but cache-boost disabled and no pinned-window policy: metadata-read clones stamp MINIMAL.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, false)) {
             final var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertThat("a @timestamp field is time-based even without cache-boost", directory.hasTimestampField(), equalTo(true));
-            assertThat("backfill requires cache-boost", directory.timestampBackfillEnabled(), equalTo(false));
+            assertThat("backfill requires cache-boost or pinned-window eviction", directory.timestampBackfillEnabled(), equalTo(false));
 
             assertTimeBasedFallback(directory, range, rangeMidpoint);
             assertThat(
                 "without backfill a metadata-read clone inherits the shard's terminal fallback (MINIMAL) instead of the sentinel",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead().fallbackRegionTimestampMillis(),
+                directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
+            );
+            assertThat(
+                "an operation snapshot can still request sentinel stamping explicitly",
+                directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
+                equalTo(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
+            );
+        }
+
+        // Time-based shard with explicit pinned-window policy but cache-boost disabled.
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.PINNED_WINDOW
+                    )
+                    .build();
+            }
+
+            @Override
+            protected List<Setting<?>> additionalClusterSettings() {
+                return Stream.concat(
+                    super.additionalClusterSettings().stream(),
+                    Stream.of(
+                        PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING
+                    )
+                ).toList();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                return new SearchDirectory(
+                    sharedCacheService,
+                    cacheBlobReaderService,
+                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                    shardId,
+                    true
+                );
+            }
+        }) {
+            final var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertThat("pinned-window enables backfill without cache-boost", directory.timestampBackfillEnabled(), equalTo(true));
+            assertThat(
+                "metadata-read clones stamp the backfill sentinel when backfill is enabled",
+                directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
+                equalTo(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
         }
 
@@ -765,7 +828,7 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat("a known range resolves to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
                 "a metadata-read clone inherits the shard's terminal fallback when backfill is disabled",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead().fallbackRegionTimestampMillis(),
+                directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
         }

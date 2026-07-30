@@ -1,0 +1,5 @@
+area: "TSDB, ES|QL"
+issues: []
+pr: 155520
+summary: Dispatch time-series windows per aggregate
+type: enhancement

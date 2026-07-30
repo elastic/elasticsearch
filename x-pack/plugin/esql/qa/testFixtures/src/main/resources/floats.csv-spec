@@ -81,6 +81,13 @@ str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
 // end::to_double-str-result[]
 ;
 
+convertFromKeywordField
+FROM conv_from_keyword | EVAL dbl = TO_DOUBLE(double_str) | KEEP double_str, dbl;
+
+double_str:keyword | dbl:double
+123.45              | 123.45
+;
+
 convertFromUnsignedLong
 row ul = 9223372036854775808 | eval dbl = to_double(ul);
 

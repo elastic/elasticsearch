@@ -42,6 +42,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -263,9 +264,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 secretSettings
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
+            // With the strict REQUEST ObjectParser, unknown keys colocated with the service settings (such as an extra secret key) are
+            // rejected by the parser itself as an unknown field rather than by the framework's leftover-key check.
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
+                XContentParseException.class,
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -1045,6 +1048,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
+        });
+    }
+
+    private static ActionListener<Model> getModelListenerForExceptionWithMessageEnding(Class<?> exceptionClass, String expectedEnding) {
+        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, Matchers.instanceOf(exceptionClass));
+            assertThat(e.getMessage(), Matchers.endsWith(expectedEnding));
         });
     }
 

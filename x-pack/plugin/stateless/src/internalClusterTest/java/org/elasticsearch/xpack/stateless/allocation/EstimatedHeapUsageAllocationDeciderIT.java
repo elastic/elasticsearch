@@ -110,8 +110,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         final ClusterInfo clusterInfo = refreshClusterInfo();
         assertTrue(
-            "expect all estimated heap usages to be greater than 100%, but got " + clusterInfo.getEstimatedHeapUsages(),
-            clusterInfo.getEstimatedHeapUsages()
+            "expect all estimated heap usages to be greater than 100%, but got " + clusterInfo.getNodeHeapMetrics(),
+            clusterInfo.getNodeHeapMetrics()
                 .values()
                 .stream()
                 .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() > 100.0)
@@ -186,8 +186,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
             final ClusterInfo clusterInfo2 = refreshClusterInfo();
             assertTrue(
-                "unexpected estimated heap usages " + clusterInfo2.getEstimatedHeapUsages(),
-                clusterInfo2.getEstimatedHeapUsages().entrySet().stream().allMatch(entry -> {
+                "unexpected estimated heap usages " + clusterInfo2.getNodeHeapMetrics(),
+                clusterInfo2.getNodeHeapMetrics().entrySet().stream().allMatch(entry -> {
                     if (entry.getKey().equals(nodeIdToUnblock)) {
                         return entry.getValue().estimatedUsageAsPercentage() < 100.0;
                     } else {
@@ -242,8 +242,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         final ClusterInfo initialClusterInfo = refreshClusterInfo();
         assertTrue(
             "expected all estimated heap usages to be below the 80% high watermark initially, but got "
-                + initialClusterInfo.getEstimatedHeapUsages(),
-            initialClusterInfo.getEstimatedHeapUsages()
+                + initialClusterInfo.getNodeHeapMetrics(),
+            initialClusterInfo.getNodeHeapMetrics()
                 .values()
                 .stream()
                 .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() < 80.0)

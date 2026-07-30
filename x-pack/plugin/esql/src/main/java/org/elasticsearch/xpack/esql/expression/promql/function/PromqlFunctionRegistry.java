@@ -160,7 +160,8 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
-        PromqlBuiltinFunctionDefinitions.TIME, };
+        PromqlBuiltinFunctionDefinitions.TIME,
+        PromqlBuiltinFunctionDefinitions.TIMESTAMP, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -197,9 +198,6 @@ public class PromqlFunctionRegistry {
         "absent",
         "sort",
         "sort_desc",
-
-        // Time functions
-        "timestamp",
 
         // Label manipulation functions
         "label_join",

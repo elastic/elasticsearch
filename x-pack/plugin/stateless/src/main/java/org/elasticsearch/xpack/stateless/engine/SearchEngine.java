@@ -614,7 +614,8 @@ public class SearchEngine extends Engine {
                         },
                         listenableFuture.map(aVoid -> {
                             if (backfillMetadataReads) {
-                                // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
+                                // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's
+                                // timestamp,
                                 // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.
                                 long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
                                     latestCommit.getTimestampFieldValueRange()

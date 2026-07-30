@@ -515,10 +515,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 }
                                 if (backfillMetadataReads) {
                                     // This backfill also handles the initial BCC read in readSearchShardState.
-                                    searchDirectory.backfillMetadataReadTimestamps(
-                                        Collections.unmodifiableMap(timestampByCacheKey),
-                                        true
-                                    );
+                                    searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
                                 }
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })

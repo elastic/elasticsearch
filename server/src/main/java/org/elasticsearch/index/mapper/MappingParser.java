@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -148,6 +149,14 @@ public final class MappingParser {
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
+
+        // The _unmapped sink is derived state, not user mapping: its entire config is a function of index settings, and it carries no
+        // user-settable parameters. So it is never serialized and is instead re-injected here on every mapping-source parse.
+        if (mappingParserContext.getIndexSettings().isFlattenedUnmappedFieldsEnabled()) {
+            rootObjectMapper.add(
+                FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), mappingParserContext)
+            );
+        }
 
         Map<String, MetadataFieldMapper.Builder> metadataBuilders = metadataBuildersSupplier.get();
         Map<String, Object> meta = null;

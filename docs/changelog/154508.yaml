@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 154743
+ - 154484
+ - 154011
+pr: 154508
+summary: Don't accidentally add flattened subfields
+type: bug

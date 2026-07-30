@@ -128,6 +128,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -254,7 +255,7 @@ public class FakeStatelessNode implements Closeable {
         );
 
         try (var localCloseables = new TransferableCloseables()) {
-            threadPool = createThreadPool();
+            threadPool = createThreadPool(nodeSettings);
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
@@ -347,8 +348,8 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected ThreadPool createThreadPool() {
-        return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    protected ThreadPool createThreadPool(Settings nodeSettings) {
+        return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
     }
 
     protected ClusterSettings createClusterSettings(Settings settings) {
@@ -374,7 +375,8 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
-            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL
+            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING
         );
     }
 
@@ -439,7 +441,7 @@ public class FakeStatelessNode implements Closeable {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
     }
 
     protected StatelessSharedBlobCacheService createCacheService(

@@ -9,14 +9,10 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
-
-import java.util.Objects;
 
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class EscfLongColumn extends AbstractFixed64Column {
@@ -26,7 +22,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.LONG;
     }
 
@@ -40,12 +36,13 @@ final class EscfLongColumn extends AbstractFixed64Column {
         return rawLong(row);
     }
 
-    /** Returns a new dense {@link LongCursor} positioned before the first row of this column's window. */
-    LongCursor longCursor() {
-        return new LongCursor(docCount, this);
-    }
-
+    /**
+     * Returns a new dense {@link LongValuesCursor} positioned before the first row of this column's
+     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
+     * dense columns.
+     */
     LongValuesCursor longValuesCursor() {
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseLongValuesCursor(docCount, this);
     }
 
@@ -57,52 +54,5 @@ final class EscfLongColumn extends AbstractFixed64Column {
     @Override
     EscfColumnData toColumnData() {
         return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
-    }
-
-    private static final class DenseLongValuesCursor extends LongValuesCursor {
-        private final EscfLongColumn column;
-        private int pos;
-
-        DenseLongValuesCursor(int count, EscfLongColumn column) {
-            super(count);
-            this.column = column;
-        }
-
-        @Override
-        public long nextLong() {
-            Objects.checkIndex(pos, size());
-            return column.getLongValue(pos++);
-        }
-
-        @Override
-        public void fillDocValues(long[] dst, int offset, int length) {
-            Objects.checkFromIndexSize(pos, length, size());
-            // TODO: implement based on the BytesRefIterator to remove most bounds checks
-            for (int i = 0; i < length; i++) {
-                dst[offset + i] = column.getLongValue(pos++);
-            }
-        }
-    }
-
-    private static final class LongCursor extends LongTupleCursor {
-        private final int rowCount;
-        private final EscfLongColumn column;
-        private int row = -1;
-
-        LongCursor(int rowCount, EscfLongColumn column) {
-            this.rowCount = rowCount;
-            this.column = column;
-        }
-
-        @Override
-        public int nextDoc() {
-            // TODO: does not support sparse yet. Need to iterate bitset too.
-            return ++row < rowCount ? row : DocIdSetIterator.NO_MORE_DOCS;
-        }
-
-        @Override
-        public long longValue() {
-            return column.getLongValue(row);
-        }
     }
 }

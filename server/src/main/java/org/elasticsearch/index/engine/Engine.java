@@ -102,7 +102,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -511,7 +510,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["
@@ -744,9 +743,9 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index index : operations) {
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        ArrayList<IndexResult> results = new ArrayList<>(batch.operations().size());
+        for (Index index : batch.operations()) {
             results.add(index(index));
         }
         return results;
@@ -2179,18 +2178,21 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
         public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -2199,11 +2201,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {

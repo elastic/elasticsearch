@@ -2001,7 +2001,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
-                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
                 if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
                     // COUNT(*)/empty-projection path on a non-leading record-aligned macro-split:
                     // bind schema from the full file (header-bearing formats like CSV need file-leading bytes).
@@ -2034,11 +2034,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     withoutRowPosition.remove(compressedRowPosSlot);
                     readerCols = withoutRowPosition;
                 }
-                // A record-aligned macro-split that owns the file's trailing bytes is file-final; a genuine
-                // whole-file read (offset 0, not record-aligned, last split) is also file-final. Either way the
-                // last split's trailing segment may close its last stripe to EOF.
-                boolean splitIsFileFinal = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY))
-                    || (recordAlignedMacro == false && firstSplit && fileSplit.offset() == 0);
+                // Owning the file's trailing bytes means the last segment may close its last stripe to EOF.
+                // Same fact as the reader's lastSplit below — one derivation, so the two cannot disagree.
+                boolean splitIsFileFinal = FileSplitProvider.isLastInFile(fileSplit);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -2056,14 +2054,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     bufferedInformationalWarningSink(state.buffer)
                 );
                 if (pages == null) {
-                    boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
-                        .lastSplit(lastSplit)
+                        .lastSplit(splitIsFileFinal)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                         .splitStartByte(fileSplit.offset())

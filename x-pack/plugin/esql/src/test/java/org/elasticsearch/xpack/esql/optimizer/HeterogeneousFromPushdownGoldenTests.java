@@ -29,15 +29,20 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Golden (plan) tests for {@link PushAggregateThroughUnionAll}:
- * pushing aggregates through the leaf {@code UnionAll} a heterogeneous {@code FROM} produces.
+ * Golden (plan) tests for {@link PushAggregateThroughUnionAll}: pushing aggregates through the
+ * {@code UnionAll} a multi-source {@code FROM} produces, in both the leaf shape (heterogeneous
+ * {@code FROM idx, ds}) and the subquery shape ({@code FROM idx, (FROM ds | ...)}).
  *
- * <p>The branches are two external datasets with an <b>identical</b> schema ({@code emp_no}/{@code salary}/{@code dept}).
- * Identical schemas are deliberate: when branch schemas differ, union alignment inserts {@code Eval} nodes for the
- * null-filled columns, which makes the {@code UnionAll} non-leaf ({@code isLeafUnionAll} only accepts
- * {@code (Project) > EsRelation | ExternalRelation}) and the heavy aggregate would not push. Two same-schema datasets
- * give a clean leaf {@code UnionAll} so the pushdown actually fires; the rewrite is identical whether a branch is an ES
- * index or an external relation, so this is representative of the index+dataset case too.
+ * <p>The leaf-shape tests use two external datasets with an <b>identical</b> schema
+ * ({@code emp_no}/{@code salary}/{@code dept}). Identical schemas are deliberate: when branch schemas differ, union
+ * alignment inserts {@code Eval} nodes for the null-filled columns. Two same-schema datasets give a clean leaf
+ * {@code UnionAll}; the rewrite is identical whether a branch is an ES index or an external relation, so this is
+ * representative of the index+dataset case too.
+ *
+ * <p>The subquery-shape tests wrap a dataset in a subquery ({@code (FROM heavy_b | WHERE ...)}), producing the
+ * {@code Project > (Eval >)? Subquery > ...} branch shape. The partial aggregate is placed on top of that branch and
+ * still runs next to the data; a subquery whose sub-pipeline carries its own pipeline breaker (e.g. {@code LIMIT})
+ * disqualifies the rewrite and the aggregation stays on the coordinator.
  *
  * <p>Data correctness for these shapes (including the heterogeneous index+dataset case) is covered by csv-spec tests;
  * these tests only snapshot the plan.
@@ -95,10 +100,11 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /**
      * Ungrouped {@code STATS} where every aggregate shares one filter: {@code ExtractAggregateCommonFilter} hoists the
-     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches,
-     * making the {@code UnionAll} non-leaf, so the heavy aggregate stays on the coordinator over the filtered rows.
+     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches as a
+     * {@code Filter}; because a {@code Filter} is streaming (not a pipeline breaker), the heavy aggregate still decomposes
+     * and the per-branch partial runs next to the data over the filtered rows.
      */
-    public void testFilteredHeavyExtractedToQueryFilter() {
+    public void testFilteredHeavyExtractedToQueryFilterPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
     }
 
@@ -127,16 +133,43 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A query-level {@code WHERE} (before {@code STATS}) is pushed into the branches, which makes the {@code UnionAll}
-     * non-leaf; the heavy aggregate therefore stays on the coordinator over the already-filtered branch rows.
+     * A query-level {@code WHERE} (before {@code STATS}) is pushed into the branches as a {@code Filter}. Since a
+     * {@code Filter} is streaming (not a pipeline breaker), the heavy aggregate decomposes and each per-branch partial
+     * is computed next to the data over the already-filtered branch rows.
      */
-    public void testQueryFilterHeavyNotPushed() {
+    public void testQueryFilterHeavyPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | WHERE salary > 0 | STATS d = COUNT_DISTINCT(emp_no)");
     }
 
     /** Two identical heavy aggregates: {@code DeduplicateAggs} runs first; the combined plan must still decompose. */
     public void testDuplicateHeavyPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d1 = COUNT_DISTINCT(emp_no), d2 = COUNT_DISTINCT(emp_no)");
+    }
+
+    /**
+     * Subquery shape: a heavy aggregate over {@code FROM heavy_a, (FROM heavy_b | WHERE ...)} pushes a per-branch
+     * {@code ToPartial} onto each branch, including on top of the subquery's {@code Subquery > Filter} wrappers.
+     */
+    public void testSubqueryHeavyPushed() {
+        runHeavySubqueryGoldenTest("FROM heavy_a, (FROM heavy_b | WHERE salary > 0) | STATS d = COUNT_DISTINCT(emp_no)");
+    }
+
+    /** Subquery shape, grouped: the per-group intermediate state is computed next to the data on each branch. */
+    public void testSubqueryGroupedHeavyPushed() {
+        runHeavySubqueryGoldenTest("FROM heavy_a, (FROM heavy_b | WHERE salary > 0) | STATS d = COUNT_DISTINCT(emp_no) BY dept");
+    }
+
+    /** Subquery shape, algebraic: {@code COUNT(*)} decomposes to a per-branch {@code COUNT} and a coordinator {@code SUM}. */
+    public void testSubqueryAlgebraicPushed() {
+        runHeavySubqueryGoldenTest("FROM heavy_a, (FROM heavy_b | WHERE salary > 0) | STATS c = COUNT(*)");
+    }
+
+    /**
+     * Subquery shape with a conflicting interior pipeline breaker: the subquery's own {@code LIMIT} disqualifies the
+     * whole {@code UnionAll}, so the heavy aggregate stays on the coordinator.
+     */
+    public void testSubqueryInnerLimitNotPushed() {
+        runHeavySubqueryGoldenTest("FROM heavy_a, (FROM heavy_b | SORT emp_no | LIMIT 5) | STATS d = COUNT_DISTINCT(emp_no)");
     }
 
     private void runHeavyGoldenTest(String query) {
@@ -146,6 +179,16 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
             .datasetMetadata(heavyDatasetMetadata())
             .externalSourceResolution(heavyExternalSourceResolution())
             .run();
+    }
+
+    private void runHeavySubqueryGoldenTest(String query) {
+        assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command without implicit limit",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runHeavyGoldenTest(query);
     }
 
     /** Registers {@code heavy_a} and {@code heavy_b} as external datasets so {@code FROM heavy_a, heavy_b} is a UnionAll. */

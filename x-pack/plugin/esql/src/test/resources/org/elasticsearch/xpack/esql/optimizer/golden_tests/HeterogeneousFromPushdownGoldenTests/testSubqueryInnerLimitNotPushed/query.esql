@@ -1,0 +1,1 @@
+FROM heavy_a, (FROM heavy_b | SORT emp_no | LIMIT 5) | STATS d = COUNT_DISTINCT(emp_no)

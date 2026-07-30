@@ -1,0 +1,15 @@
+LimitExec[10000[INTEGER],null]
+\_AggregateExec[[],[COUNTDISTINCT(emp_no{r}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS d#1],SINGLE,[$$d$hll{r}#2],null]
+  \_MergeExec[[emp_no{r}#0, salary{r}#3, dept{r}#4]]
+    |_ExchangeExec[[emp_no{r}#5, salary{r}#6, dept{r}#7],false]
+    | \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#5, salary{r}#6, dept{r}#7]]
+\_Project[[emp_no{r}#5, salary{r}#6, dept{r}#7]]
+  \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#5, salary{r}#6, dept{r}#7]<>]]
+    \_ProjectExec[[emp_no{r}#8, salary{r}#9, dept{r}#10]]
+      \_TopNExec[[Order[emp_no{r}#8,ASC,LAST]],5[INTEGER],null]
+        \_ExchangeExec[[emp_no{r}#8, salary{r}#9, dept{r}#10],false]
+          \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{r}#8, salary{r}#9, dept{r}#10]]
+\_TopN[[Order[emp_no{r}#8,ASC,LAST]],5[INTEGER],false]
+  \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#8, salary{r}#9, dept{r}#10]<>]]

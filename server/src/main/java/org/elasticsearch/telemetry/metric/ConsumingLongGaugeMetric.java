@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * The consuming long gauge only returns a value to APM if a value has been set since it was last polled.
  * Optional attributes may be attached when setting a value and are reported with that value on the next poll.
+ * <p>
+ * Prefer this type when the value changes infrequently. Each {@link #set} allocates a measurement holder, so for
+ * values that are updated frequently use {@link LongGauge} (or {@link LongGaugeMetric}) instead.
  *
  * @param value The holder of the current value of the gauge.
  * @param gauge The gauge being published to

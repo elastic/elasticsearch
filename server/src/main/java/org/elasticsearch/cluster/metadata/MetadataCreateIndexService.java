@@ -390,7 +390,11 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
-        assert systemIndices.findMatchingDescriptor(request.index()) == request.systemIndexDescriptor();
+        assert descriptorForRequestIndexAndMappingVersion(request) == request.systemIndexDescriptor()
+            : "Expected system index descriptor "
+                + descriptorForRequestIndexAndMappingVersion(request)
+                + " but got "
+                + request.systemIndexDescriptor();
         assert request.dataStreamName() == null
             || systemIndices.findMatchingDataStreamDescriptor(request.dataStreamName()) == request.systemDataStreamDescriptor();
 
@@ -431,6 +435,21 @@ public class MetadataCreateIndexService {
                 }
             })
         );
+    }
+
+    /**
+     * Get the expected system index descriptor for the index name and mapping version on the request
+     */
+    private SystemIndexDescriptor descriptorForRequestIndexAndMappingVersion(CreateIndexClusterStateUpdateRequest request) {
+        final var descriptorForIndex = systemIndices.findMatchingDescriptor(request.index());
+        if (descriptorForIndex == null) {
+            return null;
+        }
+        // If the expected descriptor is automatically managed, try and adjust it to the mapping version on the request descriptor
+        final var requestDescriptor = request.systemIndexDescriptor();
+        return requestDescriptor != null && descriptorForIndex.isAutomaticallyManaged() && requestDescriptor.isAutomaticallyManaged()
+            ? descriptorForIndex.getDescriptorCompatibleWith(requestDescriptor.getMappingsVersion())
+            : descriptorForIndex;
     }
 
     private void onlyCreateIndex(

@@ -156,57 +156,70 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     fm.mapColumnBatch(ctx, escfBatch.column(c));
                 }
             }
-        }
-        for (MetadataFieldMapper m : supportedMappers) {
-            m.postColumnarParse(ctx);
-        }
 
-        // Apply engine values to the backing byte arrays before reading via either cursor path.
-        final MappedColumns mc = ctx.columns();
-        mc.fillPrimaryTerm(scenario.primaryTerm());
-        for (int i = 0; i < docCount; i++) {
-            mc.setSeqNo(i, docs.get(i).seqNo());
-            mc.setVersion(i, docs.get(i).version());
-        }
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.postColumnarParse(ctx);
+            }
 
-        // Materialize x-content descriptors up front.
-        final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
-        for (int i = 0; i < docCount; i++) {
-            final Doc doc = docs.get(i);
-            final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
-            final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
-            // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
-            pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
-            pd.version().setLongValue(doc.version());
-            xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
-        }
+            // Apply engine values to the backing byte arrays before reading via either cursor path.
+            final MappedColumns mc = ctx.columns();
+            mc.fillPrimaryTerm(scenario.primaryTerm());
+            for (int i = 0; i < docCount; i++) {
+                mc.setSeqNo(i, docs.get(i).seqNo());
+                mc.setVersion(i, docs.get(i).version());
+            }
 
-        // Materialize row-cursor descriptors.
-        final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
-        final MappedColumns.RowCursor rowCursor = mc.rowCursor();
-        for (int i = 0; i < docCount; i++) {
-            rowCursor.advance();
-            descsPerDoc.add(toDescriptors(rowCursor.fields()));
-        }
+            // Materialize x-content descriptors up front.
+            final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
+            for (int i = 0; i < docCount; i++) {
+                final Doc doc = docs.get(i);
+                final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
+                final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
+                // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
+                pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
+                pd.version().setLongValue(doc.version());
+                xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
+            }
 
-        // Compare row-cursor against x-content.
-        for (int i = 0; i < docCount; i++) {
-            assertFieldSetsEqual(
-                xcDescsPerDoc.get(i),
-                descsPerDoc.get(i),
-                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor field sets differ"
-            );
-            descsPerDoc.get(i).clear();
-        }
+            // Materialize row-cursor descriptors.
+            final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+            final MappedColumns.RowCursor rowCursor = mc.rowCursor();
+            for (int i = 0; i < docCount; i++) {
+                rowCursor.advance();
+                descsPerDoc.add(toDescriptors(rowCursor.fields()));
+            }
 
-        // Populate the same per-doc lists with column-batch descriptors and compare.
-        populateColumnBatchDescriptors(mc, descsPerDoc);
-        for (int i = 0; i < docCount; i++) {
-            assertFieldSetsEqual(
-                xcDescsPerDoc.get(i),
-                descsPerDoc.get(i),
-                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs column-batch field sets differ"
-            );
+            // Compare row-cursor against x-content.
+            for (int i = 0; i < docCount; i++) {
+                assertFieldSetsEqual(
+                    xcDescsPerDoc.get(i),
+                    descsPerDoc.get(i),
+                    "Batch ["
+                        + scenario.name()
+                        + "] doc["
+                        + i
+                        + "] id=["
+                        + docs.get(i).id()
+                        + "]: x-content vs row-cursor field sets differ"
+                );
+                descsPerDoc.get(i).clear();
+            }
+
+            // Populate the same per-doc lists with column-batch descriptors and compare.
+            populateColumnBatchDescriptors(mc, descsPerDoc);
+            for (int i = 0; i < docCount; i++) {
+                assertFieldSetsEqual(
+                    xcDescsPerDoc.get(i),
+                    descsPerDoc.get(i),
+                    "Batch ["
+                        + scenario.name()
+                        + "] doc["
+                        + i
+                        + "] id=["
+                        + docs.get(i).id()
+                        + "]: x-content vs column-batch field sets differ"
+                );
+            }
         }
     }
 

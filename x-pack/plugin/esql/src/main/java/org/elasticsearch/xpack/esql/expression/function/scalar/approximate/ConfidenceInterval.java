@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -49,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * This function is used internally by {@link ApproximationPlan}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
-public class ConfidenceInterval extends EsqlScalarFunction {
+public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ConfidenceInterval",

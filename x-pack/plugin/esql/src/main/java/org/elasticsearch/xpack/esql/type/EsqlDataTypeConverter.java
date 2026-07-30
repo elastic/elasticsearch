@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
@@ -749,6 +750,36 @@ public class EsqlDataTypeConverter {
     /** Formats a half-open [from, to) range using the block's stored millis for both bounds. */
     public static String dateRangeToString(long from, long to, DateFormatter formatter) {
         return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
+    }
+
+    /**
+     * Parses the string representation used for double range response values.
+     */
+    public static DoubleRangeBlockBuilder.DoubleRange parseDoubleRange(String value) {
+        String[] bounds = value.split("\\.\\.", -1);
+        if (bounds.length != 2) {
+            throw new IllegalArgumentException("expected double range in the form 'from..to', got [" + value + "]");
+        }
+        double from = Double.parseDouble(bounds[0]);
+        double to = Double.parseDouble(bounds[1]);
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("double range 'from' [" + bounds[0] + "] must be less than 'to' [" + bounds[1] + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
+    /**
+     * Formats a half-open double range for response serialization.
+     */
+    public static String doubleRangeToString(DoubleRangeBlockBuilder.DoubleRange range) {
+        return doubleRangeToString(range.from(), range.to());
+    }
+
+    /**
+     * Formats half-open double range bounds for response serialization.
+     */
+    public static String doubleRangeToString(double from, double to) {
+        return Double.toString(from) + ".." + Double.toString(to);
     }
 
     public static BytesRef numericBooleanToString(Object field) {

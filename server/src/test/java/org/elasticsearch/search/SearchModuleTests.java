@@ -273,7 +273,7 @@ public class SearchModuleTests extends ESTestCase {
             1,
             module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count()
         );
-        assertEquals(1, module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(GenericNamedWriteable.class)).count());
+        assertEquals(2, module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(GenericNamedWriteable.class)).count());
     }
 
     public void testRegisterHighlighter() {

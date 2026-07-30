@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 155436
+summary: Register IPAddress and Version as `GenericNamedWriteables`
+type: bug

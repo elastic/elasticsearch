@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 
 public class SpatialPluginTests extends ESTestCase {
 
@@ -144,7 +145,7 @@ public class SpatialPluginTests extends ESTestCase {
         assertThat(
             "Expect both Geo and Cartesian BoundingBox and ShapeValue",
             names,
-            equalTo(Set.of("GeoBoundingBox", "CartesianBoundingBox", "GeoShapeValue", "CartesianShapeValue"))
+            hasItems("GeoBoundingBox", "CartesianBoundingBox", "GeoShapeValue", "CartesianShapeValue")
         );
     }
 

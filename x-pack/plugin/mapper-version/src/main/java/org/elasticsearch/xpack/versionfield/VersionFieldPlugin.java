@@ -12,12 +12,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.List;
 import java.util.Map;
 
-public class VersionFieldPlugin extends Plugin implements MapperPlugin {
+public class VersionFieldPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     public VersionFieldPlugin(Settings settings) {}
 
@@ -35,5 +36,10 @@ public class VersionFieldPlugin extends Plugin implements MapperPlugin {
                 in -> VersionStringFieldMapper.VERSION_DOCVALUE
             )
         );
+    }
+
+    @Override
+    public List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return List.of(new GenericNamedWriteableSpec(Version.NAMED_WRITEABLE_NAME, Version::new));
     }
 }

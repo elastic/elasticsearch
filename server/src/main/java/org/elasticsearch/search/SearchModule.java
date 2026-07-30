@@ -91,6 +91,7 @@ import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
+import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -371,6 +372,7 @@ public class SearchModule {
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
         registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
+        registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec(IPAddress.NAMED_WRITEABLE_NAME, IPAddress::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

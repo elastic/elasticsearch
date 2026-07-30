@@ -33,12 +33,12 @@ public class ConstantProcessor implements Processor {
 
     public ConstantProcessor(Object value) {
         this.constant = value;
-        if (value instanceof NamedWriteable) {
+        if (value instanceof Version) {
+            type = Type.VERSION;
+        } else if (value instanceof NamedWriteable) {
             type = Type.NAMED_WRITABLE;
         } else if (value instanceof ZonedDateTime) {
             type = Type.ZONEDDATETIME;
-        } else if (value instanceof Version) {
-            type = Type.VERSION;
         } else {
             type = Type.GENERIC;
         }

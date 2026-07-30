@@ -268,6 +268,8 @@ public class ShutdownPrepareService {
                             false,
                             ActionListener.noop()
                         );
+                    } else {
+                        assert false : "Expected reindex tasks to be cancellable";
                     }
                 });
                 awaitTasksComplete(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);

@@ -97,6 +97,11 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 var allBytes = new byte[consumed];
                 inputBuffer.read(allBytes);
                 backpressure.addBytesAndMaybePause(consumed, ioControl);
+                // cancelUpstream() may have raced past the first subscriptionCanceled guard, so we've to recheck
+                if (subscriptionCanceled.get()) {
+                    backpressure.subtractBytesAndMaybeUnpause(consumed);
+                    return;
+                }
                 publisher.onNext(allBytes);
             }
         } catch (Exception e) {

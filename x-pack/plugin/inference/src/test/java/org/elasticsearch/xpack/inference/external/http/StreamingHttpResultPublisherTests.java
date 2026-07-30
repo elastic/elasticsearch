@@ -794,6 +794,41 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         verify(ioControl).shutdown();
     }
 
+    public void testCancelRacingWithConsumeContentDoesNotLeakCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        // A ContentDecoder that fires subscription.cancel() mid-read
+        var cancelDuringRead = new ContentDecoder() {
+            boolean firstRead = true;
+
+            @Override
+            public int read(ByteBuffer byteBuffer) {
+                if (firstRead) {
+                    firstRead = false;
+                    subscriber.subscription.cancel();
+                    byteBuffer.put(message);
+                    return message.length;
+                }
+                return 0;
+            }
+
+            @Override
+            public boolean isCompleted() {
+                return true;
+            }
+        };
+
+        publisher.consumeContent(cancelDuringRead, mock(IOControl.class));
+
+        assertThat(
+            "bytes charged to the circuit breaker after cancelUpstream() raced past the guard must be released",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
     public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));

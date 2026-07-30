@@ -31,6 +31,8 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`).
 - `ColumnarNumericRangeQuery`: self-contained Lucene range query over `getBinary`.
 - Tests: round-trip, fast-path + skipper vs brute force, end-to-end range query, multi-segment merge.
+- `SplitDeltaTransform` (frozen id 3) and `AlpDoubleTransform` (frozen id 4) registered in
+  `NumericPipeline.Registry`; both available for use once per-field pipeline selection lands.
 
 ## Next
 

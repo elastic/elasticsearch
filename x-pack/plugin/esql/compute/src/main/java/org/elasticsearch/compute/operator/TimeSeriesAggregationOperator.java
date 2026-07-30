@@ -419,7 +419,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         "org.elasticsearch.compute.aggregation.ValuesIntGroupingAggregatorFunction",
         "org.elasticsearch.compute.aggregation.ValuesLongGroupingAggregatorFunction",
         "org.elasticsearch.compute.aggregation.ValuesDoubleGroupingAggregatorFunction",
-        "org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction"
+        "org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction",
+        "org.elasticsearch.compute.aggregation.PackDimsGroupingAggregatorFunction"
     );
 
     static boolean isValuesAggregator(GroupingAggregatorFunction aggregatorFunction) {

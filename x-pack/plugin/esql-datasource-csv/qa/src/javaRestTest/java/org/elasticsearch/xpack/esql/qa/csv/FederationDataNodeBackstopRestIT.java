@@ -37,20 +37,27 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Exercises the federation kill switch's data-node backstop ({@code LocalExecutionPlanner.planExternalSource})
- * at its call site, which the pure-unit {@code FederationTests} cannot: that helper test drives
- * {@code Federation.ensureEnabled(boolean)} directly, so deleting the backstop call from the planner would not
- * make it fail.
+ * Pins the end-to-end behavior a node without federation owes an enabled coordinator: it refuses the external scan
+ * and reads nothing. The pure-unit {@code FederationTests} cannot show this, since it drives
+ * {@code Federation.ensureEnabled(boolean)} directly rather than through any call site.
  *
  * <p>The cluster splits roles across two JVMs: node 0 is coordinating-only with federation <em>enabled</em>,
- * node 1 is master+data with federation <em>suppressed</em> at boot. This is the mixed / rolling-restart window
- * the backstop guards. All requests target the enabled coordinator, which registers a local-file CSV data
- * source and dataset (the create actions still work through the suppressed master because the transport actions
- * stay registered), then runs {@code FROM <dataset>}. The coordinator resolves the dataset and dispatches the
- * external scan to the disabled data node, which must refuse it at operator build with a {@code 400}
- * ({@code external data sources are not available}) rather than reading the file. With the backstop removed the
- * data node would scan the CSV and the query would succeed, so this test goes red exactly when the wiring is
- * lost.
+ * node 1 is master+data with {@code esql.federation.enabled} turned <em>off</em> at boot. This is the
+ * rolling-restart window the refusal guards. All requests target the enabled coordinator, which registers a
+ * local-file CSV data source and dataset (the create actions still work through the disabled master because the
+ * transport actions stay registered), then runs {@code FROM <dataset>}. The coordinator resolves the dataset and
+ * dispatches the external scan to the disabled data node, which must answer {@code 400}
+ * ({@code external data sources are not available}) rather than reading the file.
+ *
+ * <p>Two independent mechanisms produce that answer, and this suite deliberately does not distinguish them: the
+ * request-entry gate in {@code DataNodeComputeHandler.handleExternalSourceRequest} refuses first, and the operator
+ * build backstop in {@code LocalExecutionPlanner.planExternalSource} would refuse the same query if the gate were
+ * gone. So removing either one alone leaves this test green; what goes red is losing both, i.e. the data node
+ * actually serving external data. Each mechanism has its own narrower test:
+ * {@code LocalExecutionPlannerTests.testExternalSourceRefusedWhenFederationIsNotAvailable} for the backstop, and
+ * for the gate the shapes only it can catch, an ungrouped aggregate that {@code PushStatsToExternalSource} answers
+ * from split statistics and folds to a {@code LocalSourceExec}, which local CSV cannot produce because it carries
+ * no statistics.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class FederationDataNodeBackstopRestIT extends ESRestTestCase {
@@ -100,14 +107,14 @@ public class FederationDataNodeBackstopRestIT extends ESRestTestCase {
         assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);
         String uri = localFixturesPath.resolve("standalone/employees.csv").toUri().toString();
         // Register a local-file data source + dataset over the fixture. The create requests go through the
-        // suppressed master node: they succeed because the federation transport actions stay registered even
-        // when the switch is engaged (only the REST handlers are unregistered).
+        // disabled master node: they succeed because the federation transport actions stay registered even when
+        // federation is off (only the REST handlers are unregistered).
         DatasetRegistry.ensureDataSource(client(), LOCAL_DATA_SOURCE, "local", Map.of());
         DatasetRegistry.ensureDataset(client(), DATASET, LOCAL_DATA_SOURCE, uri, "{ \"multi_value_syntax\": \"brackets\" }");
 
         Request request = new Request("POST", "/_query");
         // external_distribution=round_robin forces the scan onto the data node (the adaptive default might run a
-        // single small split locally on the coordinator), so the disabled data node's backstop is the path under test.
+        // single small split locally on the coordinator), so the disabled data node is the one that has to refuse.
         request.setJsonEntity(
             "{\"query\":\"FROM " + DATASET + " | STATS c = COUNT(*)\",\"pragma\":{\"external_distribution\":\"round_robin\"}}"
         );

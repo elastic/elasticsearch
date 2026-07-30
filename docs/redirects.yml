@@ -652,9 +652,13 @@ redirects:
 
   # semantic_text documentation restructuring - anchors moved to new pages
   'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md':
-    anchors:
-      'using-custom-endpoint': 'using-external-inference'
-      'preconfigured-endpoints': 'using-eis-models'
+    to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+    anchors: {} # pass-through unlisted anchors
+    many:
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+        anchors:
+          'using-custom-endpoint': 'using-external-inference'
+          'preconfigured-endpoints': 'using-eis-models'
 
   'reference/elasticsearch/mapping-reference/semantic-text.md':
     to: 'reference/elasticsearch/mapping-reference/semantic-text.md'
@@ -663,6 +667,7 @@ redirects:
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
         anchors:
           'using-elser-on-eis': 'using-elser-on-eis'
+          'using-jina-on-eis': 'using-jina-on-eis'
           'using-custom-endpoint': 'using-external-inference'
           'preconfigured-endpoints': 'using-eis-models'
           'default-endpoints': 'default-endpoints'

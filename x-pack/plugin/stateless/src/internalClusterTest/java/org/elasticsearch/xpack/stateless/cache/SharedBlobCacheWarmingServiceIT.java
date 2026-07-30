@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -105,6 +104,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -687,6 +688,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         return measurementsAsLongs.getFirst();
     }
 
+    /// Covers a search shard recovering against a commit whose VBCC is still pending upload on the indexing node, where the
+    /// upload lands midway through warming.
+    ///
+    /// Warming starts by reading the VBCC from the indexing node. The test forces a flush on the first such read, so the VBCC
+    /// is uploaded to the object store while warming is in flight. The indexing node then answers subsequent reads with a
+    /// `ResourceAlreadyUploadedException`, and the reader is expected to switch over to the object store and finish warming
+    /// from there. Recovery is put into await-warming mode so that warming has demonstrably completed before the engine opens.
+    ///
+    /// The switch to blob storage is asserted by banning VBCC reads against the indexing node once warming has completed: after the upload
+    /// the indexing node no longer serves that data, so any such read means the switch never happened. Note that the object
+    /// store deliberately stays readable.
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
         var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
@@ -786,6 +798,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             connection.sendRequest(requestId, action, request, options);
         });
 
+        // Assert the indexing node never successfully serves VBCC data: the flush above lands before the first chunk request is
+        // forwarded, so every request must come back as an exception. Failures are passed through, only a successful response trips.
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
@@ -809,17 +823,38 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // Force recovery to await warming before opening the engine. Without this, warmCacheForSearchShardRecovery is
         // fire-and-forget in the VBCC path (searchRecoveryTimeout returns skip() — single shard copy, not a relocation),
-        // so the engine can open while warming is still in progress. When warming then blocks the object store, any
-        // in-flight reads from the engine fail. Awaiting warming ensures the object store is blocked before the engine opens.
+        // so the engine could open while warming is still in progress and the ban below would not yet be in place.
         getSharedBlobCacheWarmingService(searchNode).setAwaitWarmingForSearchRecovery(true);
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, Type.SEARCH);
 
+        // The generation whose VBCC is still pending upload, and which the mid-warming flush above uploads. Warming must run
+        // for it and complete by reading it from the object store once the upload lands.
+        final long uploadedGeneration = findIndexShard(indexName).commitStats().getGeneration();
+
+        // Both of these only subscribe; they fire when warming completes, which the await above places before the engine opens.
+        // The outcome is recorded rather than asserted on, because this listener runs on a warming thread where an
+        // AssertionError would surface as an unrelated recovery failure instead of as itself, only the first outcome is recorded.
+        final var warmedGeneration = new AtomicLong(-1L);
+        final var warmingFailure = new AtomicReference<Exception>();
+        runOnWarmingComplete(
+            searchNode,
+            Type.SEARCH,
+            ActionListener.wrap(
+                details -> warmedGeneration.compareAndSet(-1L, details.commit().generation()),
+                failure -> warmingFailure.compareAndSet(null, failure)
+            )
+        );
+        banIndexingNodeVbccReadsAfterPrewarming(searchNode, Type.SEARCH);
+
+        // Creates the search shard copy, which is what triggers the recovery (and therefore the warming) set up above.
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
         assertTrue(flushed.get());
+        if (warmingFailure.get() != null) {
+            fail(warmingFailure.get(), "search shard warming failed");
+        }
+        assertThat(warmedGeneration.get(), equalTo(uploadedGeneration));
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
 
-        stopFailingObjectStore(searchNode);
         disableTransportBlocking(searchNode);
         ensureSearchHits(indexName, totalDocs);
     }
@@ -1419,7 +1454,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node));
         final var transportService = MockTransportService.getInstance(node);
         runOnWarmingComplete(node, type, ActionListener.running(() -> {
-            logger.info("--> fail object store repository after warming");
+            logger.info("--> fail object store repository after warming for generation [{}]", generationToBlock);
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
             mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
@@ -1432,6 +1467,21 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 connection.sendRequest(requestId, action, request, options);
             });
         }));
+    }
+
+    /// Asserts that once warming has completed nothing reads VBCC data from the indexing node again.
+    private static void banIndexingNodeVbccReadsAfterPrewarming(String node, Type type) {
+        final var transportService = MockTransportService.getInstance(node);
+        runOnWarmingComplete(
+            node,
+            type,
+            ActionListener.running(() -> transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }))
+        );
     }
 
     private static void runOnWarmingComplete(String node, Type type, ActionListener<CompletedWarmingDetails> listener) {
@@ -1500,6 +1550,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
     }
 
+    /// Simulates the shared blob cache having no free region to hand to warming, which makes [#maybeFetchRange] answer
+    /// `false` and warming skip that range while still reporting success.
     private static class MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService extends StatelessSharedBlobCacheService {
         private final AtomicBoolean noFreeRegionForWarming = new AtomicBoolean(false);
 
@@ -1522,6 +1574,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             );
         }
 
+        /// Overriding the timestamped overload alone covers every caller: the timestamp-less
+        /// [SharedBlobCacheService#maybeFetchRange] forwards here with `UNKNOWN_TIMESTAMP`. Do not override the timestamp-less
+        /// overload instead of this one — [SharedBlobCacheWarmingService] only calls the timestamped one, so such an override
+        /// silently stops intercepting warming.
         @Override
         public void maybeFetchRange(
             FileCacheKey cacheKey,
@@ -1530,13 +1586,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }
@@ -1750,10 +1807,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     private static void disableTransportBlocking(String node) {
-        MockTransportService.getInstance(node)
-            .addSendBehavior(
-                (connection, requestId, action, request, options) -> connection.sendRequest(requestId, action, request, options)
-            );
+        MockTransportService.getInstance(node).addSendBehavior(Transport.Connection::sendRequest);
     }
 
     private static void stopFailingObjectStore(String node) {

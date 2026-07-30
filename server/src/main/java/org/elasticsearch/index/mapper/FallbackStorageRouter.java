@@ -138,7 +138,7 @@ public final class FallbackStorageRouter {
     }
 
     /** Maps a {@link Reason} to its {@link Destination}. */
-    public static Destination route(Reason reason) {
+    static Destination route(Reason reason) {
         return switch (reason) {
             case MALFORMED -> Destination.IGNORE_MALFORMED;
             case MULTI_VALUE_VIOLATION -> Destination.ON_FAILURE;
@@ -151,7 +151,7 @@ public final class FallbackStorageRouter {
      * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
      * before the mapper runs, or {@link Optional#empty()} if no pre-capture is needed.
      */
-    public static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
+    static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
         if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
             return Optional.empty();
         }
@@ -258,7 +258,7 @@ public final class FallbackStorageRouter {
      * Like {@link #write(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
      * (i.e. routing to {@link Destination#IGNORED_SOURCE} with {@link DocumentParserContext#canAddIgnoredField()} false).
      */
-    public static void writeOrSkip(
+    static void writeOrSkip(
         DocumentParserContext context,
         String fieldPath,
         Reason reason,
@@ -272,7 +272,7 @@ public final class FallbackStorageRouter {
     /**
      * Like {@link #writeParent(DocumentParserContext, Reason)} but invokes {@code ifNotWritten} when the write is skipped.
      */
-    public static void writeParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
+    static void writeParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
         throws IOException {
         if (writeParent(context, reason) == false) {
             ifNotWritten.run();
@@ -283,7 +283,7 @@ public final class FallbackStorageRouter {
      * Like {@link #write(DocumentParserContext, String, Reason)} but stores {@code context.parent()}
      * as the captured entity (e.g. a disabled object), not a child field.
      */
-    public static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
+    private static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
         if (route(reason) == Destination.IGNORED_SOURCE) {
             return writeParentToIgnoredSource(context);
         }
@@ -294,7 +294,7 @@ public final class FallbackStorageRouter {
      * Pre-captures the current parser position for {@code fieldPath} so it can be reconstructed in
      * {@code _ignored_source}. Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath) throws IOException {
+    static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -306,7 +306,7 @@ public final class FallbackStorageRouter {
      * as the entity (e.g. a disabled object), not a child field.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    public static DocumentParserContext preCaptureParent(DocumentParserContext context) throws IOException {
+    static DocumentParserContext preCaptureParent(DocumentParserContext context) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }

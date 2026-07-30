@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -44,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
  * {@code double_range} (from two {@code double} values).
  * Future overloads will cover {@code long_range}, {@code integer_range}, {@code ip_range}, etc.
  */
-public class ToRange extends EsqlScalarFunction {
+public class ToRange extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToRange", ToRange::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToRange.class).binary(ToRange::new).name("to_range");
 

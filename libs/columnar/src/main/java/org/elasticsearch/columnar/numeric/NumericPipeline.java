@@ -72,16 +72,18 @@ public final class NumericPipeline {
         public static NumericPipeline rebuild(byte terminalId, byte[] transformIds, int blockSize) {
             BlockTransform[] transforms = new BlockTransform[transformIds.length];
             for (int i = 0; i < transformIds.length; i++) {
-                transforms[i] = transform(transformIds[i]);
+                transforms[i] = transform(transformIds[i], blockSize);
             }
             return new NumericPipeline(transforms, terminal(terminalId, blockSize));
         }
 
-        private static BlockTransform transform(byte id) {
+        private static BlockTransform transform(byte id, int blockSize) {
             return switch (id) {
                 case DeltaTransform.ID -> DeltaTransform.INSTANCE;
                 case OffsetTransform.ID -> OffsetTransform.INSTANCE;
                 case GcdTransform.ID -> GcdTransform.INSTANCE;
+                case SplitDeltaTransform.ID -> new SplitDeltaTransform();
+                case AlpDoubleTransform.ID -> new AlpDoubleTransform(blockSize);
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };
         }

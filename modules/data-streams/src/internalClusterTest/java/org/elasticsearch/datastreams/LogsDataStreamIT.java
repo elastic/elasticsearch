@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -56,6 +57,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.is;
 
 public class LogsDataStreamIT extends ESSingleNodeTestCase {
+
+    private IndexMode logsMode;
+
+    @Before
+    public void setLogsMode() {
+        logsMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.LOGSDB_COLUMNAR : IndexMode.LOGSDB;
+    }
 
     private static final String LOGS_OR_STANDARD_MAPPING = """
         {
@@ -166,7 +174,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
             client(),
             "logs-composable-template",
             LOGS_OR_STANDARD_MAPPING,
-            Map.of("index.mode", "logsdb"),
+            Map.of("index.mode", logsMode.getName()),
             List.of("logs-*-*")
         );
         final String dataStreamName = generateDataStreamName("logs");
@@ -189,7 +197,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         );
         createDataStream(client(), dataStreamName);
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            final IndexMode indexMode = i % 2 == 0 ? IndexMode.LOGSDB : IndexMode.STANDARD;
+            final IndexMode indexMode = i % 2 == 0 ? logsMode : IndexMode.STANDARD;
             indexModes.add(indexMode);
             updateComposableIndexTemplate(
                 client(),
@@ -207,7 +215,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     public void testIndexModeLogsAndTimeSeriesSwitching() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
+        final Map<String, String> logsSettings = Map.of("index.mode", logsMode.getName());
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
@@ -222,13 +230,13 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         rolloverDataStream(dataStreamName);
         indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
 
-        assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGSDB, IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        assertDataStreamBackingIndicesModes(dataStreamName, List.of(logsMode, IndexMode.TIME_SERIES, logsMode));
     }
 
     public void testInvalidIndexModeTimeSeriesSwitchWithoutRoutingPath() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
+        final Map<String, String> logsSettings = Map.of("index.mode", logsMode.getName());
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
@@ -250,7 +258,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     public void testInvalidIndexModeTimeSeriesSwitchWithoutDimensions() throws IOException, ExecutionException, InterruptedException {
         final String dataStreamName = generateDataStreamName("custom");
         final List<String> indexPatterns = List.of("custom-*-*");
-        final Map<String, String> logsSettings = Map.of("index.mode", "logsdb");
+        final Map<String, String> logsSettings = Map.of("index.mode", logsMode.getName());
         final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "host.name");
 
         putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);

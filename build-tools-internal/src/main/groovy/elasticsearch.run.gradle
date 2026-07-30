@@ -33,7 +33,7 @@ testClusters.register("runTask") {
       keystore 'cluster.state.encryption.password.local-dev', 'local-dev-password'
       keystore 'cluster.state.encryption.active_password_id', 'local-dev'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
-      numberOfNodes = 1
+      numberOfNodes = providers.systemProperty('run.nodes').map { it.toInteger() }.orElse(1).get()
       // Arrow memory allocator needs access to java.nio internals
       jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
       // UninitializedArrays needs reflective access to jdk.internal.misc.Unsafe

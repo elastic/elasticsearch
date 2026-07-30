@@ -186,7 +186,8 @@ public final class FallbackPostMapper {
      * Commits or discards the pending pre-capture based on {@code result}, and routes
      * {@link FieldMapper.ParseResult.MultiValueViolation} to {@code ._on_failure}. Call after {@link FieldMapper#parse}.
      */
-    public static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper) throws IOException {
+    public static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper)
+        throws IOException {
         String fieldPath = fieldMapper.fullPath();
         boolean precaptured = context.hasPendingPreCapture(fieldPath);
         switch (result) {

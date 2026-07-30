@@ -15,6 +15,7 @@ import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
@@ -2218,35 +2219,35 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // The number of concurrent tasks in the rask runner is one more than the max number of threads in the pool
             // so to control the scheduling we need two tasks.
 
-            // This task occupies the single available thread in the thread pool.
-            var task1Blocked = new CountDownLatch(1);
-            var task1 = new AbstractWarmingTask(INDEXING, 1) {
+            // This task occupies the first available slot in the task runner.
+            var taskRunnerLatch1 = new CountDownLatch(1);
+            var taskRunnerBlocker1 = new AbstractWarmingTask(INDEXING, 1) {
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {
-                        safeAwait(task1Blocked);
+                        safeAwait(taskRunnerLatch1);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {}
             };
-            warmingService.scheduleWarmingTask(task1);
+            warmingService.scheduleWarmingTask(taskRunnerBlocker1);
 
-            // This task occupies the last available slot in the task runner and is in the thread pool queue.
-            var task2Blocked = new CountDownLatch(1);
-            var task2 = new AbstractWarmingTask(INDEXING, 1) {
+            // This task occupies the second and last available slot in the task runner.
+            var taskRunnerLatch2 = new CountDownLatch(1);
+            var taskRunnerBlocker2 = new AbstractWarmingTask(INDEXING, 1) {
                 @Override
                 public void onResponse(Releasable releasable) {
                     try (releasable) {
-                        safeAwait(task2Blocked);
+                        safeAwait(taskRunnerLatch2);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {}
             };
-            warmingService.scheduleWarmingTask(task2);
+            warmingService.scheduleWarmingTask(taskRunnerBlocker2);
 
             // Now we can submit warming tasks with different priorities which will be added
             // to the task runner queue.
@@ -2309,37 +2310,41 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             IndexShard indexShard = mockIndexShard(fakeNode);
-            PlainActionFuture<Void> nonMergeWarmFuture = new PlainActionFuture<>();
-            warmingService.warmCache(
-                randomValueOtherThanMany(t -> t == Type.INDEXING_MERGE || t == SEARCH, () -> randomFrom(Type.values())),
-                indexShard,
-                lastCommit,
-                fakeNode.indexingDirectory.getBlobStoreCacheDirectory(),
-                null,
-                false,
-                nonMergeWarmFuture
+            var nonMergeWarmListener = SubscribableListener.<Void>newForked(
+                l -> warmingService.warmCache(
+                    randomValueOtherThanMany(t -> t == Type.INDEXING_MERGE || t == SEARCH, () -> randomFrom(Type.values())),
+                    indexShard,
+                    lastCommit,
+                    fakeNode.indexingDirectory.getBlobStoreCacheDirectory(),
+                    null,
+                    false,
+                    l
+                )
             );
 
-            // task1 occupies the single thread of the thread pool and task2 is in the thread pool queue.
-            // This allows task2 to get the thread in the thread pool,
-            // pulls the head item from the task runner queue and adds it to the thread pool queue.
-            task1Blocked.countDown();
+            nonMergeWarmListener.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void o) {
+                    // This should be executed before releasing a slot in the task runner
+                    // so this should be always false.
+                    assertFalse(mergeWarmFuture.isDone());
+                }
 
-            // Submit another blocking task directly to the thread pool queue to block the pool again right after
-            // the first item from the task runner queue executes.
-            // This ensures we have strong asserts on which future is executed first below.
-            var inBetweenTaskBlocked = new CountDownLatch(1);
-            Runnable inBetweenTask = () -> safeAwait(inBetweenTaskBlocked);
-            fakeNode.threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL).submit(inBetweenTask);
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
 
-            // This allows the task in the thread pool queue to be executed and pulls the head item from the task runner queue.
-            // Due to priority this has to be the non-merge warming task.
-            task2Blocked.countDown();
+            // This completes the `taskRunnerBlocker1` which means there is now one free
+            // slot in the task runner.
+            // Now the head task of the queue will be executed.
+            taskRunnerLatch1.countDown();
 
-            safeGet(nonMergeWarmFuture);
-            assertFalse(mergeWarmFuture.isDone());
+            // Once we unblock the thread pool, we expect the task that is executed first to have correct priority.
+            safeAwait(nonMergeWarmListener);
 
-            inBetweenTaskBlocked.countDown();
+            taskRunnerLatch2.countDown();
             safeGet(mergeWarmFuture);
         }
     }

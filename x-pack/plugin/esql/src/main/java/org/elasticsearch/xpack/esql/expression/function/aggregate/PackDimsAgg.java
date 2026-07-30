@@ -38,19 +38,15 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
 
     public static final TransportVersion PACK_DIMS_AGG_VERSION = TransportVersion.fromName("pack_dims_agg");
 
-    public PackDimsAgg(Source source, List<? extends Expression> dimensions) {
-        this(source, requireNonEmpty(dimensions).getFirst(), Literal.TRUE, NO_WINDOW, dimensions.subList(1, dimensions.size()));
-    }
-
-    private static List<? extends Expression> requireNonEmpty(List<? extends Expression> dimensions) {
+    public static PackDimsAgg create(Source source, List<? extends Expression> dimensions) {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("PackDimsAgg requires at least one dim");
         }
-        return dimensions;
+        return new PackDimsAgg(source, dimensions.getFirst(), Literal.TRUE, NO_WINDOW, dimensions.subList(1, dimensions.size()));
     }
 
-    private PackDimsAgg(Source source, Expression field, Expression filter, Expression window, List<? extends Expression> parameters) {
-        super(source, field, filter, window, parameters);
+    public PackDimsAgg(Source source, Expression field, Expression filter, Expression window, List<? extends Expression> extraDims) {
+        super(source, field, filter, window, extraDims);
     }
 
     private PackDimsAgg(StreamInput in) throws IOException {

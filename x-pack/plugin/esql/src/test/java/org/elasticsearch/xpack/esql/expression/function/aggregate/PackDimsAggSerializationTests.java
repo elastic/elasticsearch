@@ -27,14 +27,14 @@ public class PackDimsAggSerializationTests extends AbstractExpressionSerializati
         for (int i = 0; i < n; i++) {
             dims.add(randomDimension());
         }
-        return new PackDimsAgg(randomSource(), dims);
+        return PackDimsAgg.create(randomSource(), dims);
     }
 
     @Override
     protected PackDimsAgg mutateInstance(PackDimsAgg instance) throws IOException {
         List<Expression> dims = new ArrayList<>(instance.dims());
         dims.set(0, randomValueOtherThan(dims.get(0), this::randomDimension));
-        return new PackDimsAgg(instance.source(), dims);
+        return PackDimsAgg.create(instance.source(), dims);
     }
 
     private Expression randomDimension() {

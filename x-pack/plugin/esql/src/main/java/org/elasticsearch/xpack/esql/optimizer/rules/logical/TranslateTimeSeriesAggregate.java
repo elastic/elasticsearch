@@ -645,7 +645,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                     }
                 }
                 Attribute packed = packDims.packed();
-                newAggregates.add(new Alias(packDims.source(), packed.name(), new PackDimsAgg(aggs.source(), dims), packed.id()));
+                newAggregates.add(new Alias(packDims.source(), packed.name(), PackDimsAgg.create(aggs.source(), dims), packed.id()));
                 return aggs.with(aggs.child(), aggs.groupings(), mergeExpressions(newAggregates, aggs.groupings()));
             }
             return packDims;

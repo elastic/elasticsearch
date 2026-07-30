@@ -343,7 +343,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             // always include vectors in the response unless explicitly set
             var fetchSource = sourceBuilder.fetchSource();
             if (fetchSource == null) {
-                sourceBuilder.fetchSource(FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS);
+                sourceBuilder.fetchSource(FetchSourceContext.FETCH_SOURCE_WITH_VECTORS);
             } else if (fetchSource.excludeVectors() == null) {
                 sourceBuilder.excludeVectors(false);
             }

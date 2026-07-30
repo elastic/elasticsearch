@@ -1657,20 +1657,6 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
-         * so it can depend on sibling multi-fields, which are only known after this parameter is
-         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
-         */
-        public static DocValuesParameter of(
-            Supplier<Values> defaultValueSupplier,
-            Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
-        ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
-        }
-
-        /**
          * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
          * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
          * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.

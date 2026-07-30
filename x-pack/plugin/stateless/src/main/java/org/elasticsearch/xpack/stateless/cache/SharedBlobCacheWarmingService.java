@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.PrioritizedThrottledAsyncTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -369,7 +370,9 @@ public class SharedBlobCacheWarmingService {
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final Executor uploadPrewarmFetchExecutor;
-    private final ThrottledTaskRunner throttledTaskRunner;
+    private final PrioritizedThrottledAsyncTaskRunner<AbstractWarmingTask> warmingTaskRunner;
+    private final AtomicLong warmingTaskNumber;
+    private final Executor readCommitsForSearchWarmingExecutor;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
@@ -407,10 +410,28 @@ public class SharedBlobCacheWarmingService {
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
         // having the PREWARM_THREAD_POOL stall while the next task is being queued up
-        this.throttledTaskRunner = new ThrottledTaskRunner(
+        this.warmingTaskRunner = new PrioritizedThrottledAsyncTaskRunner<>(
             "prewarming-cache",
             1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
+        );
+        this.warmingTaskNumber = new AtomicLong(0);
+        this.readCommitsForSearchWarmingExecutor = runnable -> warmingTaskRunner.enqueueTask(
+            // We know this is always used with SEARCH type.
+            new AbstractWarmingTask(Type.SEARCH, warmingTaskNumber.getAndIncrement()) {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        runnable.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Only rejections caused by the shutdown of the thread pool should be possible here.
+                    logger.warn("Failed to submit task to warmingTaskRunner", e);
+                }
+            }
         );
         // We fork cfe prewarming to the generic pool to avoid blocking stateless_fill_vbcc_cache threads,
         // since their completion can also happen on that pool (and it is sized only for copying prefilled buffers to disk).
@@ -802,7 +823,7 @@ public class SharedBlobCacheWarmingService {
                                 BlobCacheIndexInput.WARMING,
                                 // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
                                 // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
-                                throttledTaskRunner.asExecutor(),
+                                readCommitsForSearchWarmingExecutor,
                                 referencedCompoundCommit -> {
                                     if (searchOfflineWarmingEnabled) {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();
@@ -1206,8 +1227,8 @@ public class SharedBlobCacheWarmingService {
 
     private record WarmingRun(Type type, ShardId shardId, String logIdentifier, Map<String, Object> labels) {}
 
-    protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
-        throttledTaskRunner.enqueueTask(warmTask);
+    protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
+        warmingTaskRunner.enqueueTask(warmTask);
     }
 
     private class ShardWarmer extends AbstractWarmer {
@@ -1426,7 +1447,7 @@ public class SharedBlobCacheWarmingService {
 
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
             if (blobRanges.add(blobLocation, position, length, timestampMillis, listener)) {
-                scheduleWarmingTask(new WarmingTask(blobRanges));
+                scheduleWarmingTask(new WarmingTask(warmingRun.type, blobRanges));
             }
         }
 
@@ -1481,7 +1502,7 @@ public class SharedBlobCacheWarmingService {
 
             locations.forEach(
                 (blobFile, length) -> scheduleWarmingTask(
-                    new WarmBlobLocationTask(new BlobLocation(blobFile, 0, length), listeners.acquire())
+                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), listeners.acquire())
                 )
             );
         }
@@ -1533,7 +1554,9 @@ public class SharedBlobCacheWarmingService {
         }
 
         void run() {
-            scheduleWarmingTask(new WarmBlobByteRangeTask(blobFile, byteRangeToWarm, timestampMillis, listeners.acquire()));
+            scheduleWarmingTask(
+                new WarmBlobByteRangeTask(warmingRun.type, blobFile, byteRangeToWarm, timestampMillis, listeners.acquire())
+            );
         }
 
         @Override
@@ -1575,6 +1598,7 @@ public class SharedBlobCacheWarmingService {
             for (var blobFile : blobFiles) {
                 scheduleWarmingTask(
                     new WarmBlobLocationTask(
+                        warmingRun.type,
                         // We want to prewarm the entire region 0, and the blob location file length is used
                         // just to compute the ending region. With this we avoid having to know the blob length
                         // upfront and we can just let the cache to fetch the entire region 0.
@@ -1662,18 +1686,19 @@ public class SharedBlobCacheWarmingService {
             }
         }
 
-        protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
+        protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
             SharedBlobCacheWarmingService.this.scheduleWarmingTask(warmTask);
             tasksCount.incrementAndGet();
         }
 
-        protected class WarmBlobLocationTask implements ActionListener<Releasable> {
+        protected class WarmBlobLocationTask extends AbstractWarmingTask {
 
             private final BlobLocation blobLocation;
             private final BlobFile blobFile;
             private final ActionListener<Void> listener;
 
-            WarmBlobLocationTask(BlobLocation blobLocation, ActionListener<Void> listener) {
+            WarmBlobLocationTask(Type type, BlobLocation blobLocation, ActionListener<Void> listener) {
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.blobLocation = Objects.requireNonNull(blobLocation);
                 this.blobFile = blobLocation.blobFile();
                 this.listener = listener;
@@ -1725,12 +1750,13 @@ public class SharedBlobCacheWarmingService {
         /**
          * Warms in cache all pending file locations of a given blob region.
          */
-        protected class WarmingTask implements ActionListener<Releasable> {
+        protected class WarmingTask extends AbstractWarmingTask {
 
             private final BlobRangesQueue queue;
             private final BlobRegion blobRegion;
 
-            WarmingTask(BlobRangesQueue queue) {
+            WarmingTask(Type type, BlobRangesQueue queue) {
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobRegion);
@@ -1863,7 +1889,7 @@ public class SharedBlobCacheWarmingService {
         }
 
         // protected for tests
-        protected class WarmBlobByteRangeTask implements ActionListener<Releasable> {
+        protected class WarmBlobByteRangeTask extends AbstractWarmingTask {
             // protected for tests
             protected final BlobFile blobFile;
             // protected for tests
@@ -1871,7 +1897,14 @@ public class SharedBlobCacheWarmingService {
             private final long timestampMillis;
             private final ActionListener<Void> listener;
 
-            WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, long timestampMillis, ActionListener<Void> listener) {
+            WarmBlobByteRangeTask(
+                Type type,
+                BlobFile blobFile,
+                ByteRange byteRangeToWarm,
+                long timestampMillis,
+                ActionListener<Void> listener
+            ) {
+                super(type, warmingTaskNumber.getAndIncrement());
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
                 this.timestampMillis = timestampMillis;
@@ -1934,6 +1967,48 @@ public class SharedBlobCacheWarmingService {
 
         protected boolean isCancelled() {
             return isStoreClosing.get();
+        }
+    }
+
+    /// Base class for warming tasks that establishes priority of warming tasks.
+    /// All types have equal priority except [Type#INDEXING_MERGE] which has a lower priority.
+    /// Tasks of equal priority based on type are ordered by caller-defined `position`.
+    abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
+        protected final Type type;
+        protected final long position;
+
+        AbstractWarmingTask(Type warmingType, long position) {
+            this.type = warmingType;
+            this.position = position;
+        }
+
+        @Override
+        public int compareTo(AbstractWarmingTask that) {
+            // Merge warming has lower priority than other types (meaning it should compare bigger).
+            // Other types have equivalent priority but will be executed in FIFO order using provided task position.
+            // `position` can technically overflow but that would only result in a small amount of tasks having
+            // wrong priorities for a short time period.
+            // So we don't have any special logic for that.
+            if (type == Type.INDEXING_MERGE) {
+                if (that.type == Type.INDEXING_MERGE) {
+                    return Long.compare(position, that.position);
+                } else {
+                    return 1;
+                }
+            }
+
+            return that.type == Type.INDEXING_MERGE ? -1 : Long.compare(position, that.position);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof AbstractWarmingTask that)) return false;
+            return position == that.position && type == that.type;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, position);
         }
     }
 }

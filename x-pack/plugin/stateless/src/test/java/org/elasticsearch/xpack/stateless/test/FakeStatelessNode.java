@@ -255,7 +255,7 @@ public class FakeStatelessNode implements Closeable {
         );
 
         try (var localCloseables = new TransferableCloseables()) {
-            threadPool = createThreadPool();
+            threadPool = createThreadPool(nodeSettings);
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
@@ -348,8 +348,8 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected ThreadPool createThreadPool() {
-        return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    protected ThreadPool createThreadPool(Settings nodeSettings) {
+        return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
     }
 
     protected ClusterSettings createClusterSettings(Settings settings) {

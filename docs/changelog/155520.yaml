@@ -1,4 +1,4 @@
-area: "TSDB, ES|QL"
+area: TSDB
 issues:
  - 147995
 pr: 155520

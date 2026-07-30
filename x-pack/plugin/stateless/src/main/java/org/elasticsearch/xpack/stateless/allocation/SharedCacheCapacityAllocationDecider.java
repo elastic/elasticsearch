@@ -122,6 +122,17 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Rate-limits how often {@link SharedCacheCapacityMonitor} calls {@link org.elasticsearch.cluster.routing.RerouteService#reroute}
+     * for an unchanged set of over-subscribed nodes.
+     */
+    public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.shared_cache_capacity.reroute_interval",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Decision YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED = Decision.single(
         Decision.Type.YES,
         NAME,

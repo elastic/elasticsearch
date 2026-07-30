@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -68,51 +69,29 @@ class RemoteFetchReductionPlanner {
 
     record CoordinatorPlan(PhysicalPlan coordinatorPlan, ExchangeSinkExec dataNodePlan) {}
 
+    private record TopNPlanningContext(
+        FragmentExec fragmentExec,
+        Project topLevelProject,
+        TopN topN,
+        Attribute doc,
+        LogicalPlan withAddedDocToRelation,
+        List<Attribute> expectedDataOutput,
+        LocalPhysicalOptimizerContext optimizerContext
+    ) {}
+
     static Optional<CoordinatorPlan> planCoordinatorTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalDataPlan,
         PhysicalPlan coordinatorPlan
     ) {
-        FragmentExec fragmentExec = originalDataPlan.child() instanceof FragmentExec fe ? fe : null;
-        if (fragmentExec == null) {
+        TopNPlanningContext planningContext = topNPlanningContext(contextFactory, originalDataPlan).orElse(null);
+        if (planningContext == null) {
             return Optional.empty();
         }
-        Project topLevelProject = fragmentExec.fragment() instanceof Project p ? p : null;
-        if (topLevelProject == null) {
-            return Optional.empty();
-        }
-        TopN topN = topLevelProject.child() instanceof TopN tn ? tn : null;
-        if (topN == null) {
-            return Optional.empty();
-        }
-
-        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
-        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topN, context).output();
-        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
-        if (doc == null) {
-            return Optional.empty();
-        }
-
-        LogicalPlan withAddedDocToRelation = topN.transformUp(EsRelation.class, r -> {
-            if (r.indexMode() == IndexMode.LOOKUP) {
-                return r;
-            }
-            if (r.outputSet().contains(doc)) {
-                return r;
-            }
-            return r.withAttributes(CollectionUtils.prependToCopy(doc, r.output()));
-        });
-        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
-            return Optional.empty();
-        }
-
-        AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
-        List<Attribute> expectedDataOutput = new ArrayList<>();
-        for (Attribute attr : physicalPlanOutput) {
-            if (topLevelProject.outputSet().contains(attr) || orderRefsSet.contains(attr) || EsQueryExec.isDocAttribute(attr)) {
-                expectedDataOutput.add(attr);
-            }
-        }
+        FragmentExec fragmentExec = planningContext.fragmentExec();
+        Project topLevelProject = planningContext.topLevelProject();
+        TopN topN = planningContext.topN();
+        List<Attribute> expectedDataOutput = planningContext.expectedDataOutput();
 
         List<Attribute> exchangeOutput = new ArrayList<>();
         Attribute handle = handleAttribute(topN.source());
@@ -137,7 +116,9 @@ class RemoteFetchReductionPlanner {
             return Optional.empty();
         }
 
-        FragmentExec updatedFragmentExec = fragmentExec.withFragment(new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput));
+        FragmentExec updatedFragmentExec = fragmentExec.withFragment(
+            new Project(Source.EMPTY, planningContext.withAddedDocToRelation(), expectedDataOutput)
+        );
         ExchangeSinkExec updatedDataPlan = new ExchangeSinkExec(
             originalDataPlan.source(),
             exchangeOutput,
@@ -146,7 +127,7 @@ class RemoteFetchReductionPlanner {
         );
         FragmentExec fetchPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, attributesToFetch));
 
-        var replacedTopN = new org.elasticsearch.xpack.esql.core.util.Holder<Boolean>(false);
+        var replacedTopN = new Holder<Boolean>(false);
         PhysicalPlan updatedCoordinatorPlan = coordinatorPlan.transformDown(PhysicalPlan.class, p -> {
             if ((p instanceof TopNExec) == false || replacedTopN.get()) {
                 return p;
@@ -180,6 +161,70 @@ class RemoteFetchReductionPlanner {
         if (handle == null) {
             return Optional.empty();
         }
+        TopNPlanningContext planningContext = topNPlanningContext(contextFactory, originalPlan).orElse(null);
+        if (planningContext == null) {
+            return Optional.empty();
+        }
+        FragmentExec fragmentExec = planningContext.fragmentExec();
+        TopN topN = planningContext.topN();
+        Attribute doc = planningContext.doc();
+        LocalPhysicalOptimizerContext context = planningContext.optimizerContext();
+        List<Attribute> expectedDataOutput = planningContext.expectedDataOutput();
+        if (expectedDataOutput.stream().noneMatch(EsQueryExec::isDocAttribute)) {
+            return Optional.empty();
+        }
+
+        FragmentExec updatedFragmentExec = fragmentExec.withFragment(
+            new Project(Source.EMPTY, planningContext.withAddedDocToRelation(), expectedDataOutput)
+        );
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
+
+        PhysicalPlan reductionPlan = toPhysicalPlanForReductionSchema(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
+            PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false);
+            boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
+            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
+        });
+        Alias handleAlias = new Alias(
+            Source.EMPTY,
+            handle.name(),
+            new RemoteFetchHandleFunction(Source.EMPTY, doc, localNodeId, retainedSessionId),
+            handle.id(),
+            true
+        );
+        PhysicalPlan withHandle = new EvalExec(Source.EMPTY, reductionPlan, List.of(handleAlias));
+        PhysicalPlan projected = new ProjectExec(Source.EMPTY, withHandle, originalPlan.output());
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), projected);
+        return Optional.of(new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan));
+    }
+
+    /**
+     * Detects the serialized signal that coordinator planning inserted a remote-fetch reduction. Until the exchange plan carries a
+     * dedicated marker, the synthetic handle attribute is the cross-node contract.
+     */
+    static boolean needsRetainedSearchContexts(PhysicalPlan plan) {
+        return plan.anyMatch(p -> p.output().stream().anyMatch(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute));
+    }
+
+    private static Attribute handleAttribute(Source source) {
+        return new ReferenceAttribute(source, null, HANDLE_ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
+    }
+
+    private static Optional<Attribute> remoteFetchHandleAttribute(List<Attribute> attributes) {
+        return attributes.stream().filter(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute).findFirst();
+    }
+
+    private static boolean isRemoteFetchHandleAttribute(Attribute attr) {
+        return attr.synthetic() && attr.name().equals(HANDLE_ATTRIBUTE_NAME) && attr.dataType() == DataType.KEYWORD;
+    }
+
+    private static boolean isFetchable(Attribute attr) {
+        return attr instanceof FieldAttribute || attr instanceof MetadataAttribute || attr instanceof TemporalityAttribute;
+    }
+
+    private static Optional<TopNPlanningContext> topNPlanningContext(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan
+    ) {
         FragmentExec fragmentExec = originalPlan.child() instanceof FragmentExec fe ? fe : null;
         if (fragmentExec == null) {
             return Optional.empty();
@@ -194,7 +239,7 @@ class RemoteFetchReductionPlanner {
         }
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
-        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topN, context).output();
+        List<Attribute> physicalPlanOutput = toPhysicalPlanForReductionSchema(topN, context).output();
         Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return Optional.empty();
@@ -220,52 +265,16 @@ class RemoteFetchReductionPlanner {
                 expectedDataOutput.add(attr);
             }
         }
-        if (expectedDataOutput.stream().noneMatch(EsQueryExec::isDocAttribute)) {
-            return Optional.empty();
-        }
-
-        FragmentExec updatedFragmentExec = fragmentExec.withFragment(new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput));
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
-
-        PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
-            PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false);
-            boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
-            return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
-        });
-        Alias handleAlias = new Alias(
-            Source.EMPTY,
-            handle.name(),
-            new RemoteFetchHandleFunction(Source.EMPTY, doc, localNodeId, retainedSessionId),
-            handle.id(),
-            true
+        return Optional.of(
+            new TopNPlanningContext(fragmentExec, topLevelProject, topN, doc, withAddedDocToRelation, expectedDataOutput, context)
         );
-        PhysicalPlan withHandle = new EvalExec(Source.EMPTY, reductionPlan, List.of(handleAlias));
-        PhysicalPlan projected = new ProjectExec(Source.EMPTY, withHandle, originalPlan.output());
-        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), projected);
-        return Optional.of(new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan));
     }
 
-    static boolean needsRetainedSearchContexts(PhysicalPlan plan) {
-        return plan.anyMatch(p -> p.output().stream().anyMatch(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute));
-    }
-
-    private static Attribute handleAttribute(Source source) {
-        return new ReferenceAttribute(source, null, HANDLE_ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
-    }
-
-    private static Optional<Attribute> remoteFetchHandleAttribute(List<Attribute> attributes) {
-        return attributes.stream().filter(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute).findFirst();
-    }
-
-    private static boolean isRemoteFetchHandleAttribute(Attribute attr) {
-        return attr.synthetic() && attr.name().equals(HANDLE_ATTRIBUTE_NAME) && attr.dataType() == DataType.KEYWORD;
-    }
-
-    private static boolean isFetchable(Attribute attr) {
-        return attr instanceof FieldAttribute || attr instanceof MetadataAttribute || attr instanceof TemporalityAttribute;
-    }
-
-    private static PhysicalPlan toNonOptimizedPhysicalDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+    /**
+     * Builds the local physical plan shape used to derive and preserve the data-driver/node-reduce handoff schema.
+     * This intentionally skips the full local optimizer, but still applies the passes required for executable field extraction.
+     */
+    private static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
@@ -273,6 +282,8 @@ class RemoteFetchReductionPlanner {
 
     private RemoteFetchReductionPlanner() {}
 
+    // Reduce planning only needs field-extraction shape: treat every field as present, but non-indexed, so
+    // extraction remains explicit instead of being optimized into Lucene pushdown.
     private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {

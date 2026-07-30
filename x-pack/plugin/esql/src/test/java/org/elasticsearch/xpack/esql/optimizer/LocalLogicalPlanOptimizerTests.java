@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -116,6 +117,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -843,6 +845,90 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var unionTypeField = as(isNotNull.field(), FieldAttribute.class);
         assertEquals("$$integer_long_field$converted_to$long", unionTypeField.name());
         assertEquals("integer_long_field", unionTypeField.fieldName().string());
+    }
+
+    public void testInferNonNullAggConstraint_noFieldFilters() {
+        // The queries don't get an additional filter.
+        for (String query : List.of(
+            "FROM test_all | STATS COUNT(*)",
+            "FROM test_all | STATS SUM(long), COUNT(*)",
+            "FROM test_all | STATS AVG(COALESCE(long, 7))",
+            "FROM test_all | MV_EXPAND long | STATS AVG(long)",
+            "FROM test_all | STATS FIRST(long, long)",
+            "FROM test_all | GROK text \"blah %{EMAILADDRESS:email} blah\" | STATS AVG(LENGTH(email))"
+        )) {
+            var plan = allTypes().localPlan(query);
+            var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);
+            var filters = new ArrayList<Filter>();
+            aggregate.forEachDown(Filter.class, filters::add);
+            assertThat(query, filters, empty());
+        }
+    }
+
+    public void testInferNonNullAggConstraint_oneFieldFilter() {
+        // These queries all get the filter: "WHERE long IS NOT NULL"
+        for (String query : List.of(
+            "FROM test_all | STATS AVG(long)",
+            "FROM test_all | STATS SUM(42*long+7)",
+            "FROM test_all | STATS AVG(long) + SUM(long*long) + MEDIAN(POW(TO_DOUBLE(long), TO_LONG(3)))",
+            "FROM test_all | STATS POW(MEDIAN(long+long*2-42/long), 2)",
+            "FROM test_all | STATS SUM(long + COALESCE(double, 42))",
+            "FROM test_all | EVAL blah = REPEAT(\"blah\", long::integer) | STATS AVG(LENGTH(blah))"
+        )) {
+            var plan = allTypes().localPlan(query);
+            var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);
+            var filters = new ArrayList<Filter>();
+            aggregate.forEachDown(Filter.class, filters::add);
+            assertThat(filters, hasSize(1));
+            var isNotNull = as(filters.get(0).condition(), IsNotNull.class);
+            var field = as(isNotNull.field(), FieldAttribute.class);
+            assertEquals("long", field.fieldName().string());
+        }
+    }
+
+    public void testInferNonNullAggConstraint_orMultipleFieldFilters() {
+        // These queries all get the filter: "WHERE (long IS NOT NULL) OR (double IS NOT NULL)"
+        for (String query : List.of(
+            "FROM test_all | STATS AVG(double), MEDIAN(long)",
+            "FROM test_all | STATS MEDIAN(SQRT(1/(double+7/double))), COUNT_DISTINCT(long)",
+            "FROM test_all | EVAL blah = REPEAT(\"blah\", double::integer) | STATS AVG(LENGTH(blah)), SUM(long)"
+        )) {
+            var plan = allTypes().localPlan(query);
+            var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);
+            var filters = new ArrayList<Filter>();
+            aggregate.forEachDown(Filter.class, filters::add);
+            assertThat(filters, hasSize(1));
+            var or = as(filters.get(0).condition(), Or.class);
+            var left = as(or.left(), IsNotNull.class);
+            var right = as(or.right(), IsNotNull.class);
+            var fields = List.of(
+                as(left.field(), FieldAttribute.class).fieldName().string(),
+                as(right.field(), FieldAttribute.class).fieldName().string()
+            );
+            assertThat(query, fields, containsInAnyOrder("double", "long"));
+        }
+    }
+
+    public void testInferNonNullAggConstraint_andMultipleFieldFilters() {
+        // These queries all get the filter: "WHERE (long IS NOT NULL) AND (double IS NOT NULL)"
+        for (String query : List.of(
+            "FROM test_all | STATS AVG(double + long), MEDIAN(long * double), 2+POW(SUM(SQRT(1/double + SIN(1/1/1/1/1/1/long))),3)",
+            "FROM test_all | EVAL blah = REPEAT(double::string, long::integer) | STATS AVG(LENGTH(blah))"
+        )) {
+            var plan = allTypes().localPlan(query);
+            var aggregate = as(plan.collectFirstChildren(Aggregate.class::isInstance).get(0), Aggregate.class);
+            var filters = new ArrayList<Filter>();
+            aggregate.forEachDown(Filter.class, filters::add);
+            assertThat(filters, hasSize(1));
+            var and = as(filters.get(0).condition(), And.class);
+            var left = as(and.left(), IsNotNull.class);
+            var right = as(and.right(), IsNotNull.class);
+            var fields = List.of(
+                as(left.field(), FieldAttribute.class).fieldName().string(),
+                as(right.field(), FieldAttribute.class).fieldName().string()
+            );
+            assertThat(query, fields, containsInAnyOrder("double", "long"));
+        }
     }
 
     /**

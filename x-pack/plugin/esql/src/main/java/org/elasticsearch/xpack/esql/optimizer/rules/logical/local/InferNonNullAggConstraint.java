@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.Collection;
 import java.util.Set;
 
 /**
@@ -45,40 +47,40 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {
         // only look at aggregates with default grouping
-        if (aggregate.groupings().size() > 0 || aggregate instanceof TimeSeriesAggregate) {
+        if (aggregate.aggregates().isEmpty() || aggregate.groupings().isEmpty() == false || aggregate instanceof TimeSeriesAggregate) {
             return aggregate;
         }
 
         SearchStats stats = context.searchStats();
-        LogicalPlan plan = aggregate;
+
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+        aggregate.forEachUp(p -> p.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child())));
+        AttributeMap<Expression> aliases = aliasesBuilder.build();
+
         var aggs = aggregate.aggregates();
-        Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
+        Set<Expression> predicates = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
         for (var agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                Expression field = af.field();
-                // ignore literals (e.g. COUNT(1))
-                // make sure the field exists at the source and is indexed (not runtime)
-
                 if (af instanceof First || af instanceof Last) {
-                    // Exceptionally allow this agg function to be passed down null values
-                    return plan;
+                    // First (Last) may return null if that's first (last) value, so needs nulls.
+                    return aggregate;
+                }
+                Expression field = af.field();
+                if (field.foldable()) {
+                    // Ignore literals (e.g. COUNT(1))
+                    return aggregate;
+                }
+                Collection<Expression> attributes = InferIsNotNull.resolveExpressionAsRootAttributes(field, aliases, aggregate.inputSet());
+                // make sure the field exists at the source and is indexed (not runtime)
+                attributes = attributes.stream().filter(a -> a instanceof FieldAttribute fa && stats.exists(fa.fieldName())).toList();
+                if (attributes.isEmpty()) {
+                    return aggregate;
                 }
 
-                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
-                    nonNullAggFields.add(field);
-                } else {
-                    // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out
-                    return plan;
-                }
+                predicates.add(Predicates.combineAnd(attributes.stream().map(a -> new IsNotNull(aggregate.source(), a)).toList()));
             }
         }
 
-        if (nonNullAggFields.size() > 0) {
-            Expression condition = Predicates.combineOr(
-                nonNullAggFields.stream().map(f -> (Expression) new IsNotNull(aggregate.source(), f)).toList()
-            );
-            plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
-        }
-        return plan;
+        return aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), Predicates.combineOr(predicates)));
     }
 }

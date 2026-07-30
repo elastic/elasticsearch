@@ -52,8 +52,10 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
+    private static final String WRITE_WINDOW_SYSTEM_PROPERTY = "telemetry.metrics.buffer.write_window";
+
     // Write window for the disk-buffering library: how long a writer keeps appending before its file is rotated.
-    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = TimeValue.timeValueSeconds(30).millis();
+    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = writeWindowMillis();
 
     private final MetricExporter delegate;
     private final BufferingMetrics bufferingMetrics;
@@ -245,6 +247,13 @@ public class BufferingMetricExporter implements MetricExporter {
     @SuppressForbidden(reason = "disk-buffering library exposes a java.io.File based API")
     private static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
         return FileMetricStorage.create(dir.toFile(), config);
+    }
+
+    private static long writeWindowMillis() {
+        String override = System.getProperty(WRITE_WINDOW_SYSTEM_PROPERTY);
+        return override == null
+            ? TimeValue.timeValueSeconds(30).millis()
+            : TimeValue.parseTimeValue(override, WRITE_WINDOW_SYSTEM_PROPERTY).millis();
     }
 
     private static final class BufferingMetrics {

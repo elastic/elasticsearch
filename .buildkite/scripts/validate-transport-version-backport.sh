@@ -17,25 +17,14 @@ if [[ -z "${changed_files}" ]]; then
   exit 0
 fi
 
-# Compare those files against all the higher branches to ensure they are the same
-higher_branches=$(jq -r '.branches[].branch' branches.json | while read -r branch; do
-  if [[ "${branch}" == "main" ]]; then
-    echo "${branch}"
-  elif [[ "${branch}" != "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" ]] &&
-    printf '%s\n%s\n' "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" "${branch}" | sort -VC; then
-    echo "${branch}"
-  fi
-done)
-
-for br in ${higher_branches}; do
-  git fetch origin "${br}" --quiet
-  while IFS= read -r file; do
-    if ! git diff --quiet "origin/${br}" -- "${file}"; then
-      echo "Changes to transport definition [${file}] missing from higher branch [${br}]."
-      echo "Backports must first be merged on all higher release branches; merge to [${br}] before [${BUILDKITE_PULL_REQUEST_BASE_BRANCH}]."
+# Compare those files against the main branch to ensure they are the same
+git fetch origin main --quiet
+while IFS= read -r file; do
+  if ! git diff --quiet origin/main -- "${file}"; then
+      echo "Changes to transport definition [${file}] missing from main branch."
+      echo "Transport changes must first be merged to main before being backported."
       exit 1
-    fi
-  done <<< "${changed_files}"
-done
+  fi
+done <<< "${changed_files}"
 
-echo "All transport changes exist in higher release branches."
+echo "All transport changes exist in main branch."

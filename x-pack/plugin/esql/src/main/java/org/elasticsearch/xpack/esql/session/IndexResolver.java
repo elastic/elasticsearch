@@ -263,7 +263,7 @@ public class IndexResolver {
                 // Retain the merged field-caps for reuse (the EQL source command), so the EQL engine skips its own
                 // resolution. ES|QL's own fetch is unmerged (setMergeResults(false)); merge here, once, on this pool.
                 mergedCapsSink.accept(
-                    TransportFieldCapabilitiesAction.mergeIndexResponses(
+                    TransportFieldCapabilitiesAction.mergeToFieldCapsResponse(
                         response.caps().getIndexResponses(),
                         response.caps().getFailures(),
                         responseMinimumVersion,

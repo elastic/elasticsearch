@@ -665,7 +665,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         AtomicReference<TransportVersion> minTransportVersion
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
-        FieldCapabilitiesResponse merged = mergeIndexResponses(
+        FieldCapabilitiesResponse merged = mergeToFieldCapsResponse(
             new ArrayList<>(indexResponsesMap.values()),
             failures,
             minTransportVersion.get(),
@@ -723,7 +723,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      *
      * @param minTransportVersion may be {@code null}; it is only stored on the merged fields, never dereferenced here.
      */
-    public static FieldCapabilitiesResponse mergeIndexResponses(
+    public static FieldCapabilitiesResponse mergeToFieldCapsResponse(
         List<FieldCapabilitiesIndexResponse> indexResponseList,
         List<FieldCapabilitiesFailure> failures,
         @Nullable TransportVersion minTransportVersion,

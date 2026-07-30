@@ -36,6 +36,10 @@ public final class PreResolvedFieldCaps {
     /** Returns the retained response and clears it (consume-once); {@code null} if empty or already taken. */
     @Nullable
     public FieldCapabilitiesResponse take() {
+        if (this == NONE) {
+            // Never mutate the shared singleton's slot.
+            return null;
+        }
         return ref.getAndSet(null);
     }
 

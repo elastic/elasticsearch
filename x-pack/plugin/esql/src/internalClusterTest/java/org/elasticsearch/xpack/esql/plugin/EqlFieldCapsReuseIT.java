@@ -21,6 +21,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -83,6 +86,20 @@ public class EqlFieldCapsReuseIT extends AbstractEsqlIntegTestCase {
             "the EQL engine must not issue its own field_caps — ES|QL's resolution is reused",
             FieldCapsCounterPlugin.FIELD_CAPS_CALLS.get(),
             equalTo(0)
+        );
+    }
+
+    public void testStandaloneEqlSearchStillResolvesFieldCaps() {
+        // Discriminator for the counter above: a plain EQL search (no ES|QL, nothing injected) MUST self-resolve, so
+        // the filter counts at least one field_caps call. If this saw 0, the counter would be broken and the reuse
+        // assertion meaningless.
+        FieldCapsCounterPlugin.FIELD_CAPS_CALLS.set(0);
+        EqlSearchRequest request = new EqlSearchRequest().indices(INDEX).query("process where true");
+        client().execute(EqlSearchAction.INSTANCE, request).actionGet().decRef();
+        assertThat(
+            "a standalone EQL search resolves field_caps itself",
+            FieldCapsCounterPlugin.FIELD_CAPS_CALLS.get(),
+            greaterThanOrEqualTo(1)
         );
     }
 

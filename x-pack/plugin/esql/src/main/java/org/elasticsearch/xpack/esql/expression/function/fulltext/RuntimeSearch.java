@@ -17,11 +17,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -32,7 +34,9 @@ import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
@@ -133,6 +137,20 @@ public final class RuntimeSearch {
         return terms;
     }
 
+    static Map<BytesRef, Integer> analyzeTermsWithCounts(Analyzer analyzer, String query) throws IOException {
+        Map<BytesRef, Integer> terms = new HashMap<>();
+
+        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, query)) {
+            stream.reset();
+            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+            while (stream.incrementToken()) {
+                terms.compute(BytesRef.deepCopyOf(term.getBytesRef()), (k, v) -> v == null ? 1 : v + 1);
+            }
+            stream.end();
+        }
+        return terms;
+    }
+
     /**
      * Exact (unanalyzed) value equality, shared by the runtime full-text functions for types that a pushed-down
      * query matches as a single term: {@code keyword} for {@code match} and {@code match_phrase} (and {@code ip},
@@ -218,6 +236,32 @@ public final class RuntimeSearch {
         );
     }
 
+    public static ExpressionEvaluator.Factory textScoreEvaluatorForQuery(
+        Source source,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        org.elasticsearch.xpack.esql.core.querydsl.query.Query query
+    ) {
+        Query luceneQuery;
+        try {
+            luceneQuery = query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD)));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        if (luceneQuery instanceof MatchAllDocsQuery) {
+            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
+        }
+        if (luceneQuery instanceof MatchNoDocsQuery) {
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+        }
+        return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
+            source,
+            fieldEvaluator,
+            Lucene.STANDARD_ANALYZER,
+            luceneQuery,
+            context -> new BytesRef()
+        );
+    }
+
     @Evaluator(extraName = "TextWithLuceneQuery", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
         @Position int position,
@@ -244,5 +288,51 @@ public final class RuntimeSearch {
             }
         }
         return false;
+    }
+
+    @Evaluator(extraName = "ScoreLuceneQuery", allNullsIsNull = false)
+    static double scoreLuceneQuery(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Analyzer analyzer,
+        @Fixed Query query,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return 0;
+        }
+
+        final var valueCount = fieldBlock.getValueCount(position);
+        final var startIndex = fieldBlock.getFirstValueIndex(position);
+
+        MemoryIndex index = new MemoryIndex();
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            index.addField(RuntimeSearch.CONTENT_FIELD, scratch.utf8ToString(), analyzer);
+        }
+
+        IndexSearcher searcher = index.createSearcher();
+        // TODO: Do we need to create BooleanSimilarity every time?
+        searcher.setSimilarity(new BooleanSimilarity());
+        TopDocs topDocs;
+        try {
+            topDocs = searcher.search(query, 1);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        // TODO: check if scoreDocs[0].score is max score
+        if (topDocs.scoreDocs.length > 0) {
+            return topDocs.scoreDocs[0].score;
+        }
+        return 0;
+    }
+
+    @Evaluator(extraName = "ScoreTerm", allNullsIsNull = false)
+    static double scoreTerm(@Position int position, BooleanBlock matches) {
+        if (matches == null) {
+            return 0;
+        }
+        return matches.getBoolean(position) ? 1 : 0;
     }
 }

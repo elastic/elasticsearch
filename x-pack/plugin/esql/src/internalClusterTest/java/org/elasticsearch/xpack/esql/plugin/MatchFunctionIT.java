@@ -273,7 +273,38 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchWithOptionsAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(to_text(concat(content, " extra")), "fox dog", { "operator": "AND", "boost": 1.5 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchTermWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_id = id + 1
+            | WHERE new_id:"3.0" OR new_id:"2.0"
+            | KEEP id, new_id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "new_id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 2, 1.0), List.of(2, 3, 1.0)));
         }
     }
 

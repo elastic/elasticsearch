@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -92,7 +91,11 @@ public class Score extends Function implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
+        ExpressionEvaluator.Factory scorerFactory = ScoreMapper.toScorer(
+            children().getFirst(),
+            toEvaluator.shardContexts(),
+            toEvaluator::apply
+        );
         return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
     }
 
@@ -122,7 +125,7 @@ public class Score extends Function implements EvaluatorMapper {
         return new Score(source, query);
     }
 
-    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory) implements ExpressionEvaluator.Factory {
+    private record ScorerEvaluatorFactory(ExpressionEvaluator.Factory scoreFactory) implements ExpressionEvaluator.Factory {
 
         @Override
         public ExpressionEvaluator get(DriverContext context) {
@@ -130,12 +133,12 @@ public class Score extends Function implements EvaluatorMapper {
         }
     }
 
-    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements ExpressionEvaluator {
+    private record ScorerEvaluator(ExpressionEvaluator scorer) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScorerEvaluator.class);
 
         @Override
         public Block eval(Page page) {
-            return scorer.score(page);
+            return scorer.eval(page);
         }
 
         @Override

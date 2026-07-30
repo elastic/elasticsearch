@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -125,7 +124,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
         return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
     }
 
@@ -137,18 +136,26 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     /**
      * Binary logic adds together scores coming from the left and right expressions, both for conjunctions and disjunctions
      */
-    private record BinaryLogicScorer(DriverContext driverContext, ScoreOperator.ExpressionScorer left, ScoreOperator.ExpressionScorer right)
+    private record BinaryLogicScorer(DriverContext driverContext, ExpressionEvaluator left, ExpressionEvaluator right)
         implements
-            ScoreOperator.ExpressionScorer {
+            ExpressionEvaluator {
         @Override
-        public DoubleBlock score(Page page) {
+        public DoubleBlock eval(Page page) {
             DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount());
-            try (DoubleVector leftVector = left.score(page).asVector(); DoubleVector rightVector = right.score(page).asVector()) {
+            try (
+                DoubleVector leftVector = (DoubleVector) left.eval(page).asVector();
+                DoubleVector rightVector = (DoubleVector) right.eval(page).asVector()
+            ) {
                 for (int i = 0; i < page.getPositionCount(); i++) {
                     builder.appendDouble(leftVector.getDouble(i) + rightVector.getDouble(i));
                 }
             }
             return builder.build().asBlock();
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

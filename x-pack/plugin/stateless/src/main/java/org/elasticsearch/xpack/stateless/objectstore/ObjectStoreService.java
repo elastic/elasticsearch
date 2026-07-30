@@ -1428,15 +1428,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
-            var after = threadPool.relativeTimeInMillis();
-            logger.debug(
-                () -> format(
-                    "translog file %s of size [%s] bytes uploaded in [%s] ms",
+            var uploadDuration = threadPool.relativeTimeInMillis() - before;
+
+            final long slowUploadThresholdMillis = 20_000;
+            if (uploadDuration >= slowUploadThresholdMillis) {
+                logger.warn(() -> format(
+                    "translog file %s of size [%d] bytes uploaded in [%d] ms and exceeded slow upload threshold limit of [%d] ms",
                     blobContainer.path().add(fileName),
                     reference.length(),
-                    TimeValue.timeValueNanos(after - before).millis()
-                )
-            );
+                    uploadDuration,
+                    slowUploadThresholdMillis
+                ));
+            } else {
+                logger.debug(() -> format(
+                    "translog file %s of size [%d] bytes uploaded in [%d] ms",
+                    blobContainer.path().add(fileName),
+                    reference.length(),
+                    uploadDuration
+                ));
+            }
+
             listener.onResponse(null);
         }
 

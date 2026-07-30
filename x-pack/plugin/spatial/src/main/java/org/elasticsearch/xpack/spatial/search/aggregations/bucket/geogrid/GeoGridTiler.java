@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
@@ -48,4 +49,20 @@ public abstract class GeoGridTiler {
 
     /** Maximum number of cells that can be created by this tiler */
     protected abstract long getMaxCells();
+
+    /**
+     * Computes all grid cells that intersect the given shape value.
+     * <p>
+     * Returns a sorted {@code long[]} of intersecting cell IDs, with length equal to the count.
+     * For shapes that straddle bounds the out-of-bounds cells are excluded.
+     * For geo_point shapes the array always has exactly one element.
+     *
+     * @param geoValue the decoded shape value
+     * @return sorted array of intersecting cell IDs (never null, may be empty)
+     */
+    public long[] computeIntersectingCells(GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(null, this, l -> {});
+        int count = setValues(cellValues, geoValue);
+        return Arrays.copyOf(cellValues.getValues(), count);
+    }
 }

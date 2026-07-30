@@ -82,7 +82,9 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
 
     protected void assertGeoGridFromIndex(String index) {
         assumeTrue("requires SPATIAL_GRID_TYPES capability", EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled());
-        assumeTrue("geo_shape capability not yet implemented", index.equals("index_geo_point"));
+        if (index.equals("index_geo_shape")) {
+            assumeTrue("requires SPATIAL_GRID_GEO_SHAPE capability", EsqlCapabilities.Cap.SPATIAL_GRID_GEO_SHAPE.isEnabled());
+        }
         var query = String.format(Locale.ROOT, """
             FROM %s
             | EVAL gridId = %s(location, %s)
@@ -104,7 +106,9 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
 
     protected void assertGeoGridFailsWith(String index) {
         assumeTrue("requires SPATIAL_GRID_TYPES capability", EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled());
-        assumeTrue("geo_shape capability not yet implemented", index.equals("index_geo_point"));
+        if (index.equals("index_geo_shape")) {
+            assumeTrue("requires SPATIAL_GRID_GEO_SHAPE capability", EsqlCapabilities.Cap.SPATIAL_GRID_GEO_SHAPE.isEnabled());
+        }
         var query = String.format(Locale.ROOT, """
             FROM %s
             | EVAL gridId = %s(location, %d)
@@ -137,21 +141,14 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
         initIndex("index_", "geo_shape");
         BulkRequestBuilder points = client().prepareBulk();
         BulkRequestBuilder shapes = client().prepareBulk();
-        StringBuilder coords = new StringBuilder();
         for (int i = 0; i < count; i++) {
             double x = randomDoubleBetween(-10.0, 10.0, true);
             double y = randomDoubleBetween(-10.0, 10.0, true);
             Point point = new Point(x, y);
             testData.add(point);
-            points.add(new IndexRequest("index_geo_point").id(x + ":" + y).source("location", point.toString()));
-            if (coords.length() > 0) {
-                coords.append(", ");
-            }
-            coords.append(x).append(" ").append(y);
-        }
-        if (coords.length() > 0) {
-            String lineString = "LINESTRING (" + coords + ")";
-            shapes.add(new IndexRequest("index_geo_shape").id("polygon").source("location", lineString));
+            String wkt = point.toString();
+            points.add(new IndexRequest("index_geo_point").id(x + ":" + y).source("location", wkt));
+            shapes.add(new IndexRequest("index_geo_shape").id(x + ":" + y).source("location", wkt));
         }
         points.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         shapes.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

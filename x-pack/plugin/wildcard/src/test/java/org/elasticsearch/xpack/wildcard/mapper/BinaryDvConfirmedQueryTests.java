@@ -17,13 +17,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                 writer.addDocument(document);
                 try (DirectoryReader reader = forbidBinaryDvOpenReader(writer.getReader())) {
                     final IndexSearcher searcher = new IndexSearcher(reader);
-                    final Query query = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", "*", false, false);
+                    final Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
                     final Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     for (LeafReaderContext ctx : reader.leaves()) {
                         weight.scorerSupplier(ctx);

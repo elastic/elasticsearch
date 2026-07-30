@@ -19,14 +19,17 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -44,7 +47,7 @@ import java.util.Objects;
  * Only non-negative integer values are supported; the caller must validate this before
  * constructing the query.
  */
-public class IntBitmapIndexBKDQuery extends Query {
+public class IntBitmapIndexBKDQuery extends Query implements Accountable {
     private final String field;
     private final RoaringBitmap bitmap;
     private final byte[] bitmapLowerPoint;
@@ -275,5 +278,23 @@ public class IntBitmapIndexBKDQuery extends Query {
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), field, bitmap);
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (bitmap.isEmpty()) {
+            return new MatchNoDocsQuery("empty bitmap");
+        }
+        return super.rewrite(indexSearcher);
+    }
+
+    /**
+     * The bitmap dominates this query's footprint and can reach tens of megabytes. Reporting it lets the
+     * query cache account for a cached entry's true size instead of treating it as negligible.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.shallowSizeOfInstance(IntBitmapIndexBKDQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
+            .getLongSizeInBytes();
     }
 }

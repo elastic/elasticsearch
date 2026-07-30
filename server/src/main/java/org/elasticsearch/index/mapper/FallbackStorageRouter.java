@@ -258,12 +258,8 @@ public final class FallbackStorageRouter {
      * Like {@link #write(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
      * (i.e. routing to {@link Destination#IGNORED_SOURCE} with {@link DocumentParserContext#canAddIgnoredField()} false).
      */
-    static void writeOrSkip(
-        DocumentParserContext context,
-        String fieldPath,
-        Reason reason,
-        CheckedRunnable<IOException> ifNotWritten
-    ) throws IOException {
+    static void writeOrSkip(DocumentParserContext context, String fieldPath, Reason reason, CheckedRunnable<IOException> ifNotWritten)
+        throws IOException {
         if (write(context, fieldPath, reason) == false) {
             ifNotWritten.run();
         }

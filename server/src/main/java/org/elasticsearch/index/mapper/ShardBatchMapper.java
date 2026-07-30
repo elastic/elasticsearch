@@ -91,9 +91,10 @@ public final class ShardBatchMapper {
             final Mapper resolved = lookup.getMapper(fullPath);
 
             if (resolved == null) {
-                // A field type without a mapper indicates a runtime field shadow.
+                // A field type without a mapper indicates a runtime field shadow, or a leaf that the implicit _unmapped flattened sink
+                // would absorb. The batch path supports neither, so fall back in both cases.
                 if (lookup.getFieldType(fullPath) != null) {
-                    logger.debug("batch indexing disabled: runtime-field shadow at [{}]", fullPath);
+                    logger.debug("batch indexing disabled: runtime-field shadow or absorbed unmapped field at [{}]", fullPath);
                     return null;
                 }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);

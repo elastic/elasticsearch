@@ -1679,7 +1679,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
-    private final boolean unmappedSink;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1714,8 +1713,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
-        // Sink-ness is gated on the setting so a user-declared flattened field named _unmapped on a non-feature index is a normal field.
-        this.unmappedSink = builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     public PreserveLeafArrays preserveLeafArrays() {

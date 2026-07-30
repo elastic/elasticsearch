@@ -12,10 +12,12 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
@@ -322,6 +324,19 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("object.child"));
     }
 
+    public void testUnmappedSinkAbsorbsAnyName() {
+        FlattenedFieldMapper sink = createUnmappedSink();
+        assertTrue(sink.isUnmappedSink());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(sink), emptyList());
+
+        // Bare dotless, dotted, and never-indexed random names all route to the sink as keyed lookups on the full dotted path.
+        for (String field : List.of("foo", "a.b.c", randomAlphanumericOfLength(8) + "." + randomAlphanumericOfLength(4))) {
+            MappedFieldType fieldType = lookup.get(field);
+            assertThat(fieldType, instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+            assertEquals(field, ((FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType).key());
+        }
+    }
+
     public void testMaxDynamicKeyDepth() {
         {
             FieldTypeLookup lookup = new FieldTypeLookup(emptyList(), emptyList());
@@ -428,6 +443,21 @@ public class FieldTypeLookupTests extends ESTestCase {
             );
             assertEquals("Found sub-fields with name not belonging to the parent field they are part of [multi.]", ise.getMessage());
         }
+    }
+
+    // Builds the implicit _unmapped sink: the setting derives isUnmappedSink() (feature flag auto-on in test builds). The setting's
+    // validator (run from IndexSettings construction) requires a strict columnar mode, so the index is created in columnar mode.
+    private static FlattenedFieldMapper createUnmappedSink() {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+                .build()
+        );
+        return new FlattenedFieldMapper.Builder(FlattenedFieldMapper.UNMAPPED_SINK_NAME, indexSettings).build(
+            MapperBuilderContext.root(false, false)
+        );
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {

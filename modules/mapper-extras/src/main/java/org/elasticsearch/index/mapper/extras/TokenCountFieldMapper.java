@@ -45,6 +45,14 @@ public class TokenCountFieldMapper extends FieldMapper {
         return (TokenCountFieldMapper) in;
     }
 
+    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
+        true,
+        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        true,
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
@@ -76,11 +84,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             super(name);
             this.indexSettings = indexSettings;
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                FieldMapper.DocValuesParameter.defaultValues(
-                    indexSettings,
-                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW
-                ),
+                DEFAULT_DOC_VALUES_PARAMS,
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );

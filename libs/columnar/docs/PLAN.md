@@ -31,6 +31,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`).
 - `ColumnarNumericRangeQuery`: self-contained Lucene range query over `getBinary`.
 - Tests: round-trip, fast-path + skipper vs brute force, end-to-end range query, multi-segment merge.
+- `SplitDeltaTransform` (frozen id 3) and `AlpDoubleTransform` (frozen id 4) registered in
+  `NumericPipeline.Registry`; both available for use once per-field pipeline selection lands.
+- Per-stage encode/decode JMH benchmarks (`EncodeBlockTransformBenchmark`,
+  `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
+  across ten block shapes.
 
 ## Next
 
@@ -60,4 +65,7 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Small self-contained changes proceed directly; anything touching on-disk framing, a frozen id, or
   the read contract is discussed first.
 - Every format change ships with correctness tests.
+- Every new `BlockTransform` ships with encode and decode entries in
+  `EncodeBlockTransformBenchmark` and `DecodeBlockTransformBenchmark`. Add a block shape to
+  `NumericData` only if no existing shape exercises the new stage. See `docs/BENCHMARKS.md`.
 - Server-tier work (mapping, the binary bridge, synthetic source) lives in other modules.

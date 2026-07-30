@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -151,10 +152,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     protected NodeEnvironment nodeEnvironment;
 
     @SuppressWarnings("unchecked")
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initEngineResources() throws Exception {
         threadPools = ConcurrentCollections.newConcurrentMap();
         sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
         int cacheRegionSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY).getBytes());
@@ -169,8 +168,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         nodeEnvironment = newNodeEnvironment();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineResources() throws Exception {
         var iterator = threadPools.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
@@ -187,7 +186,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 breaker.getUsed()
             );
         }
-        super.tearDown();
     }
 
     private ThreadPool registerThreadPool(final ThreadPool threadPool) {

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148434
-summary: Push LIKE to Parquet late materialization
-type: enhancement

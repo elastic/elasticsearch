@@ -585,6 +585,27 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
     }
 
+    /**
+     * Pushes the script instance captured by an instance-capturing lambda / reference ({@link IRCInstanceCapture}), typed as
+     * the generated script class. The def-call site encodes this capture's descriptor slot as {@code CLASS_TYPE} (see the
+     * {@code ScriptThis} marker in {@link #visitInvokeCallDef}), so the value on the stack must be assignable to it. For an
+     * instance method or instance-capturing lambda this is {@code this} (slot already typed as the class). For a typed static
+     * lambda that carries the script as the {@code #scriptThis} parameter (see {@link IRCStaticScriptCapture}) there is no
+     * {@code this}; that parameter is declared as the script base class, so it is cast to the generated class it actually
+     * holds at runtime. This lets a def (or typed) inner reference nest inside a typed static lambda body under tracking.
+     */
+    private static void writeInstanceScriptCapture(WriteScope writeScope, MethodWriter methodWriter) {
+        Variable capturedThis = writeScope.getInternalVariable("this");
+
+        if (capturedThis != null) {
+            methodWriter.visitVarInsn(CLASS_TYPE.getOpcode(Opcodes.ILOAD), capturedThis.getSlot());
+        } else {
+            Variable scriptThis = writeScope.getInternalVariable("scriptThis");
+            methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
+            methodWriter.checkCast(CLASS_TYPE);
+        }
+    }
+
     @Override
     public void visitField(FieldNode irFieldNode, WriteScope writeScope) {
         int access = ClassWriter.buildAccess(irFieldNode.getDecorationValue(IRDModifiers.class), true);
@@ -1732,8 +1753,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.push((String) null);
 
         if (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
-            Variable capturedThis = writeScope.getInternalVariable("this");
-            methodWriter.visitVarInsn(CLASS_TYPE.getOpcode(Opcodes.ILOAD), capturedThis.getSlot());
+            writeInstanceScriptCapture(writeScope, methodWriter);
         }
 
         List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
@@ -1769,8 +1789,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         writeAllocationCheck(writeScope, AllocSizes.captureSize(captureCount));
 
         if (irTypedInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
-            Variable capturedThis = writeScope.getInternalVariable("this");
-            methodWriter.visitVarInsn(CLASS_TYPE.getOpcode(Opcodes.ILOAD), capturedThis.getSlot());
+            writeInstanceScriptCapture(writeScope, methodWriter);
         }
 
         if (captureNames != null) {
@@ -1778,7 +1797,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 Variable captureVariable = writeScope.getVariable(captureName);
                 methodWriter.visitVarInsn(captureVariable.getAsmType().getOpcode(Opcodes.ILOAD), captureVariable.getSlot());
 
-                if (captureBox) {
+                // captureBox boxes the captured receiver of a bound reference. The synthetic #scriptThis capture (prepended
+                // for an allocation charge) is never boxed, so skip it and box the receiver that follows.
+                if (captureBox && "#scriptThis".equals(captureName) == false) {
                     methodWriter.box(captureVariable.getAsmType());
                     captureBox = false;
                 }

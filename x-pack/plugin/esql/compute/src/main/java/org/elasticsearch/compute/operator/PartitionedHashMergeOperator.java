@@ -38,7 +38,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
@@ -712,7 +711,12 @@ public class PartitionedHashMergeOperator implements Operator {
      * {@code maxPageSize} for normal emission.
      */
     private static ReleasableIterator<Page> evaluateOp(HashAggregationOperator op, int maxPageSizeOverride, DriverContext driverContext) {
-        var pageBuilder = new GroupingAggregatorPageBuilder(op.blockHash, op.aggregators, maxPageSizeOverride, GroupingAggregatorPageBuilder.NO_CUSTOMIZATION);
+        var pageBuilder = new GroupingAggregatorPageBuilder(
+            op.blockHash,
+            op.aggregators,
+            maxPageSizeOverride,
+            GroupingAggregatorPageBuilder.NO_CUSTOMIZATION
+        );
         return pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
     }
 

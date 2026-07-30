@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -109,6 +110,7 @@ public enum FeatureMetric {
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
+    FILLNULL(FillNull.class::isInstance),
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),

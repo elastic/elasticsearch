@@ -1,0 +1,1344 @@
+fillNullAllFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL DEFAULT ON *
+;
+
+b:integer | a:keyword | c:integer
+1         |           | 0
+;
+
+fillNullSpecificFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL DEFAULT ON a, c
+;
+
+b:integer | a:keyword | c:integer
+1         |           | 0
+;
+
+fillNullWithIntegerValue
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::integer, c = c::integer
+| FILLNULL 0 ON a, c
+;
+
+b:integer | a:integer | c:integer
+1         | 0         | 0
+;
+
+fillNullWithStringValue
+required_capability: fillnull
+
+ROW a = null, b = "hello", c = null
+| EVAL a = a::keyword, c = c::keyword
+| FILLNULL "N/A" ON a, c
+;
+
+b:keyword | a:keyword | c:keyword
+hello     | N/A       | N/A
+;
+
+fillNullPreservesNonNullValues
+required_capability: fillnull
+
+ROW a = "existing", b = null
+| EVAL b = b::keyword
+| FILLNULL "default" ON a, b
+;
+
+a:keyword | b:keyword
+existing  | default
+;
+
+fillNullWithBooleanDefault
+required_capability: fillnull
+
+ROW a = null, b = true
+| EVAL a = a::boolean
+| FILLNULL DEFAULT ON a
+;
+
+b:boolean | a:boolean
+true      | false
+;
+
+fillNullWithBooleanValue
+required_capability: fillnull
+
+ROW a = null, b = false
+| EVAL a = a::boolean
+| FILLNULL true ON a
+;
+
+b:boolean | a:boolean
+false     | true
+;
+
+fillNullWithNullLiteral
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL null ON a
+;
+
+b:integer | a:keyword
+1         | null
+;
+
+fillNullWithDoubleValue
+required_capability: fillnull
+
+ROW a = null, b = 3.14
+| EVAL a = a::double
+| FILLNULL 0.0 ON a
+;
+
+b:double | a:double
+3.14     | 0.0
+;
+
+fillNullLongDefault
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::long
+| FILLNULL DEFAULT ON a
+;
+
+a:long
+0
+;
+
+fillNullNoNulls
+required_capability: fillnull
+
+ROW a = 1, b = 2
+| FILLNULL 0 ON a, b
+;
+
+a:integer | b:integer
+1         | 2
+;
+
+fillNullSingleField
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL "filled" ON a
+;
+
+a:keyword
+filled
+;
+
+fillNullChained
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL a = a::keyword, b = b::integer
+| FILLNULL "unknown" ON a
+| FILLNULL 0 ON b
+;
+
+a:keyword | b:integer
+unknown   | 0
+;
+
+fillNullIsNotNullAfterFill
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL DEFAULT ON a
+| EVAL is_missing = a IS NULL
+;
+
+a:keyword | is_missing:boolean
+          | false
+;
+
+fillNullComposition
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::integer
+| FILLNULL -1 ON a
+| EVAL sum_ab = a + b
+;
+
+b:integer | a:integer | sum_ab:integer
+2         | -1        | 1
+;
+
+fillNullWithIntegerValueIntoDouble
+required_capability: fillnull
+
+ROW a = null, b = 1.5
+| EVAL a = a::double
+| FILLNULL 0 ON a
+;
+
+b:double | a:double
+1.5      | 0.0
+;
+
+fillNullWithIntegerValueIntoLong
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::long
+| FILLNULL 0 ON a
+;
+
+b:integer | a:long
+2         | 0
+;
+
+fillNullThenWhereIsNullIsEmpty
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL "x" ON a
+| WHERE a IS NULL
+;
+
+a:keyword
+;
+
+fillNullWithValueSkipsIncompatibleAllFields
+required_capability: fillnull
+
+ROW i = null, k = null
+| EVAL i = i::integer, k = k::keyword
+| FILLNULL 0 ON *
+;
+
+i:integer | k:keyword
+0         | null
+;
+
+fillNullWithValueSkipsOutOfRangeAllFields
+required_capability: fillnull
+
+ROW i = null, l = null
+| EVAL i = i::integer, l = l::long
+| FILLNULL 9999999999999 ON *
+;
+
+i:integer | l:long
+null      | 9999999999999
+;
+
+fillNullUnsupportedTypeLeftNull
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL DEFAULT ON *
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d]; provide an explicit value
+
+d:datetime | i:integer
+null       | 0
+;
+
+fillNullAllFieldsWithNullIsSilentNoOp
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL null ON *
+;
+
+d:datetime | i:integer
+null       | null
+;
+
+fillNullWithStringDate
+required_capability: fillnull
+
+ROW d = null
+| EVAL d = d::datetime
+| FILLNULL "2025-04-11T00:00:00.000Z" ON d
+;
+
+d:datetime
+2025-04-11T00:00:00.000Z
+;
+
+fillNullWithStringDateNanos
+required_capability: fillnull
+
+ROW d = null
+| EVAL d = d::date_nanos
+| FILLNULL "2025-04-11T00:00:00.000Z" ON d
+;
+
+d:date_nanos
+2025-04-11T00:00:00.000Z
+;
+
+fillNullWithStringBoolean
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::boolean
+| FILLNULL "true" ON a
+;
+
+a:boolean
+true
+;
+
+fillNullWithStringIp
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::ip
+| FILLNULL "1.2.3.4" ON a
+;
+
+a:ip
+1.2.3.4
+;
+
+fillNullAllFieldsWithStringDateFillsDateSkipsIncompatible
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL "2025-04-11T00:00:00.000Z" ON *
+;
+
+d:datetime               | i:integer
+2025-04-11T00:00:00.000Z | null
+;
+
+fillNullWithStringVersion
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::version
+| FILLNULL "1.2.3" ON a
+;
+
+a:version
+1.2.3
+;
+
+fillNullTargetedUnfillableDateWarns
+required_capability: fillnull
+
+ROW d = null
+| EVAL d = d::datetime
+| FILLNULL DEFAULT ON d
+;
+warning:Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+
+d:datetime
+null
+;
+
+fillNullThenWhere
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL 0 ON a
+| WHERE a == 0 AND b == 1
+;
+
+b:integer | a:integer
+1         | 0
+;
+
+fillNullThenStats
+required_capability: fillnull
+
+ROW g = 1, a = null
+| EVAL a = a::integer
+| FILLNULL DEFAULT ON a
+| STATS s = SUM(a) BY g
+;
+
+s:long | g:integer
+0      | 1
+;
+
+fillNullFromGenderKeyword
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NULL
+| FILLNULL "Unknown" ON gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10010          | Duangkaew          | Unknown
+10011          | Mary               | Unknown
+10012          | Patricio           | Unknown
+;
+
+fillNullFromNonNullUntouched
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NOT NULL
+| FILLNULL "Unknown" ON gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10001          | Georgi             | M
+10002          | Bezalel            | F
+10003          | Parto              | M
+;
+
+fillNullFromThenSort
+required_capability: fillnull
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| KEEP emp_no, gender
+| SORT gender, emp_no
+| LIMIT 3
+;
+
+emp_no:integer | gender:keyword
+10002          | F
+10006          | F
+10007          | F
+;
+
+fillNullFromThenStats
+required_capability: fillnull
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| STATS c = COUNT(*) BY gender
+| SORT gender
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+10     | Unknown
+;
+
+fillNullOnIndexMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL "missing" ON _index
+| KEEP emp_no, _index
+;
+
+emp_no:integer | _index:keyword
+10001          | employees
+;
+
+fillNullOnNullIndexMetadata
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FORK (KEEP emp_no, _index)
+       (STATS cnt = COUNT(*))
+| FILLNULL "missing" ON _index
+| KEEP _fork, _index
+| SORT _fork
+;
+
+_fork:keyword | _index:keyword
+fork1         | employees
+fork2         | missing
+;
+
+fillNullOnIdMetadata
+required_capability: fillnull
+
+FROM employees METADATA _id
+| WHERE emp_no == 10001
+| FILLNULL "missing" ON _id
+| STATS c = COUNT(*) BY has_id = (_id IS NOT NULL)
+;
+
+c:long | has_id:boolean
+1      | true
+;
+
+fillNullOnVersionMetadata
+required_capability: fillnull
+
+FROM employees METADATA _version
+| WHERE emp_no == 10001
+| FILLNULL 0 ON _version
+| KEEP emp_no, _version
+;
+
+emp_no:integer | _version:long
+10001          | 1
+;
+
+fillNullAllFieldsModeWithMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL 0 ON *
+| KEEP emp_no, _index, gender
+;
+
+emp_no:integer | _index:keyword | gender:keyword
+10001          | employees      | M
+;
+
+fillNullOnMVField
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10001, 10003)
+| FILLNULL "None" ON job_positions
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10003          | None
+;
+
+fillNullAllFieldsModePreservesMV
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL "None" ON *
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+;
+
+fillNullThenMvCount
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10003, 10005, 10010)
+| FILLNULL "None" ON job_positions
+| EVAL n = MV_COUNT(job_positions)
+| KEEP emp_no, n
+| SORT emp_no
+;
+
+emp_no:integer | n:integer
+10003          | 1
+10005          | 1
+10010          | 4
+;
+
+fillNullThenCountDistinctByGender
+required_capability: fillnull
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| STATS d = COUNT_DISTINCT(emp_no) BY gender
+| SORT gender
+;
+
+d:long | gender:keyword
+33     | F
+57     | M
+10     | Unknown
+;
+
+fillNullCompositionInEval
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10020, 10021, 10022)
+| FILLNULL 0 ON languages
+| EVAL bonus = languages + 10
+| KEEP emp_no, languages, bonus
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | bonus:integer
+10020          | 0                 | 10
+10021          | 0                 | 10
+10022          | 0                 | 10
+;
+
+fillNullThenFilterOnFilled
+required_capability: fillnull
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| WHERE gender == "Unknown"
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+fillNullThenIsNotNull
+required_capability: fillnull
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| WHERE gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+fillNullPreservesColumnOrder
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL "Unknown" ON gender
+| KEEP first_name, gender, emp_no
+;
+
+first_name:keyword | gender:keyword | emp_no:integer
+Georgi             | M              | 10001
+;
+
+fillNullOnNullTypedColumnIsSkipped
+required_capability: fillnull
+
+ROW a = null, b = 1
+| FILLNULL "x" ON a
+| KEEP a, b
+;
+
+a:null | b:integer
+null   | 1
+;
+
+fillNullAllFieldsWithValueSkipsNullTypedColumn
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL b = b::keyword
+| FILLNULL "x" ON *
+;
+
+a:null | b:keyword
+null   | x
+;
+
+fillNullDefaultModeOnMappedFieldIsNoOp
+required_capability: fillnull
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM partial_mapping_sample_data
+| FILLNULL "missing" ON message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:52:55.015Z | Connection error?
+;
+
+fillNullNullifyModeAllFieldsNoValuePreservesNullTyped
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL DEFAULT ON *
+| SORT @timestamp DESC
+| LIMIT 3
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp, unmapped_message]; provide an explicit value
+
+@timestamp:date          | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+2024-10-23T13:52:55.015Z | Connection error?      | null
+;
+
+fillNullNullifyModeAllFieldsWithStringValue
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, event_duration, message, unmapped_message
+| FILLNULL "missing" ON *
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | event_duration:long | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | null
+;
+
+fillNullNullifyModeExplicitTargetOnNullTypedUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL "missing" ON unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+;
+
+fillNullNullifyModeExplicitTargetOnMappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| EVAL message = CASE(message == "Connected to 10.1.0.1!", null, message)
+| FILLNULL "missing" ON message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | Connection error?
+;
+
+fillNullLoadModeOnUnmappedKeywordField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL unmapped_message = CASE(message == "Connected to 10.1.0.1!", null, unmapped_message)
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL "missing" ON unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | missing
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeFillsExcludedSourceMappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| FILLNULL "missing" ON message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | missing
+2024-10-23T13:52:55.015Z | missing
+;
+
+fillNullLoadModeAllFieldsNoValue
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL @timestamp = CASE(message == "Connected to 10.1.0.1!", TO_DATETIME(null), @timestamp)
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL DEFAULT ON *
+| SORT @timestamp DESC NULLS FIRST
+| LIMIT 2
+;
+warning:Line 5:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [@timestamp]; provide an explicit value
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+null                     | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeChainedOnUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "Disconnected from 10.1.0.1"
+| KEEP @timestamp, unmapped_message
+| EVAL @timestamp = TO_DATETIME(null)
+| FILLNULL "first" ON unmapped_message
+| FILLNULL "second" ON unmapped_message
+| KEEP @timestamp, unmapped_message
+| LIMIT 1
+;
+
+@timestamp:date | unmapped_message:keyword
+null            | Disconnected from 10.1.0.1
+;
+
+fillNullLoadModeStatsByUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FILLNULL "missing" ON unmapped_message
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+1      | Disconnected from 10.1.0.2
+1      | Disconnected from 10.1.0.3
+3      | Disconnection error
+;
+
+fillNullThenRenameFilledField
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL "x" ON a
+| RENAME a AS c
+;
+
+b:integer | c:keyword
+1         | x
+;
+
+fillNullAllFieldsThenDropFilledField
+required_capability: fillnull
+
+ROW a = null, b = null, c = 3
+| EVAL a = a::keyword, b = b::keyword
+| FILLNULL "x" ON *
+| DROP b
+;
+
+c:integer | a:keyword
+3         | x
+;
+
+fillNullFilledFieldInScalarFunction
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL "hello" ON a
+| EVAL n = LENGTH(a)
+;
+
+a:keyword | n:integer
+hello     | 5
+;
+
+fillNullChainedOnSameFieldSecondIsNoOp
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL "first" ON a
+| FILLNULL "second" ON a
+;
+
+a:keyword
+first
+;
+
+fillNullAllFieldsMixedTypeDefaults
+required_capability: fillnull
+
+ROW i = null, l = null, d = null, k = null, b = null
+| EVAL i = i::integer, l = l::long, d = d::double, k = k::keyword, b = b::boolean
+| FILLNULL DEFAULT ON *
+;
+
+i:integer | l:long | d:double | k:keyword | b:boolean
+0         | 0      | 0.0      |           | false
+;
+
+fillNullDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL 0 ON network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+
+fillNullPlainDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL 0 ON network.bytes_in
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+fillNullDottedFieldNameAfterForkAndStats
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM datenanos-k8s
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| FILLNULL 0 ON network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+fillNullDottedFieldNameAfterForkAndStatsByRx
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM datenanos-k8s
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| EVAL `network.eth0.rx` = CASE(network.eth0.rx > 100, null, network.eth0.rx)
+| FILLNULL 0 ON network.eth0.rx
+| STATS c = COUNT(*) BY net = network.eth0.rx
+| SORT net ASC
+| LIMIT 10
+;
+
+c:long | net:integer
+185    | 0
+1      | 6
+1      | 23
+1      | 26
+1      | 42
+1      | 63
+2      | 66
+1      | 69
+1      | 70
+1      | 77
+;
+
+fillNullFromAppsFillsNullVersionWithString
+required_capability: fillnull
+
+FROM apps
+| WHERE version IS NULL
+| FILLNULL "1.2.3" ON version
+| KEEP id, name, version
+| SORT id
+;
+
+id:integer | name:keyword | version:version
+11         | kkkkk        | 1.2.3
+13         | lllll        | 1.2.3
+;
+
+fillNullFromHostsFillsNullIpWithString
+required_capability: fillnull
+
+FROM hosts
+| WHERE ip0 IS NULL
+| FILLNULL "1.2.3.4" ON ip0
+| KEEP host, card, ip0
+| SORT host
+;
+
+host:keyword | card:keyword | ip0:ip
+epsilon      | eth1         | 1.2.3.4
+;
+
+fillNullFromEmployeesTargetedUnfillableDateWarns
+required_capability: fillnull
+
+FROM employees
+| FILLNULL DEFAULT ON birth_date
+| STATS c = COUNT(*)
+;
+warning:Line 2:3: [FILLNULL] field [birth_date] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+
+c:long
+100
+;
+
+fillNullFromEmployeesTargetedUnfillableDateWarnsByBirthDate
+required_capability: fillnull
+
+FROM employees
+| FILLNULL DEFAULT ON birth_date
+| STATS c = COUNT(*) BY birth_date
+| SORT birth_date ASC NULLS FIRST
+| LIMIT 10
+;
+warning:Line 2:3: [FILLNULL] field [birth_date] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+
+c:long | birth_date:date
+10     | null
+1      | 1952-02-27T00:00:00.000Z
+1      | 1952-04-19T00:00:00.000Z
+1      | 1952-05-15T00:00:00.000Z
+1      | 1952-06-13T00:00:00.000Z
+1      | 1952-07-08T00:00:00.000Z
+1      | 1952-08-06T00:00:00.000Z
+1      | 1952-11-13T00:00:00.000Z
+1      | 1952-12-24T00:00:00.000Z
+1      | 1953-01-07T00:00:00.000Z
+;
+
+fillNullFromEmployeesAllFieldsUnfillableDatesWarnOnce
+required_capability: fillnull
+
+FROM employees
+| KEEP emp_no, birth_date, hire_date
+| FILLNULL DEFAULT ON *
+| STATS c = COUNT(*)
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [birth_date, hire_date]; provide an explicit value
+
+c:long
+100
+;
+
+fillNullFromEmployeesAllFieldsUnfillableDatesWarnOnceByBirthDate
+required_capability: fillnull
+
+FROM employees
+| KEEP emp_no, birth_date, hire_date
+| FILLNULL DEFAULT ON *
+| STATS c = COUNT(*) BY birth_date
+| SORT birth_date ASC NULLS FIRST
+| LIMIT 10
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [birth_date, hire_date]; provide an explicit value
+
+c:long | birth_date:date
+10     | null
+1      | 1952-02-27T00:00:00.000Z
+1      | 1952-04-19T00:00:00.000Z
+1      | 1952-05-15T00:00:00.000Z
+1      | 1952-06-13T00:00:00.000Z
+1      | 1952-07-08T00:00:00.000Z
+1      | 1952-08-06T00:00:00.000Z
+1      | 1952-11-13T00:00:00.000Z
+1      | 1952-12-24T00:00:00.000Z
+1      | 1953-01-07T00:00:00.000Z
+;
+
+fillNullFromVoyagerFillsNullBooleanWithString
+required_capability: fillnull
+
+FROM voyager
+| WHERE row_no == 6
+| FILLNULL "true" ON low_power_mode
+| KEEP row_no, low_power_mode
+;
+
+row_no:integer | low_power_mode:boolean
+6              | true
+;
+
+fillNullFromVoyagerAllFieldsStringDateFillsDateSkipsInteger
+required_capability: fillnull
+
+FROM voyager
+| WHERE row_no == 6
+| KEEP row_no, @timestamp, active_instruments
+| FILLNULL "2025-04-11T00:00:00.000Z" ON *
+;
+
+row_no:integer | @timestamp:date          | active_instruments:integer
+6              | 2025-04-11T00:00:00.000Z | null
+;
+
+fillNullAllFieldsUnfillableSummaryCapsFieldList
+required_capability: fillnull
+
+ROW d1 = null, d2 = null, d3 = null, d4 = null, d5 = null, d6 = null, d7 = null, d8 = null, d9 = null, d10 = null, d11 = null, d12 = null
+| EVAL d1 = d1::datetime, d2 = d2::datetime, d3 = d3::datetime, d4 = d4::datetime, d5 = d5::datetime, d6 = d6::datetime, d7 = d7::datetime, d8 = d8::datetime, d9 = d9::datetime, d10 = d10::datetime, d11 = d11::datetime, d12 = d12::datetime
+| FILLNULL DEFAULT ON *
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10]; provide an explicit value; only the first 10 of 12 fields are shown
+
+d1:datetime | d2:datetime | d3:datetime | d4:datetime | d5:datetime | d6:datetime | d7:datetime | d8:datetime | d9:datetime | d10:datetime | d11:datetime | d12:datetime
+null        | null        | null        | null        | null        | null        | null        | null        | null        | null         | null         | null
+;
+
+fillNullAllFieldsWithConstantFitsSomeSkipsOthersNoWarning
+required_capability: fillnull
+
+ROW d = null, i = null, a = null
+| EVAL d = d::datetime, i = i::integer, a = a::ip
+| FILLNULL "2025-04-11T00:00:00.000Z" ON *
+;
+
+d:datetime               | i:integer | a:ip
+2025-04-11T00:00:00.000Z | null      | null
+;
+
+fillNullMultipleTargetedCommandsWarnPerLocation
+required_capability: fillnull
+
+ROW d = null, a = null
+| EVAL d = d::datetime, a = a::ip
+| FILLNULL DEFAULT ON d
+| FILLNULL DEFAULT ON a
+;
+warning:Line 3:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+warning:Line 4:3: [FILLNULL] field [a] of type [ip] has no default fill value and was left unchanged; provide an explicit value
+
+d:datetime | a:ip
+null       | null
+;
+
+fillNullMixedAllFieldsAndTargetedCommandsWarnSeparately
+required_capability: fillnull
+
+ROW d = null, a = null, i = null
+| EVAL d = d::datetime, a = a::ip, i = i::integer
+| FILLNULL DEFAULT ON *
+| FILLNULL DEFAULT ON d
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [d, a]; provide an explicit value
+warning:Line 4:3: [FILLNULL] field [d] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+
+d:datetime | a:ip | i:integer
+null       | null | 0
+;
+
+fillNullThenMatchOnFilledKeywordField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| WHERE match(gender, "Unknown")
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+fillNullThenMatchOperatorOnFilledKeywordField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| FILLNULL "Unknown" ON gender
+| WHERE gender : "F"
+| STATS c = COUNT(*)
+;
+
+c:long
+33
+;
+
+fillNullThenMatchOnFilledFieldReturnsRows
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM employees
+| WHERE emp_no <= 10012
+| FILLNULL "Unknown" ON gender
+| WHERE match(gender, "Unknown")
+| KEEP emp_no, gender
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword
+10010          | Unknown
+10011          | Unknown
+10012          | Unknown
+;
+
+fillNullThenMatchOnFilledTextField
+required_capability: fillnull
+required_capability: fn_match_runtime_filter
+
+FROM books
+| WHERE book_no == "2130"
+| FILLNULL "" ON title
+| WHERE match(title, "The J. R. R. Tolkien Audio Collection")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:keyword
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
+fillNullWildcardPatternTarget
+required_capability: fillnull
+
+ROW aa = null, ab = null, b = 1
+| EVAL aa = aa::integer, ab = ab::integer
+| FILLNULL 0 ON a*
+;
+
+b:integer | aa:integer | ab:integer
+1         | 0          | 0
+;
+
+fillNullExplicitDefaultKeyword
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL DEFAULT ON a
+;
+
+b:integer | a:integer
+1         | 0
+;
+
+fillNullExplicitNullKeyword
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL NULL ON a
+;
+
+a:keyword
+null
+;
+
+fillNullDuplicateTargetDedup
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL "x" ON a, a
+;
+
+b:integer | a:keyword
+1         | x
+;
+
+fillNullOverlappingPatternAndNameDedup
+required_capability: fillnull
+
+ROW aa = null, ab = null, ac = 1
+| EVAL aa = aa::integer, ab = ab::integer
+| FILLNULL 0 ON a*, aa
+;
+
+ac:integer | aa:integer | ab:integer
+1          | 0          | 0
+;
+
+fillNullStarMixedWithNameFillsAllColumns
+required_capability: fillnull
+
+// `*` co-listed with a name is still the all-columns (lenient) form: every column is filled, the co-listed `a` is redundant.
+ROW a = null, b = null, c = 1
+| EVAL a = a::integer, b = b::integer
+| FILLNULL 0 ON *, a
+;
+
+c:integer | a:integer | b:integer
+1         | 0         | 0
+;
+
+fillNullStarMixedWithPatternFillsAllColumns
+required_capability: fillnull
+
+// `*` co-listed with a wildcard pattern is still the all-columns (lenient) form.
+ROW aa = null, ab = null, c = 1
+| EVAL aa = aa::integer, ab = ab::integer
+| FILLNULL 0 ON *, a*
+;
+
+c:integer | aa:integer | ab:integer
+1         | 0          | 0
+;
+
+fillNullWildcardTargetThenRenameThenKeepWildcard
+required_capability: fillnull
+
+// FILLNULL fills the `*_name` columns (first_name, last_name); after RENAME first_name AS name, KEEP *_name keeps only
+// last_name - the renamed `name` no longer matches the wildcard. SORT/LIMIT just make the output deterministic and short.
+FROM employees
+| FILLNULL "x" ON *_name
+| RENAME first_name AS name
+| KEEP *_name
+| SORT last_name
+| LIMIT 5
+;
+
+last_name:keyword
+Awdeh
+Azuma
+Baek
+Bamford
+Bernatsky
+;
+
+fillNullWildcardTargetThenRenameCastThenKeepWildcard
+required_capability: fillnull
+
+// Like the previous test, but the renamed `name` is re-EVAL'd (moving it to the end) and KEEP *name* now matches both
+// `last_name` and `name`. Uses ::keyword because ES|QL has no ToText converter yet (::text throws at parse time).
+FROM employees
+| FILLNULL "x" ON *_name
+| RENAME first_name AS name
+| EVAL name = name::keyword
+| KEEP *name*
+| SORT last_name
+| LIMIT 5
+;
+
+last_name:keyword | name:keyword
+Awdeh             | Satosi
+Azuma             | Mona
+Baek              | Premal
+Bamford           | Parto
+Bernatsky         | Mokhtar
+;

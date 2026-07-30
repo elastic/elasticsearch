@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -82,6 +84,12 @@ import java.util.TreeSet;
  *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it
  *       to the multi-value {@code keyword} that {@code MV_EXPAND} can split into rows &mdash; and
  *       then leaves scope.</li>
+ *   <li>{@code FILLNULL <value> ON <field>...} accepts only bare attributes / wildcard patterns in its
+ *       target slot and would see a flattened field as a single wrapper object, so each in-scope target
+ *       (named or matched by a wildcard pattern such as {@code latency_*}) is hoisted into an
+ *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it to
+ *       {@code keyword} so {@code FILLNULL} fills and emits {@code keyword} &mdash; and then leaves scope.
+ *       The all-fields form ({@code ON *}) references no specific field and is left to tail-end recovery.</li>
  *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
  *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
  *       wrapped.</li>
@@ -494,6 +502,9 @@ public final class AstKeywordFieldRewriter {
             if (node instanceof MvExpand mvExpand) {
                 return processMvExpand(mvExpand, scope);
             }
+            if (node instanceof FillNull fillNull) {
+                return processFillNull(fillNull, scope);
+            }
             if (node instanceof Enrich enrich) {
                 recordSkips(enrich.expressions(), scope, SkipSite.ENRICH_BODY);
                 return removeAll(scope, namedExpressionNames(enrich.enrichFields()));
@@ -562,6 +573,34 @@ public final class AstKeywordFieldRewriter {
                 return removeAll(scope, hoist);
             }
             return scope;
+        }
+
+        /**
+         * The {@code FILLNULL <value> ON <field>...} target slot accepts only a bare attribute or wildcard,
+         * so the default {@code field_extract(...)} wrapping would produce an unparseable target. Mirroring
+         * {@link #processMvExpand}, each in-scope target (explicit name or wildcard match) is instead hoisted
+         * into an {@code EVAL <field> = field_extract(<field>, "v")} before the command and dropped from scope.
+         * The all-fields form ({@code ON *}) targets nothing specific and is left to end-of-pipeline recovery.
+         */
+        private Set<String> processFillNull(FillNull fillNull, Set<String> scope) {
+            Set<String> hoist = new HashSet<>();
+            for (var target : fillNull.targetFields()) {
+                if (target instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
+                    hoist.add(attr.name());
+                } else if (target instanceof UnresolvedNamePattern pattern) {
+                    // Wildcard target: hoist every in-scope flattened-keyword field it matches, like an explicit name.
+                    for (String name : scope) {
+                        if (pattern.match(name)) {
+                            hoist.add(name);
+                        }
+                    }
+                }
+            }
+            if (hoist.isEmpty()) {
+                return scope;
+            }
+            hoistBeforeCommand(fillNull.source(), hoist);
+            return removeAll(scope, hoist);
         }
 
         /**

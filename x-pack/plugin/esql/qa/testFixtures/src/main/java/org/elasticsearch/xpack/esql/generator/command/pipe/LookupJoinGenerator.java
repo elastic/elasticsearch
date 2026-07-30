@@ -80,7 +80,7 @@ public class LookupJoinGenerator implements CommandGenerator {
             if (EsqlQueryGenerator.needsQuoting(joinName)) {
                 joinName = EsqlQueryGenerator.quote(joinName);
             }
-            stringBuilder.append("| rename ");
+            stringBuilder.append(" | rename ");
             stringBuilder.append(keyName);
             stringBuilder.append(" as ");
             stringBuilder.append(joinName);

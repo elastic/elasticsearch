@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -471,6 +472,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) {
+        var source = source(ctx);
+        EsqlBaseParser.FillnullValueContext valueCtx = ctx.fillnullValue();
+        final Expression fillValue;
+        // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
+        if (valueCtx.DEFAULT() != null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+        }
+
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> patterns = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar) {
+                hasSeenStar.set(Boolean.TRUE);
+            }
+        });
+        // `ON *` (or `*` co-listed with names/patterns) is the lenient all-columns form, represented as an empty list;
+        // explicit names/patterns are strict and kept for resolution.
+        List<NamedExpression> targetFields = hasSeenStar.get() ? List.of() : patterns;
+        return input -> new FillNull(source, input, fillValue, targetFields);
     }
 
     @Override

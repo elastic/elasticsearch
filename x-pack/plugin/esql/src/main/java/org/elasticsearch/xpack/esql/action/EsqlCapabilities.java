@@ -3580,6 +3580,11 @@ public class EsqlCapabilities {
          */
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
+        /**
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
+         */
+        FILLNULL(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

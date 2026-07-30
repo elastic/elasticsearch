@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -112,6 +113,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -575,7 +577,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -586,7 +588,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         var countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -598,7 +600,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1816,33 +1818,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -2130,7 +2132,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2150,7 +2152,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2170,7 +2172,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2188,7 +2190,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2206,7 +2208,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2267,14 +2269,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("2024-01-01"))
-        );
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("3 days"))
-        );
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo(toBytesRef("2024-01-01")));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo(toBytesRef("3 days")));
     }
 
     public void testParamForIdentifier() {
@@ -2782,7 +2778,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2845,7 +2841,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -3027,7 +3023,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -3054,7 +3050,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var concat = (UnresolvedFunction) match.field();
         assertThat(concat.name(), equalTo("CONCAT"));
         assertThat(concat.children().size(), equalTo(3));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("Anneke Preusig")));
     }
 
     public void testMatchOperatorWithNestedFunctionLhs() {
@@ -3074,7 +3070,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -3084,7 +3080,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testFailingMetadataWithSquareBrackets() {
@@ -3702,6 +3698,165 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testFillNullAllFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullWithValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 0 ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNotNull(fillNull.fillValue());
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullNamedFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON a, b");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("b")));
+    }
+
+    public void testFillNullWithValueAndFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull \"N/A\" ON status, category");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(toBytesRef("N/A"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
+    }
+
+    public void testFillNullWithNullValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull null ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertNull(lit.value());
+        assertEquals(DataType.NULL, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithDecimalValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 1.5 ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(1.5, lit.value());
+        assertEquals(DataType.DOUBLE, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithBooleanValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (boolean expected : new boolean[] { true, false }) {
+            LogicalPlan plan = processingCommand("fillnull " + expected + " ON a");
+            assertEquals(FillNull.class, plan.getClass());
+            FillNull fillNull = (FillNull) plan;
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            Literal lit = (Literal) fillNull.fillValue();
+            assertEquals(expected, lit.value());
+            assertEquals(DataType.BOOLEAN, lit.dataType());
+            assertEquals(1, fillNull.targetFields().size());
+            assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        }
+    }
+
+    public void testFillNullWithPositionalParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ? ON a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(toBytesRef("missing"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNamedParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fill", 42))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(42, lit.value());
+        assertEquals(DataType.INTEGER, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullExplicitDefaultKeyword() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull DEFAULT ON a"), FillNull.class);
+        assertNull(fillNull.fillValue());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWildcardPatternTarget() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull 0 ON a*"), FillNull.class);
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), instanceOf(UnresolvedNamePattern.class));
+    }
+
+    public void testFillNullStarMixedWithNamesIsAllColumns() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `*` co-listed with names/patterns is still the all-columns form (empty targetFields), regardless of position.
+        for (String targets : new String[] { "*, first_name", "first_name, *", "*, a*", "a, *, b*" }) {
+            FillNull fillNull = as(processingCommand("fillnull 0 ON " + targets), FillNull.class);
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            assertTrue("expected all-columns form (empty targetFields) for [" + targets + "]", fillNull.targetFields().isEmpty());
+        }
+        // The same all-columns collapse applies to the DEFAULT value form (null fill value).
+        FillNull withDefault = as(processingCommand("fillnull DEFAULT ON *, first_name"), FillNull.class);
+        assertNull(withDefault.fillValue());
+        assertTrue(withDefault.targetFields().isEmpty());
+    }
+
+    public void testFillNullMissingOnFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0 a"));
+    }
+
+    public void testFillNullMissingValueFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull ON a"));
+    }
+
+    public void testFillNullMissingFieldsFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0"));
+    }
+
+    public void testFillNullNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3725,7 +3880,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -3739,7 +3894,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("b"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bar")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bar")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -3748,7 +3903,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("c"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bat")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bat")));
 
         // fourth subplan
         eval = as(subPlans.get(3), Eval.class);
@@ -3871,6 +4026,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """;
         plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
+    }
+
+    public void testForkWithBareFillNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL 0 ON *) (FILLNULL DEFAULT ON a) | KEEP a"), instanceOf(Keep.class));
+    }
+
+    public void testForkBareArgumentRequiringCommandBeforeRp() {
+        expectError("FROM foo* | FORK (MV_EXPAND) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (LIMIT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (KEEP) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (SORT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (DROP) (WHERE true) | KEEP a", "input ')'");
+    }
+
+    public void testUnknownCommandAdjacentToParen() {
+        expectError("FROM foo* | foobar(x)", "mismatched input 'foobar'");
     }
 
     public void testInvalidFork() {
@@ -4603,7 +4777,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = query("from test | enrich \"" + indexName + "\"");
         Enrich enrich = as(plan, Enrich.class);
-        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(toBytesRef(indexName)));
         as(enrich.child(), UnresolvedRelation.class);
 
         if (indexName.contains("*")) {

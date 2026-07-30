@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
@@ -228,7 +229,6 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -245,7 +245,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
@@ -1118,6 +1117,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
+                case FillNull f -> resolveFillNull(f, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -1938,6 +1938,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
+            FillNull result = fillNull;
+            // An empty target list is the `ON *` (all-columns) form and needs no resolution. Otherwise resolve the
+            // explicit names and KEEP-style wildcard patterns against the child output, de-duplicating overlapping
+            // targets (by NameId, via the LinkedHashSet); a name or pattern that matches nothing stays unresolved so
+            // the Verifier reports it.
+            if (fillNull.targetFields().isEmpty() == false) {
+                LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
+                for (NamedExpression target : fillNull.targetFields()) {
+                    if (target instanceof UnresolvedAttribute ua && ua.customMessage()) {
+                        // A name / pattern that already failed to resolve on an earlier pass carries a custom "no match"
+                        // message. Re-resolving it would return an empty list (see potentialCandidatesIfNoMatchesFound),
+                        // which would silently drop the target and collapse to the all-columns form. Keep it instead so
+                        // the Verifier reports it. This also covers UnresolvedPattern (a subtype of UnresolvedAttribute).
+                        resolved.add(ua);
+                    } else if (target instanceof UnresolvedNamePattern up) {
+                        resolved.addAll(resolveAgainstList(up, childrenOutput));
+                    } else if (target instanceof UnresolvedAttribute ua) {
+                        resolved.addAll(resolveAgainstList(ua, childrenOutput));
+                    } else {
+                        resolved.add(target);
+                    }
+                }
+                result = fillNull.withTargetFields(new ArrayList<>(resolved));
+            }
+            // Materialize the fill aliases as NodeInfo state once inputs resolve, in the same post-order ResolveRefs
+            // pass that builds the output so downstream consumers see the filled schema. See FillNull#materialize.
+            if (result.inputsResolved() && result.expressionsResolved() == false) {
+                result = result.materialize(childrenOutput, context.configuration());
+            }
+            return result;
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
@@ -2939,7 +2972,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
+            return EsqlDataTypeConverter.isStringImplicitlyCastableTo(type);
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {

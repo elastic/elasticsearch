@@ -68,6 +68,7 @@ setup:
             - esql_limit_by
             - dedup_command
             - highlight_v6
+            - fillnull
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -109,6 +110,7 @@ setup:
   - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
@@ -162,6 +164,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -220,6 +223,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -261,6 +265,19 @@ setup:
 
   - do: { xpack.usage: { } }
   - gt: { esql.features.dedup: $dedup_counter }
+
+  - set: { esql.features.fillnull: fillnull_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | fillnull "n/a" ON *
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.fillnull: $fillnull_counter }
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -311,6 +328,7 @@ setup:
   - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
@@ -364,6 +382,7 @@ setup:
   - match: { esql.features.ts: $ts_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -420,6 +439,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.fillnull: $fillnull_counter }
   - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }

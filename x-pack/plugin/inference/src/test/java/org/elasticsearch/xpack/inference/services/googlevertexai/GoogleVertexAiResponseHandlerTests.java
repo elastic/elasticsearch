@@ -26,12 +26,8 @@ import static org.mockito.Mockito.when;
 
 public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
 
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor500_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor500_ShouldRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -40,8 +36,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor503_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor503_ShouldRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -52,8 +48,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor505_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(505, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor505_ShouldNotRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(505, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -62,8 +58,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor429_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor429_ShouldRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -72,8 +68,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor404_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(404, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor404_ShouldNotRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(404, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -82,8 +78,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.NOT_FOUND));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor403_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(403, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor403_ShouldNotRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(403, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -92,8 +88,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor300_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor300_ShouldNotRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -102,8 +98,8 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor425_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(425, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor425_ShouldNotRetry() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(425, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -112,7 +108,7 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, String modelId) {
+    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -127,6 +123,6 @@ public class GoogleVertexAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new GoogleVertexAiResponseHandler("", (request, result) -> null);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        handler.handleFailureStatusCode(mockRequest, httpResult);
     }
 }

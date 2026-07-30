@@ -224,8 +224,7 @@ public class AnalyzerContext {
                 .filter(Metadata.TaggedProjectCustom.class::isInstance)
                 .map(Metadata.TaggedProjectCustom.class::cast)
                 .forEach(x -> {
-                    Set<String> tagNames = x.tags().tags().keySet();
-                    for (String tagName : tagNames) {
+                    for (String tagName : x.allowedTagsNames()) {
                         result.add(x.tagPrefix() + tagName);
                     }
                 });

@@ -37,6 +37,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -92,7 +93,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnByteSlicedVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
@@ -100,9 +104,12 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteSlicedVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.PostFilterableKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -309,6 +316,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         private final boolean indexDisabledByDefault;
+        private final float postFilterSelectivityThreshold;
 
         public Builder(
             String name,
@@ -319,11 +327,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
             List<VectorsFormatProvider> vectorsFormatProviders,
             boolean indexDisabledByDefault
         ) {
+            this(
+                name,
+                indexVersionCreated,
+                indexMode,
+                isExcludeSourceVectors,
+                experimentalFeaturesEnabled,
+                vectorsFormatProviders,
+                indexDisabledByDefault,
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            );
+        }
+
+        public Builder(
+            String name,
+            IndexVersion indexVersionCreated,
+            IndexMode indexMode,
+            boolean isExcludeSourceVectors,
+            boolean experimentalFeaturesEnabled,
+            List<VectorsFormatProvider> vectorsFormatProviders,
+            boolean indexDisabledByDefault,
+            float postFilterSelectivityThreshold
+        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.indexMode = indexMode == null ? IndexMode.STANDARD : indexMode;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
+            this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
             final ElementType defaultElementType = this.indexMode == IndexMode.VECTORDB_DOCUMENT ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
@@ -574,7 +605,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.getValue(),
                     indexOptions.getValue(),
                     meta.getValue(),
-                    context.isSourceSynthetic()
+                    context.isSourceSynthetic(),
+                    postFilterSelectivityThreshold
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
@@ -2181,7 +2213,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public boolean supportsElementType(ElementType elementType) {
-                return elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+                return elementType == ElementType.FLOAT
+                    || elementType == ElementType.BFLOAT16
+                    || (elementType == ElementType.BYTE && Build.current().isSnapshot());
             }
 
             @Override
@@ -3113,7 +3147,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
             c.getVectorsFormatProviders(),
-            c.getIndexSettings().isIndexDisabledByDefault()
+            c.getIndexSettings().isIndexDisabledByDefault(),
+            c.getIndexSettings().getPostFilterSelectivityThreshold()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -3126,6 +3161,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
         private final boolean isSyntheticSource;
+        // The post-filter selectivity threshold is an index-scoped setting, so it is captured here at mapping
+        // time rather than threaded in per query. If it is ever promoted to a Search API parameter it should
+        // instead be passed through createKnnQuery so it can vary per request.
+        private final float postFilterSelectivityThreshold;
 
         public DenseVectorFieldType(
             String name,
@@ -3138,6 +3177,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
+            this(
+                name,
+                indexVersionCreated,
+                elementType,
+                dims,
+                indexed,
+                similarity,
+                indexOptions,
+                meta,
+                isSyntheticSource,
+                PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            );
+        }
+
+        public DenseVectorFieldType(
+            String name,
+            IndexVersion indexVersionCreated,
+            ElementType elementType,
+            Integer dims,
+            boolean indexed,
+            VectorSimilarity similarity,
+            DenseVectorIndexOptions indexOptions,
+            Map<String, String> meta,
+            boolean isSyntheticSource,
+            float postFilterSelectivityThreshold
+        ) {
             super(name, indexed ? IndexType.vectors() : IndexType.docValuesOnly(), false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
@@ -3146,6 +3211,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
             this.isSyntheticSource = isSyntheticSource;
+            this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
         }
 
         public VectorSimilarity similarity() {
@@ -3444,11 +3510,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     vector,
                     k,
                     numCands,
+                    visitPercentage,
+                    oversample,
                     filter,
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    sliceEnabled,
+                    sliceRouting
                 );
             };
         }
@@ -3478,6 +3548,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination
         ) {
+            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
@@ -3488,14 +3559,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(
                         name(),
                         queryVector,
-                        filter,
+                        cachedFilter,
                         k,
                         numCands,
                         parentFilter,
                         searchStrategy,
                         hnswEarlyTermination
                     )
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
+            }
+            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3511,29 +3585,113 @@ public class DenseVectorFieldMapper extends FieldMapper {
             byte[] queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
+            Float queryOversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            boolean sliceEnabled,
+            @Nullable String sliceRouting
         ) {
+            int adjustedK = k;
+            // By default utilize the quantized oversample if configured
+            // allow the user provided at query time overwrite
+            Float oversample = queryOversample;
+            if (oversample == null
+                && indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
+                && quantizedIndexOptions.rescoreVector != null) {
+                oversample = quantizedIndexOptions.rescoreVector.oversample;
+            }
+            boolean rescore = needsRescore(oversample);
+            if (rescore) {
+                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                numCands = Math.max(adjustedK, numCands);
+            }
+            // Pre-filter consumers eagerly materialize the filter into a bitset, so we
+            // force the cache wrapper. PostFilterKnnQuery gets the raw filter because it evaluates the
+            // filter against a small candidate set per query and would otherwise pay an unnecessary cache build.
+            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 Query exactKnnQuery = DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
+            } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
+                float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                if (bbqIndexOptions.autoCalibrate) {
+                    rescore = false;
+                }
+                float mappingOversample = bbqIndexOptions.rescoreVector != null
+                    ? bbqIndexOptions.rescoreVector.oversample
+                    : DEFAULT_OVERSAMPLE;
+                var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.doPrecondition,
+                    bbqIndexOptions.bits,
+                    mappingOversample,
+                    queryOversample
+                );
+                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
+                if (sliceIds != null) {
+                    knnQuery = parentFilter != null
+                        ? new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            k,
+                            numCands,
+                            cachedFilter,
+                            parentFilter,
+                            visitRatio,
+                            ivfQueryConfigResolver,
+                            RoutingFieldMapper.NAME,
+                            sliceIds
+                        )
+                        : new IVFKnnByteSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            k,
+                            numCands,
+                            cachedFilter,
+                            visitRatio,
+                            ivfQueryConfigResolver,
+                            RoutingFieldMapper.NAME,
+                            sliceIds
+                        );
+                } else {
+                    knnQuery = parentFilter != null
+                        ? new DiversifyingChildrenIVFKnnByteVectorQuery(
+                            name(),
+                            queryVector,
+                            k,
+                            numCands,
+                            cachedFilter,
+                            parentFilter,
+                            visitRatio,
+                            ivfQueryConfigResolver
+                        )
+                        : new IVFKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, visitRatio, ivfQueryConfigResolver);
+                }
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(
                         name(),
                         queryVector,
-                        filter,
+                        cachedFilter,
                         k,
                         numCands,
                         parentFilter,
                         searchStrategy,
                         hnswEarlyTermination
                     )
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
+            }
+            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
+            }
+            if (rescore) {
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3574,6 +3732,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
+            Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 Query exactKnnQuery = DenseVectorQuery.Floats.codecScored(queryVector, name()).filteredBy(filter);
@@ -3603,7 +3762,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             queryVector,
                             k,
                             numCands,
-                            filter,
+                            cachedFilter,
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
@@ -3615,7 +3774,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             queryVector,
                             k,
                             numCands,
-                            filter,
+                            cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
@@ -3628,25 +3787,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             queryVector,
                             k,
                             numCands,
-                            filter,
+                            cachedFilter,
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver
                         )
-                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, filter, visitRatio, ivfQueryConfigResolver);
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, cachedFilter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(
                         name(),
                         queryVector,
-                        filter,
+                        cachedFilter,
                         adjustedK,
                         numCands,
                         parentFilter,
-                        knnSearchStrategy
+                        knnSearchStrategy,
+                        hnswEarlyTermination
                     )
-                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
+                    : new ESKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        cachedFilter,
+                        knnSearchStrategy,
+                        hnswEarlyTermination
+                    );
+            }
+            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
@@ -3996,7 +4167,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             excludeSourceVectorsSetting,
             experimentalFeaturesEnabled,
             extraVectorsFormatProviders,
-            indexDisabledByDefault
+            indexDisabledByDefault,
+            fieldType().postFilterSelectivityThreshold
         ).init(this);
     }
 

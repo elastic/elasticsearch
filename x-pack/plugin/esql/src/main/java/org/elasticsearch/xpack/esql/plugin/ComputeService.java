@@ -181,6 +181,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
@@ -221,6 +222,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
@@ -255,6 +257,10 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    RemoteFetchService remoteFetchService() {
+        return remoteFetchService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -746,7 +752,8 @@ public class ComputeService {
             configuration,
             foldContext,
             mainExchangeSource::createExchangeSource,
-            null
+            null,
+            false
         );
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
@@ -990,7 +997,8 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 null,
-                exchangeSinkSupplier
+                exchangeSinkSupplier,
+                false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
@@ -1108,7 +1116,8 @@ public class ComputeService {
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
-                            exchangeSinkSupplier
+                            exchangeSinkSupplier,
+                            false
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1252,7 +1261,8 @@ public class ComputeService {
                     configuration,
                     foldContext,
                     exchangeSource::createExchangeSource,
-                    exchangeSinkSupplier
+                    exchangeSinkSupplier,
+                    false
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1375,7 +1385,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
+        var shardContexts = context.searchContexts()
+            .map(csc -> context.retainSearchContexts() ? csc.newDetachedShardContext() : csc.shardContext(singleValueQueryWarnings));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1420,9 +1431,6 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
-
-            List<SearchExecutionContext> localContexts = new ArrayList<>();
-            context.searchExecutionContexts().iterable().forEach(localContexts::add);
             boolean hasExternalSource = plan.anyMatch(
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
@@ -1430,6 +1438,8 @@ public class ComputeService {
             PhysicalPlan localPlan;
             final String logicalPlanString;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                List<SearchExecutionContext> localContexts = new ArrayList<>();
+                context.searchExecutionContexts().iterable().forEach(localContexts::add);
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,

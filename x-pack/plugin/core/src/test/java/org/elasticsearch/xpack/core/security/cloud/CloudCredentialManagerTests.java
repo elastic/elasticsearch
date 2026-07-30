@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.util.function.BiConsumer;
 
@@ -27,9 +28,8 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
     private CloudCredentialManager manager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initManager() {
         manager = new CloudCredentialManager.Noop();
     }
 

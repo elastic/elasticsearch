@@ -14,6 +14,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -77,6 +78,7 @@ public class TRange extends EsqlConfigurationFunction
     implements
         OptionalArgument,
         OnlySurrogateExpression,
+        AnyNullIsNull,
         PostAnalysisPlanVerificationAware,
         TimestampAware {
     public static final String NAME = "TRange";

@@ -77,6 +77,10 @@ public final class SharedBlobCacheServiceTestUtils {
         return cacheService.countCachedRegionsByFreq(predicate, includeEvicted);
     }
 
+    public static <K extends SharedBlobCacheService.KeyBase> EvictionPolicy<K> getEvictionPolicy(SharedBlobCacheService<K> cacheService) {
+        return cacheService.getEvictionPolicy();
+    }
+
     public static <K extends SharedBlobCacheService.KeyBase> boolean maybeEvictLeastUsed(
         SharedBlobCacheService<K> cacheService,
         K cacheKey,

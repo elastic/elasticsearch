@@ -3450,7 +3450,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V5(Build.current().isSnapshot()),
+        HIGHLIGHT_V6(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3575,6 +3575,13 @@ public class EsqlCapabilities {
          * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
          */
         FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
+
+        /**
+         * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an
+         * {@code IS NOT NULL} predicate through null-propagating expressions (an allow-list).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>
+         */
+        FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

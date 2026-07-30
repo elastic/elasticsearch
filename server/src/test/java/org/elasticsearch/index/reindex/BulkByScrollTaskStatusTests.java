@@ -76,13 +76,17 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
             if (sliceStatus == null) {
                 assertNull(actual.getSliceStatuses().get(i));
-            } else if (sliceStatus.getException() == null) {
-                assertNull(actual.getSliceStatuses().get(i).getException());
-                assertTaskStatusEquals(sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
             } else {
-                assertNull(actual.getSliceStatuses().get(i).getStatus());
-                // Just check the message because we're not testing exception serialization in general here.
-                assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
+                BulkByScrollTask.StatusOrException actualSliceStatus = actual.getSliceStatuses().get(i);
+                assertNotNull(actualSliceStatus);
+                if (sliceStatus.getException() == null) {
+                    assertNull(actualSliceStatus.getException());
+                    assertTaskStatusEquals(sliceStatus.getStatus(), actualSliceStatus.getStatus());
+                } else {
+                    assertNull(actualSliceStatus.getStatus());
+                    // Just check the message because we're not testing exception serialization in general here.
+                    assertEquals(sliceStatus.getException().getMessage(), actualSliceStatus.getException().getMessage());
+                }
             }
         }
     }

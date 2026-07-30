@@ -595,3 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
   method: test {csv-spec:knn-function.knnAfterChainedRename}
   issue: https://github.com/elastic/elasticsearch/issues/155518
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnAfterSimpleRename}
+  issue: https://github.com/elastic/elasticsearch/issues/155519

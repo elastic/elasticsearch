@@ -86,7 +86,7 @@ public class MlConfigMetricsTests extends ESTestCase {
     public void testComputeCountsShouldBucketMixedConfigs() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig> configs = List.of(
             datafeed("flat", null, null, null),
             datafeed("local", ProjectRoutingResolver.LOCAL_ONLY, null, null),
@@ -129,7 +129,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         mockMasterClusterState();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig.Builder> builders = List.of(
             datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null),
             datafeedBuilder("legacy", null, null, Map.of("Authorization", "ApiKey abc"))
@@ -172,7 +172,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         stubExpandDatafeedConfigs(List.of(datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null)));
 
         MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
@@ -192,7 +192,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig.Builder> builders = List.of(datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null));
 
         // Simulate the response arriving after this node lost mastership mid-flight: flip the

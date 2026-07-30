@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.encryption;
+package org.elasticsearch.xpack.encryption.spi;
 
 import org.elasticsearch.ElasticsearchException;
 
@@ -31,9 +31,9 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 public final class AesGcm {
 
-    static final int IV_LENGTH_BYTES = 12;
-    static final int GCM_TAG_LENGTH_BITS = 128;
-    static final int OVERHEAD_BYTES = 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
+    public static final int IV_LENGTH_BYTES = 12;
+    public static final int GCM_TAG_LENGTH_BITS = 128;
+    public static final int OVERHEAD_BYTES = 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
 
     private static final byte SERIALIZATION_FORMAT_VERSION = 1;
     private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";

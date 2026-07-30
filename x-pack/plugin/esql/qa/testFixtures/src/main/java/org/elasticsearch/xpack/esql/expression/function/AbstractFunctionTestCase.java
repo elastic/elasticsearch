@@ -679,19 +679,34 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 .or(endsWith("∅")) // Math
         );
 
+        Set<FunctionSignatures.ConcreteSignature> testedSignatures = concreteSignatures(signatures(testClass));
+        Set<FunctionSignatures.ConcreteSignature> declaredSignatures = FunctionSignatures.declaredSignatures(definition);
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new TreeSet<>();
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
-            List<DocsV3Support.Param> types = entry.argTypes();
-            int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
-            for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
+
+        if (declaredSignatures.isEmpty() == false) {
+            Set<FunctionSignatures.ConcreteSignature> filteredDeclared = filterUnderConstruction(declaredSignatures);
+            Set<FunctionSignatures.ConcreteSignature> filteredTested = filterUnderConstruction(testedSignatures);
+            assertSignaturesMatchTests(filteredDeclared, filteredTested);
+            for (FunctionSignatures.ConcreteSignature entry : filteredDeclared) {
+                collectPositionalTypes(args, entry.argTypes(), typesFromSignature);
+                if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
+                    returnFromSignature.add(entry.returnType().esNameIfPossible());
+                }
             }
-            if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
-                returnFromSignature.add(entry.returnType().esNameIfPossible());
+        } else {
+            for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
+                List<DocsV3Support.Param> types = entry.argTypes();
+                int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
+                for (int i = 0; i < args.size() && i < types.size(); i++) {
+                    typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
+                }
+                if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
+                    returnFromSignature.add(entry.returnType().esNameIfPossible());
+                }
             }
         }
 
@@ -784,7 +799,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 "Mismatch between actual and declared param type for ["
                     + arg.name()
                     + "]. "
-                    + "You probably need to update your @params annotations or add test cases to your test.",
+                    + (declaredSignatures.isEmpty()
+                        ? "You probably need to update your @params annotations or add test cases to your test."
+                        : "You probably need to update your @params annotations or @FunctionInfo.signatures."),
                 signatureTypes,
                 annotationTypes
             );
@@ -815,6 +832,161 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
+    }
+
+    private static Set<FunctionSignatures.ConcreteSignature> concreteSignatures(Set<DocsV3Support.TypeSignature> signatures) {
+        Set<FunctionSignatures.ConcreteSignature> result = new HashSet<>();
+        for (DocsV3Support.TypeSignature signature : signatures) {
+            result.add(toConcreteSignature(signature));
+        }
+        return result;
+    }
+
+    /**
+     * Return types are compared after {@link DataType#noText()} so {@code text} results
+     * (as in CASE test suppliers) match declared signatures that return {@code keyword}.
+     */
+    private static FunctionSignatures.ConcreteSignature toConcreteSignature(DocsV3Support.TypeSignature signature) {
+        return new FunctionSignatures.ConcreteSignature(
+            signature.argTypes().stream().map(DocsV3Support.Param::dataType).toList(),
+            signature.returnType().noText()
+        );
+    }
+
+    private static Set<FunctionSignatures.ConcreteSignature> filterUnderConstruction(Set<FunctionSignatures.ConcreteSignature> signatures) {
+        return signatures.stream()
+            .filter(
+                s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false
+                    && s.argTypes().stream().noneMatch(DataType.UNDER_CONSTRUCTION::contains)
+            )
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Asserts declared {@link FunctionInfo#signatures()} match test-derived signatures.
+     * On failure, lists concrete signatures missing from tests and any unexpected ones.
+     */
+    private static void assertSignaturesMatchTests(
+        Set<FunctionSignatures.ConcreteSignature> declared,
+        Set<FunctionSignatures.ConcreteSignature> tested
+    ) {
+        if (declared.equals(tested)) {
+            return;
+        }
+        Set<FunctionSignatures.ConcreteSignature> missing = new TreeSet<>(AbstractFunctionTestCase::compareSignatures);
+        missing.addAll(declared);
+        missing.removeAll(tested);
+        Set<FunctionSignatures.ConcreteSignature> unexpected = new TreeSet<>(AbstractFunctionTestCase::compareSignatures);
+        unexpected.addAll(tested);
+        unexpected.removeAll(declared);
+        StringBuilder message = new StringBuilder();
+        if (missing.isEmpty() == false) {
+            message.append("Signatures not covered by tests:");
+            for (FunctionSignatures.ConcreteSignature signature : missing) {
+                message.append("\n").append(formatSignature(signature));
+            }
+        }
+        if (unexpected.isEmpty() == false) {
+            if (message.isEmpty() == false) {
+                message.append('\n');
+            }
+            message.append("Test signatures not declared:");
+            for (FunctionSignatures.ConcreteSignature signature : unexpected) {
+                message.append("\n").append(formatSignature(signature));
+            }
+        }
+        fail(message.toString());
+    }
+
+    private static int compareSignatures(FunctionSignatures.ConcreteSignature a, FunctionSignatures.ConcreteSignature b) {
+        return formatSignature(a).compareTo(formatSignature(b));
+    }
+
+    private static String formatSignature(FunctionSignatures.ConcreteSignature signature) {
+        String args = signature.argTypes().stream().map(DataType::typeName).collect(Collectors.joining(", "));
+        return "(" + args + ") -> " + signature.returnType().typeName();
+    }
+
+    private static void collectPositionalTypes(
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        List<DataType> argTypes,
+        List<Set<String>> typesFromSignature
+    ) {
+        DocsV3Support.TypeSignature asDocs = new DocsV3Support.TypeSignature(
+            argTypes.stream().map(t -> new DocsV3Support.Param(t, List.of())).toList(),
+            DataType.NULL
+        );
+        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, asDocs);
+        for (int i = 0; i < args.size() && i < argTypes.size(); i++) {
+            typesFromSignature.get(initialProvidedParamIndex + i).add(argTypes.get(i).esNameIfPossible());
+        }
+    }
+
+    /**
+     * Signatures used for docs and Kibana JSON: declared {@link FunctionInfo#signatures()} when present
+     * (with {@code appliesTo}/{@code preview} merged from matching test cases), otherwise test-derived.
+     */
+    public static Set<DocsV3Support.TypeSignature> docsSignatures(Class<?> testClass) {
+        FunctionDefinition definition = definition(functionName(testClass));
+        if (definition == null) {
+            return signatures(testClass);
+        }
+        Set<FunctionSignatures.ConcreteSignature> declared = filterUnderConstruction(FunctionSignatures.declaredSignatures(definition));
+        if (declared.isEmpty()) {
+            return signatures(testClass);
+        }
+        Set<DocsV3Support.TypeSignature> tested = signatures(testClass).stream()
+            .filter(s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false)
+            .filter(s -> s.argTypes().stream().noneMatch(p -> DataType.UNDER_CONSTRUCTION.contains(p.dataType())))
+            .collect(Collectors.toSet());
+        Map<FunctionSignatures.ConcreteSignature, DocsV3Support.TypeSignature> testedByConcrete = tested.stream()
+            .collect(
+                Collectors.toMap(AbstractFunctionTestCase::toConcreteSignature, s -> s, AbstractFunctionTestCase::mergeTypeSignatures)
+            );
+        Set<DocsV3Support.TypeSignature> result = new HashSet<>();
+        for (FunctionSignatures.ConcreteSignature concrete : declared) {
+            DocsV3Support.TypeSignature fromTests = testedByConcrete.get(concrete);
+            if (fromTests != null) {
+                // Keep arg appliesTo/preview from tests; prefer declared return ($N / noText()).
+                result.add(new DocsV3Support.TypeSignature(fromTests.argTypes(), concrete.returnType()));
+            } else {
+                result.add(
+                    new DocsV3Support.TypeSignature(
+                        concrete.argTypes().stream().map(t -> new DocsV3Support.Param(t, List.of())).toList(),
+                        concrete.returnType()
+                    )
+                );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Merges lifecycle metadata when multiple test rows normalize to the same concrete signature.
+     */
+    private static DocsV3Support.TypeSignature mergeTypeSignatures(DocsV3Support.TypeSignature a, DocsV3Support.TypeSignature b) {
+        List<DocsV3Support.Param> mergedArgs = new ArrayList<>(a.argTypes().size());
+        for (int i = 0; i < a.argTypes().size(); i++) {
+            DocsV3Support.Param left = a.argTypes().get(i);
+            DocsV3Support.Param right = b.argTypes().get(i);
+            List<FunctionAppliesTo> appliesTo = new ArrayList<>(left.appliesTo() == null ? List.of() : left.appliesTo());
+            if (right.appliesTo() != null) {
+                for (FunctionAppliesTo next : right.appliesTo()) {
+                    if (appliesTo.contains(next) == false) {
+                        appliesTo.add(next);
+                    }
+                }
+            }
+            mergedArgs.add(new DocsV3Support.Param(left.dataType(), appliesTo, left.preview() || right.preview()));
+        }
+        return new DocsV3Support.TypeSignature(mergedArgs, a.returnType().noText());
+    }
+
+    private static String functionName(Class<?> testClass) {
+        if (testClass.isAnnotationPresent(FunctionName.class)) {
+            return testClass.getAnnotation(FunctionName.class).value();
+        }
+        return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -1051,13 +1223,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static String functionName() {
-        Class<?> testClass = getTestClass();
-        if (testClass.isAnnotationPresent(FunctionName.class)) {
-            FunctionName functionNameAnnotation = testClass.getAnnotation(FunctionName.class);
-            return functionNameAnnotation.value();
-        } else {
-            return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
-        }
+        return functionName(getTestClass());
     }
 
     static boolean functionRegistered(String name) {

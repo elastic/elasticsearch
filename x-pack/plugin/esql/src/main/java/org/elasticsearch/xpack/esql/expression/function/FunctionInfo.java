@@ -35,6 +35,17 @@ public @interface FunctionInfo {
     String[] returnType();
 
     /**
+     * Full type signatures (overloads) this function accepts.
+     * <p>
+     *     When non-empty, these are the source of truth for test coverage checks and
+     *     the Supported types / Kibana signature tables. When empty, signatures continue
+     *     to be derived from unit-test cases and validated against per-argument
+     *     {@link Param#type()} unions.
+     * </p>
+     */
+    Signature[] signatures() default {};
+
+    /**
      * Whether this function is a preview (Not ready for production environments) or not.
      */
     boolean preview() default false;

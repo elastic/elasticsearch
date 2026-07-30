@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 
 import java.io.IOException;
 import java.util.List;
@@ -59,6 +60,7 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction implements Any
 
     @FunctionInfo(
         returnType = "keyword",
+        signatures = { @Signature(params = { "GEO" }, returnType = "keyword") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         briefSummary = "Returns the geometry type of the supplied geometry as a string.",

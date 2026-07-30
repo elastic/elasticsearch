@@ -473,7 +473,7 @@ public final class DocumentParser {
                 context.path().add(currentFieldName);
             } else {
                 DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(context, fieldMapper);
-                ParseResult result = fieldMapper.parse(parseCtx);
+                FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
                 FallbackPostMapper.postParse(context, result, fieldMapper);
             }
             if (context.isWithinCopyTo() == false) {

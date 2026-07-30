@@ -457,7 +457,7 @@ public abstract class DocumentParserContext {
 
     /**
      * Returns and removes the pending multi-value violation stash for {@code fieldName}, or {@code null} if none.
-     * Called by {@link FieldMapper#parse} at its end to collect any violation into a {@link ParseResult.MultiValueViolation}.
+     * Called by {@link FieldMapper#parse} at its end to collect any violation into a {@link FieldMapper.ParseResult.MultiValueViolation}.
      */
     final BytesRef takePendingMultiValueViolation(String fieldName) {
         return pendingMultiValueViolations.remove(fieldName);

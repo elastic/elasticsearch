@@ -184,19 +184,19 @@ public final class FallbackPostMapper {
 
     /**
      * Commits or discards the pending pre-capture based on {@code result}, and routes
-     * {@link ParseResult.MultiValueViolation} to {@code ._on_failure}. Call after {@link FieldMapper#parse}.
+     * {@link FieldMapper.ParseResult.MultiValueViolation} to {@code ._on_failure}. Call after {@link FieldMapper#parse}.
      */
-    public static void postParse(DocumentParserContext context, ParseResult result, FieldMapper fieldMapper) throws IOException {
+    public static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper) throws IOException {
         String fieldPath = fieldMapper.fullPath();
         boolean precaptured = context.hasPendingPreCapture(fieldPath);
         switch (result) {
-            case ParseResult.MultiValueViolation mvv -> {
+            case FieldMapper.ParseResult.MultiValueViolation mvv -> {
                 if (precaptured) context.discardPendingPreCapture(fieldPath);
                 if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
                 }
             }
-            case ParseResult.Ignored() -> {
+            case FieldMapper.ParseResult.Ignored() -> {
                 if (precaptured) {
                     if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                         context.commitPendingPreCapture(fieldPath);
@@ -205,7 +205,7 @@ public final class FallbackPostMapper {
                     }
                 }
             }
-            case ParseResult.Indexed ignored -> {
+            case FieldMapper.ParseResult.Indexed ignored -> {
                 if (precaptured) context.commitPendingPreCapture(fieldPath);
             }
         }

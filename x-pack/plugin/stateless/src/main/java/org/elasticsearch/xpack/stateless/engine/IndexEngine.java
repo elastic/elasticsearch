@@ -990,9 +990,16 @@ public class IndexEngine extends InternalEngine {
      * Signal the abort before the IndexWriter rollback starts. Lucene 10 calls {@code abortMerges()}
      * before {@code mergeScheduler.close()}, so without this early signal the abort would only fire
      * after all running merges finish — defeating the purpose of the interrupt.
+     *
+     * <p>Running merges are also marked as aborted ({@link MergePolicy.OneMerge#setAborted()}) before
+     * the signal fires. Without this, a merge in the compound-file creation phase can receive
+     * {@link MergePolicy.MergeAbortedException} while {@code merge.isAborted()} is still {@code false},
+     * causing Lucene's {@code mergeMiddle()} to skip its abort guard and commit a segment with
+     * {@code useCompoundFile=true} but without the corresponding {@code .cfs} file.
      */
     @Override
     public void close() throws IOException {
+        getMergeScheduler().onGoingMerges().forEach(m -> m.getMerge().setAborted());
         signalAbortMergeReads();
         super.close();
     }

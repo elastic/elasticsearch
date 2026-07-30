@@ -8,10 +8,6 @@
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.completion.Content;
-import org.elasticsearch.inference.completion.ContentObject;
-import org.elasticsearch.inference.completion.ContentObjects;
-import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

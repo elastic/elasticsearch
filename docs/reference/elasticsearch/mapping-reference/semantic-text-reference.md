@@ -131,7 +131,7 @@ The following {{infer}} endpoint configurations are available:
 
 - [Default endpoints](./semantic-text-setup-configuration.md#default-endpoints): Use `semantic_text` without specifying an `inference_id`.
 
-- [Jina on EIS](./semantic-text-setup-configuration.md#using-jina-on-eis): Use Jina embedding models through Elastic {{infer-cap}} Service. 
+- [Jina on EIS (recommended)](./semantic-text-setup-configuration.md#using-jina-on-eis): Use Jina embedding models through Elastic {{infer-cap}} Service. 
 
 - [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through Elastic {{infer-cap}} Service.
 

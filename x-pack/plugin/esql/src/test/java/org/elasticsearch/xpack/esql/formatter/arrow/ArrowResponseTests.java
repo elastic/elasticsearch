@@ -263,7 +263,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
-        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
+        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
         Map.entry(DataType.BINARY, BINARY_VALUES)
     );
 
